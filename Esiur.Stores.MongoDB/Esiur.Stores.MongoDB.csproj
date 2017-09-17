@@ -2,6 +2,15 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard1.5</TargetFramework>
+    <Authors>Ahmed Kh. Zamil</Authors>
+    <Company>Esiur</Company>
+    <Product>Esiur MongoDB Store</Product>
+    <Description>MongoDB Store for Esiur Library</Description>
+    <Copyright>Ahmed Kh. Zamil</Copyright>
+    <PackageLicenseUrl>https://github.com/esiur/esiur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>

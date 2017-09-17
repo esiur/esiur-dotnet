@@ -8,8 +8,6 @@ namespace Esiur.Engine
 {
     public class AsyncBag<T>:AsyncReply
     {
-        //List<AsyncReply> replies = new List<AsyncReply>();
-        //List<T> results = new List<T>();
         Dictionary<AsyncReply, T> results = new Dictionary<AsyncReply, T>();
         int count = 0;
         bool sealedBag = false;
@@ -18,13 +16,6 @@ namespace Esiur.Engine
         {
             base.Then(new Action<object>(o => callback((T[])o)));
         }
-
-        /*
-        public void Trigger(T[] result)
-        {
-            Trigger((object)result);
-        }
-        */
 
         public void Seal()
         {
@@ -54,11 +45,5 @@ namespace Esiur.Engine
 
         }
 
-        /*
-        public AsyncBag(T[] result)
-        {
-            this.result = result;
-        }
-        */
     }
 }

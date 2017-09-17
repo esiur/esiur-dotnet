@@ -25,7 +25,7 @@ namespace Test
         {
             Info = new Structure();
             Info["size"] = 200;
-            Info["age"] = 30;
+            Info["age"] = 28;
             Info["name"] = "Zamil";
             Name = "Ahmed";
             Level = 5;
