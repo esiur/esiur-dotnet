@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,7 +51,7 @@ namespace Esiur.Net.Sockets
         Queue<byte[]> sendBufferQueue = new Queue<byte[]>();
 
         bool asyncSending;
-
+        bool began = false;
 
         SocketState state = SocketState.Initial;
 
@@ -36,6 +60,7 @@ namespace Esiur.Net.Sockets
         public event ISocketCloseEvent OnClose;
         public event DestroyedEvent OnDestroy;
 
+        SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
 
         private void Connected(Task t)
         {
@@ -46,7 +71,18 @@ namespace Esiur.Net.Sockets
 
         public bool Begin()
         {
-            sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
+            if (began)
+                return false;
+
+            began = true;
+
+            socketArgs.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
+            socketArgs.Completed += SocketArgs_Completed;
+
+            if (!sock.ReceiveAsync(socketArgs))
+                SocketArgs_Completed(null, socketArgs);
+
+            //sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
             return true;
         }
 
@@ -80,11 +116,21 @@ namespace Esiur.Net.Sockets
                     return;
                 }
 
+                //if (receiveNetworkBuffer.Protected)
+                  //  Console.WriteLine();
 
+                //lock (receiveNetworkBuffer.SyncLock)
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
+
+                //Console.WriteLine("TC IN: " + (uint)task.Result + " " + DC.ToHex(receiveBuffer, 0, (uint)task.Result));
+
                 OnReceive?.Invoke(receiveNetworkBuffer);
                 if (state == SocketState.Established)
+                {
                     sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
+                    
+                }
+
             }
             catch (Exception ex)
             {
@@ -98,6 +144,56 @@ namespace Esiur.Net.Sockets
             }
         }
 
+        private void SocketArgs_Completed(object sender, SocketAsyncEventArgs e)
+        {
+            try
+            {
+                // SocketError err;
+               
+                if (state == SocketState.Closed || state == SocketState.Terminated)
+                    return;
+
+                if (e.BytesTransferred == 0)
+                {
+                    Close();
+                    return;
+                }
+
+                //if (receiveNetworkBuffer.Protected)
+                //    Console.WriteLine();
+
+                
+                //lock (receiveNetworkBuffer.SyncLock)
+                receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)e.BytesTransferred);
+
+                //Console.WriteLine("TC IN: " + (uint)e.BytesTransferred + " " + DC.ToHex(receiveBuffer, 0, (uint)e.BytesTransferred));
+
+
+
+
+                OnReceive?.Invoke(receiveNetworkBuffer);
+
+                if (state == SocketState.Established)
+                {
+                    if (!sock.ReceiveAsync(socketArgs))
+                    {
+                        //Console.WriteLine("Sync");
+                        SocketArgs_Completed(sender, e);
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                if (state != SocketState.Closed && !sock.Connected)
+                {
+                    state = SocketState.Terminated;
+                    Close();
+                }
+
+                Global.Log("TCPSocket", LogType.Error, ex.ToString());
+            }
+        }
 
         public IPEndPoint LocalEndPoint
         {
@@ -234,18 +330,19 @@ namespace Esiur.Net.Sockets
 
         public void Send(byte[] message, int offset, int size)
         {
-            lock (sendLock)
-            {
-                if (asyncSending)
+            if (sock.Connected)
+                lock (sendLock)
                 {
-                    sendBufferQueue.Enqueue(message.Clip((uint)offset, (uint)size));
+                    if (asyncSending)
+                    {
+                        sendBufferQueue.Enqueue(message.Clip((uint)offset, (uint)size));
+                    }
+                    else
+                    {
+                        asyncSending = true;
+                        sock.SendAsync(new ArraySegment<byte>(message, offset, size), SocketFlags.None).ContinueWith(DataSent);
+                    }
                 }
-                else
-                {
-                    asyncSending = true;
-                    sock.SendAsync(new ArraySegment<byte>(message, offset, size), SocketFlags.None).ContinueWith(DataSent);
-                }
-            }
         }
 
 

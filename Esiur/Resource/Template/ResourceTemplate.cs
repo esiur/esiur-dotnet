@@ -155,12 +155,8 @@ namespace Esiur.Resource.Template
                 var ps = (ResourceProperty[])pi.GetCustomAttributes(typeof(ResourceProperty), true);
                 if (ps.Length > 0)
                 {
-                    var pt = new PropertyTemplate();
-                    pt.Name = pi.Name;
-                    pt.Index = i++;
-                    pt.ReadExpansion = ps[0].ReadExpansion;
-                    pt.WriteExpansion = ps[0].WriteExpansion;
-                    properties.Add(pt);
+                    var pt = new PropertyTemplate(this, i++, pi.Name, ps[0].ReadExpansion, ps[0].WriteExpansion, ps[0].Storage);
+                     properties.Add(pt);
                 }
             }
 
@@ -171,10 +167,7 @@ namespace Esiur.Resource.Template
                 var es = (ResourceEvent[])ei.GetCustomAttributes(typeof(ResourceEvent), true);
                 if (es.Length > 0)
                 {
-                    var et = new EventTemplate();
-                    et.Name = ei.Name;
-                    et.Index = i++;
-                    et.Expansion = es[0].Expansion;
+                    var et = new EventTemplate(this, i++, ei.Name, es[0].Expansion);
                     events.Add(et);
                 }
             }
@@ -185,11 +178,7 @@ namespace Esiur.Resource.Template
                 var fs = (ResourceFunction[])mi.GetCustomAttributes(typeof(ResourceFunction), true);
                 if (fs.Length > 0)
                 {
-                    var ft = new FunctionTemplate();
-                    ft.Name = mi.Name;
-                    ft.Index = i++;
-                    ft.IsVoid = mi.ReturnType == typeof(void);
-                    ft.Expansion = fs[0].Expansion;
+                    var ft = new FunctionTemplate(this, i++, mi.Name, mi.ReturnType == typeof(void), fs[0].Expansion);
                     functions.Add(ft);
                 }
             }
@@ -258,68 +247,75 @@ namespace Esiur.Resource.Template
 
                 if (type == 0) // function
                 {
-                    var ft = new FunctionTemplate();
-                    ft.Index = functionIndex++;
-                    var expansion = ((data[offset] & 0x10) == 0x10);
-                    ft.IsVoid = ((data[offset++] & 0x08) == 0x08);
-                    ft.Name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
+                    string expansion = null;
+                    var hasExpansion = ((data[offset] & 0x10) == 0x10);
+                    var isVoid = ((data[offset++] & 0x08) == 0x08);
+                    var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
                     offset += (uint)data[offset] + 1;
-
-                    if (expansion) // expansion ?
+                    
+                    if (hasExpansion) // expansion ?
                     {
                         var cs = data.GetUInt32(offset);
                         offset += 4;
-                        ft.Expansion = data.GetString(offset, cs);  
+                        expansion = data.GetString(offset, cs);  
                         offset += cs;
                     }
+
+                    var ft = new FunctionTemplate(od, functionIndex++, name, isVoid, expansion);
 
                     od.functions.Add(ft);
                 }
                 else if (type == 1)    // property
                 {
 
-                    var pt = new PropertyTemplate();
-                    pt.Index = propertyIndex++;
-                    var readExpansion = ((data[offset] & 0x8) == 0x8);
-                    var writeExpansion = ((data[offset] & 0x10) == 0x10);
-                    pt.Permission = (PropertyTemplate.PropertyPermission)((data[offset++] >> 1) & 0x3);
-                    pt.Name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
+                    string readExpansion = null, writeExpansion = null;
+
+                    var hasReadExpansion = ((data[offset] & 0x8) == 0x8);
+                    var hasWriteExpansion = ((data[offset] & 0x10) == 0x10);
+                    var recordable = ((data[offset] & 1) == 1);
+                    var permission = (PropertyTemplate.PropertyPermission)((data[offset++] >> 1) & 0x3);
+                    var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
+                    
                     offset += (uint)data[offset] + 1;
 
-                    if (readExpansion) // expansion ?
+                    if (hasReadExpansion) // expansion ?
                     {
                         var cs = data.GetUInt32(offset);
                         offset += 4;
-                        pt.ReadExpansion = data.GetString(offset, cs);
+                        readExpansion = data.GetString(offset, cs);
                         offset += cs;
                     }
 
-                    if (writeExpansion) // expansion ?
+                    if (hasWriteExpansion) // expansion ?
                     {
                         var cs = data.GetUInt32(offset);
                         offset += 4;
-                        pt.WriteExpansion = data.GetString(offset, cs);
+                        writeExpansion = data.GetString(offset, cs);
                         offset += cs;
                     }
+
+                    var pt = new PropertyTemplate(od, propertyIndex++, name, readExpansion, writeExpansion, recordable ? StorageMode.Recordable : StorageMode.Volatile);
 
                     od.properties.Add(pt);
                 }
                 else if (type == 2) // Event
                 {
-                    var et = new EventTemplate();
-                    et.Index = eventIndex++;
-                    var expansion = ((data[offset++] & 0x10) == 0x10);
 
-                    et.Name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
+                    string expansion = null;
+                    var hasExpansion = ((data[offset++] & 0x10) == 0x10);
+
+                    var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
                     offset += (uint)data[offset] + 1;
 
-                    if (expansion) // expansion ?
+                    if (hasExpansion) // expansion ?
                     {
                         var cs = data.GetUInt32(offset);
                         offset += 4;
-                        et.Expansion = data.GetString(offset, cs);
+                        expansion = data.GetString(offset, cs);
                         offset += cs;
                     }
+
+                    var et = new EventTemplate(od, eventIndex++, name, expansion);
 
                     od.events.Add(et);
 

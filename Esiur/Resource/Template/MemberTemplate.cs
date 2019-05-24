@@ -16,9 +16,26 @@ namespace Esiur.Resource.Template
             Event = 2,
         }
 
-        public byte Index { get; set; }
-        public string Name { get; set; }
-        public MemberType Type { get; set; }
+        public byte Index => index;
+        public string Name => name;
+        public MemberType Type => type;
+
+        ResourceTemplate template;
+        string name;
+        MemberType type;
+        byte index;
+
+        public ResourceTemplate Template => template;
+
+        public MemberTemplate(ResourceTemplate template, MemberType type, byte index, string name)
+        {
+            this.template = template;
+            this.type = type;
+            this.index = index;
+            this.name = name;
+        }
+
+        public string Fullname => template.ClassName + "." + Name;
 
         public virtual byte[] Compose()
         {

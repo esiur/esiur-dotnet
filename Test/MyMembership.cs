@@ -22,7 +22,7 @@ namespace Test
 
         public AsyncReply<byte[]> GetPassword(string username, string domain)
         {
-            return new AsyncReply<byte[]>(DC.ToBytes("password"));
+           return new AsyncReply<byte[]>(DC.ToBytes("1234"));
         }
 
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
@@ -30,9 +30,9 @@ namespace Test
             return new AsyncReply<bool>(true);
         }
 
-        public bool UserExists(string username)
+        public AsyncReply<bool> UserExists(string username)
         {
-            throw new NotImplementedException();
+            return new AsyncReply<bool>(username == "demo");    
         }
     }
 

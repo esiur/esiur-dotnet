@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Net;
@@ -14,6 +38,7 @@ using Esiur.Security.Authority;
 using Esiur.Resource.Template;
 using System.Linq;
 using System.Diagnostics;
+using static Esiur.Net.Packets.IIPPacket;
 
 namespace Esiur.Net.IIP
 {
@@ -35,34 +60,35 @@ namespace Esiur.Net.IIP
         IIPPacket packet = new IIPPacket();
         IIPAuthPacket authPacket = new IIPAuthPacket();
 
-        byte[] sessionId;
-        AuthenticationType hostType;
-        string domain;
-        string localUsername, remoteUsername;
-        byte[] localPassword;
+        Session session;
 
+        byte[] localPassword;
         byte[] localNonce, remoteNonce;
 
         bool ready, readyToEstablish;
 
         DateTime loginDate;
-        KeyList<string, object> variables = new KeyList<string, object>();
 
         /// <summary>
         /// Local username to authenticate ourselves.  
         /// </summary>
-        public string LocalUsername { get; set; }
+        public string LocalUsername => session.LocalAuthentication.Username;// { get; set; }
 
         /// <summary>
         /// Peer's username.
         /// </summary>
-        public string RemoteUsername { get; set; }
+        public string RemoteUsername => session.RemoteAuthentication.Username;// { get; set; }
 
         /// <summary>
         /// Working domain.
         /// </summary>
-        public string Domain { get { return domain; } }
+        //public string Domain { get { return domain; } }
 
+
+        /// <summary>
+        /// The session related to this connection.
+        /// </summary>
+        public Session Session => session;
 
         /// <summary>
         /// Distributed server responsible for this connection, usually for incoming connections.
@@ -73,14 +99,50 @@ namespace Esiur.Net.IIP
             set;
         }
 
+        public bool Remove(IResource resource)
+        {
+            // nothing to do
+            return true;
+        }
+
         /// <summary>
         /// Send data to the other end as parameters
         /// </summary>
         /// <param name="values">Values will be converted to bytes then sent.</param>
         internal void SendParams(params object[] values)
         {
-            var ar = BinaryList.ToBytes(values);
-            Send(ar);
+            var data = BinaryList.ToBytes(values);
+
+            if (ready)
+            {
+                var cmd = (IIPPacketCommand)(data[0] >> 6);
+
+                if (cmd == IIPPacketCommand.Event)
+                {
+                    var evt = (IIPPacketEvent)(data[0] & 0x3f);
+                    //Console.Write("Sent: " + cmd.ToString() + " " + evt.ToString());
+                }
+                else if (cmd == IIPPacketCommand.Report)
+                {
+                    var r = (IIPPacketReport)(data[0] & 0x3f);
+                    //Console.Write("Sent: " + cmd.ToString() + " " + r.ToString());
+
+                }
+                else
+                {
+                    var act = (IIPPacketAction)(data[0] & 0x3f);
+                    //Console.Write("Sent: " + cmd.ToString() + " " + act.ToString());
+
+                }
+
+                //foreach (var param in values)
+                //    Console.Write(", " + param);
+
+                //Console.WriteLine();
+            }
+
+
+            Send(data);
 
             //StackTrace stackTrace = new StackTrace(;
 
@@ -104,13 +166,7 @@ namespace Esiur.Net.IIP
         /// <summary>
         /// KeyList to store user variables related to this connection.
         /// </summary>
-        public KeyList<string, object> Variables
-        {
-            get
-            {
-                return variables;
-            }
-        }
+        public KeyList<string, object> Variables { get; } = new KeyList<string, object>();
 
         /// <summary>
         /// IResource interface.
@@ -129,12 +185,17 @@ namespace Esiur.Net.IIP
         {
             base.Assign(socket);
 
+            session.RemoteAuthentication.Source.Attributes.Add(SourceAttributeType.IPv4, socket.RemoteEndPoint.Address);
+            session.RemoteAuthentication.Source.Attributes.Add(SourceAttributeType.Port, socket.RemoteEndPoint.Port);
+            session.LocalAuthentication.Source.Attributes.Add(SourceAttributeType.IPv4, socket.LocalEndPoint.Address);
+            session.LocalAuthentication.Source.Attributes.Add(SourceAttributeType.Port, socket.LocalEndPoint.Port);
 
-            if (hostType == AuthenticationType.Client)
+            if (session.LocalAuthentication.Type == AuthenticationType.Client)
             {
                 // declare (Credentials -> No Auth, No Enctypt)
-                var un = DC.ToBytes(localUsername);
-                var dmn = DC.ToBytes(domain);
+ 
+                var un = DC.ToBytes(session.LocalAuthentication.Username);
+                var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
 
                 if (socket.State == SocketState.Established)
                 {
@@ -160,10 +221,14 @@ namespace Esiur.Net.IIP
         /// <param name="password">Password.</param>
         public DistributedConnection(ISocket socket, string domain, string username, string password)
         {
+            this.session = new Session(   new ClientAuthentication()
+                                        , new HostAuthentication());
             //Instance.Name = Global.GenerateCode(12);
-            this.hostType = AuthenticationType.Client;
-            this.domain = domain;
-            this.localUsername = username;
+            //this.hostType = AuthenticationType.Client;
+            //this.domain = domain;
+            //this.localUsername = username;
+            session.LocalAuthentication.Domain = domain;
+            session.LocalAuthentication.Username = username;
             this.localPassword = DC.ToBytes(password);
 
             init();
@@ -178,6 +243,7 @@ namespace Esiur.Net.IIP
         {
             //myId = Global.GenerateCode(12);
             // localParams.Host = DistributedParameters.HostType.Host;
+            session = new Session(new HostAuthentication(), new ClientAuthentication());
             init();
         }
 
@@ -185,7 +251,7 @@ namespace Esiur.Net.IIP
 
         public string Link(IResource resource)
         {
-            if (resource is DistributedConnection)
+            if (resource is DistributedResource)
             {
                 var r = resource as DistributedResource;
                 if (r.Instance.Store == this)
@@ -203,7 +269,7 @@ namespace Esiur.Net.IIP
                 if (x.Type == DistributedResourceQueueItem.DistributedResourceQueueItemType.Event)
                     x.Resource._EmitEventByIndex(x.Index, (object[])x.Value);
                 else
-                    x.Resource.UpdatePropertyByIndex(x.Index, x.Value);
+                    x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
             });
 
             var r = new Random();
@@ -213,279 +279,420 @@ namespace Esiur.Net.IIP
 
 
 
+        private uint processPacket(byte[] msg, uint offset, uint ends, NetworkBuffer data, int chunkId)
+        {
+            var packet = new IIPPacket();
+
+            
+
+            // packets++;
+
+            if (ready)
+            {
+                var rt = packet.Parse(msg, offset, ends);
+                //Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
+                
+                /*
+                if (packet.Command == IIPPacketCommand.Event)
+                    Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Event.ToString());
+                else if (packet.Command == IIPPacketCommand.Report)
+                    Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Report.ToString());
+                else
+                    Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Action.ToString() + " " + packet.ResourceId + " " + offset + "/" + ends);
+                  */
+                  
+
+                //packs.Add(packet.Command.ToString() + " " + packet.Action.ToString() + " " + packet.Event.ToString());
+
+                //if (packs.Count > 1)
+                  //  Console.WriteLine("P2");
+
+                if (rt <= 0)
+                {
+                    var size = ends - offset;
+                    data.HoldFor(msg, offset, size, size + (uint)(-rt));
+                    return ends;
+                }
+                else
+                {
+                    offset += (uint)rt;
+
+                    if (packet.Command == IIPPacket.IIPPacketCommand.Event)
+                    {
+                        switch (packet.Event)
+                        {
+                            case IIPPacket.IIPPacketEvent.ResourceReassigned:
+                                IIPEventResourceReassigned(packet.ResourceId, packet.NewResourceId);
+                                break;
+                            case IIPPacket.IIPPacketEvent.ResourceDestroyed:
+                                IIPEventResourceDestroyed(packet.ResourceId);
+                                break;
+                            case IIPPacket.IIPPacketEvent.PropertyUpdated:
+                                IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, packet.Content);
+                                break;
+                            case IIPPacket.IIPPacketEvent.EventOccurred:
+                                IIPEventEventOccurred(packet.ResourceId, packet.MethodIndex, packet.Content);
+                                break;
+
+                            case IIPPacketEvent.ChildAdded:
+                                IIPEventChildAdded(packet.ResourceId, packet.ChildId);
+                                break;
+                            case IIPPacketEvent.ChildRemoved:
+                                IIPEventChildRemoved(packet.ResourceId, packet.ChildId);
+                                break;
+                            case IIPPacketEvent.Renamed:
+                                IIPEventRenamed(packet.ResourceId, packet.Content);
+                                break;
+                            case IIPPacketEvent.AttributesUpdated:
+                                IIPEventAttributesUpdated(packet.ResourceId, packet.Content);
+                                break;
+                        }
+                    }
+                    else if (packet.Command == IIPPacket.IIPPacketCommand.Request)
+                    {
+                        switch (packet.Action)
+                        {
+                            // Manage
+                            case IIPPacket.IIPPacketAction.AttachResource:
+                                IIPRequestAttachResource(packet.CallbackId, packet.ResourceId);
+                                break;
+                            case IIPPacket.IIPPacketAction.ReattachResource:
+                                IIPRequestReattachResource(packet.CallbackId, packet.ResourceId, packet.ResourceAge);
+                                break;
+                            case IIPPacket.IIPPacketAction.DetachResource:
+                                IIPRequestDetachResource(packet.CallbackId, packet.ResourceId);
+                                break;
+                            case IIPPacket.IIPPacketAction.CreateResource:
+                                IIPRequestCreateResource(packet.CallbackId, packet.StoreId, packet.ResourceId, packet.Content);
+                                break;
+                            case IIPPacket.IIPPacketAction.DeleteResource:
+                                IIPRequestDeleteResource(packet.CallbackId, packet.ResourceId);
+                                break;
+                            case IIPPacketAction.AddChild:
+                                IIPRequestAddChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
+                                break;
+                            case IIPPacketAction.RemoveChild:
+                                IIPRequestRemoveChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
+                                break;
+                            case IIPPacketAction.RenameResource:
+                                IIPRequestRenameResource(packet.CallbackId, packet.ResourceId, packet.Content);
+                                break;
+
+                            // Inquire
+                            case IIPPacket.IIPPacketAction.TemplateFromClassName:
+                                IIPRequestTemplateFromClassName(packet.CallbackId, packet.ClassName);
+                                break;
+                            case IIPPacket.IIPPacketAction.TemplateFromClassId:
+                                IIPRequestTemplateFromClassId(packet.CallbackId, packet.ClassId);
+                                break;
+                            case IIPPacket.IIPPacketAction.TemplateFromResourceId:
+                                IIPRequestTemplateFromResourceId(packet.CallbackId, packet.ResourceId);
+                                break;
+                            case IIPPacketAction.QueryLink:
+                                IIPRequestQueryResources(packet.CallbackId, packet.ResourceLink);
+                                break;
+
+                            case IIPPacketAction.ResourceChildren:
+                                IIPRequestResourceChildren(packet.CallbackId, packet.ResourceId);
+                                break;
+                            case IIPPacketAction.ResourceParents:
+                                IIPRequestResourceParents(packet.CallbackId, packet.ResourceId);
+                                break;
+                            
+                            case IIPPacket.IIPPacketAction.ResourceHistory:
+                                IIPRequestInquireResourceHistory(packet.CallbackId, packet.ResourceId, packet.FromDate, packet.ToDate);
+                                break;
+
+                            // Invoke
+                            case IIPPacket.IIPPacketAction.InvokeFunction:
+                                IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
+                                break;
+                            case IIPPacket.IIPPacketAction.GetProperty:
+                                IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
+                                break;
+                            case IIPPacket.IIPPacketAction.GetPropertyIfModified:
+                                IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
+                                break;
+                            case IIPPacket.IIPPacketAction.SetProperty:
+                                IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
+                                break;
+
+                            // Attribute
+                            case IIPPacketAction.GetAllAttributes:
+                                IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                                break;
+                            case IIPPacketAction.UpdateAllAttributes:
+                                IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                                break;
+                            case IIPPacketAction.ClearAllAttributes:
+                                IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                                break;
+                            case IIPPacketAction.GetAttributes:
+                                IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                                break;
+                            case IIPPacketAction.UpdateAttributes:
+                                IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                                break;
+                            case IIPPacketAction.ClearAttributes:
+                                IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                                break;
+                        }
+                    }
+                    else if (packet.Command == IIPPacket.IIPPacketCommand.Reply)
+                    {
+                        switch (packet.Action)
+                        {
+                            // Manage
+                            case IIPPacket.IIPPacketAction.AttachResource:
+                                IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.Content);
+                                break;
+
+                            case IIPPacket.IIPPacketAction.ReattachResource:
+                                IIPReply(packet.CallbackId, packet.ResourceAge, packet.Content);
+
+                                break;
+                            case IIPPacket.IIPPacketAction.DetachResource:
+                                IIPReply(packet.CallbackId);
+                                break;
+
+                            case IIPPacket.IIPPacketAction.CreateResource:
+                                IIPReply(packet.CallbackId, packet.ResourceId);
+                                break;
+
+                            case IIPPacket.IIPPacketAction.DeleteResource:
+                            case IIPPacketAction.AddChild:
+                            case IIPPacketAction.RemoveChild:
+                            case IIPPacketAction.RenameResource:
+                                IIPReply(packet.CallbackId);
+                                break;
+
+                           // Inquire
+
+                            case IIPPacket.IIPPacketAction.TemplateFromClassName:
+                            case IIPPacket.IIPPacketAction.TemplateFromClassId:
+                            case IIPPacket.IIPPacketAction.TemplateFromResourceId:
+                                IIPReply(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
+                                break;
+
+                            case IIPPacketAction.QueryLink:
+                            case IIPPacketAction.ResourceChildren:
+                            case IIPPacketAction.ResourceParents:
+                            case IIPPacketAction.ResourceHistory:
+                                IIPReply(packet.CallbackId, packet.Content);
+                                break;
+
+                            // Invoke
+                            case IIPPacket.IIPPacketAction.InvokeFunction:
+                                IIPReplyInvoke(packet.CallbackId, packet.Content);
+
+                                break;
+                            case IIPPacket.IIPPacketAction.GetProperty:
+                                IIPReply(packet.CallbackId, packet.Content);
+                                break;
+
+                            case IIPPacket.IIPPacketAction.GetPropertyIfModified:
+                                IIPReply(packet.CallbackId, packet.Content);
+                                break;
+                            case IIPPacket.IIPPacketAction.SetProperty:
+                                IIPReply(packet.CallbackId);
+                                break;
+
+                            // Attribute
+                            case IIPPacketAction.GetAllAttributes:
+                            case IIPPacketAction.GetAttributes:
+                                IIPReply(packet.CallbackId, packet.Content);
+                                break;
+
+                            case IIPPacketAction.UpdateAllAttributes:
+                            case IIPPacketAction.UpdateAttributes:
+                            case IIPPacketAction.ClearAllAttributes:
+                            case IIPPacketAction.ClearAttributes:
+                                IIPReply(packet.CallbackId);
+                                break;
+
+                        }
+
+                    }
+                    else if (packet.Command == IIPPacketCommand.Report)
+                    {
+                        switch (packet.Report)
+                        {
+                            case IIPPacketReport.ManagementError:
+                                IIPReportError(packet.CallbackId, AsyncReply.ErrorType.Management, packet.ErrorCode, null);
+                                break;
+                            case IIPPacketReport.ExecutionError:
+                                IIPReportError(packet.CallbackId, AsyncReply.ErrorType.Exception, packet.ErrorCode, packet.ErrorMessage);
+                                break;
+                            case IIPPacketReport.ProgressReport:
+                                IIPReportProgress(packet.CallbackId, AsyncReply.ProgressType.Execution, packet.ProgressValue, packet.ProgressMax);
+                                break;
+                            case IIPPacketReport.ChunkStream:
+                                IIPReportChunk(packet.CallbackId, packet.Content);
+
+                                break;
+                        }
+                    }
+                }
+            }
+
+            else
+            {
+                var rt = authPacket.Parse(msg, offset, ends);
+
+                //Console.WriteLine(session.LocalAuthentication.Type.ToString() + " " + offset + " " + ends + " " + rt + " " + authPacket.ToString());
+
+                if (rt <= 0)
+                {
+                    data.HoldFor(msg, ends + (uint)(-rt));
+                    return ends;
+                }
+                else
+                {
+                    offset += (uint)rt;
+
+                    if (session.LocalAuthentication.Type == AuthenticationType.Host)
+                    {
+                        if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Declare)
+                        {
+                            if (authPacket.RemoteMethod == IIPAuthPacket.IIPAuthPacketMethod.Credentials && authPacket.LocalMethod == IIPAuthPacket.IIPAuthPacketMethod.None)
+                            {
+                                Server.Membership.UserExists(authPacket.RemoteUsername, authPacket.Domain).Then(x =>
+                                {
+                                    if (x)
+                                    {
+                                        session.RemoteAuthentication.Username = authPacket.RemoteUsername;
+                                        remoteNonce = authPacket.RemoteNonce;
+                                        session.RemoteAuthentication.Domain = authPacket.Domain;
+                                        SendParams((byte)0xa0, localNonce);
+                                    }
+                                    else
+                                    {
+                                        //Console.WriteLine("User not found");
+                                        SendParams((byte)0xc0, (byte)1, (ushort)14, DC.ToBytes("User not found"));
+                                    }
+                                });
+
+                            }
+                        }
+                        else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
+                        {
+                            if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.AuthenticateHash)
+                            {
+                                var remoteHash = authPacket.Hash;
+
+                                Server.Membership.GetPassword(session.RemoteAuthentication.Username,
+                                                              session.RemoteAuthentication.Domain).Then((pw) =>
+                                                              {
+                                                                  if (pw != null)
+                                                                  {
+                                                                      var hashFunc = SHA256.Create();
+                                                                      var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
+                                                                      if (hash.SequenceEqual(remoteHash))
+                                                                      {
+                                                                              // send our hash
+                                                                              var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
+
+                                                                          SendParams((byte)0, localHash);
+
+                                                                          readyToEstablish = true;
+                                                                      }
+                                                                      else
+                                                                      {
+                                                                          Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
+                                                                          //Console.WriteLine("Incorrect password");
+                                                                          SendParams((byte)0xc0, (byte)1, (ushort)5, DC.ToBytes("Error"));
+                                                                      }
+                                                                  }
+                                                              });
+                            }
+                            else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.NewConnection)
+                            {
+                                if (readyToEstablish)
+                                {
+                                    var r = new Random();
+                                    session.Id = new byte[32];
+                                    r.NextBytes(session.Id);
+                                    SendParams((byte)0x28, session.Id);
+                                    ready = true;
+                                    OnReady?.Invoke(this);
+                                    Server.Membership.Login(session);
+
+                                    Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
+
+                                }
+                            }
+                        }
+                    }
+                    else if (session.LocalAuthentication.Type == AuthenticationType.Client)
+                    {
+                        if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Acknowledge)
+                        {
+                            remoteNonce = authPacket.RemoteNonce;
+
+                            // send our hash
+                            var hashFunc = SHA256.Create();
+                            var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
+
+                            SendParams((byte)0, localHash);
+                        }
+                        else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
+                        {
+                            if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.AuthenticateHash)
+                            {
+                                // check if the server knows my password
+                                var hashFunc = SHA256.Create();
+                                var remoteHash = hashFunc.ComputeHash(BinaryList.ToBytes(remoteNonce, localNonce, localPassword));
+
+                                if (remoteHash.SequenceEqual(authPacket.Hash))
+                                {
+                                    // send establish request
+                                    SendParams((byte)0x20, (ushort)0);
+                                }
+                                else
+                                {
+                                    SendParams((byte)0xc0, 1, (ushort)5, DC.ToBytes("Error"));
+                                }
+                            }
+                            else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.ConnectionEstablished)
+                            {
+                                session.Id = authPacket.SessionId;
+
+                                ready = true;
+                                OnReady?.Invoke(this);
+
+                            }
+                        }
+                        else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
+                        {
+                            OnError?.Invoke(this, authPacket.ErrorCode, authPacket.ErrorMessage);
+                            Close();
+                        }
+                    }
+                }
+            }
+
+            return offset;
+
+            //if (offset < ends)
+              //  processPacket(msg, offset, ends, data, chunkId);
+        }
+
         protected override void DataReceived(NetworkBuffer data)
         {
             // Console.WriteLine("DR " + hostType + " " + data.Available + " " + RemoteEndPoint.ToString());
             var msg = data.Read();
             uint offset = 0;
             uint ends = (uint)msg.Length;
+ 
+            var packs = new List<string>();
+
+            var chunkId = (new Random()).Next(1000, 1000000);
+
+            
+
             while (offset < ends)
             {
-
-                if (ready)
-                {
-                    var rt = packet.Parse(msg, offset, ends);
-                    if (rt <= 0)
-                    {
-                        data.HoldFor(msg, offset, ends - offset, (uint)(-rt));
-                        return;
-                    }
-                    else
-                    {
-                        offset += (uint)rt;
-
-                        if (packet.Command == IIPPacket.IIPPacketCommand.Event)
-                        {
-                            switch (packet.Event)
-                            {
-                                case IIPPacket.IIPPacketEvent.ResourceReassigned:
-                                    IIPEventResourceReassigned(packet.ResourceId, packet.NewResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketEvent.ResourceDestroyed:
-                                    IIPEventResourceDestroyed(packet.ResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketEvent.PropertyUpdated:
-                                    IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, packet.Content);
-                                    break;
-                                case IIPPacket.IIPPacketEvent.EventOccured:
-                                    IIPEventEventOccured(packet.ResourceId, packet.MethodIndex, packet.Content);
-                                    break;
-                            }
-                        }
-                        else if (packet.Command == IIPPacket.IIPPacketCommand.Request)
-                        {
-                            switch (packet.Action)
-                            {
-                                case IIPPacket.IIPPacketAction.AttachResource:
-                                    IIPRequestAttachResource(packet.CallbackId, packet.ResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.ReattachResource:
-                                    IIPRequestReattachResource(packet.CallbackId, packet.ResourceId, packet.ResourceAge);
-                                    break;
-                                case IIPPacket.IIPPacketAction.DetachResource:
-                                    IIPRequestDetachResource(packet.CallbackId, packet.ResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.CreateResource:
-                                    IIPRequestCreateResource(packet.CallbackId, packet.ClassName);
-                                    break;
-                                case IIPPacket.IIPPacketAction.DeleteResource:
-                                    IIPRequestDeleteResource(packet.CallbackId, packet.ResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromClassName:
-                                    IIPRequestTemplateFromClassName(packet.CallbackId, packet.ClassName);
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromClassId:
-                                    IIPRequestTemplateFromClassId(packet.CallbackId, packet.ClassId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromResourceLink:
-                                    IIPRequestTemplateFromResourceLink(packet.CallbackId, packet.ResourceLink);
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromResourceId:
-                                    IIPRequestTemplateFromResourceId(packet.CallbackId, packet.ResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.ResourceIdFromResourceLink:
-                                    IIPRequestResourceIdFromResourceLink(packet.CallbackId, packet.ResourceLink);
-                                    break;
-                                case IIPPacket.IIPPacketAction.InvokeFunction:
-                                    IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
-                                    break;
-                                case IIPPacket.IIPPacketAction.GetProperty:
-                                    IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
-                                    break;
-                                case IIPPacket.IIPPacketAction.GetPropertyIfModified:
-                                    IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
-                                    break;
-                                case IIPPacket.IIPPacketAction.SetProperty:
-                                    IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
-                                    break;
-                            }
-                        }
-                        else if (packet.Command == IIPPacket.IIPPacketCommand.Reply)
-                        {
-                            switch (packet.Action)
-                            {
-                                case IIPPacket.IIPPacketAction.AttachResource:
-                                    IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.Content);
-
-                                    //IIPReplyAttachResource(packet.CallbackId, packet.ResourceAge, Codec.ParseValues(packet.Content));
-                                    break;
-                                case IIPPacket.IIPPacketAction.ReattachResource:
-                                    //IIPReplyReattachResource(packet.CallbackId, packet.ResourceAge, Codec.ParseValues(packet.Content));
-                                    IIPReply(packet.CallbackId, packet.ResourceAge, packet.Content);
-
-                                    break;
-                                case IIPPacket.IIPPacketAction.DetachResource:
-                                    //IIPReplyDetachResource(packet.CallbackId);
-                                    IIPReply(packet.CallbackId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.CreateResource:
-                                    //IIPReplyCreateResource(packet.CallbackId, packet.ClassId, packet.ResourceId);
-                                    IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.DeleteResource:
-                                    //IIPReplyDeleteResource(packet.CallbackId);
-                                    IIPReply(packet.CallbackId);
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromClassName:
-                                    //IIPReplyTemplateFromClassName(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    IIPReply(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromClassId:
-                                    //IIPReplyTemplateFromClassId(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    IIPReply(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromResourceLink:
-                                    //IIPReplyTemplateFromResourceLink(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    IIPReply(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    break;
-                                case IIPPacket.IIPPacketAction.TemplateFromResourceId:
-                                    //IIPReplyTemplateFromResourceId(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    IIPReply(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
-                                    break;
-                                case IIPPacket.IIPPacketAction.ResourceIdFromResourceLink:
-                                    //IIPReplyResourceIdFromResourceLink(packet.CallbackId, packet.ClassId, packet.ResourceId, packet.ResourceAge);
-                                    IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceId, packet.ResourceAge);
-                                    break;
-                                case IIPPacket.IIPPacketAction.InvokeFunction:
-                                    //IIPReplyInvokeFunction(packet.CallbackId, Codec.Parse(packet.Content, 0));
-                                    IIPReply(packet.CallbackId, packet.Content);
-                                    break;
-                                case IIPPacket.IIPPacketAction.GetProperty:
-                                    //IIPReplyGetProperty(packet.CallbackId, Codec.Parse(packet.Content, 0));
-                                    IIPReply(packet.CallbackId, packet.Content);
-                                    break;
-                                case IIPPacket.IIPPacketAction.GetPropertyIfModified:
-                                    //IIPReplyGetPropertyIfModifiedSince(packet.CallbackId, Codec.Parse(packet.Content, 0));
-                                    IIPReply(packet.CallbackId, packet.Content);
-                                    break;
-                                case IIPPacket.IIPPacketAction.SetProperty:
-                                    //IIPReplySetProperty(packet.CallbackId);
-                                    IIPReply(packet.CallbackId);
-                                    break;
-                            }
-
-                        }
-
-                    }
-                }
-
-                else
-                {
-                    var rt = authPacket.Parse(msg, offset, ends);
-
-                    Console.WriteLine(hostType.ToString() + " " + offset + " " + ends + " " + rt + " " + authPacket.ToString());
-
-                    if (rt <= 0)
-                    {
-                        data.HoldFor(msg, ends + (uint)(-rt));
-                        return;
-                    }
-                    else
-                    {
-                        offset += (uint)rt;
-
-                        if (hostType == AuthenticationType.Host)
-                        {
-                            if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Declare)
-                            {
-                                if (authPacket.RemoteMethod == IIPAuthPacket.IIPAuthPacketMethod.Credentials && authPacket.LocalMethod == IIPAuthPacket.IIPAuthPacketMethod.None)
-                                {
-                                    remoteUsername = authPacket.RemoteUsername;
-                                    remoteNonce = authPacket.RemoteNonce;
-                                    domain = authPacket.Domain;
-                                    SendParams((byte)0xa0, localNonce);
-                                }
-                            }
-                            else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
-                            {
-                                if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.AuthenticateHash)
-                                {
-                                    var remoteHash = authPacket.Hash;
-
-                                    Server.Membership.GetPassword(remoteUsername, domain).Then((pw) =>
-                                    {
-
-
-                                        if (pw != null)
-                                        {
-                                            var hashFunc = SHA256.Create();
-                                            var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
-                                            if (hash.SequenceEqual(remoteHash))
-                                            {
-                                                // send our hash
-                                                var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
-
-                                                SendParams((byte)0, localHash);
-
-                                                readyToEstablish = true;
-                                            }
-                                            else
-                                            {
-                                                Console.WriteLine("Incorrect password");
-                                                SendParams((byte)0xc0, (byte)1, (ushort)5, DC.ToBytes("Error"));
-                                            }
-                                        }
-                                    });
-                                }
-                                else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.NewConnection)
-                                {
-                                    if (readyToEstablish)
-                                    {
-                                        var r = new Random();
-                                        sessionId = new byte[32];
-                                        r.NextBytes(sessionId);
-                                        SendParams((byte)0x28, sessionId);
-                                        ready = true;
-                                        OnReady?.Invoke(this);
-                                    }
-                                }
-                            }
-                        }
-                        else if (hostType == AuthenticationType.Client)
-                        {
-                            if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Acknowledge)
-                            {
-                                remoteNonce = authPacket.RemoteNonce;
-
-                                // send our hash
-                                var hashFunc = SHA256.Create();
-                                var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
-
-                                SendParams((byte)0, localHash);
-                            }
-                            else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
-                            {
-                                if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.AuthenticateHash)
-                                {
-                                    // check if the server knows my password
-                                    var hashFunc = SHA256.Create();
-                                    var remoteHash = hashFunc.ComputeHash(BinaryList.ToBytes(remoteNonce, localNonce, localPassword));
-
-                                    if (remoteHash.SequenceEqual(authPacket.Hash))
-                                    {
-                                        // send establish request
-                                        SendParams((byte)0x20, (ushort)0);
-                                    }
-                                    else
-                                    {
-                                        SendParams((byte)0xc0, 1, (ushort)5, DC.ToBytes("Error"));
-                                    }
-                                }
-                                else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.ConnectionEstablished)
-                                {
-                                    sessionId = authPacket.SessionId;
-                                    ready = true;
-                                    OnReady?.Invoke(this);
-                                }
-                            }
-                            else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
-                            {
-                                OnError?.Invoke(this, authPacket.ErrorCode, authPacket.ErrorMessage);
-                                Close();
-                            }
-                        }
-                    }
-                }
+                offset = processPacket(msg, offset, ends, data, chunkId);
             }
 
         }
@@ -508,6 +715,18 @@ namespace Esiur.Net.IIP
         public bool Put(IResource resource)
         {
             resources.Add(Convert.ToUInt32(resource.Instance.Name), (DistributedResource)resource);
+            return true;
+        }
+
+        public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+        {
+            // nothing to do
+            return true;
+        }
+
+        public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+        {
+            // nothing to do
             return true;
         }
     }

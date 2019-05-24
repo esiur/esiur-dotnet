@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,6 +33,7 @@ using Esiur.Misc;
 using System.IO;
 using Esiur.Engine;
 using Esiur.Resource;
+using Esiur.Data;
 
 namespace Esiur.Net.Sockets
 {
@@ -27,6 +52,8 @@ namespace Esiur.Net.Sockets
         public event DestroyedEvent OnDestroy;
 
         long totalSent, totalReceived;
+
+        bool processing = false;
 
         public IPEndPoint LocalEndPoint
         {
@@ -70,9 +97,17 @@ namespace Esiur.Net.Sockets
             if (buffer.Protected)
                 return;
 
+            if (processing)
+                return;
+
+           
             var msg = buffer.Read();
 
+            if (msg == null)
+                return;
+
             var wsPacketLength = pkt_receive.Parse(msg, 0, (uint)msg.Length);
+            //Console.WriteLine("WSP: " + wsPacketLength);
 
             if (wsPacketLength < 0)
             {
@@ -114,12 +149,16 @@ namespace Esiur.Net.Sockets
 
                     receiveNetworkBuffer.Write(pkt_receive.Message);
                     offset += (uint)wsPacketLength;
+
+                    //Console.WriteLine("WS IN: " + pkt_receive.Opcode.ToString() + " " + pkt_receive.Message.Length + " | " + offset + " " + string.Join(" ", pkt_receive.Message));//  DC.ToHex(pkt_receive.Message));
+
                 }
                 else
                     Console.WriteLine("Unknown WS opcode:" + pkt_receive.Opcode);
 
                 if (offset == msg.Length)
                 {
+                //    Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
                     OnReceive?.Invoke(receiveNetworkBuffer);
                     return;
                 }
@@ -132,11 +171,18 @@ namespace Esiur.Net.Sockets
                 //receiveNetworkBuffer.HoldFor(msg, offset, (uint)(msg.Length - offset), (uint)msg.Length + (uint)-wsPacketLength);
                 // save the incomplete packet to the heldBuffer queue
 
-                receiveNetworkBuffer.HoldFor(msg, offset, (uint)(msg.Length - offset), (uint)(msg.Length - offset) + (uint)-wsPacketLength);
+                buffer.HoldFor(msg, offset, (uint)(msg.Length - offset), (uint)(msg.Length - offset) + (uint)-wsPacketLength);
 
             }
 
+            //Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
+
             OnReceive?.Invoke(receiveNetworkBuffer);
+
+            processing = false;
+
+            if (buffer.Available > 0 && !buffer.Protected)
+                Sock_OnReceive(buffer);
         }
 
         private void Sock_OnConnect()

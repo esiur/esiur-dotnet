@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +32,7 @@ using System.Reflection;
 
 namespace Esiur.Data
 {
-    public class AutoList<T, ST> : IEnumerable
+    public class AutoList<T, ST> : IEnumerable<T>
     {
 
         private readonly object syncRoot = new object();        
@@ -45,6 +69,10 @@ namespace Esiur.Data
             list.Sort(comparer);
         }
 
+        public void Sort(Comparison<T> comparison)
+        {
+            list.Sort(comparison);
+        }
 
         public IEnumerable<T> Where(Func<T, bool> predicate)
         {
@@ -80,9 +108,9 @@ namespace Esiur.Data
         /// </summary>
         /// <param name="values">Populate the list with items</param>
         /// <returns></returns>
-        public AutoList(T[] values)
+        public AutoList(ST state, T[] values)
         {
-
+            this.state = state;
                 #if NETSTANDARD1_5
                             removableList = (typeof(IDestructible).GetTypeInfo().IsAssignableFrom(typeof(T).GetTypeInfo()));
                 #else
@@ -167,12 +195,7 @@ namespace Esiur.Data
         {
             Remove((T)sender);
         }
-
-        public IEnumerator GetEnumerator()
-        {
-            return list.GetEnumerator();
-        }
-
+        
         /// <summary>
         /// Clear the list
         /// </summary>
@@ -248,6 +271,16 @@ namespace Esiur.Data
                 if (list.Contains((T)v))
                     return true;
             return false;
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            return ((IEnumerable<T>)list).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<T>)list).GetEnumerator();
         }
     }
 }

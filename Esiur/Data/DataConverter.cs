@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -225,14 +249,14 @@ namespace Esiur.Data
             UInt64 rt = 0;
             byte* p = (byte*)&rt;
 
-            *(p + 7) = data[0];
-            *(p + 6) = data[1];
-            *(p + 5) = data[2];
-            *(p + 4) = data[3];
-            *(p + 3) = data[4];
-            *(p + 2) = data[5];
-            *(p + 1) = data[6];
-            *(p) = data[7];
+            *(p + 7) = data[offset++];
+            *(p + 6) = data[offset++];
+            *(p + 5) = data[offset++];
+            *(p + 4) = data[offset++];
+            *(p + 3) = data[offset++];
+            *(p + 2) = data[offset++];
+            *(p + 1) = data[offset++];
+            *(p) = data[offset++];
 
             return rt;
 
@@ -252,14 +276,14 @@ namespace Esiur.Data
             Int64 rt = 0;
             byte* p = (byte*)&rt;
 
-            *(p + 7) = data[0];
-            *(p + 6) = data[1];
-            *(p + 5) = data[2];
-            *(p + 4) = data[3];
-            *(p + 3) = data[4];
-            *(p + 2) = data[5];
-            *(p + 1) = data[6];
-            *(p) = data[7];
+            *(p + 7) = data[offset++];
+            *(p + 6) = data[offset++];
+            *(p + 5) = data[offset++];
+            *(p + 4) = data[offset++];
+            *(p + 3) = data[offset++];
+            *(p + 2) = data[offset++];
+            *(p + 1) = data[offset++];
+            *(p) = data[offset++];
 
             return rt;
 
@@ -311,14 +335,14 @@ namespace Esiur.Data
             double rt = 0;
             byte* p = (byte*)&rt;
 
-            *(p + 7) = data[0];
-            *(p + 6) = data[1];
-            *(p + 5) = data[2];
-            *(p + 4) = data[3];
-            *(p + 3) = data[4];
-            *(p + 2) = data[5];
-            *(p + 1) = data[6];
-            *(p) = data[7];
+            *(p + 7) = data[offset++];
+            *(p + 6) = data[offset++];
+            *(p + 5) = data[offset++];
+            *(p + 4) = data[offset++];
+            *(p + 3) = data[offset++];
+            *(p + 2) = data[offset++];
+            *(p + 1) = data[offset++];
+            *(p) = data[offset++];
 
             return rt;
         }
@@ -792,32 +816,47 @@ namespace Esiur.Data
             return rt.ToArray();
         }
 
-        public static byte[] ToBytes(int value)
+        public static unsafe byte[] ToBytes(int value)
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[4];
+            byte* p = (byte*)&value;
 
-            Array.Reverse(ret);
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p + 0);
 
-            return ret;
+            return rt;
         }
 
-        public static byte[] ToBytes(short value)
+        public static unsafe byte[] ToBytes(short value)
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[2];
+            byte* p = (byte*)&value;
 
-            Array.Reverse(ret);
+            rt[0] = *(p + 1);
+            rt[1] = *(p + 0);
 
-            return ret;
+            return rt;
         }
 
-        public static byte[] ToBytes(float value)
+        public static unsafe byte[] ToBytes(float value)
+
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[4];
 
-            Array.Reverse(ret);
+            //float rt = 0;
+            byte* p = (byte*)&value;
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p);
 
-            return ret;
+            return rt;
         }
+
+
+   
 
         /*
         public static byte[] ToBytes(Structure[] values)
@@ -888,58 +927,108 @@ namespace Esiur.Data
             return Encoding.UTF8.GetBytes(value);
         }
 
-        public static byte[] ToBytes(double value)
+        public unsafe static byte[] ToBytes(double value)
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[8];
 
-            Array.Reverse(ret);
+            byte* p = (byte*)&value;
 
-            return ret;
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
         }
 
-        public static byte[] ToBytes(long value)
+        public static unsafe byte[] ToBytes(long value)
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[8];
 
-            Array.Reverse(ret);
+            byte* p = (byte*)&value;
 
-            return ret;
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
+
         }
 
-        public static byte[] ToBytes(DateTime value)
+        public static unsafe byte[] ToBytes(DateTime value)
         {
-            byte[] ret = BitConverter.GetBytes(value.ToUniversalTime().Ticks);
-            Array.Reverse(ret);
-            return ret;
+
+            var rt = new byte[8];
+            var v = value.ToUniversalTime().Ticks;
+
+            byte* p = (byte*)&v;
+
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
+
         }
 
 
-        public static byte[] ToBytes(ulong value)
+        public static unsafe byte[] ToBytes(ulong value)
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[8];
 
-            Array.Reverse(ret);
+            byte* p = (byte*)&value;
 
-            return ret;
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
         }
 
-        public static byte[] ToBytes(uint value)
+        public static unsafe byte[] ToBytes(uint value)
         {
 
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[4];
 
-            Array.Reverse(ret);
+            byte* p = (byte*)&value;
 
-            return ret;
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p + 0);
+
+            return rt;
         }
 
-        public static byte[] ToBytes(ushort value)
+        public static unsafe byte[] ToBytes(ushort value)
         {
-            byte[] ret = BitConverter.GetBytes(value);
+            var rt = new byte[2];
 
-            Array.Reverse(ret);
+            byte* p = (byte*)&value;
 
-            return ret;
+            rt[0] = *(p + 1);
+            rt[1] = *(p);
+
+            return rt;
         }
 
         public static byte[] ToBytes(decimal value)

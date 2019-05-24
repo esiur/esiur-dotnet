@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Esiur.Engine;
+using Esiur.Data;
+using Esiur.Resource.Template;
 
 namespace Esiur.Stores
 {
@@ -51,6 +53,27 @@ namespace Esiur.Stores
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
             return new AsyncReply<bool>(true);
+        }
+
+        public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+        {
+            throw new NotImplementedException();
+        }
+
+        public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Remove(IResource resource)
+        {
+            resources.Remove(resource.Instance.Id);
+            return true;
+        }
+
+        public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+        {
+            return true;
         }
     }
 }

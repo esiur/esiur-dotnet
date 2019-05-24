@@ -16,13 +16,27 @@ namespace Esiur.Resource.Template
             ReadWrite
         }
 
+
         //bool ReadOnly;
         //IIPTypes::DataType ReturnType;
         public PropertyPermission Permission {
             get;
             set;
         }
-        
+
+        /*
+        public bool Recordable
+        {
+            get;
+            set;
+        }*/
+
+        public StorageMode Storage
+        {
+            get;
+            set;
+        }
+
         public string ReadExpansion
         {
             get;
@@ -35,37 +49,46 @@ namespace Esiur.Resource.Template
             set;
         }
 
+        /*
         public bool Storable
         {
             get;
             set;
-        }
+        }*/
 
 
         public override byte[] Compose()
         {
             var name = base.Compose();
+            var pv = ((byte)(Permission) << 1) | (Storage == StorageMode.Recordable ? 1 : 0);
 
             if (WriteExpansion != null && ReadExpansion != null)
             {
                 var rexp = DC.ToBytes(ReadExpansion);
                 var wexp = DC.ToBytes(WriteExpansion);
-                return BinaryList.ToBytes((byte)(0x38 | (byte)Permission), wexp.Length, wexp, rexp.Length, rexp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x38 | pv), wexp.Length, wexp, rexp.Length, rexp, (byte)name.Length, name);
             }
             else if (WriteExpansion != null)
             {
                 var wexp = DC.ToBytes(WriteExpansion);
-                return BinaryList.ToBytes((byte)(0x30 | (byte)Permission), wexp.Length, wexp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x30 | pv), wexp.Length, wexp, (byte)name.Length, name);
             }
             else if (ReadExpansion != null)
             {
                 var rexp = DC.ToBytes(ReadExpansion);
-                return BinaryList.ToBytes((byte)(0x28 | (byte)Permission), rexp.Length, rexp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x28 | pv), rexp.Length, rexp, (byte)name.Length, name);
             }
             else
-                return BinaryList.ToBytes((byte)(0x20 | (byte)Permission), (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x20 | pv), (byte)name.Length, name);
         }
 
-        public PropertyTemplate() { Type = MemberType.Property; }
+        public PropertyTemplate(ResourceTemplate template, byte index, string name, string read, string write, StorageMode storage)
+            :base(template, MemberType.Property, index, name)
+        {
+            //this.Recordable = recordable;
+            this.Storage = storage;
+            this.ReadExpansion = read;
+            this.WriteExpansion = write;
+        }
     }
 }

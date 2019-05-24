@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -29,9 +53,11 @@ namespace Esiur.Net
         public event DataReceivedEvent OnDataReceived;
         public event ConnectionClosedEvent OnClose;
         public event DestroyedEvent OnDestroy;
+        object receivingLock = new object();
 
-        
-        
+        bool processing = false;
+
+
         public void Destroy()
         {
            // if (connected)
@@ -62,8 +88,8 @@ namespace Esiur.Net
             socket.OnReceive += Socket_OnReceive;
             socket.OnClose += Socket_OnClose;
             socket.OnConnect += Socket_OnConnect;
-            if (socket.State == SocketState.Established)
-                socket.Begin();
+            //if (socket.State == SocketState.Established)
+            //    socket.Begin();
         }
 
         private void Socket_OnConnect()
@@ -90,8 +116,23 @@ namespace Esiur.Net
 
                 lastAction = DateTime.Now;
 
-                while (buffer.Available > 0 && !buffer.Protected)
-                    DataReceived(buffer);
+                if (!processing)
+                {
+                    processing = true;
+
+                    try
+                    {
+                        //lock(buffer.SyncLock)
+                        while (buffer.Available > 0 && !buffer.Protected)
+                            DataReceived(buffer);
+                    }
+                    catch
+                    {
+
+                    }
+
+                    processing = false;
+                }
                 
             }
             catch (Exception ex)
@@ -234,9 +275,9 @@ namespace Esiur.Net
                     sock.Send(msg);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-
+                Console.WriteLine(ex.ToString());
             }
         }
 

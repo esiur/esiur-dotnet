@@ -1,3 +1,27 @@
+/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
 using System;
 using System.Threading;
 using System.Collections.Generic;
@@ -10,7 +34,6 @@ using System.Threading.Tasks;
 
 namespace Esiur.Net
 {
-    //public abstract class NetworkServer<TConnection, TSession> : IResource where TSession : NetworkSession, new() where TConnection : NetworkConnection<TSession>, new()
 
     public abstract class NetworkServer<TConnection>: IDestructible where TConnection : NetworkConnection, new()
     {
@@ -25,8 +48,6 @@ namespace Esiur.Net
         protected abstract void ClientConnected(TConnection sender);
         protected abstract void ClientDisconnected(TConnection sender);
 
-       // private int port;
-       // private IPAddress ip = null;
 
         private uint timeout;
         private Timer timer;
@@ -201,7 +222,7 @@ namespace Esiur.Net
                   //  Thread.Sleep(100);
                 //}
 
-                Console.WriteLine("Listener stopped");
+                //Console.WriteLine("Listener stopped");
 
                 var cons = connections.ToArray();
 
@@ -211,14 +232,13 @@ namespace Esiur.Net
                         con.Close();
                 //}
 
-                Console.WriteLine("Sockets Closed");
+                //Console.WriteLine("Sockets Closed");
 
-                while (connections.Count > 0)
-                {
-                    Console.WriteLine("Waiting... " + connections.Count);
-                    
-                    //Thread.Sleep(1000);
-                }
+                //while (connections.Count > 0)
+                //{
+                //    Console.WriteLine("Waiting... " + connections.Count);  
+                //    Thread.Sleep(1000);
+                //}
 
             }
             finally
@@ -228,6 +248,21 @@ namespace Esiur.Net
         }
 
 
+        public virtual void RemoveConnection(TConnection connection)
+        {
+            connection.OnDataReceived -= OnDataReceived;
+            connection.OnConnect -= OnClientConnect;
+            connection.OnClose -= OnClientClose;
+            connections.Remove(connection);
+        }
+
+        public virtual void AddConnection(TConnection connection)
+        {
+            connection.OnDataReceived += OnDataReceived;
+            connection.OnConnect += OnClientConnect;
+            connection.OnClose += OnClientClose;
+            connections.Add(connection);
+        }
 
         private void NewConnection(ISocket sock)
         {
@@ -246,20 +281,17 @@ namespace Esiur.Net
 
                     if (sock == null)
                     {
-                        Console.Write("sock == null");
+                        //Console.Write("sock == null");
                         return;
                     }
 
-                    //sock.ReceiveBufferSize = 102400;
-                    //sock.SendBufferSize = 102400;
+                //sock.ReceiveBufferSize = 102400;
+                //sock.SendBufferSize = 102400;
+
 
                     TConnection c = new TConnection();
-                    c.OnDataReceived += OnDataReceived;
-                    c.OnConnect += OnClientConnect;
-                    c.OnClose += OnClientClose;
+                    AddConnection(c);
 
-
-                    connections.Add(c);
                     c.Assign(sock);
 
                     ClientConnected(c);
@@ -267,13 +299,14 @@ namespace Esiur.Net
                     // Accept more
                     listener.Accept().Then(NewConnection);
 
+                    sock.Begin();
 
 
             }
             catch (Exception ex)
             {
-                Console.WriteLine("TSERVER " + ex.ToString());
-                Global.Log("TServer", LogType.Error, ex.ToString());
+                //Console.WriteLine("TSERVER " + ex.ToString());
+                Global.Log("NetworkServer", LogType.Error, ex.ToString());
             }
 
             //isRunning = false;
@@ -317,6 +350,7 @@ namespace Esiur.Net
             try
             {
                 sender.Destroy();
+                RemoveConnection((TConnection)sender);
                 ClientDisconnected((TConnection)sender);
             }
             catch (Exception ex)

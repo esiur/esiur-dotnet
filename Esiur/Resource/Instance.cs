@@ -10,6 +10,7 @@ using Esiur.Net.IIP;
 using Esiur.Misc;
 using Esiur.Security.Permissions;
 using Esiur.Resource.Template;
+using Esiur.Security.Authority;
 
 namespace Esiur.Resource
 {
@@ -21,27 +22,33 @@ namespace Esiur.Resource
         IResource resource;
         IStore store;
         AutoList<IResource, Instance> parents;// = new AutoList<IResource>();
-        bool inherit;
+        //bool inherit;
         ResourceTemplate template;
 
-        AutoList<IPermissionManager, Instance> managers;// = new AutoList<IPermissionManager, Instance>();
+        AutoList<IPermissionsManager, Instance> managers;// = new AutoList<IPermissionManager, Instance>();
 
-        public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue, object oldValue);
-        public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, string[] receivers, object[] args);
+ 
+        public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue);
+        //public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, string[] users, DistributedConnection[] connections, object[] args);
+
+        public delegate void ResourceEventOccurredEvent(IResource resource, object issuer, Session[] receivers, string eventName, object[] args);
+
         public delegate void ResourceDestroyedEvent(IResource resource);
 
         public event ResourceModifiedEvent ResourceModified;
-        public event ResourceEventOccurredEvent ResourceEventOccured;
+        public event ResourceEventOccurredEvent ResourceEventOccurred;
         public event ResourceDestroyedEvent ResourceDestroyed;
 
-        KeyList<string, object> attributes = new KeyList<string, object>();
+        KeyList<string, object> attributes;
 
-        List<uint> ages = new List<uint>();
-        private uint age;
+        List<ulong> ages = new List<ulong>();
+        List<DateTime> modificationDates = new List<DateTime>();
+        private ulong instanceAge;
+        private DateTime instanceModificationDate;
 
         uint id;
 
- 
+
         /// <summary>
         /// Instance attributes are custom properties associated with the instance, a place to store information by IStore.
         /// </summary>
@@ -53,12 +60,151 @@ namespace Esiur.Resource
             }
         }
 
+        public override string ToString()
+        {
+            return name + " (" + Link + ")";
+        }
+
+        public bool RemoveAttributes(string[] attributes = null)
+        {
+            if (attributes == null)
+                this.attributes.Clear();
+            else
+            {
+                foreach (var attr in attributes)
+                    this.attributes.Remove(attr);
+            }
+
+            return true;
+        }
+
+        public Structure GetAttributes(string[] attributes = null)
+        {
+            var st = new Structure();
+
+            if (attributes == null)
+            {
+                var clone = this.attributes.Keys.ToList();
+                clone.Add("managers");
+                attributes = clone.ToArray();// this.attributes.Keys.ToList().Add("managers");
+            }
+
+            foreach(var attr in attributes)
+            {
+                if (attr == "name")
+                    st["name"] = this.name;
+                else if (attr == "managers")
+                {
+                    var mngrs = new List<Structure>();
+
+                    foreach (var manager in this.managers)
+                        mngrs.Add(new Structure()
+                        {
+                            ["type"] = manager.GetType().FullName + "," + manager.GetType().GetTypeInfo().Assembly.GetName().Name,
+                            ["settings"] = manager.Settings
+                        });
+
+                    st["managers"] = mngrs.ToArray();
+                }
+                else if (attr == "parents")
+                {
+                    st["parents"] = parents.ToArray();
+                }
+                else if (attr == "children")
+                {
+                    st["children"] = children.ToArray();
+                }
+                else if (attr == "childrenCount")
+                {
+                    st["childrenCount"] = children.Count;
+                }
+                else if (attr == "type")
+                {
+                    st["type"] = resource.GetType().FullName;
+                }
+                else
+                    st[attr] = this.attributes[attr];
+            }
+
+            return st;
+        }
+
+        public bool SetAttributes(Structure attributes, bool clearAttributes = false)
+        {            
+            try
+            {
+
+                if (clearAttributes)
+                    this.attributes.Clear();
+
+                foreach (var attr in attributes)
+                    if (attr.Key == "name")
+                        this.name = attr.Value as string;
+                    else if (attr.Key == "managers")
+                    {
+                        this.managers.Clear();
+
+                        var mngrs = attr.Value as object[];
+
+                        foreach (var mngr in mngrs)
+                        {
+                            var m = mngr as Structure;
+                            var type = Type.GetType(m["type"] as string);
+                            if (Codec.ImplementsInterface(type, typeof(IPermissionsManager)))
+                            {
+                                var settings = m["settings"] as Structure;
+                                var manager = Activator.CreateInstance(type) as IPermissionsManager;
+                                manager.Initialize(settings, this.resource);
+                                this.managers.Add(manager);
+                            }
+                            else
+                                return false;
+                        }
+                    }
+                    else
+                    {
+                        this.attributes[attr.Key] = attr.Value;
+                    }
+                
+            }
+            catch
+            {
+                return false;
+            }
+
+            return true;
+        }
+        
+        /*
+        public Structure GetAttributes()
+        {
+            var st = new Structure();
+            foreach (var a in attributes.Keys)
+                st[a] = attributes[a];
+
+            st["name"] = name;
+
+            var mngrs = new List<Structure>();
+
+            foreach (var manager in managers)
+            {
+                var mngr = new Structure();
+                mngr["settings"] = manager.Settings;
+                mngr["type"] = manager.GetType().FullName;
+                mngrs.Add(mngr);
+            }
+
+            st["managers"] = mngrs;
+
+            return st;
+        }*/
+
         /// <summary>
         /// Get the age of a given property index.
         /// </summary>
         /// <param name="index">Zero-based property index.</param>
         /// <returns>Age.</returns>
-        public uint GetAge(byte index)
+        public ulong GetAge(byte index)
         {
             if (index < ages.Count)
                 return ages[index];
@@ -67,12 +213,107 @@ namespace Esiur.Resource
         }
 
         /// <summary>
-        /// Age of the instance, increments by 1 in every modification.
+        /// Set the age of a property.
         /// </summary>
-        public uint Age
+        /// <param name="index">Zero-based property index.</param>
+        /// <param name="value">Age.</param>
+        public void SetAge(byte index, ulong value)
         {
-            get { return age; }
-            internal set { age = value; }
+            if (index < ages.Count)
+            {
+                ages[index] = value;
+                if (value > instanceAge)
+                    instanceAge = value;
+            }
+        }
+
+        /// <summary>
+        /// Set the modification date of a property.
+        /// </summary>
+        /// <param name="index">Zero-based property index.</param>
+        /// <param name="value">Modification date.</param>
+        public void SetModificationDate(byte index, DateTime value)
+        {
+            if (index < modificationDates.Count)
+            {
+                modificationDates[index] = value;
+                if (value > instanceModificationDate)
+                    instanceModificationDate = value;
+            }
+        }
+
+        /// <summary>
+        /// Get modification date of a specific property.
+        /// </summary>
+        /// <param name="index">Zero-based property index</param>
+        /// <returns>Modification date.</returns>
+        public DateTime GetModificationDate(byte index)
+        {
+            if (index < modificationDates.Count)
+                return modificationDates[index];
+            else
+                return DateTime.MinValue;
+        }
+
+        
+        /// <summary>
+        /// Load property value (used by stores)
+        /// </summary>
+        /// <param name="name">Property name</param>
+        /// <param name="age">Property age</param>
+        /// <param name="value">Property value</param>
+        /// <returns></returns>
+        public bool LoadProperty(string name, ulong age, DateTime modificationDate, object value)
+        {
+            var pt = template.GetPropertyTemplate(name);
+
+            if (pt == null)
+                return false;
+
+#if NETSTANDARD1_5
+            var pi = resource.GetType().GetTypeInfo().GetProperty(name);
+#else
+            var pi = resource.GetType().GetProperty(pt.Name);
+#endif
+            if (pi.PropertyType == typeof(DistributedPropertyContext))
+                return false;
+
+       
+            try
+            {
+                if (pi.CanWrite)
+                    pi.SetValue(resource, DC.CastConvert(value, pi.PropertyType));
+            }
+            catch(Exception ex)
+            {
+                //Console.WriteLine(resource.ToString() + " " + name);
+                Global.Log(ex);
+            }
+
+            SetAge(pt.Index, age);
+            SetModificationDate(pt.Index, modificationDate);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Age of the instance, incremented by 1 in every modification.
+        /// </summary>
+        public ulong Age
+        {
+            get { return instanceAge; }
+            internal set { instanceAge = value; }
+        }
+
+        /// <summary>
+        /// Last modification date.
+        /// </summary>
+        public DateTime ModificationDate
+        {
+            get
+            {
+                return instanceModificationDate;
+            }
         }
 
         /// <summary>
@@ -88,18 +329,18 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="properties"></param>
         /// <returns></returns>
-        public bool Deserialize(object[] properties)
-        { 
-            foreach (var pt in template.Properties)
+        public bool Deserialize(PropertyValue[] properties)
+        {
+            for (byte i = 0; i < properties.Length; i++)
             {
-#if NETSTANDARD1_5
-                var pi = resource.GetType().GetTypeInfo().GetProperty(pt.Name);
-#else
-                var pi = resource.GetType().GetProperty(pt.Name);
-#endif
-                if (!(properties[pt.Index] is NotModified))
-                    pi.SetValue(resource, properties[pt.Index]);
+                var pt = this.template.GetPropertyTemplate(i);
+                if (pt != null)
+                {
+                    var pv = properties[i];
+                    LoadProperty(pt.Name, pv.Age, pv.Date, pv.Value);
+                }
             }
+
             return true;
         }
 
@@ -107,9 +348,9 @@ namespace Esiur.Resource
         /// Export all properties with ResourceProperty attributed as bytes array.
         /// </summary>
         /// <returns></returns>
-        public object[] Serialize()
+        public PropertyValue[] Serialize()
         {
-            List<object> props = new List<object>();
+            List<PropertyValue> props = new List<PropertyValue>();
 
             foreach (var pt in template.Properties)
             {
@@ -119,7 +360,7 @@ namespace Esiur.Resource
                 var pi = resource.GetType().GetProperty(pt.Name);
 #endif
                 var rt = pi.GetValue(resource, null);
-                props.Add(rt);
+                props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
             }
 
             return props.ToArray();
@@ -191,10 +432,10 @@ namespace Esiur.Resource
         }
         */
 
-            /// <summary>
-            /// If True, the instance can be stored to disk.
-            /// </summary>
-            /// <returns></returns>
+        /// <summary>
+        /// If True, the instance can be stored to disk.
+        /// </summary>
+        /// <returns></returns>
         public bool IsStorable()
         {
 #if NETSTANDARD1_5
@@ -207,27 +448,47 @@ namespace Esiur.Resource
         }
 
 
+        internal void EmitModification(PropertyTemplate pt, object value)
+        {
+            instanceAge++;
+            var now = DateTime.UtcNow;
+
+            ages[pt.Index] = instanceAge;
+            modificationDates[pt.Index] = now;
+
+            if (pt.Storage == StorageMode.NonVolatile)
+            {
+                store.Modify(resource, pt.Name, value, ages[pt.Index], now);
+            }
+            else if (pt.Storage == StorageMode.Recordable)
+            { 
+                store.Record(resource, pt.Name, value, ages[pt.Index], now);
+            }
+
+            ResourceModified?.Invoke(resource, pt.Name, value);
+        }
+
         /// <summary>
         /// Notify listeners that a property was modified.
         /// </summary>
         /// <param name="propertyName"></param>
         /// <param name="newValue"></param>
         /// <param name="oldValue"></param>
-        public void Modified([CallerMemberName] string propertyName = "", object newValue = null, object oldValue = null)
+        public void Modified([CallerMemberName] string propertyName = "")//, object newValue = null)//, object oldValue = null)
         {
-            if (newValue == null)
+            object value;
+            if (GetPropertyValue(propertyName, out value))
             {
-                object val;
-                if (GetPropertyValue(propertyName, out val))
-                    ResourceModified?.Invoke(resource, propertyName, val, oldValue);
+                var pt = template.GetPropertyTemplate(propertyName);
+                EmitModification(pt, value);
             }
-            else
-                ResourceModified?.Invoke(resource, propertyName, newValue, oldValue);
         }
 
-        internal void EmitResourceEvent(string name, string[] receivers, object[] args)
+        //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
+
+        internal void EmitResourceEvent(object issuer, Session[] receivers, string name, object[] args)
         {
-            ResourceEventOccured?.Invoke(resource, name, receivers, args);
+            ResourceEventOccurred?.Invoke(resource, issuer, receivers, name, args);
         }
 
         /// <summary>
@@ -259,7 +520,7 @@ namespace Esiur.Resource
                 {
                     value = pi.GetValue(resource, null);
                     //if (value is Func<IManager, object>)
-                      //  value = (value as Func<IManager, object>)(sender);
+                    //  value = (value as Func<IManager, object>)(sender);
                     return true;
                 }
             }
@@ -269,10 +530,11 @@ namespace Esiur.Resource
         }
 
 
+        /*
         public bool Inherit
         {
             get { return inherit; }
-        }
+        }*/
 
         /// <summary>
         /// List of parents.
@@ -289,7 +551,7 @@ namespace Esiur.Resource
         {
             get { return store; }
         }
-        
+
         /// <summary>
         /// List of children.
         /// </summary>
@@ -335,6 +597,7 @@ namespace Esiur.Resource
         public string Name
         {
             get { return name; }
+            set { name = value; }
         }
 
 
@@ -352,38 +615,86 @@ namespace Esiur.Resource
         public ResourceTemplate Template
         {
             get { return template; }
+
+            /*
+            internal set
+            {
+                template = Warehouse.GetTemplate(resource.GetType());
+
+                // set ages
+                for (byte i = 0; i < template.Properties.Length; i++)
+                {
+                    ages.Add(0);
+                    modificationDates.Add(DateTime.MinValue);
+                }
+            }
+            */
         }
 
-       /// <summary>
-       /// Create new instance.
-       /// </summary>
-       /// <param name="id">Instance Id.</param>
-       /// <param name="name">Name of the instance.</param>
-       /// <param name="resource">Resource to manage.</param>
-       /// <param name="store">Store responsible for the resource.</param>
-        public Instance(uint id, string name, IResource resource, IStore store)
+        /// <summary>
+        /// Check for permission.
+        /// </summary>
+        /// <param name="session">Caller sessions.</param>
+        /// <param name="action">Action type</param>
+        /// <param name="member">Function, property or event to check for permission.</param>
+        /// <param name="inquirer">Permission inquirer.</param>
+        /// <returns>Ruling.</returns>
+        public Ruling Applicable(Session session, ActionType action, MemberTemplate member, object inquirer = null)
+        {
+            foreach (IPermissionsManager manager in managers)
+            {
+                var r = manager.Applicable(this.resource, session, action, member, inquirer);
+                if (r != Ruling.DontCare)
+                    return r;
+            }
+
+            return Ruling.DontCare;
+
+        }
+
+        /// <summary>
+        /// Execution managers.
+        /// </summary>
+        public AutoList<IPermissionsManager, Instance> Managers => managers;
+
+        /// <summary>
+        /// Create new instance.
+        /// </summary>
+        /// <param name="id">Instance Id.</param>
+        /// <param name="name">Name of the instance.</param>
+        /// <param name="resource">Resource to manage.</param>
+        /// <param name="store">Store responsible for the resource.</param>
+        public Instance(uint id, string name, IResource resource, IStore store, ResourceTemplate customTemplate = null, ulong age = 0)
         {
             this.store = store;
             this.resource = resource;
             this.id = id;
             this.name = name;
+            this.instanceAge = age;
 
+            this.attributes = new KeyList<string, object>(this);
             children = new AutoList<IResource, Instance>(this);
             parents = new AutoList<IResource, Instance>(this);
-            managers = new AutoList<IPermissionManager, Instance>(this);
+            managers = new AutoList<IPermissionsManager, Instance>(this);
             children.OnAdd += Children_OnAdd;
             children.OnRemoved += Children_OnRemoved;
+            parents.OnAdd += Parents_OnAdd;
+            parents.OnRemoved += Parents_OnRemoved;
 
             resource.OnDestroy += Resource_OnDestroy;
 
-            template = Warehouse.GetTemplate(resource.GetType());
-
-
-            // set ages
+            if (customTemplate != null)
+                this.template = customTemplate;
+            else
+                this.template = Warehouse.GetTemplate(resource.GetType());
+            
+              // set ages
             for (byte i = 0; i < template.Properties.Length; i++)
+            {
                 ages.Add(0);
-
-
+                modificationDates.Add(DateTime.MinValue);
+            }
+ 
             // connect events
             Type t = resource.GetType();
 
@@ -396,16 +707,62 @@ namespace Esiur.Resource
 
             foreach (var evt in events)
             {
-                if (evt.EventHandlerType != typeof(ResourceEventHanlder))
-                    continue;
+                //if (evt.EventHandlerType != typeof(ResourceEventHanlder))
+                //    continue;
 
-                var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
 
-                if (ca.Length == 0)
-                    continue;
+                if (evt.EventHandlerType == typeof(ResourceEventHanlder))
+                {
+                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    if (ca.Length == 0)
+                        continue;
 
-                ResourceEventHanlder proxyDelegate = (receivers, args) => EmitResourceEvent(evt.Name, receivers, args);
-                evt.AddEventHandler(resource, proxyDelegate);
+                    ResourceEventHanlder proxyDelegate = (args) => EmitResourceEvent(null, null, evt.Name, args);
+                    evt.AddEventHandler(resource, proxyDelegate);
+
+                }
+                else if (evt.EventHandlerType == typeof(CustomResourceEventHanlder))
+                {
+                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    if (ca.Length == 0)
+                        continue;
+
+                    CustomResourceEventHanlder proxyDelegate = (issuer, receivers, args) => EmitResourceEvent(issuer, receivers, evt.Name, args);
+                    evt.AddEventHandler(resource, proxyDelegate);
+                }
+         
+
+                /*
+                else if (evt.EventHandlerType == typeof(CustomUsersEventHanlder))
+                {
+                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    if (ca.Length == 0)
+                        continue;
+
+                    CustomUsersEventHanlder proxyDelegate = (users, args) => EmitResourceEvent(evt.Name, users, null, args);
+                    evt.AddEventHandler(resource, proxyDelegate);
+                }
+                else if (evt.EventHandlerType == typeof(CustomConnectionsEventHanlder))
+                {
+                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    if (ca.Length == 0)
+                        continue;
+
+                    CustomConnectionsEventHanlder proxyDelegate = (connections, args) => EmitResourceEvent(evt.Name, null, connections, args);
+                    evt.AddEventHandler(resource, proxyDelegate);
+                }
+                else if (evt.EventHandlerType == typeof(CustomReceiversEventHanlder))
+                {
+                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    if (ca.Length == 0)
+                        continue;
+
+                    CustomReceiversEventHanlder proxyDelegate = (users, connections, args) => EmitResourceEvent(evt.Name, users, connections, args);
+                    evt.AddEventHandler(resource, proxyDelegate);
+
+                }
+                */
+
             }
         }
 
@@ -416,8 +773,21 @@ namespace Esiur.Resource
 
         private void Children_OnAdd(Instance parent, IResource value)
         {
-            value.Instance.parents.Add(resource);
+            if (!value.Instance.parents.Contains(resource))
+                value.Instance.parents.Add(resource);
         }
+
+        private void Parents_OnRemoved(Instance parent, IResource value)
+        {
+            value.Instance.children.Remove(resource);
+        }
+
+        private void Parents_OnAdd(Instance parent, IResource value)
+        {
+            if (!value.Instance.children.Contains(resource))
+                value.Instance.children.Add(resource);
+        }
+
 
         private void Resource_OnDestroy(object sender)
         {

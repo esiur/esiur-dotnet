@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -138,9 +162,10 @@ namespace Esiur.Net.Packets
                     offset += 8;
                 }
 
+                /*
                 if (Mask)
                 {
-                    MaskKey = new byte[4];
+                                    MaskKey = new byte[4];
                     MaskKey[0] = data[offset++];
                     MaskKey[1] = data[offset++];
                     MaskKey[2] = data[offset++];
@@ -149,6 +174,7 @@ namespace Esiur.Net.Packets
                     //MaskKey = DC.GetUInt32(data, offset);
                     //offset += 4;
                 }
+                */
 
                 needed += PayloadLength;
                 if (length < needed)
@@ -156,23 +182,26 @@ namespace Esiur.Net.Packets
                     //Console.WriteLine("stage 4");
                     return length - needed;
                 }
-
-                //                if ((int)PayloadLength > (ends - offset))
-                //              {
-                //                return -((int)PayloadLength - (ends - offset));
-                //          }
                 else
                 {
-                    Message = DC.Clip(data, offset, (uint)PayloadLength);
 
                     if (Mask)
                     {
+                        MaskKey = new byte[4];
+                        MaskKey[0] = data[offset++];
+                        MaskKey[1] = data[offset++];
+                        MaskKey[2] = data[offset++];
+                        MaskKey[3] = data[offset++];
+
+                        Message = DC.Clip(data, offset, (uint)PayloadLength);
+
                         //var aMask = BitConverter.GetBytes(MaskKey);
                         for (int i = 0; i < Message.Length; i++)
-                        {
                             Message[i] = (byte)(Message[i] ^ MaskKey[i % 4]);
-                        }
                     }
+                    else
+                        Message = DC.Clip(data, offset, (uint)PayloadLength);
+
 
                     return (offset - oOffset) + (int)PayloadLength;
                 }

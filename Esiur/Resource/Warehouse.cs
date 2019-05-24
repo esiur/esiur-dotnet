@@ -1,6 +1,31 @@
-﻿using Esiur.Data;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using Esiur.Data;
 using Esiur.Engine;
 using Esiur.Resource.Template;
+using Esiur.Security.Permissions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,11 +39,19 @@ namespace Esiur.Resource
     {
         //static byte prefixCounter;
 
-        static List<IStore> stores = new List<IStore>();
+        static AutoList<IResource, Instance> stores = new AutoList<IResource, Instance>(null);
         static Dictionary<uint, IResource> resources = new Dictionary<uint, IResource>();
         static uint resourceCounter = 0;
 
         static KeyList<Guid, ResourceTemplate> templates = new KeyList<Guid, ResourceTemplate>();
+
+        static bool storeIsOpen = false;
+
+        public delegate void StoreConnectedEvent(IStore store, string name);
+        public delegate void StoreDisconnectedEvent(IStore store);
+        
+        public static event StoreConnectedEvent StoreConnected;
+        public static event StoreDisconnectedEvent StoreDisconnected;
 
 
         /// <summary>
@@ -30,7 +63,7 @@ namespace Esiur.Resource
         {
             foreach (var s in stores)
                 if (s.Instance.Name == name)
-                    return s;
+                    return s as IStore;
             return null;
         }
 
@@ -44,7 +77,7 @@ namespace Esiur.Resource
             if (resources.ContainsKey(id))
                 return new AsyncReply<IResource>(resources[id]);
             else
-                return null;
+                return new AsyncReply<IResource>(null);
         }
 
         /// <summary>
@@ -59,22 +92,38 @@ namespace Esiur.Resource
             foreach (var store in stores)
                 bag.Add(store.Trigger(ResourceTrigger.Initialize));
 
-            foreach (var store in stores)
-                bag.Add(store.Trigger(ResourceTrigger.SystemInitialized));
 
             bag.Seal();
 
             var rt = new AsyncReply<bool>();
             bag.Then((x) =>
             {
-                foreach(var b in x)
+                foreach (var b in x)
                     if (!b)
                     {
                         rt.Trigger(false);
                         return;
                     }
 
-                rt.Trigger(true);
+                var rBag = new AsyncBag<bool>();
+                foreach (var rk in resources)
+                    rBag.Add(rk.Value.Trigger(ResourceTrigger.SystemInitialized));
+
+                rBag.Seal();
+
+                rBag.Then(y =>
+                {
+                    foreach (var b in y)
+                        if (!b)
+                        {
+                            rt.Trigger(false);
+                            return;
+                        }
+
+                    rt.Trigger(true);
+                    storeIsOpen = true;
+                });
+
             });
 
             return rt;
@@ -120,6 +169,63 @@ namespace Esiur.Resource
             });
 
             return rt;
+        }
+
+
+        private static IResource[] QureyIn(string[] path, int index, AutoList<IResource, Instance> resources)
+        {
+            var rt = new List<IResource>();
+
+            if (index == path.Length - 1)
+            {
+                if (path[index] == "")
+                    foreach (IResource child in resources)
+                      rt.Add(child);
+                 else
+                    foreach (IResource child in resources)
+                        if (child.Instance.Name == path[index])
+                            rt.Add(child);
+            }
+            else
+                foreach (IResource child in resources)
+                    if (child.Instance.Name == path[index])
+                        rt.AddRange(QureyIn(path, index+1, child.Instance.Children));
+
+            return rt.ToArray();
+        }
+
+        public static AsyncReply<IResource[]> Query(string path)
+        {
+
+
+            if (path == null || path == "")
+            {
+                var roots = stores.Where(s => s.Instance.Parents.Count == 0).ToArray();
+                return new AsyncReply<IResource[]>(roots);
+            }
+            else
+            {
+                var rt = new AsyncReply<IResource[]>();
+                Get(path).Then(x =>
+                {
+                    var p = path.Split('/');
+
+                    if (x == null)
+                    {
+                        rt.Trigger(QureyIn(p, 0, stores));
+                    }
+                    else
+                    {
+                        var ar = QureyIn(p, 0, stores).Where(r => r != x).ToList();
+                        ar.Insert(0, x);
+                        rt.Trigger(ar.ToArray());
+                    }
+                });
+
+                return rt;
+
+            }
+
         }
 
         /// <summary>
@@ -169,9 +275,12 @@ namespace Esiur.Resource
         /// <param name="name">Resource name.</param>
         /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null)
+        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null)
         {
-            resource.Instance = new Instance(resourceCounter++, name, resource, store);
+            resource.Instance = new Instance(resourceCounter++, name, resource, store, customTemplate, age);
+
+            if (manager != null)
+                resource.Instance.Managers.Add(manager);
 
             if (store == parent)
                 parent = null;
@@ -184,19 +293,27 @@ namespace Esiur.Resource
             else
                 parent.Instance.Children.Add(resource);
 
+                
 
             if (resource is IStore)
+            {
                 stores.Add(resource as IStore);
+                StoreConnected?.Invoke(resource as IStore, name);
+            }
             else
                 store.Put(resource);
 
             resources.Add(resource.Instance.Id, resource);
+
+            if (!storeIsOpen)
+                 resource.Trigger(ResourceTrigger.Initialize);
+
         }
 
-        public static T New<T>(string name, IStore store = null, IResource parent = null)
+        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null)
         {
             var res = Activator.CreateInstance(typeof(T)) as IResource;
-            Put(res, name, store, parent);
+            Put(res, name, store, parent, null, 0, manager);
             return (T)res;
         }
 
@@ -206,7 +323,7 @@ namespace Esiur.Resource
         /// <param name="template">Resource template.</param>
         public static void PutTemplate(ResourceTemplate template)
         {
-            if (templates.ContainsKey(template.ClassId))
+            if (!templates.ContainsKey(template.ClassId))
                 templates.Add(template.ClassId, template);
         }
 
@@ -254,5 +371,36 @@ namespace Esiur.Resource
 
             return null; 
         }
+
+        public static bool Remove(IResource resource)
+        {
+
+            if (resource.Instance == null)
+                return false;
+
+            if (resources.ContainsKey(resource.Instance.Id)) 
+                resources.Remove(resource.Instance.Id);
+            else
+                return false;
+
+            if (resource is IStore)
+            {
+                stores.Remove(resource as IStore);
+
+                // remove all objects associated with the store
+                var toBeRemoved = resources.Values.Where(x => x.Instance.Store == resource);
+                foreach (var o in toBeRemoved)
+                    Remove(o);
+
+                StoreDisconnected?.Invoke(resource as IStore);
+            }
+            
+            if (resource.Instance.Store != null)
+                resource.Instance.Store.Remove(resource);
+
+            resource.Destroy();
+
+            return true;
+         }
     }
 }

@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Reflection;
@@ -41,12 +65,12 @@ namespace Esiur.Net.IIP
         //Structure properties = new Structure();
 
         string link;
-        uint age;
-        uint[] ages;
+        //ulong age;
+        //ulong[] ages;
         object[] properties;
         DistributedResourceEvent[] events;
 
-        ResourceTemplate template;
+        //ResourceTemplate template;
 
  
         //DistributedResourceStack stack;
@@ -54,13 +78,23 @@ namespace Esiur.Net.IIP
  
         bool destroyed;
 
+        /*
+        Dictionary<AsyncReply, object> afterAttachmentTriggers = new Dictionary<AsyncReply, object>();
+
+        internal void AddAfterAttachement(AsyncReply trigger, object value)
+        {
+            afterAttachmentTriggers.Add(trigger, value);
+        }
+        */
+
+
         /// <summary>
         /// Resource template for the remotely located resource.
         /// </summary>
-        public ResourceTemplate Template
-        {
-            get { return template; }
-        }
+        //public ResourceTemplate Template
+        //{
+        //    get { return template; }
+        //}
 
 
         /// <summary>
@@ -132,40 +166,72 @@ namespace Esiur.Net.IIP
             /// <param name="template">Resource template.</param>
             /// <param name="instanceId">Instance Id given by the other end.</param>
             /// <param name="age">Resource age.</param>
-        public DistributedResource(DistributedConnection connection, ResourceTemplate template, uint instanceId, uint age, string link)
+        public DistributedResource(DistributedConnection connection, uint instanceId, ulong age, string link)
         {
             this.link = link;
             this.connection = connection;
             this.instanceId = instanceId;
-            this.template = template;
-            this.age = age;
+            //this.Instance.Template = template;
+            //this.Instance.Age = age;
+            //this.template = template;
+            //this.age = age;
         }
 
         internal void _Ready()
         {
             isReady = true;
         }
-        
-        internal bool _Attached(object[] properties)
+
+        /// <summary>
+        /// Export all properties with ResourceProperty attributed as bytes array.
+        /// </summary>
+        /// <returns></returns>
+        internal PropertyValue[] _Serialize()
         {
-            
+
+            var props = new PropertyValue[properties.Length];
+
+
+            for (byte i = 0; i < properties.Length; i++)
+                props[i] = new PropertyValue(properties[i], Instance.GetAge(i), Instance.GetModificationDate(i));
+
+            return props;
+        }
+
+        internal bool _Attached(PropertyValue[] properties)
+        {
             if (isAttached)
                 return false;
             else
             {
-                this.properties = properties;
-                ages = new uint[properties.Length];
-                this.events = new DistributedResourceEvent[template.Events.Length];
+                this.properties = new object[properties.Length];
+
+                this.events = new DistributedResourceEvent[Instance.Template.Events.Length];
+
+                for (byte i = 0; i < properties.Length; i++)
+                {
+                    Instance.SetAge(i, properties[i].Age);
+                    Instance.SetModificationDate(i, properties[i].Date);
+                    this.properties[i] = properties[i].Value;
+                }
+
+                // trigger holded events/property updates.
+                //foreach (var r in afterAttachmentTriggers)
+                //    r.Key.Trigger(r.Value);
+
+                //afterAttachmentTriggers.Clear();
+
                 isAttached = true;
+
             }
            return true;
         }
 
         internal void _EmitEventByIndex(byte index, object[] args)
         {
-            var et = template.GetEventTemplate(index);
+            var et = Instance.Template.GetEventTemplate(index);
             events[index]?.Invoke(this, args);
-            Instance.EmitResourceEvent(et.Name, null, args);
+            Instance.EmitResourceEvent(null, null, et.Name, args);
         }
 
         public AsyncReply _Invoke(byte index, object[] args)
@@ -173,29 +239,37 @@ namespace Esiur.Net.IIP
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
 
-            if (index >= template.Functions.Length)
+            if (index >= Instance.Template.Functions.Length)
                 throw new Exception("Function index is incorrect");
 
-            var reply = new AsyncReply();
+            // var reply = new AsyncReply();
 
-            var parameters = Codec.ComposeVarArray(args, connection, true);
-            connection.SendRequest(Packets.IIPPacket.IIPPacketAction.InvokeFunction, instanceId, index, parameters).Then((res) =>
+            return connection.SendInvoke(instanceId, index, args);
+
+            //var parameters = Codec.ComposeVarArray(args, connection, true);
+            //return connection.SendRequest(Packets.IIPPacket.IIPPacketAction.InvokeFunction, instanceId, index, parameters);
+            
+            /*.Then((res) =>
             {
                 Codec.Parse((byte[])res[0], 0, connection).Then((rt) =>
                 {
                     reply.Trigger(rt);
                 });
-            });
+            }).Error((ex) => {
+                reply.TriggerError(ex);
+            }).Progress((t, pv, pm)=> {
+                reply.TriggerProgress(t, pv, pm);
+            }).Chunk(v => reply.TriggerChunk(v));
 
  
             return reply;
-
+            */
         }
 
  
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            var ft = template.GetFunctionTemplate(binder.Name);
+            var ft = Instance.Template.GetFunctionTemplate(binder.Name);
 
             var reply = new AsyncReply();
 
@@ -233,7 +307,7 @@ namespace Esiur.Net.IIP
             if (!isAttached)
                 return false;
 
-            var pt = template.GetPropertyTemplate(binder.Name);
+            var pt = Instance.Template.GetPropertyTemplate(binder.Name);
 
             if (pt != null)
             {
@@ -242,7 +316,7 @@ namespace Esiur.Net.IIP
             }
             else
             {
-                var et = template.GetEventTemplate(binder.Name);
+                var et = Instance.Template.GetEventTemplate(binder.Name);
                 if (et == null)
                     return false;
 
@@ -253,11 +327,11 @@ namespace Esiur.Net.IIP
         }
 
 
-        internal void UpdatePropertyByIndex(byte index, object value)
+        internal void _UpdatePropertyByIndex(byte index, object value)
         {
-            var pt = template.GetPropertyTemplate(index);
+            var pt = Instance.Template.GetPropertyTemplate(index);
             properties[index] = value;
-            Instance.Modified(pt.Name, value);
+            Instance.EmitModification(pt, value);
         }
 
         /// <summary>
@@ -277,9 +351,8 @@ namespace Esiur.Net.IIP
             connection.SendRequest(Packets.IIPPacket.IIPPacketAction.SetProperty, instanceId, index, parameters).Then((res) =>
             {
                 // not really needed, server will always send property modified, this only happens if the programmer forgot to emit in property setter
-                //Update(index, value);
+                properties[index] = value;
                 reply.Trigger(null);
-                // nothing to do here
             });
 
             return reply;
@@ -293,8 +366,7 @@ namespace Esiur.Net.IIP
             if (!isAttached)
                 return false;
 
-            var pt = template.GetPropertyTemplate(binder.Name);
-
+            var pt = Instance.Template.GetPropertyTemplate(binder.Name);
  
             if (pt != null)
             {
@@ -303,7 +375,7 @@ namespace Esiur.Net.IIP
             }
             else
             {
-                var et = template.GetEventTemplate(binder.Name);
+                var et = Instance.Template.GetEventTemplate(binder.Name);
                 if (et == null)
                     return false;
 

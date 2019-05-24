@@ -7,6 +7,10 @@ using MongoDB.Bson;
 using Esiur.Data;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading.Tasks;
+using Esiur.Resource.Template;
+using System.Linq;
+using Esiur.Security.Permissions;
 
 namespace Esiur.Stores.MongoDB
 {
@@ -17,6 +21,7 @@ namespace Esiur.Stores.MongoDB
         public event DestroyedEvent OnDestroy;
         MongoClient client;
         IMongoDatabase database;
+        IMongoCollection<BsonDocument> resourcesCollection;
 
         Dictionary<string, IResource> resources = new Dictionary<string, IResource>();
 
@@ -25,28 +30,70 @@ namespace Esiur.Stores.MongoDB
         {
             get { return resources.Count; }
         }
+
         public void Destroy()
         {
 
+        }
+
+        
+        public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime date)
+        {
+            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            //var bsonObjectId = new BsonObjectId(new ObjectId(objectId));
+
+            var record = this.database.GetCollection<BsonDocument>("record_" + objectId);
+
+            record.InsertOne(new BsonDocument()
+            {
+                {"property", propertyName}, {"age", BsonValue.Create(age) }, {"date", date}, {"value", Compose(value) }
+            });
+
+            var col = this.database.GetCollection<BsonDocument>("resources");
+
+
+
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
+            var update = Builders<BsonDocument>.Update
+                .Set("values." + propertyName, new BsonDocument { { "age", BsonValue.Create(age) },
+                                     { "modification", date },
+                                     { "value", Compose(value) } });
+
+            col.UpdateOne(filter, update);
+
+            return true;
         }
 
         public MongoDBStore()
         {
             client = new MongoClient();
             this.database = client.GetDatabase("esiur");
+            this.resourcesCollection = this.database.GetCollection<BsonDocument>("resources");
+
         }
 
         public MongoDBStore(string connectionString, string database)
         {
             client = new MongoClient(connectionString);
             this.database = client.GetDatabase(database);
+            this.resourcesCollection = this.database.GetCollection<BsonDocument>("resources");
         }
 
+        public bool Remove(IResource resource)
+        {
+            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
+
+            this.database.DropCollection("record_" + objectId);
+            resourcesCollection.DeleteOne(filter);
+
+            return true;
+        }
 
         AsyncReply<IResource> Fetch(string id)
         {
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(id)));
-            var list = this.database.GetCollection<BsonDocument>("resources").Find(filter).ToList();
+            var list = resourcesCollection.Find(filter).ToList();
             if (list.Count == 0)
                 return new AsyncReply<IResource>(null);
             var document = list[0];
@@ -60,6 +107,11 @@ namespace Esiur.Stores.MongoDB
 
             var parents = document["parents"].AsBsonArray;
             var children = document["children"].AsBsonArray;
+            //var managers = document["managers"].AsBsonArray;
+
+            var attributes = Parse(document["attributes"]).Then(x=> {
+                resource.Instance.SetAttributes(x as Structure);
+            });
 
             var bag = new AsyncBag<object>();
 
@@ -69,7 +121,8 @@ namespace Esiur.Stores.MongoDB
                 bag.Add(ap);
                 ap.Then((x) =>
                 {
-                    resource.Instance.Parents.Add(x);
+                    if (!resource.Instance.Parents.Contains(x))
+                        resource.Instance.Parents.Add(x);
                 });
             }
 
@@ -80,9 +133,25 @@ namespace Esiur.Stores.MongoDB
                 bag.Add(ac);
                 ac.Then((x) =>
                 {
-                    resource.Instance.Children.Add(x);
+                    if (!resource.Instance.Children.Contains(x))
+                        resource.Instance.Children.Add(x);
                 });
             }
+
+            /*
+            // load managers
+            foreach(var m in managers)
+            {
+                IPermissionsManager pm = (IPermissionsManager)Activator.CreateInstance(Type.GetType(m["classname"].AsString));
+                var sr = Parse(m["settings"]);
+                bag.Add(sr);
+                sr.Then((x) =>
+                {
+                    pm.Initialize((Structure)x, resource);
+                    resource.Instance.Managers.Add(pm);
+                });
+            }
+            */
 
             // Load values
             var values = document["values"].AsBsonDocument;
@@ -90,18 +159,15 @@ namespace Esiur.Stores.MongoDB
 
             foreach (var v in values)
             {
-#if NETSTANDARD1_5
-                var pi = resource.GetType().GetTypeInfo().GetProperty(v.Name);
-#else
-                var pi = resource.GetType().GetProperty(pt.Name);
-#endif
+ 
 
-                var av = Parse(v.Value);
+                var valueInfo = v.Value as BsonDocument;
+
+                var av = Parse(valueInfo["value"]);
                 bag.Add(av);
                 av.Then((x) =>
                 {
-                    if (pi.CanWrite)
-                        pi.SetValue(resource, DC.CastConvert(x, pi.PropertyType));
+                    resource.Instance.LoadProperty(v.Name, (ulong)valueInfo["age"].AsInt64, valueInfo["modification"].ToUniversalTime(), x);
                 });
             }
 
@@ -163,8 +229,13 @@ namespace Esiur.Stores.MongoDB
 
                 return bag;
             }
+            else if (value.BsonType == BsonType.DateTime)
+            {
+                return new AsyncReply(value.ToUniversalTime());
+            }
             else
             {
+            
                 return new AsyncReply(value.RawValue);
             }
         }
@@ -194,6 +265,8 @@ namespace Esiur.Stores.MongoDB
         public bool Put(IResource resource)
         {
 
+            var attrs = resource.Instance.GetAttributes();
+
             foreach (var kv in resources)
                 if (kv.Value == resource)
                 {
@@ -203,6 +276,7 @@ namespace Esiur.Stores.MongoDB
 
             var parents = new BsonArray();
             var children = new BsonArray();
+
             var template = resource.Instance.Template;
 
             foreach (IResource c in resource.Instance.Children)
@@ -210,22 +284,13 @@ namespace Esiur.Stores.MongoDB
 
             foreach (IResource p in resource.Instance.Parents)
                 parents.Add(p.Instance.Link);
+            
 
-            var document = new BsonDocument
-            {
-                { "parents", parents },
-                { "children", children },
-                { "classname", resource.GetType().AssemblyQualifiedName },
-                { "name", resource.Instance.Name }
-            };
+            var attrsDoc = ComposeStructure(attrs);
 
+           
 
-            var col = this.database.GetCollection<BsonDocument>("resources");
-
-            col.InsertOne(document);
-
-            resource.Instance.Attributes["objectId"] = document["_id"].ToString();
-
+            
             var values = new BsonDocument();
 
             foreach (var pt in template.Properties)
@@ -236,19 +301,34 @@ namespace Esiur.Stores.MongoDB
                 var pi = resource.GetType().GetProperty(pt.Name);
 #endif
                 var rt = pi.GetValue(resource, null);
-
-                values.Add(pt.Name, Compose(rt));
+ 
+                values.Add(pt.Name,
+                  new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
+                                     { "modification", resource.Instance.GetModificationDate(pt.Index) },
+                                     { "value", Compose(rt) } });
             }
 
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
-            var update = Builders<BsonDocument>.Update
-                .Set("values", values);
+//            var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
+//            var update = Builders<BsonDocument>.Update
+//                .Set("values", values);
+//            col.UpdateOne(filter, update);
 
-            col.UpdateOne(filter, update);
 
-            //document.Add("values", values);
+            var document = new BsonDocument
+            {
+                { "parents", parents },
+                { "children", children },
+                { "attributes", attrsDoc },
+                { "classname", resource.GetType().FullName + "," + resource.GetType().GetTypeInfo().Assembly.GetName().Name },
+                { "name", resource.Instance.Name },
+                { "values", values }
+            };
 
-            //col.ReplaceOne(document, document);
+
+            resourcesCollection.InsertOne(document);
+
+            resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+
             return true;
         }
 
@@ -356,17 +436,19 @@ namespace Esiur.Stores.MongoDB
             {
                 var filter = new BsonDocument();
 
-                var list = this.database.GetCollection<BsonDocument>("resources").Find(filter).ToList();
+                var list = resourcesCollection.Find(filter).ToList();
 
+                Console.WriteLine(list.Count);
 
                 // if (list.Count == 0)
                 //   return new AsyncBag<IResource>(new IResource[0]);
 
                 var bag = new AsyncBag<IResource>();
 
-                foreach (var r in list)
+                for(var i = 0; i < list.Count; i++)
                 {
-                    bag.Add(Get("id/" + r["_id"].AsObjectId.ToString()));
+                    Console.WriteLine("Loading {0}/{1}", i, list.Count);
+                    bag.Add(Get("id/" + list[i]["_id"].AsObjectId.ToString()));
                 }
 
                 bag.Seal();
@@ -392,6 +474,8 @@ namespace Esiur.Stores.MongoDB
 
         public void SaveResource(IResource resource)
         {
+            var attrs = resource.Instance.GetAttributes();
+
             var parents = new BsonArray();
             var children = new BsonArray();
             var template = resource.Instance.Template;
@@ -401,6 +485,7 @@ namespace Esiur.Stores.MongoDB
 
             foreach (IResource p in resource.Instance.Parents)
                 parents.Add(p.Instance.Link);
+ 
 
             var values = new BsonDocument();
 
@@ -413,27 +498,181 @@ namespace Esiur.Stores.MongoDB
 #endif
                 var rt = pi.GetValue(resource, null);
 
-                values.Add(pt.Name, Compose(rt));
+                values.Add(pt.Name,
+                                      new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
+                                     { "modification", resource.Instance.GetModificationDate(pt.Index) },
+                                     { "value", Compose(rt) } });
+
             }
+
+            var attrsDoc = ComposeStructure(attrs);
 
             var document = new BsonDocument
             {
                 { "parents", parents },
                 { "children", children },
-                { "classname", resource.GetType().AssemblyQualifiedName },
+                {"attributes", attrsDoc },
+                { "classname", resource.GetType().FullName + "," + resource.GetType().GetTypeInfo().Assembly.GetName().Name },
                 { "name", resource.Instance.Name },
                 { "_id", new BsonObjectId(new ObjectId(resource.Instance.Attributes["objectId"].ToString())) },
                 {"values", values }
             };
 
 
-            var col = this.database.GetCollection<BsonDocument>("resources");
 
             var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
+
+            /*
             var update = Builders<BsonDocument>.Update
                 .Set("values", values);
 
-            col.UpdateOne(filter, update);
+            var update = Builders<BsonDocument>.Update.Set("values", values).Set("parents", parents;
+                        col.UpdateOne(filter, update);
+
+            */
+
+            resourcesCollection.ReplaceOne(filter, document);
+        }
+
+        public AsyncReply<PropertyValue[]> GetPropertyRecordByAge(IResource resource, string propertyName, ulong fromAge, ulong toAge)
+        {
+            var objectId = resource.Instance.Attributes["objectId"].ToString();
+
+            var record = this.database.GetCollection<BsonDocument>("record_" + objectId);
+            var builder = Builders<BsonDocument>.Filter;
+
+            var filter = builder.Gte("age", fromAge) & builder.Lte("age", toAge) & builder.Eq("property", propertyName);
+
+            var reply = new AsyncReply<PropertyValue[]>();
+
+            record.FindAsync(filter).ContinueWith((x) =>
+            {
+                var values = ((Task<IAsyncCursor<BsonDocument>>)x).Result.ToList();
+
+                var bag = new AsyncBag<object>();
+
+                foreach(var v in values)
+                    bag.Add(Parse(v["value"]));
+                
+                bag.Seal();
+
+                bag.Then((results) =>
+                {
+                    var list = new List<PropertyValue>();
+                    for(var i = 0; i < results.Length; i++)
+                        list.Add(new PropertyValue(results[i], (ulong)values[i]["age"].AsInt64, values[i]["date"].ToUniversalTime()));
+
+                    reply.Trigger(list.ToArray());
+                });
+
+            });
+
+            return reply;
+        }
+
+        public AsyncReply<PropertyValue[]> GetPropertyRecordByDate(IResource resource, string propertyName, DateTime fromDate, DateTime toDate)
+        {
+            var objectId = resource.Instance.Attributes["objectId"].ToString();
+
+            var record = this.database.GetCollection<BsonDocument>("record_" + objectId);
+            var builder = Builders<BsonDocument>.Filter;
+
+            var filter = builder.Gte("date", fromDate) & builder.Lte("date", toDate) & builder.Eq("property", propertyName);
+
+            var reply = new AsyncReply<PropertyValue[]>();
+
+            record.FindAsync(filter).ContinueWith((x) =>
+            {
+                var values = ((Task<IAsyncCursor<BsonDocument>>)x).Result.ToList();
+
+                var bag = new AsyncBag<object>();
+
+                foreach (var v in values)
+                    bag.Add(Parse(v["value"]));
+
+                bag.Seal();
+
+                bag.Then((results) =>
+                {
+                    var list = new List<PropertyValue>();
+                    for (var i = 0; i < results.Length; i++)
+                        list.Add(new PropertyValue(results[i], (ulong)values[i]["age"].AsInt64, values[i]["date"].ToUniversalTime()));
+
+                    reply.Trigger(list.ToArray());
+                });
+
+            });
+
+            return reply;
+        }
+
+        AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByAge(IResource resource, ulong fromAge, ulong toAge)
+        {
+            var properties = resource.Instance.Template.Properties.Where(x => x.Storage == StorageMode.Recordable).ToList();
+
+            var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
+
+            AsyncBag<PropertyValue> bag = new AsyncBag<PropertyValue>();
+
+            foreach (var p in properties)
+                bag.Add(GetPropertyRecordByAge(resource, p.Name, fromAge, toAge));
+
+            bag.Seal();
+
+            bag.Then(x =>
+            {
+                var list = new KeyList<PropertyTemplate, PropertyValue>();
+
+                for (var i = 0; i < x.Length; i++)
+                    list.Add(properties[i], x[i]);
+
+                reply.Trigger(list);
+            });
+            
+            return reply;
+        }
+
+        public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+        {
+            var properties = resource.Instance.Template.Properties.Where(x => x.Storage == StorageMode.Recordable).ToList();
+
+            var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
+
+            AsyncBag<PropertyValue[]> bag = new AsyncBag<PropertyValue[]>();
+
+            foreach (var p in properties)
+                bag.Add(GetPropertyRecordByDate(resource, p.Name, fromDate, toDate));
+
+            bag.Seal();
+
+            bag.Then(x =>
+            {
+                var list = new KeyList<PropertyTemplate, PropertyValue[]>();
+
+                for (var i = 0; i < x.Length; i++)
+                    list.Add(properties[i], x[i]);
+
+                reply.Trigger(list);
+            });
+
+            return reply;
+        }
+
+        public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+        {
+            
+
+            var objectId = resource.Instance.Attributes["objectId"].ToString();
+
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
+            var update = Builders<BsonDocument>.Update
+                .Set("values." + propertyName, new BsonDocument { { "age", BsonValue.Create(age) },
+                                     { "modification", dateTime },
+                                     { "value", Compose(value) } });
+
+            resourcesCollection.UpdateOne(filter, update);
+
+            return true;
 
         }
     }

@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Esiur.Misc;
@@ -9,6 +33,7 @@ using Esiur.Net.IIP;
 using Esiur.Resource;
 using System.Linq;
 using System.Reflection;
+using Esiur.Resource.Template;
 
 namespace Esiur.Data
 {
@@ -98,13 +123,13 @@ namespace Esiur.Data
         public static byte[] ComposeStructureArray(Structure[] structures, DistributedConnection connection, bool prependLength = false)
         {
             if (structures == null || structures?.Length == 0)
-                return new byte[0];
-
+                return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
+ 
             var rt = new BinaryList();
             var comparsion = StructureComparisonResult.Structure;
 
             rt.Append((byte)comparsion);
-            rt.Append(ComposeStructure(structures[0], connection));
+            rt.Append(ComposeStructure(structures[0], connection, true, true, true));
 
             for (var i = 1; i < structures.Length; i++)
             {
@@ -112,11 +137,11 @@ namespace Esiur.Data
                 rt.Append((byte)comparsion);
 
                 if (comparsion == StructureComparisonResult.Structure)
-                    rt.Append(ComposeStructure(structures[i], connection));
+                    rt.Append(ComposeStructure(structures[i], connection, true, true, true));
                 else if (comparsion == StructureComparisonResult.StructureSameKeys)
-                    rt.Append(ComposeStructure(structures[i], connection, false));
+                    rt.Append(ComposeStructure(structures[i], connection, false, true, true));
                 else if (comparsion == StructureComparisonResult.StructureSameTypes)
-                    rt.Append(ComposeStructure(structures[i], connection, false, false));
+                    rt.Append(ComposeStructure(structures[i], connection, false, false, true));
             }
 
             if (prependLength)
@@ -147,18 +172,19 @@ namespace Esiur.Data
             var result = (StructureComparisonResult)data[offset++];
 
             AsyncReply previous = null;
-            string[] previousKeys = null;
-            DataType[] previousTypes = null;
+           // string[] previousKeys = null;
+           // DataType[] previousTypes = null;
 
-             
+            Structure.StructureMetadata metadata = new Structure.StructureMetadata();
+
 
             if (result == StructureComparisonResult.Null)
                 previous = new AsyncReply<Structure>(null);
             else if (result == StructureComparisonResult.Structure)
             {
                 uint cs = data.GetUInt32(offset);
-                cs += 4;
-                previous = ParseStructure(data, offset, cs, connection, out previousKeys, out previousTypes);
+                offset += 4;
+                previous = ParseStructure(data, offset, cs, connection, out metadata);
                 offset += cs;
             }
  
@@ -174,22 +200,22 @@ namespace Esiur.Data
                 else if (result == StructureComparisonResult.Structure)
                 {
                     uint cs = data.GetUInt32(offset);
-                    cs += 4;
-                    previous = ParseStructure(data, offset, cs, connection, out previousKeys, out previousTypes);
+                    offset += 4;
+                    previous = ParseStructure(data, offset, cs, connection, out metadata);// out previousKeys, out previousTypes);
                     offset += cs;
                 }
                 else if (result == StructureComparisonResult.StructureSameKeys)
                 {
                     uint cs = data.GetUInt32(offset);
-                    cs += 4;
-                    previous = ParseStructure(data, offset, cs, connection, out previousKeys, out previousTypes, previousKeys);
+                    offset += 4;
+                    previous = ParseStructure(data, offset, cs, connection, out metadata, metadata.Keys);
                     offset += cs;
                 }
                 else if (result == StructureComparisonResult.StructureSameTypes)
                 {
                     uint cs = data.GetUInt32(offset);
-                    cs += 4;
-                    previous = ParseStructure(data, offset, cs, connection, out previousKeys, out previousTypes, previousKeys, previousTypes);
+                    offset += 4;
+                    previous = ParseStructure(data, offset, cs, connection, out metadata, metadata.Keys, metadata.Types);
                     offset += cs;
                 }
 
@@ -243,9 +269,8 @@ namespace Esiur.Data
         /// <returns>Value</returns>
         public static AsyncReply<Structure> ParseStructure(byte[] data, uint offset, uint contentLength, DistributedConnection connection)
         {
-            string[] pk;
-            DataType[] pt;
-            return ParseStructure(data, offset, contentLength, connection, out pk, out pt);
+            Structure.StructureMetadata metadata;
+            return ParseStructure(data, offset, contentLength, connection, out metadata);
         }
 
         /// <summary>
@@ -260,7 +285,7 @@ namespace Esiur.Data
         /// <param name="keys">Array of keys, in case the data doesn't include keys</param>
         /// <param name="types">Array of DataTypes, in case the data doesn't include DataTypes</param>
         /// <returns>Structure</returns>
-        public static AsyncReply<Structure> ParseStructure(byte[] data, uint offset, uint length, DistributedConnection connection, out string[] parsedKeys, out DataType[] parsedTypes, string[] keys = null, DataType[] types = null)
+        public static AsyncReply<Structure> ParseStructure(byte[] data, uint offset, uint length, DistributedConnection connection, out Structure.StructureMetadata metadata, string[] keys = null, DataType[] types = null)// out string[] parsedKeys, out DataType[] parsedTypes, string[] keys = null, DataType[] types = null)
         {
             var reply = new AsyncReply<Structure>();
             var bag = new AsyncBag<object>();
@@ -293,8 +318,8 @@ namespace Esiur.Data
 
                     uint rt;
                     bag.Add(Codec.Parse(data, offset, out rt, connection));
-                    length -= rt + 1;
-                    offset += rt + 1;
+                    length -= rt;
+                    offset += rt;
                 }
             }
             else
@@ -324,8 +349,8 @@ namespace Esiur.Data
                 reply.Trigger(s);
             });
 
-            parsedKeys = keylist.ToArray();
-            parsedTypes = typelist.ToArray();
+            metadata = new Structure.StructureMetadata() { Keys = keylist.ToArray(), Types = typelist.ToArray() };
+
             return reply;
         }
 
@@ -544,7 +569,6 @@ namespace Esiur.Data
         {
             Null,
             Distributed,
-            DistributedSameClass,
             Local,
             Same
         }
@@ -585,21 +609,12 @@ namespace Esiur.Data
         {
             if (next == null)
                 return ResourceComparisonResult.Null;
-
-            if (next == initial)
+            else if (next == initial)
                 return ResourceComparisonResult.Same;
-
-            if (IsLocalResource(next, connection))
+            else if (IsLocalResource(next, connection))
                 return ResourceComparisonResult.Local;
-
-            if (initial == null)
+            else
                 return ResourceComparisonResult.Distributed;
-
-            if (initial.Instance.Template.ClassId == next.Instance.Template.ClassId)
-                return ResourceComparisonResult.DistributedSameClass;
-
-            return ResourceComparisonResult.Distributed;
-
         }
 
         /// <summary>
@@ -629,7 +644,7 @@ namespace Esiur.Data
         public static byte[] ComposeResourceArray(IResource[] resources, DistributedConnection connection, bool prependLength = false)
         {
             if (resources == null || resources?.Length == 0)
-                return new byte[0];
+                return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
 
             var rt = new BinaryList();
             var comparsion = Compare(null, resources[0], connection);
@@ -639,26 +654,16 @@ namespace Esiur.Data
             if (comparsion == ResourceComparisonResult.Local)
                 rt.Append((resources[0] as DistributedResource).Id);
             else if (comparsion == ResourceComparisonResult.Distributed)
-            {
-                rt.Append(resources[0].Instance.Template.ClassId);
                 rt.Append(resources[0].Instance.Id);
-            }
-
+            
             for (var i = 1; i < resources.Length; i++)
             {
                 comparsion = Compare(resources[i - 1], resources[i], connection);
                 rt.Append((byte)comparsion);
                 if (comparsion == ResourceComparisonResult.Local)
-                    rt.Append((resources[0] as DistributedResource).Id);
+                    rt.Append((resources[i] as DistributedResource).Id);
                 else if (comparsion == ResourceComparisonResult.Distributed)
-                {
-                    rt.Append(resources[0].Instance.Template.ClassId);
-                    rt.Append(resources[0].Instance.Id);
-                }
-                else if (comparsion == ResourceComparisonResult.DistributedSameClass)
-                {
-                    rt.Append(resources[0].Instance.Id);
-                }
+                    rt.Append(resources[i].Instance.Id);
             }
 
             if (prependLength)
@@ -690,7 +695,6 @@ namespace Esiur.Data
             var result = (ResourceComparisonResult)data[offset++];
 
             AsyncReply previous = null;
-            Guid previousGuid = Guid.Empty;
 
             if (result == ResourceComparisonResult.Null)
                 previous = new AsyncReply<IResource>(null);
@@ -701,9 +705,7 @@ namespace Esiur.Data
             }
             else if (result == ResourceComparisonResult.Distributed)
             {
-                previousGuid = data.GetGuid(offset);
-                offset += 16;
-                //previous = connection.Fetch(previousGuid, data.GetUInt32(offset));
+                previous = connection.Fetch(data.GetUInt32(offset));
                 offset += 4;
             }
 
@@ -714,32 +716,30 @@ namespace Esiur.Data
             {
                 result = (ResourceComparisonResult)data[offset++];
 
+                AsyncReply current = null;
+
                 if (result == ResourceComparisonResult.Null)
-                    previous = new AsyncReply<IResource>(null);
-                //else if (result == ResourceComparisonResult.Same)
-                //  reply.Add(previous);
+                {
+                    current = new AsyncReply<IResource>(null);
+                }
+                else if (result == ResourceComparisonResult.Same)
+                {
+                    current = previous;
+                }
                 else if (result == ResourceComparisonResult.Local)
                 {
-                    // overwrite previous
-                    previous = Warehouse.Get(data.GetUInt32(offset));
+                    current = Warehouse.Get(data.GetUInt32(offset));
                     offset += 4;
                 }
                 else if (result == ResourceComparisonResult.Distributed)
                 {
-                    // overwrite previous
-                    previousGuid = data.GetGuid(offset);
-                    offset += 16;
-                    //previous = connection.Fetch(previousGuid, data.GetUInt32(offset));
-                    offset += 4;
-                }
-                else if (result == ResourceComparisonResult.DistributedSameClass)
-                {
-                    // overwrite previous
-                    //previous = connection.Fetch(previousGuid, data.GetUInt32(offset));
+                    current = connection.Fetch(data.GetUInt32(offset));
                     offset += 4;
                 }
 
-                reply.Add(previous);
+                reply.Add(current);
+
+                previous = current;
             }
 
             reply.Seal();
@@ -763,7 +763,12 @@ namespace Esiur.Data
                 rt.InsertRange(0, DC.ToBytes(rt.Count));
             return rt.ToArray();
         }
-
+        /// <summary>
+        /// Parse an array of variables.
+        /// </summary>
+        /// <param name="data">Array of bytes.</param>
+        /// <param name="connection">DistributedConnection is required to fetch resources.</param>
+        /// <returns>Array of variables.</returns>
         public static AsyncBag<object> ParseVarArray(byte[] data, DistributedConnection connection)
         {
             return ParseVarArray(data, 0, (uint)data.Length, connection);
@@ -802,6 +807,180 @@ namespace Esiur.Data
         }
 
         /// <summary>
+        /// Compose an array of property values.
+        /// </summary>
+        /// <param name="array">PropertyValue array.</param>
+        /// <param name="connection">DistributedConnection is required to check locality.</param>
+        /// <param name="prependLength">If True, prepend the length as UInt32 at the beginning of the output.</param>
+        /// <returns>Array of bytes in the network byte order.</returns>
+        /// //, bool includeAge = true
+        public static byte[] ComposePropertyValueArray(PropertyValue[] array, DistributedConnection connection, bool prependLength = false)
+        {
+            var rt = new List<byte>();
+            for (var i = 0; i < array.Length; i++)
+                rt.AddRange(ComposePropertyValue(array[i], connection));
+            if (prependLength)
+                rt.InsertRange(0, DC.ToBytes(rt.Count));
+            return rt.ToArray();
+        }
+
+        /// <summary>
+        /// Compose a property value.
+        /// </summary>
+        /// <param name="propertyValue">Property value</param>
+        /// <param name="connection">DistributedConnection is required to check locality.</param>
+        /// <returns>Array of bytes in the network byte order.</returns>
+        public static byte[] ComposePropertyValue(PropertyValue propertyValue, DistributedConnection connection)//, bool includeAge = true)
+        {
+            // age, date, value
+            //if (includeAge)
+                return BinaryList.ToBytes(propertyValue.Age, propertyValue.Date, Compose(propertyValue.Value, connection));
+            //else
+              //  return BinaryList.ToBytes(propertyValue.Date, Compose(propertyValue.Value, connection));
+
+        }
+
+
+        /// <summary>
+        /// Parse property value.
+        /// </summary>
+        /// <param name="data">Array of bytes.</param>
+        /// <param name="offset">Zero-indexed offset.</param>
+        /// <param name="connection">DistributedConnection is required to fetch resources.</param>
+        /// <param name="cs">Output content size.</param>
+         /// <returns>PropertyValue.</returns>
+        public static AsyncReply<PropertyValue> ParsePropertyValue(byte[] data, uint offset, out uint cs, DistributedConnection connection)//, bool ageIncluded = true)
+        {
+            var reply = new AsyncReply<PropertyValue>();
+
+            var age = data.GetUInt64(offset);
+            offset += 8;
+  
+            DateTime date = data.GetDateTime(offset);
+            offset += 8;
+
+            uint valueSize;
+
+            Parse(data, offset, out valueSize, connection).Then(value =>
+            {
+                reply.Trigger(new PropertyValue(value, age, date));
+            });
+
+            cs = 16 + valueSize;
+            return reply;
+        }
+
+        /// <summary>
+        /// Parse an array of PropertyValue.
+        /// </summary>
+        /// <param name="data">Array of bytes.</param>
+        /// <param name="connection">DistributedConnection is required to fetch resources.</param>
+        /// <returns>Array of variables.</returns>
+        public static AsyncBag<PropertyValue> ParsePropertyValueArray(byte[] data, DistributedConnection connection)
+        {
+            return ParsePropertyValueArray(data, 0, (uint)data.Length, connection);
+        }
+
+        /// <summary>
+        /// Parse resource history
+        /// </summary>
+        /// <param name="data">Array of bytes.</param>
+        /// <param name="offset">Zero-indexed offset.</param>
+        /// <param name="length">Number of bytes to parse.</param>
+        /// <param name="resource">Resource</param>
+        /// <param name="fromAge">Starting age.</param>
+        /// <param name="toAge">Ending age.</param>
+        /// <param name="connection">DistributedConnection is required to fetch resources.</param>
+        /// <returns></returns>
+        public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> ParseHistory(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection)
+        {
+            //var count = (int)toAge - (int)fromAge;
+
+            var list = new KeyList<PropertyTemplate, PropertyValue[]>();
+
+            var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
+
+            var bagOfBags = new AsyncBag<PropertyValue[]>();
+
+            var ends = offset + length;
+            while (offset < ends)
+            {
+                var index = data[offset++];
+                var pt = resource.Instance.Template.GetPropertyTemplate(index);
+                list.Add(pt, null);
+                var cs = DC.GetUInt32(data, offset);
+                offset += 4;
+                bagOfBags.Add(ParsePropertyValueArray(data, offset, cs, connection));
+                offset += cs;
+            }
+
+            bagOfBags.Seal();
+
+            bagOfBags.Then(x =>
+            {
+                for(var i = 0; i < list.Count; i++)
+                    list[list.Keys.ElementAt(i)] = x[i];
+
+                reply.Trigger(list);
+            });
+
+            return reply;
+            
+        }
+
+        /// <summary>
+        /// Compose resource history
+        /// </summary>
+        /// <param name="history">History</param>
+        /// <param name="connection">DistributedConnection is required to fetch resources.</param>
+        /// <returns></returns>
+        public static byte[] ComposeHistory(KeyList<PropertyTemplate, PropertyValue[]> history, DistributedConnection  connection, bool prependLength = false)
+        {
+            var rt = new BinaryList();
+
+            for (var i = 0; i < history.Count; i++)
+                rt.Append((byte)history.Keys.ElementAt(i).Index, 
+                          ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
+
+            if (prependLength)
+                rt.Insert(0, (uint)rt.Length);
+
+            return rt.ToArray();
+        }
+
+        /// <summary>
+        /// Parse an array of PropertyValue.
+        /// </summary>
+        /// <param name="data">Array of bytes.</param>
+        /// <param name="offset">Zero-indexed offset.</param>
+        /// <param name="length">Number of bytes to parse.</param>
+        /// <param name="connection">DistributedConnection is required to fetch resources.</param>
+        /// <param name="ageIncluded">Whether property age is represented in the data.</param>
+        /// <returns></returns>
+        public static AsyncBag<PropertyValue> ParsePropertyValueArray(byte[] data, uint offset, uint length, DistributedConnection connection)//, bool ageIncluded = true)
+        {
+            var rt = new AsyncBag<PropertyValue>();
+
+            while (length > 0)
+            {
+                uint cs;
+
+                rt.Add(ParsePropertyValue(data, offset, out cs, connection));//, ageIncluded));
+
+                if (cs > 0)
+                {
+                    offset += (uint)cs;
+                    length -= (uint)cs;
+                }
+                else
+                    throw new Exception("Error while parsing ValueInfo structured data");
+            }
+
+            rt.Seal();
+            return rt;
+        }
+
+        /// <summary>
         /// Compose a variable
         /// </summary>
         /// <param name="value">Value to compose.</param>
@@ -810,6 +989,11 @@ namespace Esiur.Data
         /// <returns>Array of bytes in the network byte order.</returns>
         public static byte[] Compose(object value, DistributedConnection connection, bool prependType = true)
         {
+
+            if (value is Func<DistributedConnection, object>)
+                value = (value as Func<DistributedConnection, object>)(connection);
+            else if (value is DistributedPropertyContext)
+                value = (value as DistributedPropertyContext).Method(connection);
             
             var type = GetDataType(value, connection);
             var rt = new BinaryList();
@@ -873,11 +1057,15 @@ namespace Esiur.Data
         /// <param name="type">Sub-class type.</param>
         /// <param name="iface">Super-interface type.</param>
         /// <returns>True, if <paramref name="type"/> implements <paramref name="iface"/>.</returns>
-        private static bool ImplementsInterface(Type type, Type iface)
+        public static bool ImplementsInterface(Type type, Type iface)
         {
 
+          
             while (type != null)
             {
+                if (type == iface)
+                    return true;
+
 #if NETSTANDARD1_5
                 if (type.GetTypeInfo().GetInterfaces().Contains(iface))
                     return true;
@@ -977,7 +1165,7 @@ namespace Esiur.Data
                 }
             }
             else
-                return DataType.Void;
+                type = DataType.Void;
 
             
             if (isArray)

@@ -28,6 +28,11 @@ namespace Esiur.Resource.Template
                 return BinaryList.ToBytes((byte)0x40, (byte)name.Length, name);
         }
 
-        public EventTemplate() { Type = MemberType.Event; }
+
+        public EventTemplate(ResourceTemplate template, byte index, string name, string expansion)
+            :base(template, MemberType.Property, index, name)
+        {
+            this.Expansion = expansion;
+        }
     }
 }

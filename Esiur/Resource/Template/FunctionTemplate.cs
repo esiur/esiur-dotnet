@@ -37,6 +37,11 @@ namespace Esiur.Resource.Template
         }
 
 
-        public FunctionTemplate() { Type = MemberType.Function; }
+        public FunctionTemplate(ResourceTemplate template, byte index, string name,bool isVoid, string expansion)
+            :base(template, MemberType.Property, index, name)
+        {
+            this.IsVoid = isVoid;
+            this.Expansion = expansion;
+        }
     }
 }

@@ -1,4 +1,28 @@
-﻿using System;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +37,13 @@ namespace Esiur.Net
 
         uint neededDataLength = 0;
         //bool trim;
+
+        object syncLock = new object();
+
+        //public object SyncLock
+        //{
+          //  get { return syncLock; }
+        //}
 
         public NetworkBuffer()
         {
@@ -62,16 +93,19 @@ namespace Esiur.Net
 
         public void HoldFor(byte[] src, uint offset, uint size, uint needed)
         {
-            if (size >= needed)
-                throw new Exception("Size >= Needed !");
+            lock (syncLock)
+            {
+                if (size >= needed)
+                    throw new Exception("Size >= Needed !");
 
-            //trim = true;
-            data = DC.Combine(src, offset, size, data, 0, (uint)data.Length);
-            neededDataLength = needed;
+                //trim = true;
+                data = DC.Combine(src, offset, size, data, 0, (uint)data.Length);
+                neededDataLength = needed;
 
-            // Console.WriteLine("Hold StackTrace: '{0}'", Environment.StackTrace);
+                // Console.WriteLine("Hold StackTrace: '{0}'", Environment.StackTrace);
 
-            Console.WriteLine("Holded {0} {1} {2} {3} - {4}", offset, size, needed, data.Length, GetHashCode());
+                //Console.WriteLine("Holded {0} {1} {2} {3} - {4}", offset, size, needed, data.Length, GetHashCode());
+            }
         }
 
         public void HoldFor(byte[] src, uint needed)
@@ -104,7 +138,11 @@ namespace Esiur.Net
 
         public void Write(byte[] src, uint offset, uint length)
         {
-            DC.Append(ref data, src, offset, length);
+            //if (data.Length > 0)
+              //  Console.WriteLine();
+
+            lock(syncLock)
+                DC.Append(ref data, src, offset, length);
         }
 
         public bool CanRead
@@ -122,46 +160,49 @@ namespace Esiur.Net
 
         public byte[] Read()
         {
-            if (data.Length == 0)
-                return null;
-
-            byte[] rt = null;
-
-            if (neededDataLength == 0)
+            lock (syncLock)
             {
-                rt = data;
-                data = new byte[0];
-            }
-            else
-            {
-                //Console.WriteLine("P STATE:" + data.Length + " " + neededDataLength);
+                if (data.Length == 0)
+                    return null;
 
-                if (data.Length >= neededDataLength)
+                byte[] rt = null;
+
+                if (neededDataLength == 0)
                 {
-                    //Console.WriteLine("data.Length >= neededDataLength " + data.Length + " >= " + neededDataLength + " " + trim);
-
-                    //if (trim)
-                    //{
-                    //  rt = DC.Clip(data, 0, neededDataLength);
-                    //  data = DC.Clip(data, neededDataLength, (uint)data.Length - neededDataLength);
-                    //}
-                    //else
-                    //{
-                    // return all data
                     rt = data;
                     data = new byte[0];
-                    //}
-
-                    neededDataLength = 0;
-                    return rt;
                 }
                 else
                 {
-                    return null;
-                }
-            }
+                    //Console.WriteLine("P STATE:" + data.Length + " " + neededDataLength);
 
-            return rt;
+                    if (data.Length >= neededDataLength)
+                    {
+                        //Console.WriteLine("data.Length >= neededDataLength " + data.Length + " >= " + neededDataLength + " " + trim);
+
+                        //if (trim)
+                        //{
+                        //  rt = DC.Clip(data, 0, neededDataLength);
+                        //  data = DC.Clip(data, neededDataLength, (uint)data.Length - neededDataLength);
+                        //}
+                        //else
+                        //{
+                        // return all data
+                        rt = data;
+                        data = new byte[0];
+                        //}
+
+                        neededDataLength = 0;
+                        return rt;
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+
+                return rt;
+           }
         }
     }
 }
