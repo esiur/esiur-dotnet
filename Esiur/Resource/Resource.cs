@@ -36,12 +36,20 @@ namespace Esiur.Resource
 
         public virtual void Destroy()
         {
-            
+
         }
 
         public virtual AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
-            return new AsyncReply<bool>(true);
+            if (trigger == ResourceTrigger.Initialize)
+                return new AsyncReply<bool>(this.Create());
+            else
+                return new AsyncReply<bool>(true);
+        }
+
+        public virtual bool Create()
+        {
+            return true;
         }
     }
 }

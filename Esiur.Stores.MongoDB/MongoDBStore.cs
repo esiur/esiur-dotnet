@@ -22,6 +22,8 @@ namespace Esiur.Stores.MongoDB
         MongoClient client;
         IMongoDatabase database;
         IMongoCollection<BsonDocument> resourcesCollection;
+        string collectionName;
+        string dbName;
 
         Dictionary<string, IResource> resources = new Dictionary<string, IResource>();
 
@@ -49,7 +51,7 @@ namespace Esiur.Stores.MongoDB
                 {"property", propertyName}, {"age", BsonValue.Create(age) }, {"date", date}, {"value", Compose(value) }
             });
 
-            var col = this.database.GetCollection<BsonDocument>("resources");
+            var col = this.database.GetCollection<BsonDocument>(collectionName);
 
 
 
@@ -64,19 +66,19 @@ namespace Esiur.Stores.MongoDB
             return true;
         }
 
-        public MongoDBStore()
+        public MongoDBStore() : this("mongodb://localhost", "esiur", "resources")
         {
-            client = new MongoClient();
-            this.database = client.GetDatabase("esiur");
-            this.resourcesCollection = this.database.GetCollection<BsonDocument>("resources");
 
         }
 
-        public MongoDBStore(string connectionString, string database)
+        public MongoDBStore(string connectionString, string database, string collection)
         {
+            collectionName = collection;
+            dbName = database;
+
             client = new MongoClient(connectionString);
             this.database = client.GetDatabase(database);
-            this.resourcesCollection = this.database.GetCollection<BsonDocument>("resources");
+            this.resourcesCollection = this.database.GetCollection<BsonDocument>(collection);
         }
 
         public bool Remove(IResource resource)
@@ -274,6 +276,20 @@ namespace Esiur.Stores.MongoDB
                     return true;
                 }
 
+            // insert the document
+            var document = new BsonDocument
+            {
+                { "classname", resource.GetType().FullName + "," + resource.GetType().GetTypeInfo().Assembly.GetName().Name },
+                { "name", resource.Instance.Name },
+            };
+
+            resourcesCollection.InsertOne(document);
+            resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+
+
+            // now update the document
+            // * insert first to get the object id, update values, attributes, children and parents after in case the same resource has a property references self
+
             var parents = new BsonArray();
             var children = new BsonArray();
 
@@ -314,6 +330,7 @@ namespace Esiur.Stores.MongoDB
 //            col.UpdateOne(filter, update);
 
 
+            /*
             var document = new BsonDocument
             {
                 { "parents", parents },
@@ -323,11 +340,15 @@ namespace Esiur.Stores.MongoDB
                 { "name", resource.Instance.Name },
                 { "values", values }
             };
+            */
+
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
+            var update = Builders<BsonDocument>.Update
+                            .Set("values", values).Set("parents", parents).Set("children", children).Set("attributes", attrsDoc);
+            resourcesCollection.UpdateOne(filter, update);
 
 
-            resourcesCollection.InsertOne(document);
-
-            resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+            //resource.Instance.Attributes["objectId"] = document["_id"].ToString();
 
             return true;
         }
@@ -398,6 +419,7 @@ namespace Esiur.Stores.MongoDB
 
                 case DataType.Resource:
                 case DataType.DistributedResource:
+                   
                     return new BsonDocument { { "type", 0 }, { "link", (value as IResource).Instance.Link } };
 
                 //return new BsonObjectId(new ObjectId((string)(value as IResource).Instance.Attributes["objectId"]));

@@ -96,8 +96,7 @@ namespace Esiur.Security.Permissions
                 if ((string)userPermissions["_rename"] != "yes")
                     return Ruling.Denied;
             }
-
-            if (userPermissions.ContainsKey(member.Name))
+            else if (userPermissions.ContainsKey(member?.Name))
             {
                 Structure methodPermissions = userPermissions[member.Name] as Structure;
                 if ((string)methodPermissions[action.ToString()] != "yes")
