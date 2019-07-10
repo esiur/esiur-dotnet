@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2017-2019 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -95,121 +95,44 @@ namespace Esiur.Net.TCP
 
         protected override void DataReceived(TCPConnection sender, NetworkBuffer data)
         {
-            //throw new NotImplementedException();
             var msg = data.Read();
 
-            foreach (Instance instance in Instance.Children)
+            foreach (var resource in Instance.Children)
             {
-                var f = instance.Resource as TCPFilter;
-                if (f.Execute(msg, data, sender))
-                    return;
-            }
-        }
-
-        private void SessionModified(TCPConnection Session, string Key, object NewValue)
-        {
-
-        }
- 
-        /*
-        public TCPServer(string IP, int Port, int Timeout, int Clock)
-            : base(IP, Port, Timeout, Clock)
-        {
-            if (Timeout > 0 && Clock > 0)
-            {
-                mTimer = new Timer(OnlineThread, null, 0, Clock * 1000);// TimeSpan.FromSeconds(Clock));
-                mTimeout = Timeout;
-            }
-        }
-         */ 
-
-        /*
-        private void OnlineThread(object state)
-        {
-            List<TCPConnection> ToBeClosed = null;
-            //Console.WriteLine("Minute Thread");
-
-            if (Connections.Count > 0)
-            {
-                Global.Log("TCPServer:OnlineThread", LogType.Debug,
-                    //"Tick:" + DateTime.Now.Subtract(Connections[0].LastAction).TotalSeconds + ":" + mTimeout + ":" +
-                    "Tick | Connections: " + Connections.Count + " Threads:" + System.Diagnostics.Process.GetCurrentProcess().Threads.Count);
-            }
-
-
-            try
-            {
-                foreach (TCPConnection c in Connections)//.Values)
+                if (resource is TCPFilter)
                 {
-                    if (DateTime.Now.Subtract(c.LastAction).TotalSeconds >= mTimeout)
-                    {
-                        if (ToBeClosed == null)
-                            ToBeClosed = new List<TCPConnection>();
-                        ToBeClosed.Add(c);
-                    }
-                }
-
-                if (ToBeClosed != null)
-                {
-
-                    Global.Log("TCPServer:OnlineThread", LogType.Debug, "Inactive Closed:" + ToBeClosed.Count);
-
-                    foreach (TCPConnection c in ToBeClosed)
-                        c.Close();
-
-                    ToBeClosed.Clear();
-                    ToBeClosed = null;
-
-
+                    var f = resource as TCPFilter;
+                    if (f.Execute(msg, data, sender))
+                        return;
                 }
             }
-            catch (Exception ex)
-            {
-                Global.Log("TCPServer:OnlineThread", LogType.Debug, ex.ToString());
-            }
         }
-         */ 
 
-        //~TCPServer()
-        //{
-          //  StopServer();
-        //}
+        private void SessionModified(TCPConnection session, string key, object newValue)
+        {
 
- 
-
+        }
 
         protected override void ClientConnected(TCPConnection sender)
         {
-            //Console.WriteLine("TCP Client Connected");
-
-           // Global.Log("TCPServer",
-           //     LogType.Debug,  
-           //     "Connected:" + Connections.Count 
-           //     + ":" + sender.RemoteEndPoint.ToString());
-
-            foreach (Instance instance in Instance.Children)
+            foreach (var resource in Instance.Children)
             {
-                var f = instance.Resource as TCPFilter;
-                f.Connected(sender);
+                if (resource is TCPFilter)
+                {
+                    var f = resource as TCPFilter;
+                    f.Connected(sender);
+                }
             }
         }
 
         protected override void ClientDisconnected(TCPConnection sender)
         {
-            //Console.WriteLine("TCP Client Disconnected");
-
-            // Global.Log("TCPServer", LogType.Debug, "Disconnected:" + Connections.Count);// + ":" + sender.RemoteEndPoint.ToString());
-
-            foreach (Instance instance in Instance.Children)
+            foreach (var resource in Instance.Children)
             {
-                try
+                if (resource is TCPFilter)
                 {
-                    var f = instance.Resource as TCPFilter;
+                    var f = resource as TCPFilter;
                     f.Disconnected(sender);
-                }
-                catch(Exception ex)
-                {
-                    Global.Log(ex);
                 }
             }
         }

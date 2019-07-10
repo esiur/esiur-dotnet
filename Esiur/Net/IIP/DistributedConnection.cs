@@ -404,9 +404,14 @@ namespace Esiur.Net.IIP
                                 break;
 
                             // Invoke
-                            case IIPPacket.IIPPacketAction.InvokeFunction:
-                                IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
+                            case IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments:
+                                IIPRequestInvokeFunctionArrayArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
                                 break;
+
+                            case IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments:
+                                IIPRequestInvokeFunctionNamedArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
+                                break;
+
                             case IIPPacket.IIPPacketAction.GetProperty:
                                 IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                                 break;
@@ -482,10 +487,11 @@ namespace Esiur.Net.IIP
                                 break;
 
                             // Invoke
-                            case IIPPacket.IIPPacketAction.InvokeFunction:
+                            case IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments:
+                            case IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments:
                                 IIPReplyInvoke(packet.CallbackId, packet.Content);
-
                                 break;
+
                             case IIPPacket.IIPPacketAction.GetProperty:
                                 IIPReply(packet.CallbackId, packet.Content);
                                 break;

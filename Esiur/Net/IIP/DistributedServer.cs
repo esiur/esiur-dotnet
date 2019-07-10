@@ -121,7 +121,7 @@ namespace Esiur.Net.IIP
  
         }
 
-        private void SessionModified(DistributedConnection Session, string Key, object NewValue)
+        private void SessionModified(DistributedConnection session, string key, object newValue)
         {
 
         }

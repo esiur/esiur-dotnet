@@ -460,7 +460,6 @@ namespace Esiur.Stores.MongoDB
 
                 var list = resourcesCollection.Find(filter).ToList();
 
-                Console.WriteLine(list.Count);
 
                 // if (list.Count == 0)
                 //   return new AsyncBag<IResource>(new IResource[0]);

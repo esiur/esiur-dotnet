@@ -109,10 +109,11 @@ namespace Esiur.Net.Packets
             ResourceParents,
 
             // Request Invoke
-            InvokeFunction = 0x10,
+            InvokeFunctionArrayArguments = 0x10,
             GetProperty,
             GetPropertyIfModified,
             SetProperty,
+            InvokeFunctionNamedArguments,
 
             // Request Attribute
             GetAllAttributes = 0x18,
@@ -517,7 +518,8 @@ namespace Esiur.Net.Packets
                     offset += 8;
 
                 }
-                else if (Action == IIPPacketAction.InvokeFunction)
+                else if (Action == IIPPacketAction.InvokeFunctionArrayArguments
+                       || Action == IIPPacketAction.InvokeFunctionNamedArguments)
                 {
                     if (NotEnough(offset, ends, 9))
                         return -dataLengthNeeded;
@@ -700,7 +702,8 @@ namespace Esiur.Net.Packets
                     Content = data.Clip(offset, cl);
                     offset += cl;
                 }
-                else if (Action == IIPPacketAction.InvokeFunction 
+                else if (Action == IIPPacketAction.InvokeFunctionArrayArguments
+                    || Action == IIPPacketAction.InvokeFunctionNamedArguments
                     || Action == IIPPacketAction.GetProperty
                     || Action == IIPPacketAction.GetPropertyIfModified)
                 {

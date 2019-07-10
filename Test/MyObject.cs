@@ -1,5 +1,6 @@
 ﻿using Esiur.Data;
 using Esiur.Engine;
+using Esiur.Net.IIP;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -8,20 +9,14 @@ using System.Threading;
 
 namespace Test
 {
-    class MyObject : IResource
+    class MyObject : Resource
     {
-        public Instance Instance { get; set; }
-
-        public event DestroyedEvent OnDestroy;
+ 
         [ResourceEvent]
         public event ResourceEventHanlder LevelUp;
         [ResourceEvent]
         public event ResourceEventHanlder LevelDown;
         
-        public void Destroy()
-        {
-
-        }
         public MyObject()
         {
             Info = new Structure();
@@ -32,10 +27,6 @@ namespace Test
             Level = 5;
         }
 
-        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            return new AsyncReply<bool>();
-        }
 
         [ResourceFunction]
         public int Add(int value)
@@ -43,6 +34,12 @@ namespace Test
             Level += value;
             LevelUp?.Invoke(null, "going up", value);
             return Level;
+        }
+
+        [ResourceFunction]
+        public double Divide(float nominator, float denominator, DistributedConnection sender)
+        {
+            return nominator / denominator;
         }
 
         [ResourceFunction]

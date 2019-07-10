@@ -100,19 +100,34 @@ namespace Esiur.Net.IIP
             Send(bl.ToArray());
         }
 
-        internal AsyncReply SendInvoke(uint instanceId, byte index, object[] parameters)
+        internal AsyncReply SendInvokeByArrayArguments(uint instanceId, byte index, object[] parameters)
         {
             var pb = Codec.ComposeVarArray(parameters, this, true);
 
             var reply = new AsyncReply();
             callbackCounter++;
-            var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunction),
+            var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments),
                                     callbackCounter, instanceId, index, pb);
             Send(bl.ToArray());
             requests.Add(callbackCounter, reply);
 
             return reply;
         }
+
+        internal AsyncReply SendInvokeByNamedArguments(uint instanceId, byte index, Structure parameters)
+        {
+            var pb = Codec.ComposeStructure(parameters, this, true, true, true);
+
+            var reply = new AsyncReply();
+            callbackCounter++;
+            var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments),
+                                    callbackCounter, instanceId, index, pb);
+            Send(bl.ToArray());
+            requests.Add(callbackCounter, reply);
+
+            return reply;
+        }
+
 
         void SendError(AsyncReply.ErrorType type, uint callbackId, ushort errorCode, string errorMessage = "")
         {
@@ -917,7 +932,7 @@ namespace Esiur.Net.IIP
 
         }
 
-        void IIPRequestInvokeFunction(uint callback, uint resourceId, byte index, byte[] content)
+        void IIPRequestInvokeFunctionArrayArguments(uint callback, uint resourceId, byte index, byte[] content)
         {
             //Console.WriteLine("IIPRequestInvokeFunction " + callback + " " + resourceId + "  " + index);
 
@@ -932,12 +947,12 @@ namespace Esiur.Net.IIP
                         {
                             if (r is DistributedResource)
                             {
-                                var rt = (r as DistributedResource)._Invoke(index, arguments);
+                                var rt = (r as DistributedResource)._InvokeByArrayArguments(index, arguments);
                                 if (rt != null)
                                 {
                                     rt.Then(res =>
                                     {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback, Codec.Compose(res, this));
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
                                     });
                                 }
                                 else
@@ -1005,7 +1020,7 @@ namespace Esiur.Net.IIP
                                         foreach (var v in enu)
                                             SendChunk(callback, v);
 
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback, (byte)DataType.Void);
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, (byte)DataType.Void);
 
                                     }
                                     else if (rt is Task)
@@ -1017,7 +1032,7 @@ namespace Esiur.Net.IIP
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback, Codec.Compose(res, this));
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
                                         });
 
                                         //await t;
@@ -1027,7 +1042,7 @@ namespace Esiur.Net.IIP
                                     {
                                         (rt as AsyncReply).Then(res =>
                                         {
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback, Codec.Compose(res, this));
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
                                         }).Error(ex =>
                                         {
                                             SendError(AsyncReply.ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
@@ -1041,7 +1056,146 @@ namespace Esiur.Net.IIP
                                     }
                                     else
                                     {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback, Codec.Compose(rt, this));
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(rt, this));
+                                    }
+                                }
+                                else
+                                {
+                                    // ft found, fi not found, this should never happen
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // no function at this index
+                        }
+                    });
+                }
+                else
+                {
+                    // no resource with this id
+                }
+            });
+        }
+
+
+        void IIPRequestInvokeFunctionNamedArguments(uint callback, uint resourceId, byte index, byte[] content)
+        {
+
+            Warehouse.Get(resourceId).Then((r) =>
+            {
+                if (r != null)
+                {
+                   Codec.ParseStructure(content, 0, (uint)content.Length, this).Then((namedArgs) =>
+                    {
+                        var ft = r.Instance.Template.GetFunctionTemplate(index);
+                        if (ft != null)
+                        {
+                            if (r is DistributedResource)
+                            {
+                                var rt = (r as DistributedResource)._InvokeByNamedArguments(index, namedArgs);
+                                if (rt != null)
+                                {
+                                    rt.Then(res =>
+                                    {
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
+                                    });
+                                }
+                                else
+                                {
+
+                                    // function not found on a distributed object
+                                }
+                            }
+                            else
+                            {
+#if NETSTANDARD1_5
+                                var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
+#else
+                                var fi = r.GetType().GetMethod(ft.Name);
+#endif
+
+                                if (fi != null)
+                                {
+                                    if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
+                                    {
+                                        SendError(AsyncReply.ErrorType.Management, callback,
+                                            (ushort)ExceptionCode.InvokeDenied);
+                                        return;
+                                    }
+
+                                    // cast arguments
+                                    ParameterInfo[] pi = fi.GetParameters();
+
+                                    object[] args = new object[pi.Length];
+
+                                    for (var i = 0; i < pi.Length; i++)
+                                    {
+                                        if (pi[i].ParameterType == typeof(DistributedConnection))
+                                        {
+                                            args[i] = this;
+                                        }
+                                        else if (namedArgs.ContainsKey(pi[i].Name))
+                                        {
+                                            args[i] = DC.CastConvert(namedArgs[pi[i].Name], pi[i].ParameterType);
+                                        }
+                                    }
+
+                                    
+                                    object rt;
+
+                                    try
+                                    {
+                                        rt = fi.Invoke(r, args);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        SendError(AsyncReply.ErrorType.Exception, callback, 0, ex.ToString());
+                                        return;
+                                    }
+
+                                    if (rt is System.Collections.IEnumerable && !(rt is Array))
+                                    {
+                                        var enu = rt as System.Collections.IEnumerable;
+
+                                        foreach (var v in enu)
+                                            SendChunk(callback, v);
+
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, (byte)DataType.Void);
+
+                                    }
+                                    else if (rt is Task)
+                                    {
+                                        (rt as Task).ContinueWith(t =>
+                                        {
+#if NETSTANDARD1_5
+                                            var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
+#else
+                                            var res = t.GetType().GetProperty("Result").GetValue(t);
+#endif
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
+                                        });
+
+                                    }
+                                    else if (rt is AsyncReply)
+                                    {
+                                        (rt as AsyncReply).Then(res =>
+                                        {
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
+                                        }).Error(ex =>
+                                        {
+                                            SendError(AsyncReply.ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                        }).Progress((pt, pv, pm) =>
+                                        {
+                                            SendProgress(callback, pv, pm);
+                                        }).Chunk(v =>
+                                        {
+                                            SendChunk(callback, v);
+                                        });
+                                    }
+                                    else
+                                    {
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(rt, this));
                                     }
                                 }
                                 else

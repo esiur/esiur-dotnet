@@ -234,7 +234,7 @@ namespace Esiur.Net.IIP
             Instance.EmitResourceEvent(null, null, et.Name, args);
         }
 
-        public AsyncReply _Invoke(byte index, object[] args)
+        public AsyncReply _InvokeByNamedArguments(byte index, Structure namedArgs)
         {
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
@@ -242,28 +242,20 @@ namespace Esiur.Net.IIP
             if (index >= Instance.Template.Functions.Length)
                 throw new Exception("Function index is incorrect");
 
-            // var reply = new AsyncReply();
 
-            return connection.SendInvoke(instanceId, index, args);
+            return connection.SendInvokeByNamedArguments(instanceId, index, namedArgs);
+        }
 
-            //var parameters = Codec.ComposeVarArray(args, connection, true);
-            //return connection.SendRequest(Packets.IIPPacket.IIPPacketAction.InvokeFunction, instanceId, index, parameters);
-            
-            /*.Then((res) =>
-            {
-                Codec.Parse((byte[])res[0], 0, connection).Then((rt) =>
-                {
-                    reply.Trigger(rt);
-                });
-            }).Error((ex) => {
-                reply.TriggerError(ex);
-            }).Progress((t, pv, pm)=> {
-                reply.TriggerProgress(t, pv, pm);
-            }).Chunk(v => reply.TriggerChunk(v));
+        public AsyncReply _InvokeByArrayArguments(byte index, object[] args)
+        {
+            if (destroyed)
+                throw new Exception("Trying to access destroyed object");
 
- 
-            return reply;
-            */
+            if (index >= Instance.Template.Functions.Length)
+                throw new Exception("Function index is incorrect");
+
+
+            return connection.SendInvokeByArrayArguments(instanceId, index, args);
         }
 
  
@@ -275,7 +267,33 @@ namespace Esiur.Net.IIP
 
             if (isAttached && ft!=null)
             {
-                result = _Invoke(ft.Index, args);
+                if (args.Length == 1)
+                {
+                    // Detect anonymous types
+                    var type = args[0].GetType().GetTypeInfo();
+                    var hasCompilerGeneratedAttribute = type.GetCustomAttributes(typeof(CompilerGeneratedAttribute), false).Count() > 0;
+                    var nameContainsAnonymousType = type.FullName.Contains("AnonymousType");
+                    var isAnonymousType = hasCompilerGeneratedAttribute && nameContainsAnonymousType;
+
+                    if (isAnonymousType)
+                    {
+                        var namedArgs = new Structure();
+
+                        var pi = type.GetProperties();
+                        foreach (var p in pi)
+                            namedArgs[p.Name] = p.GetValue(args[0]);
+                        result = _InvokeByNamedArguments(ft.Index, namedArgs);
+                    }
+                    else
+                    {
+                        result = _InvokeByArrayArguments(ft.Index, args);
+                    }
+                    
+                }
+                else
+                {
+                    result = _InvokeByArrayArguments(ft.Index, args);
+                }
                 return true;
             }
             else

@@ -395,7 +395,7 @@ namespace Esiur.Net.HTTP
 
             //Console.WriteLine("IN: " + this.Connections.Count);
 
-            foreach (IResource resource in Instance.Children)
+            foreach (var resource in Instance.Children)
             {
                 if (resource is HTTPFilter)
                 {
@@ -406,7 +406,7 @@ namespace Esiur.Net.HTTP
 
         public void Destroy()
         {
-            throw new NotImplementedException();
+
         }
 
         /*
