@@ -29,13 +29,175 @@ using System.Text;
 using System.Threading.Tasks;
 using Esiur.Resource;
 using System.Reflection;
+using System.Threading;
+using System.Runtime.CompilerServices;
 
 namespace Esiur.Engine
 {
-    public class AsyncReply<T>: AsyncReply
+    public class AsyncReply<T>: IAsyncReply<T>
     {
+
+        protected List<Action<T>> callbacks = new List<Action<T>>();
+        protected T result;
+
+        protected List<Action<AsyncException>> errorCallbacks = new List<Action<AsyncException>>();
         
-        public AsyncReply<T> Then(Action<T> callback)
+        protected List<Action<ProgressType, int, int>> progressCallbacks = new List<Action<ProgressType, int, int>>();
+
+        protected List<Action<T>> chunkCallbacks = new List<Action<T>>();
+
+        //List<AsyncAwaiter> awaiters = new List<AsyncAwaiter>();
+
+        object callbacksLock = new object();
+
+        protected bool resultReady = false;
+        AsyncException exception;
+
+        TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+
+
+        public bool Ready
+        {
+            get { return resultReady; }
+
+        }
+
+        
+
+        public object Result
+        {
+            get { return result; }
+        }
+
+        public IAsyncReply<T> Then(Action<T> callback)
+        {
+            callbacks.Add(callback);
+
+            if (resultReady)
+                callback(result);
+
+            return this;
+        }
+
+        public IAsyncReply<T> Error(Action<AsyncException> callback)
+        {
+            errorCallbacks.Add(callback);
+
+            if (exception != null)
+            {
+                callback(exception);
+                tcs.SetException(exception);
+            }
+
+            return this;
+        }
+
+        public IAsyncReply<T> Progress(Action<ProgressType, int, int> callback)
+        {
+            progressCallbacks.Add(callback);
+            return this;
+        }
+
+        
+        public IAsyncReply<T> Chunk(Action<T> callback)
+        {
+            chunkCallbacks.Add(callback);
+            return this;
+        }
+
+        public void Trigger(object result)
+        {
+
+            lock (callbacksLock)
+            {
+                if (resultReady)
+                    return;
+
+                this.result = (T)result;
+                resultReady = true;
+
+                foreach (var cb in callbacks)
+                    cb((T)result);
+
+                tcs.TrySetResult(result);
+
+            }
+
+        }
+
+        public void TriggerError(AsyncException exception)
+        {
+            if (resultReady)
+                return;
+
+            this.exception = exception;
+
+
+            lock (callbacksLock)
+            {
+                foreach (var cb in errorCallbacks)
+                    cb(exception);
+            }
+
+            tcs.TrySetException(exception);
+        }
+
+        public void TriggerProgress(ProgressType type, int value, int max)
+        {
+            if (resultReady)
+                return;
+
+            lock (callbacksLock)
+            {
+                foreach (var cb in progressCallbacks)
+                    cb(type, value, max);
+
+            }
+        }
+
+        
+        public void TriggerChunk(object value)
+        {
+            if (resultReady)
+                return;
+
+            lock (callbacksLock)
+            {
+                foreach (var cb in chunkCallbacks)
+                    cb((T)value);
+
+            }
+        }
+
+        public AsyncAwaiter<T> GetAwaiter()
+        {
+            return new AsyncAwaiter<T>(this);
+        }
+
+        public Task Task
+        {
+            get
+            {
+                return tcs.Task;
+            }
+        }
+
+
+
+        public AsyncReply()
+        {
+
+        }
+
+        public AsyncReply(T result)
+        {
+            resultReady = true;
+            tcs.SetResult(result);
+            this.result = result;
+        }
+    
+        /*
+    public AsyncReply<T> Then(Action<T> callback)
         {
            base.Then(new Action<object>(o => callback((T)o)));
             return this;
@@ -45,6 +207,15 @@ namespace Esiur.Engine
         {
             Trigger((object)result);
         }
+
+        public Task<bool> MoveNext(CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Dispose()
+        {
+         }
 
         public AsyncReply()
         {
@@ -67,13 +238,15 @@ namespace Esiur.Engine
             }
         }
 
+        public T Current => throw new NotImplementedException();
+
         public AsyncReply(T result)
             : base(result)
         {
 
         }
 
- 
+ */
 
     }
 }

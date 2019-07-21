@@ -30,18 +30,18 @@ using System.Threading.Tasks;
 
 namespace Esiur.Engine
 {
-    public class AsyncQueue<T> : AsyncReply
+    public class AsyncQueue<T> : AsyncReply<T>
     {
         List<AsyncReply<T>> list = new List<AsyncReply<T>>();
         //Action<T> callback;
         object queueLock = new object();
 
-        public AsyncQueue<T> Then(Action<T> callback)
-        {
-            base.Then(new Action<object>(o => callback((T)o)));
+        //public AsyncQueue<T> Then(Action<T> callback)
+        //{
+          //  base.Then(new Action<object>(o => callback((T)o)));
 
-            return this;
-        }
+            //return this;
+        //}
 
         public void Add(AsyncReply<T> reply)
         {

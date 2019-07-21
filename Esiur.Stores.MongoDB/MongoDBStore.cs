@@ -185,7 +185,7 @@ namespace Esiur.Stores.MongoDB
             return rt;
         }
 
-        AsyncReply Parse(BsonValue value)
+        IAsyncReply<object> Parse(BsonValue value)
         {
             if (value.BsonType == BsonType.Document)
             {
@@ -217,7 +217,7 @@ namespace Esiur.Stores.MongoDB
                     return rt;
                 }
                 else
-                    return new AsyncReply(null);
+                    return new AsyncReply<object>(null);
             }
             else if (value.BsonType == BsonType.Array)
             {
@@ -233,12 +233,12 @@ namespace Esiur.Stores.MongoDB
             }
             else if (value.BsonType == BsonType.DateTime)
             {
-                return new AsyncReply(value.ToUniversalTime());
+                return new AsyncReply<object>(value.ToUniversalTime());
             }
             else
             {
             
-                return new AsyncReply(value.RawValue);
+                return new AsyncReply<object>(value.RawValue);
             }
         }
 
@@ -633,7 +633,7 @@ namespace Esiur.Stores.MongoDB
 
             var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
 
-            AsyncBag<PropertyValue> bag = new AsyncBag<PropertyValue>();
+            AsyncBag<PropertyValue[]> bag = new AsyncBag<PropertyValue[]>();
 
             foreach (var p in properties)
                 bag.Add(GetPropertyRecordByAge(resource, p.Name, fromAge, toAge));
@@ -642,7 +642,7 @@ namespace Esiur.Stores.MongoDB
 
             bag.Then(x =>
             {
-                var list = new KeyList<PropertyTemplate, PropertyValue>();
+                var list = new KeyList<PropertyTemplate, PropertyValue[]>();
 
                 for (var i = 0; i < x.Length; i++)
                     list.Add(properties[i], x[i]);
@@ -695,6 +695,11 @@ namespace Esiur.Stores.MongoDB
 
             return true;
 
+        }
+
+        public AsyncReply<bool> Open(Structure settings)
+        {
+            return new AsyncReply<bool>(true);
         }
     }
 }

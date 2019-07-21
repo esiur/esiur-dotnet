@@ -30,21 +30,23 @@ using System.Threading.Tasks;
 
 namespace Esiur.Engine
 {
-    public class AsyncBag<T>:AsyncReply
+    public class AsyncBag<T>: AsyncReply<T[]>
     {
         //Dictionary<AsyncReply, T> results = new Dictionary<AsyncReply, T>();
 
-        List<AsyncReply> replies = new List<AsyncReply>();
+        List<IAsyncReply<T>> replies = new List<IAsyncReply<T>>();
         List<T> results = new List<T>();
 
         int count = 0;
         bool sealedBag = false;
 
+        /*
         public AsyncBag<T> Then(Action<T[]> callback)
         {
             base.Then(new Action<object>(o => callback((T[])o)));
             return this;
         }
+        */
 
         public void Seal()
         {
@@ -72,7 +74,7 @@ namespace Esiur.Engine
             }
         }
 
-        public void Add(AsyncReply reply)
+        public void Add(IAsyncReply<T> reply)
         {
             if (!sealedBag)
             {
@@ -80,6 +82,12 @@ namespace Esiur.Engine
                 replies.Add(reply);
             }
                 //results.Add(reply, default(T));            
+        }
+
+        public void AddBag(AsyncBag<T> bag)
+        {
+            foreach (var r in bag.replies)
+                Add(r);
         }
 
         public AsyncBag()

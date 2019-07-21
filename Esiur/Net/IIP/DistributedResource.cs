@@ -234,7 +234,7 @@ namespace Esiur.Net.IIP
             Instance.EmitResourceEvent(null, null, et.Name, args);
         }
 
-        public AsyncReply _InvokeByNamedArguments(byte index, Structure namedArgs)
+        public AsyncReply<object> _InvokeByNamedArguments(byte index, Structure namedArgs)
         {
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
@@ -246,7 +246,7 @@ namespace Esiur.Net.IIP
             return connection.SendInvokeByNamedArguments(instanceId, index, namedArgs);
         }
 
-        public AsyncReply _InvokeByArrayArguments(byte index, object[] args)
+        public AsyncReply<object> _InvokeByArrayArguments(byte index, object[] args)
         {
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
@@ -263,7 +263,7 @@ namespace Esiur.Net.IIP
         {
             var ft = Instance.Template.GetFunctionTemplate(binder.Name);
 
-            var reply = new AsyncReply();
+            var reply = new AsyncReply<object>();
 
             if (isAttached && ft!=null)
             {
@@ -358,12 +358,12 @@ namespace Esiur.Net.IIP
         /// <param name="index">Zero-based property index.</param>
         /// <param name="value">Value</param>
         /// <returns>Indicator when the property is set.</returns>
-        internal AsyncReply _Set(byte index, object value)
+        internal AsyncReply<object> _Set(byte index, object value)
         {
             if (index >= properties.Length)
                 return null;
 
-            var reply = new AsyncReply();
+            var reply = new AsyncReply<object>();
 
             var parameters = Codec.Compose(value, connection);
             connection.SendRequest(Packets.IIPPacket.IIPPacketAction.SetProperty, instanceId, index, parameters).Then((res) =>

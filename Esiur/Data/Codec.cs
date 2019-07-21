@@ -171,7 +171,7 @@ namespace Esiur.Data
 
             var result = (StructureComparisonResult)data[offset++];
 
-            AsyncReply previous = null;
+            IAsyncReply<Structure> previous = null;
            // string[] previousKeys = null;
            // DataType[] previousTypes = null;
 
@@ -362,7 +362,7 @@ namespace Esiur.Data
         /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
         /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
         /// <returns>Structure</returns>
-        public static AsyncReply Parse(byte[] data, uint offset, DistributedConnection connection, DataType dataType = DataType.Unspecified)
+        public static IAsyncReply<object> Parse(byte[] data, uint offset, DistributedConnection connection, DataType dataType = DataType.Unspecified)
         {
             uint size;
             return Parse(data, offset, out size, connection);
@@ -377,10 +377,9 @@ namespace Esiur.Data
         /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
         /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
         /// <returns>Value</returns>
-        public static AsyncReply Parse(byte[] data, uint offset, out uint size, DistributedConnection connection, DataType dataType = DataType.Unspecified)
+        public static IAsyncReply<object> Parse(byte[] data, uint offset, out uint size, DistributedConnection connection, DataType dataType = DataType.Unspecified)
         {
-            var reply = new AsyncReply();
-
+ 
             bool isArray;
             DataType t;
 
@@ -480,40 +479,40 @@ namespace Esiur.Data
                         return new AsyncReply<object>(null);
 
                     case DataType.Bool:
-                        return new AsyncReply<bool>(data.GetBoolean(offset));
+                        return new AsyncReply<object>(data.GetBoolean(offset));
 
                     case DataType.UInt8:
-                        return new AsyncReply<byte>(data[offset]);
+                        return new AsyncReply<object>(data[offset]);
 
                     case DataType.Int8:
-                        return new AsyncReply<sbyte>((sbyte)data[offset]);
+                        return new AsyncReply<object>((sbyte)data[offset]);
 
                     case DataType.Char:
-                        return new AsyncReply<char>(data.GetChar(offset));
+                        return new AsyncReply<object>(data.GetChar(offset));
 
                     case DataType.Int16:
-                        return new AsyncReply<short>(data.GetInt16(offset));
+                        return new AsyncReply<object>(data.GetInt16(offset));
 
                     case DataType.UInt16:
-                        return new AsyncReply<ushort>(data.GetUInt16(offset));
+                        return new AsyncReply<object>(data.GetUInt16(offset));
 
                     case DataType.Int32:
-                        return new AsyncReply<int>(data.GetInt32(offset));
+                        return new AsyncReply<object>(data.GetInt32(offset));
 
                     case DataType.UInt32:
-                        return new AsyncReply<uint>(data.GetUInt32(offset));
+                        return new AsyncReply<object>(data.GetUInt32(offset));
 
                     case DataType.Int64:
-                        return new AsyncReply<long>(data.GetInt64(offset));
+                        return new AsyncReply<object>(data.GetInt64(offset));
 
                     case DataType.UInt64:
-                        return new AsyncReply<ulong>(data.GetUInt64(offset));
+                        return new AsyncReply<object>(data.GetUInt64(offset));
 
                     case DataType.Float32:
-                        return new AsyncReply<float>(data.GetFloat32(offset));
+                        return new AsyncReply<object>(data.GetFloat32(offset));
 
                     case DataType.Float64:
-                        return new AsyncReply<double>(data.GetFloat64(offset));
+                        return new AsyncReply<object>(data.GetFloat64(offset));
 
                     case DataType.String:
                         return new AsyncReply<string>(data.GetString(offset, contentLength));
@@ -525,7 +524,7 @@ namespace Esiur.Data
                         return ParseDistributedResource(data, offset, connection);
 
                     case DataType.DateTime:
-                        return new AsyncReply<DateTime>(data.GetDateTime(offset));
+                        return new AsyncReply<object>(data.GetDateTime(offset));
 
                     case DataType.Structure:
                         return ParseStructure(data, offset, contentLength, connection);
@@ -694,7 +693,7 @@ namespace Esiur.Data
             // 
             var result = (ResourceComparisonResult)data[offset++];
 
-            AsyncReply previous = null;
+            IAsyncReply<IResource> previous = null;
 
             if (result == ResourceComparisonResult.Null)
                 previous = new AsyncReply<IResource>(null);
@@ -716,7 +715,7 @@ namespace Esiur.Data
             {
                 result = (ResourceComparisonResult)data[offset++];
 
-                AsyncReply current = null;
+                IAsyncReply<IResource> current = null;
 
                 if (result == ResourceComparisonResult.Null)
                 {

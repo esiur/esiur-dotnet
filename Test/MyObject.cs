@@ -36,10 +36,10 @@ namespace Test
             return Level;
         }
 
-        [ResourceFunction]
-        public double Divide(float nominator, float denominator, DistributedConnection sender)
+        [ResourceFunction("Divide takes two arguments nominator and denominator")]
+        public double Divide(float n, float d, DistributedConnection sender)
         {
-            return nominator / denominator;
+            return n / d;
         }
 
         [ResourceFunction]
@@ -50,7 +50,7 @@ namespace Test
             return Level;
         }
 
-        [ResourceFunction]
+        [ResourceFunction("use it with next()")]
         public IEnumerable<string> Enum(int count)
         {
             var msg = new string[] { "Have you throught what if a function has multiple returns ?", "So you can return chunks of IO operation that not yet finished.", "Also, what about the progress ?", "This is an example of both.", "Use it anyway you like" };
@@ -62,7 +62,7 @@ namespace Test
             }
         }
 
-        [ResourceFunction]
+        [ResourceFunction("Stream returns progress")]
         public AsyncReply<string> Stream(int count)
         {
             var reply = new AsyncReply<string>();
@@ -73,7 +73,7 @@ namespace Test
             timer = new Timer((x) =>
             {
                 
-                reply.TriggerProgress(AsyncReply.ProgressType.Execution,  count, 22);
+                reply.TriggerProgress(ProgressType.Execution,  count, 22);
 
                 if (count % 2 == 0 && msgCounter < msg.Length)
                     reply.TriggerChunk(msg[msgCounter++]);

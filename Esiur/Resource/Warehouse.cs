@@ -53,6 +53,7 @@ namespace Esiur.Resource
         public static event StoreConnectedEvent StoreConnected;
         public static event StoreDisconnectedEvent StoreDisconnected;
 
+        static KeyList<string, IStore> protocols = new KeyList<string, IStore>();
 
         /// <summary>
         /// Get a store by its name.
@@ -234,7 +235,7 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <returns>Resource instance.</returns>
-        public static AsyncReply<IResource> Get(string path)
+        public static AsyncReply<IResource> Get(string path, Structure settings = null, IResource parent = null, IPermissionsManager manager = null)
         {
 
             var p = path.Split('/');
@@ -264,6 +265,41 @@ namespace Esiur.Resource
 
                     return new AsyncReply<IResource>(res);
                 }
+
+            // Should we create a new store ?
+            if (path.Contains("://"))
+            {
+                var url = path.Split(new string[] { "://" }, 2, StringSplitOptions.None);
+                var hostname = url[1].Split(new char[] { '/' }, 2)[0];
+                var pathname = string.Join("/", url[1].Split(new char[] { '/' }).Skip(1));
+
+
+                var rt = new AsyncReply<IResource>();
+
+                if (protocols.ContainsKey(url[0]))
+                {
+                    var handler = protocols[url[0]];
+
+                    var store = Activator.CreateInstance(handler.GetType()) as IStore;
+                    Put(store, url[0] + "://" + hostname, null, parent, null, 0, manager);
+
+                    store.Open(settings).Then(x => {
+                        if (pathname.Length > 0 && pathname != "")
+                            store.Get(pathname).Then(r => {
+                                rt.Trigger(r);
+                            }).Error(e => rt.TriggerError(e));
+                        else
+                            rt.Trigger(store);
+
+                    }).Error(e => {
+                        rt.TriggerError(e);
+                        Warehouse.Remove(store);
+                    });
+                }
+
+                return rt;
+            }
+
 
             return new AsyncReply<IResource>(null);
         }

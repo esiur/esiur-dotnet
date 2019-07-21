@@ -30,7 +30,7 @@ namespace Esiur.Resource.Template
             if (Expansion != null)
             {
                 var exp = DC.ToBytes(Expansion);
-                return BinaryList.ToBytes((byte)(0x10 | (IsVoid ? 0x8 : 0x0)), exp.Length, exp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x10 | (IsVoid ? 0x8 : 0x0)), (byte)name.Length, name, exp.Length, exp);
             }
             else
                 return BinaryList.ToBytes((byte)(IsVoid ? 0x8 : 0x0), (byte)name.Length, name);

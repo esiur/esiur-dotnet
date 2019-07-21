@@ -63,23 +63,21 @@ namespace Esiur.Engine
     {
 
 
-        AsyncReply.ErrorType type;
-        ExceptionCode code;
+        public readonly ErrorType Type;
+        public readonly ExceptionCode Code;
 
-        public AsyncReply.ErrorType Type => type;
-        public ExceptionCode Code => code;
 
-        public AsyncException(AsyncReply.ErrorType type, ushort code, string message)
-            : base(type == AsyncReply.ErrorType.Management ? ((ExceptionCode)code).ToString() : message)
+        public AsyncException(ErrorType type, ushort code, string message)
+            : base(type == ErrorType.Management ? ((ExceptionCode)code).ToString() : message)
         {
-            this.type = type;
-            this.code = (ExceptionCode)code;
+            this.Type = type;
+            this.Code = (ExceptionCode)code;
 
         }
 
         public override string ToString()
         {
-            return code.ToString() + ": " + Message;
+            return Code.ToString() + ": " + Message;
         }
     }
 }

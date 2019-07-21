@@ -524,13 +524,13 @@ namespace Esiur.Net.IIP
                         switch (packet.Report)
                         {
                             case IIPPacketReport.ManagementError:
-                                IIPReportError(packet.CallbackId, AsyncReply.ErrorType.Management, packet.ErrorCode, null);
+                                IIPReportError(packet.CallbackId, ErrorType.Management, packet.ErrorCode, null);
                                 break;
                             case IIPPacketReport.ExecutionError:
-                                IIPReportError(packet.CallbackId, AsyncReply.ErrorType.Exception, packet.ErrorCode, packet.ErrorMessage);
+                                IIPReportError(packet.CallbackId, ErrorType.Exception, packet.ErrorCode, packet.ErrorMessage);
                                 break;
                             case IIPPacketReport.ProgressReport:
-                                IIPReportProgress(packet.CallbackId, AsyncReply.ProgressType.Execution, packet.ProgressValue, packet.ProgressMax);
+                                IIPReportProgress(packet.CallbackId, ProgressType.Execution, packet.ProgressValue, packet.ProgressMax);
                                 break;
                             case IIPPacketReport.ChunkStream:
                                 IIPReportChunk(packet.CallbackId, packet.Content);
@@ -734,6 +734,12 @@ namespace Esiur.Net.IIP
         {
             // nothing to do
             return true;
+        }
+
+        public AsyncReply<bool> Open(Structure settings)
+        {
+            
+            return new AsyncReply<bool>(true);
         }
     }
 }

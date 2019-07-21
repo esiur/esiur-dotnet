@@ -66,17 +66,17 @@ namespace Esiur.Resource.Template
             {
                 var rexp = DC.ToBytes(ReadExpansion);
                 var wexp = DC.ToBytes(WriteExpansion);
-                return BinaryList.ToBytes((byte)(0x38 | pv), wexp.Length, wexp, rexp.Length, rexp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x38 | pv), (byte)name.Length, name, wexp.Length, wexp, rexp.Length, rexp);
             }
             else if (WriteExpansion != null)
             {
                 var wexp = DC.ToBytes(WriteExpansion);
-                return BinaryList.ToBytes((byte)(0x30 | pv), wexp.Length, wexp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x30 | pv), (byte)name.Length, name, wexp.Length, wexp);
             }
             else if (ReadExpansion != null)
             {
                 var rexp = DC.ToBytes(ReadExpansion);
-                return BinaryList.ToBytes((byte)(0x28 | pv), rexp.Length, rexp, (byte)name.Length, name);
+                return BinaryList.ToBytes((byte)(0x28 | pv), (byte)name.Length, name, rexp.Length, rexp);
             }
             else
                 return BinaryList.ToBytes((byte)(0x20 | pv), (byte)name.Length, name);

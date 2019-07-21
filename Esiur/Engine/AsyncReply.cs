@@ -32,17 +32,9 @@ namespace Esiur.Engine
 {
     public class AsyncReply
     {
-        public enum ErrorType
-        {
-            Management,
-            Exception
-        }
+   
 
-        public enum ProgressType
-        {
-            Execution,
-            Network,
-        }
+
 
         protected List<Action<object>> callbacks = new List<Action<object>>();
         protected object result;

@@ -35,6 +35,7 @@ namespace Esiur.Resource
 {
     public interface IStore:IResource
     {
+        AsyncReply<bool> Open(Structure settings);
         AsyncReply<IResource> Get(string path);
         AsyncReply<IResource> Retrieve(uint iid);
         bool Put(IResource resource);

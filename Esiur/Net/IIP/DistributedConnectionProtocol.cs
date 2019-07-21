@@ -50,7 +50,7 @@ namespace Esiur.Net.IIP
 
         Dictionary<Guid, ResourceTemplate> templates = new Dictionary<Guid, ResourceTemplate>();
 
-        KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
+        KeyList<uint, IAsyncReply<object>> requests = new KeyList<uint, IAsyncReply<object>>();
 
         uint callbackCounter = 0;
 
@@ -62,7 +62,7 @@ namespace Esiur.Net.IIP
         /// <param name="action">Packet action.</param>
         /// <param name="args">Arguments to send.</param>
         /// <returns></returns>
-        internal AsyncReply<object[]> SendRequest(IIPPacket.IIPPacketAction action, params object[] args)
+        internal IAsyncReply<object[]> SendRequest(IIPPacket.IIPPacketAction action, params object[] args)
         {
             var reply = new AsyncReply<object[]>();
             callbackCounter++;
@@ -100,11 +100,11 @@ namespace Esiur.Net.IIP
             Send(bl.ToArray());
         }
 
-        internal AsyncReply SendInvokeByArrayArguments(uint instanceId, byte index, object[] parameters)
+        internal AsyncReply<object> SendInvokeByArrayArguments(uint instanceId, byte index, object[] parameters)
         {
             var pb = Codec.ComposeVarArray(parameters, this, true);
 
-            var reply = new AsyncReply();
+            var reply = new AsyncReply<object>();
             callbackCounter++;
             var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments),
                                     callbackCounter, instanceId, index, pb);
@@ -114,11 +114,11 @@ namespace Esiur.Net.IIP
             return reply;
         }
 
-        internal AsyncReply SendInvokeByNamedArguments(uint instanceId, byte index, Structure parameters)
+        internal AsyncReply<object> SendInvokeByNamedArguments(uint instanceId, byte index, Structure parameters)
         {
             var pb = Codec.ComposeStructure(parameters, this, true, true, true);
 
-            var reply = new AsyncReply();
+            var reply = new AsyncReply<object>();
             callbackCounter++;
             var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments),
                                     callbackCounter, instanceId, index, pb);
@@ -129,12 +129,12 @@ namespace Esiur.Net.IIP
         }
 
 
-        void SendError(AsyncReply.ErrorType type, uint callbackId, ushort errorCode, string errorMessage = "")
+        void SendError(ErrorType type, uint callbackId, ushort errorCode, string errorMessage = "")
         {
             var msg = DC.ToBytes(errorMessage);
-            if (type == AsyncReply.ErrorType.Management)
+            if (type == ErrorType.Management)
                 SendParams((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ManagementError), callbackId, errorCode);
-            else if (type == AsyncReply.ErrorType.Exception)
+            else if (type == ErrorType.Exception)
                 SendParams((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ExecutionError), callbackId, errorCode, (ushort)msg.Length, msg);
         }
 
@@ -165,13 +165,13 @@ namespace Esiur.Net.IIP
             });
         }
 
-        void IIPReportError(uint callbackId, AsyncReply.ErrorType errorType, ushort errorCode, string errorMessage)
+        void IIPReportError(uint callbackId, ErrorType errorType, ushort errorCode, string errorMessage)
         {
             var req = requests.Take(callbackId);
             req?.TriggerError(new AsyncException(errorType, errorCode, errorMessage));
         }
 
-        void IIPReportProgress(uint callbackId, AsyncReply.ProgressType type, int value, int max)
+        void IIPReportProgress(uint callbackId, ProgressType type, int value, int max)
         {
             var req = requests[callbackId];
             req?.TriggerProgress(type, value, max);
@@ -379,7 +379,7 @@ namespace Esiur.Net.IIP
                 {
                     if (res.Instance.Applicable(session, ActionType.Attach, null) == Ruling.Denied)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, 6);
+                        SendError(ErrorType.Management, callback, 6);
                         return;
                     }
 
@@ -415,7 +415,7 @@ namespace Esiur.Net.IIP
                 {
                     // reply failed
                     //SendParams(0x80, r.Instance.Id, r.Instance.Age, r.Instance.Serialize(false, this));
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
         }
@@ -459,7 +459,7 @@ namespace Esiur.Net.IIP
                 else
                 {
                     // reply failed
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
         }
@@ -480,7 +480,7 @@ namespace Esiur.Net.IIP
                 else
                 {
                     // reply failed
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
         }
@@ -492,20 +492,20 @@ namespace Esiur.Net.IIP
             {
                 if (store == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.StoreNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.StoreNotFound);
                     return;
                 }
 
                 if (!(store is IStore))
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceIsNotStore);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceIsNotStore);
                     return;
                 }
 
                 // check security
                 if (store.Instance.Applicable(session, ActionType.CreateResource, null) != Ruling.Allowed)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.CreateDenied);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.CreateDenied);
                     return;
                 }
 
@@ -517,7 +517,7 @@ namespace Esiur.Net.IIP
                     if (parent != null)
                         if (parent.Instance.Applicable(session, ActionType.AddChild, null) != Ruling.Allowed)
                         {
-                            SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
+                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
                             return;
                         }
 
@@ -537,7 +537,7 @@ namespace Esiur.Net.IIP
 
                     if (type == null)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ClassNotFound);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ClassNotFound);
                         return;
                     }
 
@@ -614,13 +614,13 @@ namespace Esiur.Net.IIP
             {
                 if (r == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
                 if (r.Instance.Store.Instance.Applicable(session, ActionType.Delete, null) != Ruling.Allowed)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.DeleteDenied);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteDenied);
                     return;
                 }
 
@@ -628,7 +628,7 @@ namespace Esiur.Net.IIP
                     SendReply(IIPPacket.IIPPacketAction.DeleteResource, callback);
                 //SendParams((byte)0x84, callback);
                 else
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.DeleteFailed);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteFailed);
             });
         }
 
@@ -638,14 +638,14 @@ namespace Esiur.Net.IIP
             {
                 if (r == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
                 //                if (!r.Instance.Store.Instance.Applicable(r, session, ActionType.InquireAttributes, null))
                 if (r.Instance.Applicable(session, ActionType.InquireAttributes, null) != Ruling.Allowed)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ViewAttributeDenied);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ViewAttributeDenied);
                     return;
                 }
 
@@ -660,7 +660,7 @@ namespace Esiur.Net.IIP
                     SendReply(all ? IIPPacket.IIPPacketAction.GetAllAttributes : IIPPacket.IIPPacketAction.GetAttributes, callback,
                                 Codec.ComposeStructure(st, this, true, true, true));
                 else
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.GetAttributesFailed);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GetAttributesFailed);
 
             });
         }
@@ -671,7 +671,7 @@ namespace Esiur.Net.IIP
             {
                 if (parent == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
@@ -679,19 +679,19 @@ namespace Esiur.Net.IIP
                 {
                     if (child == null)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                         return;
                     }
 
                     if (parent.Instance.Applicable(this.session, ActionType.AddChild, null) != Ruling.Allowed)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
                         return;
                     }
 
                     if (child.Instance.Applicable(this.session, ActionType.AddParent, null) != Ruling.Allowed)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.AddParentDenied);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddParentDenied);
                         return;
                     }
 
@@ -710,7 +710,7 @@ namespace Esiur.Net.IIP
             {
                 if (parent == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
@@ -718,19 +718,19 @@ namespace Esiur.Net.IIP
                 {
                     if (child == null)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                         return;
                     }
 
                     if (parent.Instance.Applicable(this.session, ActionType.RemoveChild, null) != Ruling.Allowed)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
                         return;
                     }
 
                     if (child.Instance.Applicable(this.session, ActionType.RemoveParent, null) != Ruling.Allowed)
                     {
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.AddParentDenied);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddParentDenied);
                         return;
                     }
 
@@ -749,13 +749,13 @@ namespace Esiur.Net.IIP
             {
                 if (resource == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
                 if (resource.Instance.Applicable(this.session, ActionType.Rename, null) != Ruling.Allowed)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.RenameDenied);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.RenameDenied);
                     return;
                 }
 
@@ -771,7 +771,7 @@ namespace Esiur.Net.IIP
             {
                 if (resource == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
@@ -789,7 +789,7 @@ namespace Esiur.Net.IIP
             {
                 if (resource == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
@@ -807,13 +807,13 @@ namespace Esiur.Net.IIP
             {
                 if (r == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
                 if (r.Instance.Store.Instance.Applicable(session, ActionType.UpdateAttributes, null) != Ruling.Allowed)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeDenied);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeDenied);
                     return;
                 }
 
@@ -825,7 +825,7 @@ namespace Esiur.Net.IIP
                 if (r.Instance.RemoveAttributes(attrs))
                     SendReply(all ? IIPPacket.IIPPacketAction.ClearAllAttributes : IIPPacket.IIPPacketAction.ClearAttributes, callback);
                 else
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
 
             });
         }
@@ -836,13 +836,13 @@ namespace Esiur.Net.IIP
             {
                 if (r == null)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                     return;
                 }
 
                 if (r.Instance.Store.Instance.Applicable(session, ActionType.UpdateAttributes, null) != Ruling.Allowed)
                 {
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeDenied);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeDenied);
                     return;
                 }
 
@@ -852,7 +852,7 @@ namespace Esiur.Net.IIP
                         SendReply(clearAttributes ? IIPPacket.IIPPacketAction.ClearAllAttributes : IIPPacket.IIPPacketAction.ClearAttributes,
                                   callback);
                     else
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
                 });
 
             });
@@ -868,7 +868,7 @@ namespace Esiur.Net.IIP
                 else
                 {
                     // reply failed
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
                 }
             });
         }
@@ -882,7 +882,7 @@ namespace Esiur.Net.IIP
                 else
                 {
                     // reply failed
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
                 }
             });
         }
@@ -899,7 +899,7 @@ namespace Esiur.Net.IIP
                 else
                 {
                     // reply failed
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
                 }
             });
         }
@@ -916,7 +916,7 @@ namespace Esiur.Net.IIP
                 var list = r.Where(x => x.Instance.Applicable(session, ActionType.Attach, null) != Ruling.Denied).ToArray();
 
                 if (list.Length == 0)
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
                     SendReply(IIPPacket.IIPPacketAction.QueryLink, callback, Codec.ComposeResourceArray(list, this, true));
                 //}
@@ -973,7 +973,7 @@ namespace Esiur.Net.IIP
                                 {
                                     if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
                                     {
-                                        SendError(AsyncReply.ErrorType.Management, callback,
+                                        SendError(ErrorType.Management, callback,
                                             (ushort)ExceptionCode.InvokeDenied);
                                         return;
                                     }
@@ -1009,7 +1009,7 @@ namespace Esiur.Net.IIP
                                     }
                                     catch(Exception ex)
                                     {
-                                        SendError(AsyncReply.ErrorType.Exception, callback, 0, ex.ToString());
+                                        SendError(ErrorType.Exception, callback, 0, ex.ToString());
                                         return;
                                     }
 
@@ -1038,14 +1038,15 @@ namespace Esiur.Net.IIP
                                         //await t;
                                         //SendParams((byte)0x90, callback, Codec.Compose(res, this));
                                     }
-                                    else if (rt is AsyncReply) //(rt.GetType().IsGenericType && (rt.GetType().GetGenericTypeDefinition() == typeof(AsyncReply<>)))
+                                    else if (rt.GetType().GetTypeInfo().IsGenericType 
+                                          && rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
                                     {
-                                        (rt as AsyncReply).Then(res =>
+                                        (rt as IAsyncReply<object>).Then(res =>
                                         {
                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
                                         }).Error(ex =>
                                         {
-                                            SendError(AsyncReply.ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                            SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
                                         }).Progress((pt, pv, pm) =>
                                         {
                                             SendProgress(callback, pv, pm);
@@ -1119,7 +1120,7 @@ namespace Esiur.Net.IIP
                                 {
                                     if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
                                     {
-                                        SendError(AsyncReply.ErrorType.Management, callback,
+                                        SendError(ErrorType.Management, callback,
                                             (ushort)ExceptionCode.InvokeDenied);
                                         return;
                                     }
@@ -1150,7 +1151,7 @@ namespace Esiur.Net.IIP
                                     }
                                     catch (Exception ex)
                                     {
-                                        SendError(AsyncReply.ErrorType.Exception, callback, 0, ex.ToString());
+                                        SendError(ErrorType.Exception, callback, 0, ex.ToString());
                                         return;
                                     }
 
@@ -1177,14 +1178,16 @@ namespace Esiur.Net.IIP
                                         });
 
                                     }
-                                    else if (rt is AsyncReply)
-                                    {
-                                        (rt as AsyncReply).Then(res =>
+//                                    else if (rt is AsyncReply)
+                                      else if (rt.GetType().GetTypeInfo().IsGenericType
+                                                && rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
+                                        {
+                                                (rt as IAsyncReply<object>).Then(res =>
                                         {
                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
                                         }).Error(ex =>
                                         {
-                                            SendError(AsyncReply.ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                            SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
                                         }).Progress((pt, pv, pm) =>
                                         {
                                             SendProgress(callback, pv, pm);
@@ -1376,13 +1379,13 @@ namespace Esiur.Net.IIP
 
                                     if (r.Instance.Applicable(session, ActionType.SetProperty, pt, this) == Ruling.Denied)
                                     {
-                                        SendError(AsyncReply.ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
+                                        SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
                                         return;
                                     }
 
                                     if (!pi.CanWrite)
                                     {
-                                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ReadOnlyProperty);
+                                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ReadOnlyProperty);
                                         return;
                                     }
 
@@ -1405,14 +1408,14 @@ namespace Esiur.Net.IIP
                                     }
                                     catch(Exception ex)
                                     {
-                                        SendError(AsyncReply.ErrorType.Exception, callback, 0, ex.Message);
+                                        SendError(ErrorType.Exception, callback, 0, ex.Message);
                                     }
                                
                                 }
                                 else
                                 {
                                     // pt found, pi not found, this should never happen
-                                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
                                 }
                             }
 
@@ -1421,13 +1424,13 @@ namespace Esiur.Net.IIP
                     else
                     {
                         // property not found
-                        SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
                     }
                 }
                 else
                 {
                     // resource not found
-                    SendError(AsyncReply.ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
         }
@@ -1718,7 +1721,7 @@ namespace Esiur.Net.IIP
 
             SendRequest(IIPPacket.IIPPacketAction.ResourceChildren, resource.Instance.Id).Then(ar =>
             {
-                var d = (byte[])ar;
+                var d = (byte[])ar[0];
                 Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
                 {
                     rt.Trigger(resources);
@@ -1734,7 +1737,7 @@ namespace Esiur.Net.IIP
 
             SendRequest(IIPPacket.IIPPacketAction.ResourceParents, resource.Instance.Id).Then(ar =>
             {
-                var d = (byte[])ar;
+                var d = (byte[])ar[0];
                 Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
                 {
                     rt.Trigger(resources);

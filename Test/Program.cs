@@ -43,15 +43,10 @@ namespace Test
         static DistributedResource remoteObject;
 
 
-    
-       static void Main(string[] args)
-      {
-            MainAsync().Wait();
-            //Thread.Sleep(-1);
-       }
 
-        static async Task MainAsync()
-        { 
+
+        static async Task Main(string[] args)
+        {
             //AsyncContext.Run(() => ());
 
             // Create stores to keep objects.
@@ -59,65 +54,71 @@ namespace Test
             var remote = Warehouse.New<MemoryStore>("remote");
             var mongo = Warehouse.New<MongoDBStore>("db");
 
+            /*
+            var system = await Warehouse.Get("mem://system").Task;
+            var remote = await Warehouse.Get("mem://remote").Task;
+            var mongo = await Warehouse.Get("mongo://db").Task;
+            var iip = await Warehouse.Get("iip://:5000").Task;
+            var iws = await Warehouse.Get("iipows://:5001", new Structure() { ["iip"] = iip }).Task;
+            */
+
+            var ok = await Warehouse.Open();
+
+
             // Open the warehouse
-            var ok = await Warehouse.Open().Task;
 
 
-                // Create new object if the store is empty
-                if (mongo.Count == 0)
-                    myObject = Warehouse.New<MyObject>("my", mongo, null,
-                        new UserPermissionsManager(new Structure()
-                        {
-                            ["demo@localhost"] = new Structure()
-                            {
-                                ["Subtract"] = new Structure { ["Execute"] = "yes" },
-                                ["Stream"] = new Structure { ["Execute"] = "yes" },
-                                ["_attach"] = "yes",
-                                ["_get_attributes"] = "yes",
-                                ["_set_attributes"] = "yes",
-                            }
-                        }));
-                else
-                    Warehouse.Get("db/my").Then((o) => { myObject = (MyObject)o; });
-
-                // Create new distributed server object
-                var iip = Warehouse.New<DistributedServer>("iip", system);
-                // Set membership which handles authentication.
-                iip.Membership = Warehouse.New<MyMembership>("ms", system);
-                // Start the server on port 5000.
-                iip.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 5000)), 600000, 60000);
-
-
-                // Create http server to handle IIP over Websockets
-                var http = Warehouse.New<HTTPServer>("http", system);
-                http.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 5001)), 600000, 60000);
-
-                // Create IIP over Websocket HTTP module and give it to HTTP server.
-                var wsOverHttp = Warehouse.New<IIPoWS>("IIPoWS", system, http);
-
-
-            
-                Warehouse.StoreConnected += (store, name) =>
-                {
-                    if (store.Instance.Parents.Contains(iip))
+            // Create new object if the store is empty
+            if (mongo.Count == 0)
+                myObject = Warehouse.New<MyObject>("my", mongo, null,
+                    new UserPermissionsManager(new Structure()
                     {
-                        store.Get("local/js").Then((r) =>
+                        ["demo@localhost"] = new Structure()
                         {
-                            if (r != null)
-                            {
-                                dynamic d = r;
-                                d.send("Welcome");
-                            }
-                        });
-                    }
-                };
-                
+                            ["Subtract"] = new Structure { ["Execute"] = "yes" },
+                            ["Stream"] = new Structure { ["Execute"] = "yes" },
+                            ["_attach"] = "yes",
+                            ["_get_attributes"] = "yes",
+                            ["_set_attributes"] = "yes",
+                        }
+                    }));
+            else
+                myObject =(MyObject) (await Warehouse.Get("db/my"));//.Then((o) => { myObject = (MyObject)o; });
 
-                // Start testing
-               // TestClient();
-            
+            // Create new distributed server object
+            var iip = Warehouse.New<DistributedServer>("iip", system);
+            // Set membership which handles authentication.
+            iip.Membership = Warehouse.New<MyMembership>("ms", system);
+            // Start the server on port 5000.
+            iip.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 5000)), 600000, 60000);
 
 
+            // Create http server to handle IIP over Websockets
+            var http = Warehouse.New<HTTPServer>("http", system);
+            http.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 5001)), 600000, 60000);
+
+            // Create IIP over Websocket HTTP module and give it to HTTP server.
+            var wsOverHttp = Warehouse.New<IIPoWS>("IIPoWS", system, http);
+
+            wsOverHttp.DistributedServer = iip;
+
+            Warehouse.StoreConnected += (store, name) =>
+            {
+                if (store.Instance.Parents.Contains(iip))
+                {
+                    store.Get("local/js").Then((r) =>
+                    {
+                        if (r != null)
+                        {
+                            dynamic d = r;
+                            d.send("Welcome");
+                        }
+                    });
+                }
+            };
+
+            // Start testing
+            // TestClient();
 
             var running = true;
 
@@ -137,6 +138,8 @@ namespace Test
                 else
                     Console.WriteLine(myObject.Name + " " + myObject.Level);
             }
+
+
         }
 
         private static void TestClient()
@@ -148,12 +151,12 @@ namespace Test
             // Put the client in our memory store
             var remote = Warehouse.GetStore("remote");
             Warehouse.Put(client, "Endpoint", remote);
-            
-            
+
+
             client.OnReady += async (c) =>
             {
                 // Get remote object from the server.
-                remoteObject = await client.Get("db/my").Task as DistributedResource;
+                //remoteObject = await client.Get("db/my").Task as DistributedResource;
 
                 dynamic x = remoteObject;
 
@@ -169,13 +172,13 @@ namespace Test
                     Console.WriteLine("LevelUp " + parameters[0] + " " + parameters[1]);
                 });
 
-                (x.Stream(10) as AsyncReply).Then(r =>
+                (x.Stream(10) as AsyncReply<object>).Then(r =>
                 {
                     Console.WriteLine("Stream ended: " + r);
-                }).Chunk(r=> 
+                }).Chunk(r =>
                 {
                     Console.WriteLine("Chunk..." + r);
-                }).Progress((t, v, m)=> Console.WriteLine("Processing {0}/{1}", v, m));
+                }).Progress((t, v, m) => Console.WriteLine("Processing {0}/{1}", v, m));
 
                 var rt = await x.Subtract(10).Task;
 

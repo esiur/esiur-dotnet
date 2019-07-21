@@ -7,9 +7,11 @@
     <PackageLicenseUrl>https://github.com/esiur/esiur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.1.0</Version>
+    <Version>1.2.3</Version>
     <RepositoryUrl>https://github.com/esiur/esiur-dotnet</RepositoryUrl>
     <Authors>Ahmed Kh. Zamil</Authors>
+    <AssemblyVersion>1.2.3.0</AssemblyVersion>
+    <Company>Esiur Foundation</Company>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -22,6 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Engine\AsyncReply.cs" />
     <Compile Remove="Net\UDP\UDPServer.cs" />
   </ItemGroup>
 
@@ -30,12 +33,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Engine\AsyncReply.cs" />
     <None Include="Net\UDP\UDPServer.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Diagnostics.StackTrace" Version="4.3.0" />
     <PackageReference Include="System.Dynamic.Runtime" Version="4.3.0" />
+    <PackageReference Include="System.Interactive.Async" Version="3.2.0" />
     <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
     <PackageReference Include="System.Net.NetworkInformation" Version="4.3.0" />
     <PackageReference Include="System.Net.Security" Version="4.3.1" />

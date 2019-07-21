@@ -228,7 +228,7 @@ namespace Esiur.Resource.Template
 
             od.classId = data.GetGuid(offset);
             offset += 16;
-            od.className = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
+            od.className = data.GetString(offset + 1, data[offset]);
             offset += (uint)data[offset] + 1;
 
             od.version = data.GetInt32(offset);
@@ -250,7 +250,7 @@ namespace Esiur.Resource.Template
                     string expansion = null;
                     var hasExpansion = ((data[offset] & 0x10) == 0x10);
                     var isVoid = ((data[offset++] & 0x08) == 0x08);
-                    var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
+                    var name = data.GetString(offset + 1, data[offset]);
                     offset += (uint)data[offset] + 1;
                     
                     if (hasExpansion) // expansion ?
