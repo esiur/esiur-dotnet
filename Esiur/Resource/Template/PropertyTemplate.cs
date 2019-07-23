@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,6 +17,12 @@ namespace Esiur.Resource.Template
             ReadWrite
         }
 
+
+        public PropertyInfo Info
+        {
+            get;
+            set;
+        }
 
         //bool ReadOnly;
         //IIPTypes::DataType ReturnType;

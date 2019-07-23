@@ -126,6 +126,10 @@ namespace Esiur.Resource.Template
 
         public ResourceTemplate(Type type)
         {
+
+            if (type.Namespace.Contains("Esiur.Proxy.T"))
+                type = type.GetTypeInfo().BaseType;
+
             // set guid
 
             var typeName = Encoding.UTF8.GetBytes(type.FullName);
@@ -156,7 +160,8 @@ namespace Esiur.Resource.Template
                 if (ps.Length > 0)
                 {
                     var pt = new PropertyTemplate(this, i++, pi.Name, ps[0].ReadExpansion, ps[0].WriteExpansion, ps[0].Storage);
-                     properties.Add(pt);
+                    pt.Info = pi;
+                    properties.Add(pt);
                 }
             }
 

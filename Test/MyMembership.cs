@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Test
 {
-    class MyMembership : IMembership
+    public class MyMembership : IMembership
     {
         public Instance Instance { get; set; }
 

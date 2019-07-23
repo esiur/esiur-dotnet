@@ -9,14 +9,14 @@ using System.Threading;
 
 namespace Test
 {
-    class MyObject : Resource
+    public class MyObject : Resource
     {
- 
+
         [ResourceEvent]
         public event ResourceEventHanlder LevelUp;
         [ResourceEvent]
         public event ResourceEventHanlder LevelDown;
-        
+
         public MyObject()
         {
             Info = new Structure();
@@ -27,7 +27,7 @@ namespace Test
             Level = 5;
         }
 
-
+ 
         [ResourceFunction]
         public int Add(int value)
         {
@@ -113,6 +113,7 @@ namespace Test
             }
         }
 
+        /*
         int level;
         [ResourceProperty]
         public int Level
@@ -123,6 +124,21 @@ namespace Test
                 level = value;
                 Instance?.Modified();
             }
+        }
+        */
+
+        [ResourceProperty]
+        public virtual int Level
+        {
+            get;
+            set;
+        }
+
+        [ResourceProperty]
+        public int Level3
+        {
+            get => 0;
+            set => Instance?.Modified();
         }
     }
 

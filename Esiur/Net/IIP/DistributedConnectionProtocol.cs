@@ -1369,11 +1369,16 @@ namespace Esiur.Net.IIP
                             }
                             else
                             {
+
+                                /*
 #if NETSTANDARD1_5
                                 var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                                 var pi = r.GetType().GetProperty(pt.Name);
-#endif
+#endif*/
+
+                                var pi = pt.Info;
+                                
                                 if (pi != null)
                                 {
 

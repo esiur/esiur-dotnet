@@ -41,12 +41,13 @@ namespace Test
     {
         static MyObject myObject;
         static DistributedResource remoteObject;
-
-
+ 
 
 
         static async Task Main(string[] args)
         {
+
+ 
             //AsyncContext.Run(() => ());
 
             // Create stores to keep objects.
@@ -84,6 +85,11 @@ namespace Test
                     }));
             else
                 myObject =(MyObject) (await Warehouse.Get("db/my"));//.Then((o) => { myObject = (MyObject)o; });
+
+
+            //var obj = ProxyObject.<MyObject>();
+            //Warehouse.Put(obj, "dd", system);
+            //obj.Level2= 33;
 
             // Create new distributed server object
             var iip = Warehouse.New<DistributedServer>("iip", system);
@@ -136,7 +142,10 @@ namespace Test
                         running = false;
                     });
                 else
-                    Console.WriteLine(myObject.Name + " " + myObject.Level);
+                {
+                    myObject.Level = 88;
+                    Console.WriteLine(myObject.Name + " " + myObject.Level );
+                }
             }
 
 

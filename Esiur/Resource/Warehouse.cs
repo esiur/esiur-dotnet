@@ -24,6 +24,7 @@ SOFTWARE.
 
 using Esiur.Data;
 using Esiur.Engine;
+using Esiur.Proxy;
 using Esiur.Resource.Template;
 using Esiur.Security.Permissions;
 using System;
@@ -347,8 +348,10 @@ namespace Esiur.Resource
         }
 
         public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null)
+            where T:IResource
         {
-            var res = Activator.CreateInstance(typeof(T)) as IResource;
+            var type = ResourceProxy.GetProxy<T>();
+            var res = Activator.CreateInstance(type) as IResource;
             Put(res, name, store, parent, null, 0, manager);
             return (T)res;
         }

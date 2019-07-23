@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Esiur.Resource.Template;
 using System.Linq;
 using Esiur.Security.Permissions;
+using Esiur.Proxy;
 
 namespace Esiur.Stores.MongoDB
 {
@@ -100,8 +101,9 @@ namespace Esiur.Stores.MongoDB
                 return new AsyncReply<IResource>(null);
             var document = list[0];
 
+            var type = Type.GetType(document["classname"].AsString);
 
-            IResource resource = (IResource)Activator.CreateInstance(Type.GetType(document["classname"].AsString));
+            IResource resource = (IResource)Activator.CreateInstance(ResourceProxy.GetProxy(type));
             resources.Add(document["_id"].AsObjectId.ToString(), resource);
 
             Warehouse.Put(resource, document["name"].AsString, this);

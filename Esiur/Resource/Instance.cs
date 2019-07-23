@@ -270,19 +270,22 @@ namespace Esiur.Resource
             if (pt == null)
                 return false;
 
+            /*
 #if NETSTANDARD1_5
-            var pi = resource.GetType().GetTypeInfo().GetProperty(name);
+            var pi = resource.GetType().GetTypeInfo().GetProperty(name, new[] { resource.GetType() });
 #else
             var pi = resource.GetType().GetProperty(pt.Name);
 #endif
-            if (pi.PropertyType == typeof(DistributedPropertyContext))
+*/
+
+            if (pt.Info.PropertyType == typeof(DistributedPropertyContext))
                 return false;
 
        
             try
             {
-                if (pi.CanWrite)
-                    pi.SetValue(resource, DC.CastConvert(value, pi.PropertyType));
+                if (pt.Info.CanWrite)
+                    pt.Info.SetValue(resource, DC.CastConvert(value, pt.Info.PropertyType));
             }
             catch(Exception ex)
             {
@@ -354,12 +357,16 @@ namespace Esiur.Resource
 
             foreach (var pt in template.Properties)
             {
+                /*
 #if NETSTANDARD1_5
                 var pi = resource.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                 var pi = resource.GetType().GetProperty(pt.Name);
 #endif
-                var rt = pi.GetValue(resource, null);
+*/
+
+
+                var rt = pt.Info.GetValue(resource, null);
                 props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
             }
 
@@ -474,7 +481,7 @@ namespace Esiur.Resource
         /// <param name="propertyName"></param>
         /// <param name="newValue"></param>
         /// <param name="oldValue"></param>
-        public void Modified([CallerMemberName] string propertyName = "")//, object newValue = null)//, object oldValue = null)
+        public void Modified([CallerMemberName] string propertyName = "")
         {
             object value;
             if (GetPropertyValue(propertyName, out value))
@@ -499,16 +506,20 @@ namespace Esiur.Resource
         /// <returns>True, if the resource has the property.</returns>
         public bool GetPropertyValue(string name, out object value)
         {
+            /*
 #if NETSTANDARD1_5
             PropertyInfo pi = resource.GetType().GetTypeInfo().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
 #else
             PropertyInfo pi = resource.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 #endif
+*/
 
-            if (pi != null)
+            var pt = template.GetPropertyTemplate(name);
+
+            if (pt != null && pt.Info != null)
             {
-
+                /*
 #if NETSTANDARD1_5
                 object[] ca = pi.GetCustomAttributes(typeof(ResourceProperty), false).ToArray();
 
@@ -523,6 +534,11 @@ namespace Esiur.Resource
                     //  value = (value as Func<IManager, object>)(sender);
                     return true;
                 }
+                */
+
+                value = pt.Info.GetValue(resource, null);
+                return true;
+
             }
 
             value = null;
