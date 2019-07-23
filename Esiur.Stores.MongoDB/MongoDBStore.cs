@@ -23,8 +23,8 @@ namespace Esiur.Stores.MongoDB
         MongoClient client;
         IMongoDatabase database;
         IMongoCollection<BsonDocument> resourcesCollection;
-        string collectionName;
-        string dbName;
+        //string collectionName;
+        //string dbName;
 
         Dictionary<string, IResource> resources = new Dictionary<string, IResource>();
 
@@ -52,7 +52,7 @@ namespace Esiur.Stores.MongoDB
                 {"property", propertyName}, {"age", BsonValue.Create(age) }, {"date", date}, {"value", Compose(value) }
             });
 
-            var col = this.database.GetCollection<BsonDocument>(collectionName);
+            //var col = this.database.GetCollection<BsonDocument>(collectionName);
 
 
 
@@ -61,25 +61,9 @@ namespace Esiur.Stores.MongoDB
                 .Set("values." + propertyName, new BsonDocument { { "age", BsonValue.Create(age) },
                                      { "modification", date },
                                      { "value", Compose(value) } });
-
-            col.UpdateOne(filter, update);
+            resourcesCollection.UpdateOne(filter, update);
 
             return true;
-        }
-
-        public MongoDBStore() : this("mongodb://localhost", "esiur", "resources")
-        {
-
-        }
-
-        public MongoDBStore(string connectionString, string database, string collection)
-        {
-            collectionName = collection;
-            dbName = database;
-
-            client = new MongoClient(connectionString);
-            this.database = client.GetDatabase(database);
-            this.resourcesCollection = this.database.GetCollection<BsonDocument>(collection);
         }
 
         public bool Remove(IResource resource)
@@ -102,6 +86,9 @@ namespace Esiur.Stores.MongoDB
             var document = list[0];
 
             var type = Type.GetType(document["classname"].AsString);
+
+            if (type == null)
+                return new AsyncReply<IResource>(null);
 
             IResource resource = (IResource)Activator.CreateInstance(ResourceProxy.GetProxy(type));
             resources.Add(document["_id"].AsObjectId.ToString(), resource);
@@ -141,6 +128,10 @@ namespace Esiur.Stores.MongoDB
                         resource.Instance.Children.Add(x);
                 });
             }
+
+            // Apply store managers
+            foreach (var m in this.Instance.Managers)
+                resource.Instance.Managers.Add(m);
 
             /*
             // load managers
@@ -278,10 +269,12 @@ namespace Esiur.Stores.MongoDB
                     return true;
                 }
 
+            var type = ResourceProxy.GetBaseType(resource);
+
             // insert the document
             var document = new BsonDocument
             {
-                { "classname", resource.GetType().FullName + "," + resource.GetType().GetTypeInfo().Assembly.GetName().Name },
+                { "classname", type.FullName + "," + type.GetTypeInfo().Assembly.GetName().Name },
                 { "name", resource.Instance.Name },
             };
 
@@ -313,12 +306,7 @@ namespace Esiur.Stores.MongoDB
 
             foreach (var pt in template.Properties)
             {
-#if NETSTANDARD1_5
-                var pi = resource.GetType().GetTypeInfo().GetProperty(pt.Name);
-#else
-                var pi = resource.GetType().GetProperty(pt.Name);
-#endif
-                var rt = pi.GetValue(resource, null);
+                var rt = pt.Info.GetValue(resource, null);
  
                 values.Add(pt.Name,
                   new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
@@ -458,6 +446,16 @@ namespace Esiur.Stores.MongoDB
 
             if (trigger == ResourceTrigger.Initialize)
             {
+
+                var collectionName = Instance.Attributes["Collection"] as string ?? "resources";
+                var dbName = Instance.Attributes["Database"] as string ?? "esiur";
+                client = new MongoClient(Instance.Attributes["Connection"] as string ?? "mongodb://localhost");
+                database = client.GetDatabase(dbName);
+
+                resourcesCollection = this.database.GetCollection<BsonDocument>(collectionName);
+
+               // return new AsyncReply<bool>(true);
+
                 var filter = new BsonDocument();
 
                 var list = resourcesCollection.Find(filter).ToList();
@@ -514,12 +512,14 @@ namespace Esiur.Stores.MongoDB
 
             foreach (var pt in template.Properties)
             {
+                /*
 #if NETSTANDARD1_5
                 var pi = resource.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                 var pi = resource.GetType().GetProperty(pt.Name);
 #endif
-                var rt = pi.GetValue(resource, null);
+*/
+                var rt = pt.Info.GetValue(resource, null);
 
                 values.Add(pt.Name,
                                       new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
@@ -699,9 +699,5 @@ namespace Esiur.Stores.MongoDB
 
         }
 
-        public AsyncReply<bool> Open(Structure settings)
-        {
-            return new AsyncReply<bool>(true);
-        }
     }
 }

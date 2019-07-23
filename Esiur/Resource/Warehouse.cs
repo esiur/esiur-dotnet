@@ -236,7 +236,7 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <returns>Resource instance.</returns>
-        public static AsyncReply<IResource> Get(string path, Structure settings = null, IResource parent = null, IPermissionsManager manager = null)
+        public static AsyncReply<IResource> Get(string path, Structure attributes = null, IResource parent = null, IPermissionsManager manager = null)
         {
 
             var p = path.Split('/');
@@ -282,16 +282,16 @@ namespace Esiur.Resource
                     var handler = protocols[url[0]];
 
                     var store = Activator.CreateInstance(handler.GetType()) as IStore;
-                    Put(store, url[0] + "://" + hostname, null, parent, null, 0, manager);
+                    Put(store, url[0] + "://" + hostname, null, parent, null, 0, manager, attributes);
 
-                    store.Open(settings).Then(x => {
+
+                    store.Trigger(ResourceTrigger.Initialize).Then(x => {
                         if (pathname.Length > 0 && pathname != "")
                             store.Get(pathname).Then(r => {
                                 rt.Trigger(r);
                             }).Error(e => rt.TriggerError(e));
                         else
                             rt.Trigger(store);
-
                     }).Error(e => {
                         rt.TriggerError(e);
                         Warehouse.Remove(store);
@@ -312,9 +312,12 @@ namespace Esiur.Resource
         /// <param name="name">Resource name.</param>
         /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null)
+        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, Structure attributes = null)
         {
             resource.Instance = new Instance(resourceCounter++, name, resource, store, customTemplate, age);
+
+            if (attributes != null)
+                resource.Instance.SetAttributes(attributes);
 
             if (manager != null)
                 resource.Instance.Managers.Add(manager);
@@ -347,12 +350,12 @@ namespace Esiur.Resource
 
         }
 
-        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null)
+        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null)
             where T:IResource
         {
             var type = ResourceProxy.GetProxy<T>();
             var res = Activator.CreateInstance(type) as IResource;
-            Put(res, name, store, parent, null, 0, manager);
+            Put(res, name, store, parent, null, 0, manager, attributes);
             return (T)res;
         }
 

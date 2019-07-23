@@ -7,6 +7,7 @@ using Esiur.Misc;
 using Esiur.Data;
 using Esiur.Engine;
 using System.Security.Cryptography;
+using Esiur.Proxy;
 
 namespace Esiur.Resource.Template
 {
@@ -127,8 +128,7 @@ namespace Esiur.Resource.Template
         public ResourceTemplate(Type type)
         {
 
-            if (type.Namespace.Contains("Esiur.Proxy.T"))
-                type = type.GetTypeInfo().BaseType;
+            type = ResourceProxy.GetBaseType(type);
 
             // set guid
 

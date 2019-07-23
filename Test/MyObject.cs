@@ -135,7 +135,7 @@ namespace Test
         }
 
         [ResourceProperty]
-        public int Level3
+        public int Level3 
         {
             get => 0;
             set => Instance?.Modified();

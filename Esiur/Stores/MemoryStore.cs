@@ -75,10 +75,6 @@ namespace Esiur.Stores
         {
             return true;
         }
-
-        public AsyncReply<bool> Open(Structure settings)
-        {
-            return new AsyncReply<bool>(true);
-        }
+         
     }
 }

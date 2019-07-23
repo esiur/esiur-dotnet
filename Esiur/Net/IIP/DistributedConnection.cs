@@ -735,11 +735,6 @@ namespace Esiur.Net.IIP
             // nothing to do
             return true;
         }
-
-        public AsyncReply<bool> Open(Structure settings)
-        {
-            
-            return new AsyncReply<bool>(true);
-        }
+         
     }
 }

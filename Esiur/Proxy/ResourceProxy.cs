@@ -21,6 +21,23 @@ namespace Esiur.Proxy
 #endif
 
 
+        public static Type GetBaseType(object resource)
+        {
+            return GetBaseType(resource.GetType());
+        }
+
+        public static Type GetBaseType(Type type)
+        {
+            if (type.FullName.Contains("Esiur.Proxy.T"))
+#if NETSTANDARD
+                return type.GetTypeInfo().BaseType;
+#else
+            return type.BaseType;
+#endif
+            else
+                return type;
+        }
+
         public static Type GetProxy(Type type)
         {
 
@@ -95,23 +112,19 @@ namespace Esiur.Proxy
             Label exitMethod = g.DefineLabel();
 
             /*
-             IL_0000: ldarg.0
+                IL_0000: ldarg.0
 	            IL_0001: call instance class [Esiur]Esiur.Resource.Instance [Esiur]Esiur.Resource.Resource::get_Instance()
 	            // (no C# code)
 	            IL_0006: dup
 	            IL_0007: brtrue.s IL_000c
-
 	            IL_0009: pop
 	            // }
 	            IL_000a: br.s IL_0017
-
 	            // (no C# code)
 	            IL_000c: ldstr "Level3"
 	            IL_0011: call instance void [Esiur]Esiur.Resource.Instance::Modified(string)
 	            IL_0016: nop
-
 	            IL_0017: ret
-
              */
 
             // Add IL code for set method
