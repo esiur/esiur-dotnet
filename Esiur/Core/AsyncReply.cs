@@ -32,7 +32,7 @@ using System.Reflection;
 using System.Threading;
 using System.Runtime.CompilerServices;
 
-namespace Esiur.Engine
+namespace Esiur.Core
 {
     public class AsyncReply<T>: IAsyncReply<T>
     {
@@ -52,8 +52,6 @@ namespace Esiur.Engine
 
         protected bool resultReady = false;
         AsyncException exception;
-
-        TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
 
 
         public bool Ready
@@ -84,10 +82,7 @@ namespace Esiur.Engine
             errorCallbacks.Add(callback);
 
             if (exception != null)
-            {
                 callback(exception);
-                tcs.SetException(exception);
-            }
 
             return this;
         }
@@ -119,27 +114,28 @@ namespace Esiur.Engine
                 foreach (var cb in callbacks)
                     cb((T)result);
 
-                tcs.TrySetResult(result);
 
             }
 
         }
 
-        public void TriggerError(AsyncException exception)
+        public void TriggerError(Exception exception)
         {
             if (resultReady)
                 return;
 
-            this.exception = exception;
-
+            if (exception is AsyncException)
+                this.exception = exception as AsyncException;
+            else
+                this.exception = new AsyncException(ErrorType.Management, 0, exception.Message);
+             
 
             lock (callbacksLock)
             {
                 foreach (var cb in errorCallbacks)
-                    cb(exception);
+                    cb(this.exception);
             }
 
-            tcs.TrySetException(exception);
         }
 
         public void TriggerProgress(ProgressType type, int value, int max)
@@ -174,13 +170,7 @@ namespace Esiur.Engine
             return new AsyncAwaiter<T>(this);
         }
 
-        public Task Task
-        {
-            get
-            {
-                return tcs.Task;
-            }
-        }
+    
 
 
 
@@ -192,7 +182,6 @@ namespace Esiur.Engine
         public AsyncReply(T result)
         {
             resultReady = true;
-            tcs.SetResult(result);
             this.result = result;
         }
     

@@ -31,7 +31,7 @@ using System.Security.Cryptography;
 using Esiur.Net.Sockets;
 using Esiur.Data;
 using Esiur.Misc;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
@@ -61,6 +61,8 @@ namespace Esiur.Net.IIP
         IIPAuthPacket authPacket = new IIPAuthPacket();
 
         Session session;
+
+        AsyncReply<bool> openReply;
 
         byte[] localPassword;
         byte[] localNonce, remoteNonce;
@@ -109,8 +111,11 @@ namespace Esiur.Net.IIP
         /// Send data to the other end as parameters
         /// </summary>
         /// <param name="values">Values will be converted to bytes then sent.</param>
-        internal void SendParams(params object[] values)
+        internal SendList SendParams(IAsyncReply<object[]> reply = null)//params object[] values)
         {
+            return new SendList(this, reply);
+
+            /*
             var data = BinaryList.ToBytes(values);
 
             if (ready)
@@ -149,6 +154,7 @@ namespace Esiur.Net.IIP
             // Get calling method name
 
             //Console.WriteLine("TX " + hostType + " " + ar.Length + " " + stackTrace.GetFrame(1).GetMethod().ToString());
+            */
         }
 
         /// <summary>
@@ -199,13 +205,28 @@ namespace Esiur.Net.IIP
 
                 if (socket.State == SocketState.Established)
                 {
-                    SendParams((byte)0x60, (byte)dmn.Length, dmn, localNonce, (byte)un.Length, un);
+                    SendParams()
+                        .AddUInt8(0x60)
+                        .AddUInt8((byte)dmn.Length)
+                        .AddUInt8Array(dmn)
+                        .AddUInt8Array(localNonce)
+                        .AddUInt8((byte)un.Length)
+                        .AddUInt8Array(un)
+                        .Done();//, dmn, localNonce, (byte)un.Length, un);
                 }
                 else
                 {
                     socket.OnConnect += () =>
                     {   // declare (Credentials -> No Auth, No Enctypt)
-                         SendParams((byte)0x60, (byte)dmn.Length, dmn, localNonce, (byte)un.Length, un);
+                        //SendParams((byte)0x60, (byte)dmn.Length, dmn, localNonce, (byte)un.Length, un);
+                        SendParams()
+                       .AddUInt8(0x60)
+                       .AddUInt8((byte)dmn.Length)
+                       .AddUInt8Array(dmn)
+                       .AddUInt8Array(localNonce)
+                       .AddUInt8((byte)un.Length)
+                       .AddUInt8Array(un)
+                       .Done();
                     };
                 }
             }
@@ -569,12 +590,17 @@ namespace Esiur.Net.IIP
                                         session.RemoteAuthentication.Username = authPacket.RemoteUsername;
                                         remoteNonce = authPacket.RemoteNonce;
                                         session.RemoteAuthentication.Domain = authPacket.Domain;
-                                        SendParams((byte)0xa0, localNonce);
+                                        SendParams()
+                                                    .AddUInt8(0xa0)
+                                                    .AddUInt8Array(localNonce)
+                                                    .Done();
+                                        //SendParams((byte)0xa0, localNonce);
                                     }
                                     else
                                     {
                                         //Console.WriteLine("User not found");
-                                        SendParams((byte)0xc0, (byte)1, (ushort)14, DC.ToBytes("User not found"));
+                                        //SendParams((byte)0xc0, (byte)1, (ushort)14, DC.ToBytes("User not found"));
+                                        SendParams().AddUInt8(0xc0).AddUInt8(1).AddUInt16(14).AddString("User not found").Done();
                                     }
                                 });
 
@@ -592,21 +618,29 @@ namespace Esiur.Net.IIP
                                                                   if (pw != null)
                                                                   {
                                                                       var hashFunc = SHA256.Create();
-                                                                      var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
+                                                                      //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
+                                                                      var hash = hashFunc.ComputeHash((new BinaryList())
+                                                                                                        .AddUInt8Array(pw)
+                                                                                                        .AddUInt8Array( remoteNonce)
+                                                                                                        .AddUInt8Array(localNonce)
+                                                                                                        .ToArray());
                                                                       if (hash.SequenceEqual(remoteHash))
                                                                       {
-                                                                              // send our hash
-                                                                              var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
+                                                                          // send our hash
+                                                                          //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
+                                                                          //SendParams((byte)0, localHash);
 
-                                                                          SendParams((byte)0, localHash);
+                                                                          var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
+                                                                          SendParams().AddUInt8(0).AddUInt8Array(localHash).Done();
 
                                                                           readyToEstablish = true;
                                                                       }
                                                                       else
                                                                       {
-                                                                          Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
+                                                                          //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
                                                                           //Console.WriteLine("Incorrect password");
-                                                                          SendParams((byte)0xc0, (byte)1, (ushort)5, DC.ToBytes("Error"));
+                                                                          //SendParams((byte)0xc0, (byte)1, (ushort)5, DC.ToBytes("Error"));
+                                                                          SendParams().AddUInt8(0xc0).AddUInt8(1).AddUInt16(5).AddString("Error").Done();
                                                                       }
                                                                   }
                                                               });
@@ -618,12 +652,18 @@ namespace Esiur.Net.IIP
                                     var r = new Random();
                                     session.Id = new byte[32];
                                     r.NextBytes(session.Id);
-                                    SendParams((byte)0x28, session.Id);
+                                    //SendParams((byte)0x28, session.Id);
+                                    SendParams()
+                                        .AddUInt8(0x28)
+                                        .AddUInt8Array(session.Id)
+                                        .Done();
+
                                     ready = true;
+                                    openReply?.Trigger(true);
                                     OnReady?.Invoke(this);
                                     Server.Membership.Login(session);
 
-                                    Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
+                                    //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
 
                                 }
                             }
@@ -637,9 +677,19 @@ namespace Esiur.Net.IIP
 
                             // send our hash
                             var hashFunc = SHA256.Create();
-                            var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
+                            //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
+                            var localHash = hashFunc.ComputeHash(new BinaryList()
+                                                                .AddUInt8Array(localPassword)
+                                                                .AddUInt8Array(localNonce)
+                                                                .AddUInt8Array(remoteNonce)
+                                                                .ToArray());
 
-                            SendParams((byte)0, localHash);
+                            SendParams()
+                                .AddUInt8(0)
+                                .AddUInt8Array(localHash)
+                                .Done();
+
+                            //SendParams((byte)0, localHash);
                         }
                         else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
                         {
@@ -647,16 +697,33 @@ namespace Esiur.Net.IIP
                             {
                                 // check if the server knows my password
                                 var hashFunc = SHA256.Create();
-                                var remoteHash = hashFunc.ComputeHash(BinaryList.ToBytes(remoteNonce, localNonce, localPassword));
+                                //var remoteHash = hashFunc.ComputeHash(BinaryList.ToBytes(remoteNonce, localNonce, localPassword));
+                                var remoteHash = hashFunc.ComputeHash(new BinaryList()
+                                                                        .AddUInt8Array(remoteNonce)
+                                                                        .AddUInt8Array(localNonce)
+                                                                        .AddUInt8Array(localPassword)
+                                                                        .ToArray());
 
+                                
                                 if (remoteHash.SequenceEqual(authPacket.Hash))
                                 {
                                     // send establish request
-                                    SendParams((byte)0x20, (ushort)0);
+                                    //SendParams((byte)0x20, (ushort)0);
+                                    SendParams()
+                                                .AddUInt8(0x20)
+                                                .AddUInt16(0)
+                                                .Done();
                                 }
                                 else
                                 {
-                                    SendParams((byte)0xc0, 1, (ushort)5, DC.ToBytes("Error"));
+                                    SendParams()
+                                                .AddUInt8(0xc0)
+                                                .AddUInt8(1)
+                                                .AddUInt16(5)
+                                                .AddString("Error")
+                                                .Done();
+
+                                    //SendParams((byte)0xc0, 1, (ushort)5, DC.ToBytes("Error"));
                                 }
                             }
                             else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.ConnectionEstablished)
@@ -664,12 +731,14 @@ namespace Esiur.Net.IIP
                                 session.Id = authPacket.SessionId;
 
                                 ready = true;
+                                openReply?.Trigger(true);
                                 OnReady?.Invoke(this);
 
                             }
                         }
                         else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
                         {
+                            openReply?.TriggerError(new AsyncException(ErrorType.Management, authPacket.ErrorCode, authPacket.ErrorMessage));
                             OnError?.Invoke(this, authPacket.ErrorCode, authPacket.ErrorMessage);
                             Close();
                         }
@@ -710,6 +779,40 @@ namespace Esiur.Net.IIP
         /// <returns></returns>
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
+            if (trigger == ResourceTrigger.Open)
+            {
+                if (Instance.Attributes.ContainsKey("username")
+                      && Instance.Attributes.ContainsKey("password"))
+                {
+                    var hostname = String.Join("://", Instance.Name.Split(new string[] { "://" }, StringSplitOptions.None).Skip(1)).Split('/')[0];
+                    // assign domain from hostname if not provided
+
+                    var address = hostname.Split(':')[0];
+                    var port = ushort.Parse(hostname.Split(':')[1]);
+                    var username = Instance.Attributes["username"].ToString();
+
+                    var domain = Instance.Attributes.ContainsKey("domain") ? Instance.Attributes["domain"].ToString() : address;
+
+                    session = new Session(new ClientAuthentication()
+                                                , new HostAuthentication());
+
+                    session.LocalAuthentication.Domain = domain;
+                    session.LocalAuthentication.Username = username;
+                    localPassword = DC.ToBytes(Instance.Attributes["password"].ToString());
+
+                    openReply = new AsyncReply<bool>();
+                    var sock = new TCPSocket();
+
+
+                    sock.Connect(domain, port).Then((x)=> {
+                        Assign(sock);
+                        //rt.trigger(true);
+                    }).Error((x) => openReply.TriggerError(x));
+
+                    return openReply;
+                }
+            }
+
             return new AsyncReply<bool>();
         }
 
@@ -720,7 +823,9 @@ namespace Esiur.Net.IIP
         /// <returns></returns>
         public bool Put(IResource resource)
         {
-            resources.Add(Convert.ToUInt32(resource.Instance.Name), (DistributedResource)resource);
+            if (Codec.IsLocalResource(resource, this))
+                resources.Add((resource as DistributedResource).Id, (DistributedResource)resource);
+            // else ... send it to the peer
             return true;
         }
 

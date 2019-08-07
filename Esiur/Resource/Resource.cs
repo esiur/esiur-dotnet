@@ -24,7 +24,7 @@ SOFTWARE.
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Esiur.Engine;
+using Esiur.Core;
 
 namespace Esiur.Resource
 {

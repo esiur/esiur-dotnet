@@ -22,10 +22,20 @@ namespace Esiur.Resource.Template
             if (Expansion != null)
             {
                 var exp = DC.ToBytes(Expansion);
-                return BinaryList.ToBytes((byte)0x50, exp.Length, exp, (byte)name.Length, name);
+                return new BinaryList()
+                        .AddUInt8(0x50)
+                        .AddInt32(exp.Length)
+                        .AddUInt8Array(exp)
+                        .AddUInt8((byte)name.Length)
+                        .AddUInt8Array(name)
+                        .ToArray();
             }
             else
-                return BinaryList.ToBytes((byte)0x40, (byte)name.Length, name);
+                return new BinaryList()
+                        .AddUInt8(0x40)
+                        .AddUInt8((byte)name.Length)
+                        .AddUInt8Array(name)
+                        .ToArray();
         }
 
 

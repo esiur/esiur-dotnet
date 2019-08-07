@@ -1,5 +1,5 @@
 ﻿using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using System;
@@ -29,9 +29,9 @@ namespace Test
 
  
         [ResourceFunction]
-        public int Add(int value)
+        public int Add(int? value)
         {
-            Level += value;
+            Level += (int)value;
             LevelUp?.Invoke(null, "going up", value);
             return Level;
         }

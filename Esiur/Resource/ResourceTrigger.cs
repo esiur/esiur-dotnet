@@ -32,7 +32,7 @@ namespace Esiur.Resource
 {
     public enum ResourceTrigger : int
     {
-        Loaded = 0,
+        Open = 0,
         Initialize,
         Terminate,
         Configure,

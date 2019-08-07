@@ -30,7 +30,7 @@ using Esiur.Net.Sockets;
 using Esiur.Misc;
 using System.Threading;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Net;
 using Esiur.Resource;
 using Esiur.Security.Membership;
@@ -128,7 +128,7 @@ namespace Esiur.Net.IIP
 
         protected override void ClientConnected(DistributedConnection sender)
         {
-            //Console.WriteLine("DistributedConnection Client Connected");
+            Console.WriteLine("DistributedConnection Client Connected");
             
         }
 

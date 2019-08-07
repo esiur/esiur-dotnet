@@ -30,7 +30,7 @@ using Esiur.Net.Sockets;
 using Esiur.Misc;
 using System.Threading;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Net;
 using Esiur.Resource;
 

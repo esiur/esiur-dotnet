@@ -11,6 +11,7 @@ using Esiur.Misc;
 using Esiur.Security.Permissions;
 using Esiur.Resource.Template;
 using Esiur.Security.Authority;
+using Esiur.Proxy;
 
 namespace Esiur.Resource
 {
@@ -265,7 +266,7 @@ namespace Esiur.Resource
         /// <returns></returns>
         public bool LoadProperty(string name, ulong age, DateTime modificationDate, object value)
         {
-            var pt = template.GetPropertyTemplate(name);
+            var pt = template.GetPropertyTemplateByName(name);
 
             if (pt == null)
                 return false;
@@ -336,7 +337,7 @@ namespace Esiur.Resource
         {
             for (byte i = 0; i < properties.Length; i++)
             {
-                var pt = this.template.GetPropertyTemplate(i);
+                var pt = this.template.GetPropertyTemplateByIndex(i);
                 if (pt != null)
                 {
                     var pv = properties[i];
@@ -486,7 +487,7 @@ namespace Esiur.Resource
             object value;
             if (GetPropertyValue(propertyName, out value))
             {
-                var pt = template.GetPropertyTemplate(propertyName);
+                var pt = template.GetPropertyTemplateByName(propertyName);
                 EmitModification(pt, value);
             }
         }
@@ -515,7 +516,7 @@ namespace Esiur.Resource
 #endif
 */
 
-            var pt = template.GetPropertyTemplate(name);
+            var pt = template.GetPropertyTemplateByName(name);
 
             if (pt != null && pt.Info != null)
             {
@@ -712,7 +713,7 @@ namespace Esiur.Resource
             }
  
             // connect events
-            Type t = resource.GetType();
+            Type t = ResourceProxy.GetBaseType(resource);
 
 #if NETSTANDARD1_5
             var events = t.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);

@@ -6,8 +6,8 @@ namespace Esiur.Resource
 {
     public enum StorageMode : byte
     {
-        Volatile = 0,
         NonVolatile,
+        Volatile,
         Recordable
     }
 }

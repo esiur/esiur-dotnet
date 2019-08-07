@@ -34,7 +34,7 @@ using System.Collections.Generic;
 using Esiur.Net.Sockets;
 using Esiur.Data;
 using Esiur.Misc;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Net.Packets;
 using System.Security.Cryptography.X509Certificates;
 using Esiur.Resource;

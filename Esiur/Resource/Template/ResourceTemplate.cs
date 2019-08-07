@@ -5,7 +5,7 @@ using System.Text;
 using System.Reflection;
 using Esiur.Misc;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Security.Cryptography;
 using Esiur.Proxy;
 
@@ -32,16 +32,16 @@ namespace Esiur.Resource.Template
         public MemberTemplate GetMemberTemplate(MemberInfo member)
         {
             if (member is MethodInfo)
-                return GetFunctionTemplate(member.Name);
+                return GetFunctionTemplateByName(member.Name);
             else if (member is EventInfo)
-                return GetEventTemplate(member.Name);
+                return GetEventTemplateByName(member.Name);
             else if (member is PropertyInfo)
-                return GetPropertyTemplate(member.Name);
+                return GetPropertyTemplateByName(member.Name);
             else
                 return null;
         }
 
-        public EventTemplate GetEventTemplate(string eventName)
+        public EventTemplate GetEventTemplateByName(string eventName)
         {
             foreach (var i in events)
                 if (i.Name == eventName)
@@ -49,7 +49,7 @@ namespace Esiur.Resource.Template
             return null;
         }
 
-        public EventTemplate GetEventTemplate(byte index)
+        public EventTemplate GetEventTemplateByIndex(byte index)
         {
             foreach (var i in events)
                 if (i.Index == index)
@@ -57,14 +57,14 @@ namespace Esiur.Resource.Template
             return null;
         }
 
-        public FunctionTemplate GetFunctionTemplate(string functionName)
+        public FunctionTemplate GetFunctionTemplateByName(string functionName)
         {
             foreach (var i in functions)
                 if (i.Name == functionName)
                     return i;
             return null;
         }
-        public FunctionTemplate GetFunctionTemplate(byte index)
+        public FunctionTemplate GetFunctionTemplateByIndex(byte index)
         {
             foreach (var i in functions)
                 if (i.Index == index)
@@ -72,7 +72,7 @@ namespace Esiur.Resource.Template
             return null;
         }
 
-        public PropertyTemplate GetPropertyTemplate(byte index)
+        public PropertyTemplate GetPropertyTemplateByIndex(byte index)
         {
             foreach (var i in properties)
                 if (i.Index == index)
@@ -80,7 +80,7 @@ namespace Esiur.Resource.Template
             return null;
         }
 
-        public PropertyTemplate GetPropertyTemplate(string propertyName)
+        public PropertyTemplate GetPropertyTemplateByName(string propertyName)
         {
             foreach (var i in properties)
                 if (i.Name == propertyName)
@@ -200,16 +200,20 @@ namespace Esiur.Resource.Template
 
             // bake it binarily
             var b = new BinaryList();
-            b.Append(classId);
-            b.Append((byte)className.Length, className);
-            b.Append(version);
-             b.Append((ushort)members.Count);
+            b.AddGuid(classId)
+             .AddUInt8((byte)className.Length)
+             .AddString(className)
+             .AddInt32(version)
+             .AddUInt16((ushort)members.Count);
+
+
             foreach (var ft in functions)
-                b.Append(ft.Compose());
+                b.AddUInt8Array(ft.Compose());
             foreach (var pt in properties)
-                b.Append(pt.Compose());
+                b.AddUInt8Array(pt.Compose());
             foreach (var et in events)
-                b.Append(et.Compose());
+                b.AddUInt8Array(et.Compose());
+
             content = b.ToArray();
         }
 

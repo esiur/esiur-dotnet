@@ -33,7 +33,7 @@ using Esiur.Misc;
 using Esiur.Data;
 using System.Dynamic;
 using System.Security.Cryptography;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Runtime.CompilerServices;
 using System.Reflection.Emit;
 using System.Linq;
@@ -229,7 +229,7 @@ namespace Esiur.Net.IIP
 
         internal void _EmitEventByIndex(byte index, object[] args)
         {
-            var et = Instance.Template.GetEventTemplate(index);
+            var et = Instance.Template.GetEventTemplateByIndex(index);
             events[index]?.Invoke(this, args);
             Instance.EmitResourceEvent(null, null, et.Name, args);
         }
@@ -261,7 +261,7 @@ namespace Esiur.Net.IIP
  
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            var ft = Instance.Template.GetFunctionTemplate(binder.Name);
+            var ft = Instance.Template.GetFunctionTemplateByName(binder.Name);
 
             var reply = new AsyncReply<object>();
 
@@ -325,7 +325,7 @@ namespace Esiur.Net.IIP
             if (!isAttached)
                 return false;
 
-            var pt = Instance.Template.GetPropertyTemplate(binder.Name);
+            var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);
 
             if (pt != null)
             {
@@ -334,7 +334,7 @@ namespace Esiur.Net.IIP
             }
             else
             {
-                var et = Instance.Template.GetEventTemplate(binder.Name);
+                var et = Instance.Template.GetEventTemplateByName(binder.Name);
                 if (et == null)
                     return false;
 
@@ -347,7 +347,7 @@ namespace Esiur.Net.IIP
 
         internal void _UpdatePropertyByIndex(byte index, object value)
         {
-            var pt = Instance.Template.GetPropertyTemplate(index);
+            var pt = Instance.Template.GetPropertyTemplateByIndex(index);
             properties[index] = value;
             Instance.EmitModification(pt, value);
         }
@@ -366,12 +366,18 @@ namespace Esiur.Net.IIP
             var reply = new AsyncReply<object>();
 
             var parameters = Codec.Compose(value, connection);
-            connection.SendRequest(Packets.IIPPacket.IIPPacketAction.SetProperty, instanceId, index, parameters).Then((res) =>
-            {
-                // not really needed, server will always send property modified, this only happens if the programmer forgot to emit in property setter
-                properties[index] = value;
-                reply.Trigger(null);
-            });
+            connection.SendRequest(Packets.IIPPacket.IIPPacketAction.SetProperty)
+                        .AddUInt32(instanceId)
+                        .AddUInt8(index)
+                        .AddUInt8Array(parameters)
+                        .Done()
+                        .Then((res) =>
+                        {
+                            // not really needed, server will always send property modified, 
+                            // this only happens if the programmer forgot to emit in property setter
+                            properties[index] = value;
+                            reply.Trigger(null);
+                        });
 
             return reply;
         }
@@ -384,7 +390,7 @@ namespace Esiur.Net.IIP
             if (!isAttached)
                 return false;
 
-            var pt = Instance.Template.GetPropertyTemplate(binder.Name);
+            var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);
  
             if (pt != null)
             {
@@ -393,7 +399,7 @@ namespace Esiur.Net.IIP
             }
             else
             {
-                var et = Instance.Template.GetEventTemplate(binder.Name);
+                var et = Instance.Template.GetEventTemplateByName(binder.Name);
                 if (et == null)
                     return false;
 

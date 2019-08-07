@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Misc;
 using Esiur.Security.Cryptography;
 using Esiur.Security.Integrity;
@@ -131,16 +131,20 @@ namespace Esiur.Security.Authority
             BinaryList cr = new BinaryList();
 
             // make header
-            
-            cr.Append(id, issueDate, expireDate);
+
+            cr.AddUInt64(id)
+                .AddDateTime(issueDate)
+                .AddDateTime(expireDate);
+
 
             // hash function
-            cr.Append((byte)((byte)hashFunction << 4));
+            cr.AddUInt8((byte)((byte)hashFunction << 4));
             this.hashFunction = hashFunction;
 
             // CA Name
             this.name = authorityName;
-            cr.Append((byte)(authorityName.Length), Encoding.ASCII.GetBytes(authorityName));
+            cr.AddUInt8((byte)(authorityName.Length))
+              .AddUInt8Array(Encoding.ASCII.GetBytes(authorityName));
 
             // public key
             rsa = RSA.Create();// new RSACryptoServiceProvider(2048);
@@ -148,13 +152,15 @@ namespace Esiur.Security.Authority
             RSAParameters dRSAKey = rsa.ExportParameters(true);
 
 
-            cr.Append((byte)dRSAKey.Exponent.Length, dRSAKey.Exponent, (ushort)dRSAKey.Modulus.Length, dRSAKey.Modulus);
+            cr.AddUInt8((byte)dRSAKey.Exponent.Length)
+                .AddUInt8Array(dRSAKey.Exponent)
+                .AddUInt16((ushort)dRSAKey.Modulus.Length)
+                .AddUInt8Array(dRSAKey.Modulus);
 
 
             publicRawData = cr.ToArray();
 
             privateRawData = DC.Merge(dRSAKey.D, dRSAKey.DP, dRSAKey.DQ, dRSAKey.InverseQ, dRSAKey.P, dRSAKey.Q);
-
 
         }
 
@@ -163,9 +169,15 @@ namespace Esiur.Security.Authority
             try
             {
                 if (includePrivate)
-                    File.WriteAllBytes(filename, BinaryList.ToBytes((byte)CertificateType.CAPrivate, publicRawData, privateRawData));
+                    File.WriteAllBytes(filename, new BinaryList()
+                                                        .AddUInt8((byte)CertificateType.CAPrivate)
+                                                        .AddUInt8Array(publicRawData)
+                                                        .AddUInt8Array(privateRawData)
+                                                        .ToArray());
                 else
-                    File.WriteAllBytes(filename, BinaryList.ToBytes((byte)CertificateType.CAPublic, publicRawData));
+                    File.WriteAllBytes(filename, new BinaryList()
+                                                        .AddUInt8((byte)CertificateType.CAPublic)
+                                                        .AddUInt8Array(publicRawData).ToArray());
 
                 return true;
             }
@@ -178,7 +190,10 @@ namespace Esiur.Security.Authority
         public override byte[] Serialize(bool includePrivate = false)
         {
             if (includePrivate)
-                return BinaryList.ToBytes(publicRawData, privateRawData);
+                return new BinaryList()
+                        .AddUInt8Array(publicRawData)
+                        .AddUInt8Array(privateRawData)
+                        .ToArray();
             else
                 return publicRawData;
         }

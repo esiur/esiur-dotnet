@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Proxy;
 using Esiur.Resource.Template;
 using Esiur.Security.Permissions;
@@ -54,7 +54,7 @@ namespace Esiur.Resource
         public static event StoreConnectedEvent StoreConnected;
         public static event StoreDisconnectedEvent StoreDisconnected;
 
-        static KeyList<string, IStore> protocols = new KeyList<string, IStore>();
+        public static KeyList<string, Func<IStore>> Protocols { get; } = new KeyList<string, Func<IStore>>();
 
         /// <summary>
         /// Get a store by its name.
@@ -277,15 +277,15 @@ namespace Esiur.Resource
 
                 var rt = new AsyncReply<IResource>();
 
-                if (protocols.ContainsKey(url[0]))
+                if (Protocols.ContainsKey(url[0]))
                 {
-                    var handler = protocols[url[0]];
+                    var handler = Protocols[url[0]];
 
-                    var store = Activator.CreateInstance(handler.GetType()) as IStore;
+                    var store = handler();// Activator.CreateInstance(handler.GetType()) as IStore;
                     Put(store, url[0] + "://" + hostname, null, parent, null, 0, manager, attributes);
 
 
-                    store.Trigger(ResourceTrigger.Initialize).Then(x => {
+                    store.Trigger(ResourceTrigger.Open).Then(x => {
                         if (pathname.Length > 0 && pathname != "")
                             store.Get(pathname).Then(r => {
                                 rt.Trigger(r);
@@ -345,7 +345,7 @@ namespace Esiur.Resource
 
             resources.Add(resource.Instance.Id, resource);
 
-            if (!storeIsOpen)
+            if (storeIsOpen)
                  resource.Trigger(ResourceTrigger.Initialize);
 
         }

@@ -29,7 +29,7 @@ using System.Text;
 using System.Collections;
 using Esiur.Data;
 using Esiur.Net.Sockets;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Resource;
 
 namespace Esiur.Net.TCP

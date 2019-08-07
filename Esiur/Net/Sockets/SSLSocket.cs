@@ -29,7 +29,7 @@ using System.Text;
 using System.Net.Sockets;
 using System.Net;
 using Esiur.Misc;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Threading;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
@@ -77,20 +77,29 @@ namespace Esiur.Net.Sockets
             }
         }
 
-        public bool Connect(string hostname, ushort port)
+        public AsyncReply<bool> Connect(string hostname, ushort port)
         {
+            var rt = new AsyncReply<bool>();
+
             try
             {
-                this.hostname = hostname;
-                server = false;
                 state = SocketState.Connecting;
-                sock.ConnectAsync(hostname, port).ContinueWith(Connected);
-                return true;
+                sock.ConnectAsync(hostname, port).ContinueWith((x) =>
+                {
+                    if (x.IsFaulted)
+                        rt.TriggerError(x.Exception);
+                    else
+                        rt.Trigger(true);
+
+                    Connected(x);
+                });
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                rt.TriggerError(ex);
             }
+
+            return rt;
         }
 
         private void DataSent(Task task)

@@ -31,7 +31,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using Esiur.Engine;
+using Esiur.Core;
 
 namespace Esiur.Data
 {

@@ -34,7 +34,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Resource;
 
 namespace Esiur.Data
@@ -88,6 +88,15 @@ namespace Esiur.Data
                 {
                     try
                     {
+                        var underType = Nullable.GetUnderlyingType(destinationType);
+                        if (underType != null)
+                        {
+                            if (value == null)
+                                return null;
+                            else
+                                destinationType = underType;
+                        }
+                           
 #if NETSTANDARD1_5
                         if (destinationType.GetTypeInfo().IsInstanceOfType(value))
 #else
@@ -105,64 +114,523 @@ namespace Esiur.Data
             }
         }
 
-        /*
-        private static byte[] ReverseArray(byte[] data, uint offset, uint count)
+
+
+
+        public static byte[] ToBytes(sbyte value)
         {
-            if (offset + count > data.Length)
+            return new byte[1] { (byte)value };
+        }
+
+        public static byte[] ToBytes(byte value)
+        {
+            return new byte[1] { value };
+        }
+
+        public static byte[] ToBytes(IPAddress ip)
+        {
+            return ip.GetAddressBytes();
+        }
+
+        public static byte[] ToBytes(PhysicalAddress mac)
+        {
+            return mac.GetAddressBytes();
+        }
+
+        public static byte[] ToBytes(bool value)
+        {
+            return new byte[1] { value ? (byte)1 : (byte)0 };
+        }
+
+        public static byte ToByte(bool value)
+        {
+            return value ? (byte)1 : (byte)0;
+        }
+
+        public static byte ToByte(sbyte value)
+        {
+            return (byte)value;
+        }
+
+        public static byte[] ToBytes(byte[] value)
+        {
+            return value;
+        }
+
+
+        public static byte[] ToBytes(bool[] value)
+        {
+
+            byte[] ba = new byte[value.Length];
+
+            for (int i = 0; i < ba.Length; i++)
+                ba[i] = DC.ToByte(value[i]);
+
+            return ba;
+        }
+
+        public static byte[] ToBytes(sbyte[] value)
+        {
+
+            byte[] ba = new byte[value.Length];
+
+            for (int i = 0; i < ba.Length; i++)
+                ba[i] = DC.ToByte(value[i]);
+
+            return ba;
+        }
+
+        public static byte[] ToBytes(char value)
+        {
+            byte[] ret = BitConverter.GetBytes(value);
+            Array.Reverse(ret);
+            return ret;
+        }
+
+        public static byte[] ToBytes(Guid value)
+        {
+            return value.ToByteArray();
+        }
+
+        public static byte[] ToBytes(Guid[] value)
+        {
+            var rt = new List<byte>();
+            foreach (var g in value)
+                rt.AddRange(g.ToByteArray());
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(char[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(short[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+
+
+        public static byte[] ToBytes(ushort[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static void Append(ref byte[] dst, byte[] src)
+        {
+            Append(ref dst, src, (uint)0, (uint)src.Length);
+        }
+
+        public static void Append(ref byte[] dst, byte[] src, uint srcOffset, uint length)
+        {
+            var dstOffset = dst.Length;
+            Array.Resize<byte>(ref dst, dstOffset + (int)length);
+            Buffer.BlockCopy(src, (int)srcOffset, dst, dstOffset, (int)length);
+        }
+
+        public static byte[] Combine(byte[] src1, uint src1Offset, uint src1Length, byte[] src2, uint src2Offset, uint src2Length)
+        {
+            var rt = new byte[src1Length + src2Length];
+            Buffer.BlockCopy(src1, (int)src1Offset, rt, 0, (int)src1Length);
+            Buffer.BlockCopy(src2, (int)src2Offset, rt, (int)src1Length, (int)src2Length);
+            return rt;
+        }
+
+        public static byte[] Merge(params byte[][] arrays)
+        {
+            var s = arrays.Sum(x => x.Length);
+            var r = new byte[s];
+            var offset = 0;
+            foreach (var array in arrays)
             {
-                Console.WriteLine("ReverseArray: Bad offset " + data.Length + " " + offset + " " + count);
-
-                StackTrace st = new StackTrace();
-                Console.WriteLine(st.ToString());
-
-                return null;
+                Buffer.BlockCopy(array, 0, r, offset, array.Length);
+                offset += array.Length;
             }
 
-            byte[] rt = new byte[count];
+            return r;
+        }
 
-            uint b = count;
 
-            for (var i = offset; i < (offset + count); i++)
-                rt[--b] = data[i];
+        public static byte[] ToBytes(this int[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(this uint[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(this long[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(this ulong[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(this float[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ToBytes(this double[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+
+        public static byte[] ToBytes(this decimal[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+
+        public static byte[] ToBytes(this DateTime[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+                rt.AddRange(ToBytes(value[i]));
+
+            return rt.ToArray();
+        }
+
+
+        public static byte[] ToBytes(this string[] value)
+        {
+            List<byte> rt = new List<byte>();
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                byte[] ba = ToBytes(value[i]);
+                // add string length
+                rt.AddRange(ToBytes(ba.Length));
+                // add encoded string
+                rt.AddRange(ba);
+            }
+
+            return rt.ToArray();
+        }
+
+        public static unsafe byte[] ToBytes(this int value)
+        {
+            var rt = new byte[4];
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p + 0);
 
             return rt;
         }
-        */
 
-        /*
-        public static T[] ArrayFromBytes<T>(byte[] data, uint offset, uint length)
+        public static unsafe byte[] ToBytes(this short value)
+        {
+            var rt = new byte[2];
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 1);
+            rt[1] = *(p + 0);
+
+            return rt;
+        }
+
+        public static unsafe byte[] ToBytes(this float value)
+
+        {
+            var rt = new byte[4];
+
+            //float rt = 0;
+            byte* p = (byte*)&value;
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p);
+
+            return rt;
+        }
+
+
+
+
+        public static byte[] ToBytes(this string value)
+        {
+            return Encoding.UTF8.GetBytes(value);
+        }
+
+        public unsafe static byte[] ToBytes(this double value)
+        {
+            var rt = new byte[8];
+
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
+        }
+
+        public static unsafe byte[] ToBytes(this long value)
+        {
+            var rt = new byte[8];
+
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
+
+        }
+
+        public static unsafe byte[] ToBytes(this DateTime value)
         {
 
-            if (typeof(T) == typeof(string))
+            var rt = new byte[8];
+            var v = value.ToUniversalTime().Ticks;
+
+            byte* p = (byte*)&v;
+
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
+
+        }
+
+
+        public static unsafe byte[] ToBytes(this ulong value)
+        {
+            var rt = new byte[8];
+
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+
+            return rt;
+        }
+
+        public static unsafe byte[] ToBytes(this uint value)
+        {
+
+            var rt = new byte[4];
+
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p + 0);
+
+            return rt;
+        }
+
+        public static unsafe byte[] ToBytes(this ushort value)
+        {
+            var rt = new byte[2];
+
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 1);
+            rt[1] = *(p);
+
+            return rt;
+        }
+
+        public static byte[] ToBytes(this decimal value)
+        {
+            byte[] ret = new byte[0];// BitConverter.GetBytes(value);
+
+            Array.Reverse(ret);
+
+            return ret;
+        }
+
+        public static string ToHex(this byte[] ba)
+        {
+            if (ba == null)
+                return "NULL";
+            return ToHex(ba, 0, (uint)ba.Length);
+        }
+
+        public static string ToHex(this byte[] ba, uint offset, uint length, string separator = " ")
+        {
+            StringBuilder hex = new StringBuilder((int)length * 2);
+
+            for (var i = offset; i < offset + length; i++)
             {
-                List<string> ar = new List<string>();
+                hex.AppendFormat("{0:x2}", ba[i]);
+                if (separator != null)
+                    hex.Append(separator);
+            }
 
-                uint i = 0;
+            return hex.ToString();
+        }
 
-                while (i < length)
-                {
-                    var cl = GetUInt32(data, 0);
-                    i += 4;
-                    ar.Add(Encoding.UTF8.GetString(data, (int)(offset + i), (int)cl));
-                    i += cl;
-                }
+        public static byte[] FromHex(string hexString, string separator = " ")
+        {
+            var rt = new List<byte>();
 
-                return (T[])(object)ar.ToArray();
-
+            if (separator == null)
+            {
+                for (var i = 0; i < hexString.Length; i += 2)
+                    rt.Add(Convert.ToByte(hexString.Substring(i, 2), 16));
             }
             else
             {
-                uint blockSize = (uint)Marshal.SizeOf(typeof(T));
+                var hexes = hexString.Split(new string[] { separator }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var h in hexes)
+                    rt.Add(Convert.ToByte(h, 16));
+            }
 
-                T[] ar = new T[length / blockSize];
+            return rt.ToArray();
+        }
 
-                for (uint i = 0; i < ar.Length; i += blockSize)
-                    ar[i] = FromBytes<T>(data, offset + i);
+        public static string FlagsEnumToString<T>(ulong value)
+        {
 
-                return ar;
+            string rt = typeof(T).Name + ":";
+
+            for (int i = 0; i < 64; i++)
+            {
+                ulong bit = (ulong)(Convert.ToUInt64(Math.Pow(2, i)) & value);
+                if (bit != 0)
+                {
+                    rt += " " + Enum.GetName(typeof(T), bit);
+                }
+            }
+
+            return rt;
+        }
+
+
+
+        public static bool TryParse<T>(object Input, out T Results)
+        {
+            try
+            {
+#if NETSTANDARD1_5
+                var tryParse = typeof(T).GetTypeInfo().GetDeclaredMethod("TryParse");
+                if ((bool)tryParse.Invoke(null, new object[] { Input, null }))
+                {
+                    var parse = typeof(T).GetTypeInfo().GetDeclaredMethod("Parse");
+
+                    Results = (T)parse.Invoke(null, new object[] { Input });
+                    return true;
+                }
+#else
+                if ((bool)typeof(T).InvokeMember("TryParse", BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, new object[] { Input, null }))
+                {
+                    Results = (T)typeof(T).InvokeMember("Parse", BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, new object[] { Input });
+                    return true;
+                }
+
+#endif
+                else
+                {
+                    Results = default(T);
+                    return false;
+                }
+            }
+            catch //Exception ex)
+            {
+                Results = default(T);
+                return false;
             }
         }
-        */
+
+
+
+        public static DateTime FromUnixTime(uint seconds)
+        {
+            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds((double)seconds);
+        }
+
+        public static DateTime FromUnixTime(ulong milliseconds)
+        {
+            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds((double)milliseconds);
+        }
+
 
         public static sbyte GetInt8(this byte[] data, uint offset)
         {
@@ -183,7 +651,7 @@ namespace Esiur.Data
 
         public static byte[] GetUInt8Array(this byte[] data, uint offset, uint length)
         {
-            var rt = new  byte[length];
+            var rt = new byte[length];
             Buffer.BlockCopy(rt, (int)offset, rt, 0, (int)length);
             return rt;
         }
@@ -195,7 +663,7 @@ namespace Esiur.Data
 
         public static Int16[] GetInt16Array(this byte[] data, uint offset, uint length)
         {
-            var rt = new Int16[length/2];
+            var rt = new Int16[length / 2];
             for (var i = 0; i < length; i += 2)
                 rt[i] = GetInt16(data, (uint)(offset + i));
 
@@ -225,7 +693,7 @@ namespace Esiur.Data
             var rt = new Int32[length / 4];
             for (var i = 0; i < length; i += 4)
                 rt[i] = GetInt32(data, (uint)(offset + i));
-            
+
             return rt;
         }
 
@@ -376,15 +844,15 @@ namespace Esiur.Data
 
         public static char[] GetCharArray(this byte[] data, uint offset, uint length)
         {
-            var rt = new char[length/2];
-            for (var i = 0; i < length; i+=2)
+            var rt = new char[length / 2];
+            for (var i = 0; i < length; i += 2)
                 rt[i] = GetChar(data, (uint)(offset + i));
             return rt;
         }
 
         public static string GetString(this byte[] data, uint offset, uint length)
         {
-            return  Encoding.UTF8.GetString(data, (int)offset, (int)length);
+            return Encoding.UTF8.GetString(data, (int)offset, (int)length);
         }
 
         public static string[] GetStringArray(this byte[] data, uint offset, uint length)
@@ -406,7 +874,7 @@ namespace Esiur.Data
 
         public static Guid GetGuid(this byte[] data, uint offset)
         {
-            return new Guid(DC.Clip(data, offset, 16));
+            return new Guid(Clip(data, offset, 16));
         }
 
         public static Guid[] GetGuidArray(this byte[] data, uint offset, uint length)
@@ -549,161 +1017,6 @@ namespace Esiur.Data
         }
         */
 
-        public static byte[] ToBytes(sbyte value)
-        {
-            return new byte[1] { (byte)value };
-        }
-
-        public static byte[] ToBytes(byte value)
-        {
-            return new byte[1] { value };
-        }
-
-        public static byte[] ToBytes(IPAddress ip)
-        {
-            return ip.GetAddressBytes();
-        }
-
-        public static byte[] ToBytes(PhysicalAddress mac)
-        {
-            return mac.GetAddressBytes();
-        }
-
-        public static byte[] ToBytes(bool value)
-        {
-            return new byte[1] { value ? (byte)1 : (byte)0 };
-        }
-
-        public static byte ToByte(bool value)
-        {
-            return value ? (byte)1 : (byte)0;
-        }
-
-        public static byte[] ToBytes(byte[] value)
-        {
-            return value;
-        }
-
-        //public static byte[] ToBytes(Codec value)
-        //{
-        //   return value.ToStructuredValue();
-        //}
-
-        public static byte[] ToBytes(bool[] value)
-        {
-
-            byte[] ba = new byte[value.Length];
-
-            for (int i = 0; i < ba.Length; i++)
-                ba[i] = DC.ToByte(value[i]);
-
-            return ba;
-        }
-
-
-        /*
-        public static byte[] ToBytes(IResource value)
-        {
-
-            if (value is DistributedResource)
-                return DC.ToBytes((value as DistributedResource).Id);
-            else
-            {
-                List<byte> rt = new List<byte>();
-                // Add GUID
-                rt.AddRange(value.Instance.Template.ClassId.ToByteArray());
-                // Add Instance ID
-                rt.AddRange(DC.ToBytes(value.Instance.Id));
-
-                return rt.ToArray();
-            }
-        }
-        */
-
-        /*
-        public static byte[] ToBytes(Structure value)
-        {
-            return value.Compose();
-        }*/
-
-        public static byte[] ToBytes(char value)
-        {
-            byte[] ret = BitConverter.GetBytes(value);
-            Array.Reverse(ret);
-            return ret;
-        }
-
-        public static byte[] ToBytes(Guid value)
-        {
-            return value.ToByteArray();
-        }
-
-        public static byte[] ToBytes(char[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static byte[] ToBytes(short[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-        
-
-
-        public static byte[] ToBytes(ushort[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static void Append(ref byte[] dst, byte[] src)
-        {
-            Append(ref dst, src, (uint)0, (uint)src.Length);
-        }
-
-        public static void Append(ref byte[] dst, byte[] src, uint srcOffset, uint length)
-        {
-            var dstOffset = dst.Length;
-            Array.Resize<byte>(ref dst, dstOffset + (int)length);
-            Buffer.BlockCopy(src, (int)srcOffset, dst, dstOffset, (int)length);
-        }
-
-        public static byte[] Combine(byte[] src1, uint src1Offset, uint src1Length, byte[] src2, uint src2Offset, uint src2Length)
-        {
-            var rt = new byte[src1Length + src2Length];
-            Buffer.BlockCopy(src1, (int)src1Offset, rt, 0, (int)src1Length);
-            Buffer.BlockCopy(src2, (int)src2Offset, rt, (int)src1Length, (int)src2Length);
-            return rt;
-        }
-
-        public static byte[] Merge(params byte[][] arrays)
-        {
-            var s = arrays.Sum(x => x.Length);
-            var r = new byte[s];
-            var offset = 0;
-            foreach (var array in arrays)
-            {
-                Buffer.BlockCopy(array, 0, r, offset, array.Length);
-                offset += array.Length;
-            }
-
-            return r;
-        }
-
         public static byte[] Clip(this byte[] data, uint offset, uint length)
         {
             if (data.Length < offset + length)
@@ -717,440 +1030,13 @@ namespace Esiur.Data
             return b;
         }
 
-        public static byte[] ToBytes(int[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static byte[] ToBytes(uint[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static byte[] ToBytes(long[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static byte[] ToBytes(ulong[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static byte[] ToBytes(float[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-        public static byte[] ToBytes(double[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-
-        public static byte[] ToBytes(decimal[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-
-        public static byte[] ToBytes(DateTime[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-                rt.AddRange(ToBytes(value[i]));
-
-            return rt.ToArray();
-        }
-
-
-        public static byte[] ToBytes(string[] value)
-        {
-            List<byte> rt = new List<byte>();
-
-            for (int i = 0; i < value.Length; i++)
-            {
-                byte[] ba = ToBytes(value[i]);
-                // add string length
-                rt.AddRange(ToBytes(ba.Length));
-                // add encoded string
-                rt.AddRange(ba);
-            }
-
-            return rt.ToArray();
-        }
-
-        public static unsafe byte[] ToBytes(int value)
-        {
-            var rt = new byte[4];
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 3);
-            rt[1] = *(p + 2);
-            rt[2] = *(p + 1);
-            rt[3] = *(p + 0);
-
-            return rt;
-        }
-
-        public static unsafe byte[] ToBytes(short value)
-        {
-            var rt = new byte[2];
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 1);
-            rt[1] = *(p + 0);
-
-            return rt;
-        }
-
-        public static unsafe byte[] ToBytes(float value)
-
-        {
-            var rt = new byte[4];
-
-            //float rt = 0;
-            byte* p = (byte*)&value;
-            rt[0] = *(p + 3);
-            rt[1] = *(p + 2);
-            rt[2] = *(p + 1);
-            rt[3] = *(p);
-
-            return rt;
-        }
-
-
-   
-
-        /*
-        public static byte[] ToBytes(Structure[] values)
-        {
-            if (values == null || values.Length == 0)
-                return new byte[0];
-
-            var rt = new BinaryList();
-            var previous = values[0];
-
-            // include first one
-            if (previous == null)
-                rt.Append((byte)Structure.ComparisonResult.Null);
-            else
-                rt.Append((byte)Structure.ComparisonResult.DifferentStructure, previous.Compose(true,true,true));
-
-            for (var i = 1; i < values.Length; i++)
-            {
-                var current = values[i];
-                var results = Structure.Compare(previous, current);
-
-                rt.Append((byte)results);
-
-                if (results == Structure.ComparisonResult.DifferentStructure)
-                    rt.Append(current.Compose(true, true, true));
-                else if (results == Structure.ComparisonResult.SameStructureDifferentValueTypes)
-                    rt.Append(current.Compose(false));
-                else if (results == Structure.ComparisonResult.SameStructureDifferentValues)
-                    rt.Append(current.Compose(false, false));
-            }
-
-            return rt.ToArray();
-        }
-
-
-        public static byte[] ToBytes(IIPObject[] values)
-        {
-            if (values == null || values.Length == 0)
-                return new byte[0];
-
-            var rt = new BinaryList();
-            var previous = values[0];
-
-            // include first one
-            if (previous == null)
-                rt.Append((byte)IIPObject.ComparisonResult.Null);
-            else
-                rt.Append((byte)IIPObject.ComparisonResult.DifferentObject, previous.GUID.ToByteArray(), previous.InstanceID);
-
-            for (var i = 1; i < values.Length; i++)
-            {
-                var current = values[i];
-                var results = IIPObject.Compare(previous, current);
-
-                rt.Append((byte)results);
-
-                if (results == IIPObject.ComparisonResult.DifferentObject)
-                    rt.Append(current.GUID.ToByteArray(), current.InstanceID);
-                else if (results == IIPObject.ComparisonResult.SameTypeDifferentInstance)
-                    rt.Append(current.InstanceID);
-            }
-
-            return rt.ToArray();
-        }
-        */
-        public static byte[] ToBytes(string value)   
-        {
-            return Encoding.UTF8.GetBytes(value);
-        }
-
-        public unsafe static byte[] ToBytes(double value)
-        {
-            var rt = new byte[8];
-
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 7);
-            rt[1] = *(p + 6);
-            rt[2] = *(p + 5);
-            rt[3] = *(p + 4);
-            rt[4] = *(p + 3);
-            rt[5] = *(p + 2);
-            rt[6] = *(p + 1);
-            rt[7] = *(p + 0);
-
-            return rt;
-        }
-
-        public static unsafe byte[] ToBytes(long value)
-        {
-            var rt = new byte[8];
-
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 7);
-            rt[1] = *(p + 6);
-            rt[2] = *(p + 5);
-            rt[3] = *(p + 4);
-            rt[4] = *(p + 3);
-            rt[5] = *(p + 2);
-            rt[6] = *(p + 1);
-            rt[7] = *(p + 0);
-
-            return rt;
-
-        }
-
-        public static unsafe byte[] ToBytes(DateTime value)
-        {
-
-            var rt = new byte[8];
-            var v = value.ToUniversalTime().Ticks;
-
-            byte* p = (byte*)&v;
-
-            rt[0] = *(p + 7);
-            rt[1] = *(p + 6);
-            rt[2] = *(p + 5);
-            rt[3] = *(p + 4);
-            rt[4] = *(p + 3);
-            rt[5] = *(p + 2);
-            rt[6] = *(p + 1);
-            rt[7] = *(p + 0);
-
-            return rt;
-
-        }
-
-
-        public static unsafe byte[] ToBytes(ulong value)
-        {
-            var rt = new byte[8];
-
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 7);
-            rt[1] = *(p + 6);
-            rt[2] = *(p + 5);
-            rt[3] = *(p + 4);
-            rt[4] = *(p + 3);
-            rt[5] = *(p + 2);
-            rt[6] = *(p + 1);
-            rt[7] = *(p + 0);
-
-            return rt;
-        }
-
-        public static unsafe byte[] ToBytes(uint value)
-        {
-
-            var rt = new byte[4];
-
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 3);
-            rt[1] = *(p + 2);
-            rt[2] = *(p + 1);
-            rt[3] = *(p + 0);
-
-            return rt;
-        }
-
-        public static unsafe byte[] ToBytes(ushort value)
-        {
-            var rt = new byte[2];
-
-            byte* p = (byte*)&value;
-
-            rt[0] = *(p + 1);
-            rt[1] = *(p);
-
-            return rt;
-        }
-
-        public static byte[] ToBytes(decimal value)
-        {
-            byte[] ret = new byte[0];// BitConverter.GetBytes(value);
-
-            Array.Reverse(ret);
-
-            return ret;
-        }
-
-        public static string ToHex(byte[] ba)
-        {
-            if (ba == null)
-                return "NULL";
-            return ToHex(ba, 0, (uint)ba.Length);
-        }
-
-        public static string ToHex(byte[] ba, uint offset, uint length, string separator = " ")
-        {
-            StringBuilder hex = new StringBuilder((int)length * 2);
-
-            for (var i = offset; i < offset + length; i++)
-            {
-                hex.AppendFormat("{0:x2}", ba[i]);
-                if (separator != null)
-                    hex.Append(separator);
-            }
-
-            return hex.ToString();
-        }
-
-        public static byte[] FromHex(string hexString, string separator = " ")
-        {
-            var rt = new List<byte>();
-
-            if (separator == null)
-            {
-                for (var i = 0; i < hexString.Length; i += 2)
-                    rt.Add(Convert.ToByte(hexString.Substring(i, 2), 16));
-            }
-            else
-            {
-                var hexes = hexString.Split(new string[] { separator }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var h in hexes)
-                    rt.Add(Convert.ToByte(h, 16));
-            }
-
-            return rt.ToArray();
-        }
-
-        public static string FlagsEnumToString<T>(ulong value)
-        {
-
-            string rt = typeof(T).Name + ":";
-
-            for (int i = 0; i < 64; i++)
-            {
-                ulong bit = (ulong)(Convert.ToUInt64(Math.Pow(2, i)) & value);
-                if (bit != 0)
-                {
-                    rt += " " + Enum.GetName(typeof(T), bit);
-                }
-            }
-
-            return rt;
-        }
-
         public static string ToISODateTime(this DateTime date)
         {
             return date.ToString("yyyy-MM-dd HH:mm:ss");
         }
-
-
-        public static bool TryParse<T>(object Input, out T Results)
-        {
-            try
-            {
-#if NETSTANDARD1_5
-                var tryParse = typeof(T).GetTypeInfo().GetDeclaredMethod("TryParse");
-                if ((bool)tryParse.Invoke(null, new object[] { Input, null }))
-                {
-                    var parse = typeof(T).GetTypeInfo().GetDeclaredMethod("Parse");
-
-                    Results = (T)parse.Invoke(null, new object[] { Input });
-                    return true;
-                }
-#else
-                if ((bool)typeof(T).InvokeMember("TryParse", BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, new object[] { Input, null }))
-                {
-                    Results = (T)typeof(T).InvokeMember("Parse", BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, new object[] { Input });
-                    return true;
-                }
-
-#endif
-                else
-                {
-                    Results = default(T);
-                    return false;
-                }
-            }
-            catch //Exception ex)
-            {
-                Results = default(T);
-                return false;
-            }
-        }
-
-
         public static uint ToUnixTime(this DateTime date)
         {
             return (uint)(date - new DateTime(1970, 1, 1)).TotalSeconds;
-        }
-
-        public static DateTime FromUnixTime(uint seconds)
-        {
-            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds((double)seconds);
-        }
-
-        public static DateTime FromUnixTime(ulong milliseconds)
-        {
-            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds((double)milliseconds);
         }
     }
 

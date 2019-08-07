@@ -170,42 +170,45 @@ namespace Esiur.Security.Authority
             var cr = new BinaryList();
 
             //id
-            cr.Append(id);
+            cr.AddUInt64(id);
 
             // ip
             this.ip = ip;
             this.ip6 = ip6;
 
-            cr.Append(ip);
+            cr.AddUInt32(ip);
 
 
             if (ip6?.Length == 16)
-                cr.Append(ip6);
+                cr.AddUInt8Array(ip6);
             else
-                cr.Append(new byte[16]);
+                cr.AddUInt8Array(new byte[16]);
 
 
             // dates
             this.issueDate = DateTime.UtcNow;
             this.expireDate = expireDate;
 
-            cr.Append(issueDate, expireDate);
+            cr.AddDateTime(issueDate)
+              .AddDateTime(expireDate);
 
 
             // domain
             this.domainId = domainCertificate.Id;
-            cr.Append(domainCertificate.Id);
+            cr.AddUInt64(domainCertificate.Id);
             this.domain = domainCertificate.Domain;
-            cr.Append((byte)domainCertificate.Domain.Length, Encoding.ASCII.GetBytes(domainCertificate.Domain));
+            cr.AddUInt8((byte)domainCertificate.Domain.Length)
+              .AddUInt8Array(Encoding.ASCII.GetBytes(domainCertificate.Domain));
 
 
             // username
             this.username = username;
 
-            cr.Append((byte)(username.Length), Encoding.ASCII.GetBytes(username));
+            cr.AddUInt8((byte)(username.Length))
+              .AddUInt8Array(Encoding.ASCII.GetBytes(username));
 
             // hash function (SHA1)
-            cr.Append((byte)((byte)hashFunction << 4));// (byte)0x10);
+            cr.AddUInt8((byte)((byte)hashFunction << 4));// (byte)0x10);
 
             // public key
 
@@ -214,7 +217,10 @@ namespace Esiur.Security.Authority
             // write public certificate file
 
             var key = rsa.ExportParameters(true);
-            publicRawData = BinaryList.ToBytes((byte)key.Exponent.Length, key.Exponent, (ushort)key.Modulus.Length, key.Modulus);
+            publicRawData = new BinaryList().AddUInt8((byte)key.Exponent.Length)
+                .AddUInt8Array(key.Exponent)
+                .AddUInt16((ushort)key.Modulus.Length)
+                .AddUInt8Array(key.Modulus).ToArray();
 
 
             // sign it
@@ -231,9 +237,9 @@ namespace Esiur.Security.Authority
             try
             {
                 if (includePrivate)
-                    File.WriteAllBytes(filename, BinaryList.ToBytes((byte)CertificateType.DomainPrivate, publicRawData, signature, privateRawData));
+                    File.WriteAllBytes(filename, DC.Merge(new byte[] { (byte)CertificateType.DomainPrivate }, publicRawData, signature, privateRawData));
                 else
-                    File.WriteAllBytes(filename, BinaryList.ToBytes((byte)CertificateType.DomainPublic, publicRawData, signature));
+                    File.WriteAllBytes(filename, DC.Merge(new byte[] { (byte)CertificateType.DomainPublic }, publicRawData, signature));
 
                 return true;
             }
@@ -246,9 +252,9 @@ namespace Esiur.Security.Authority
         public override byte[] Serialize(bool includePrivate = false)
         {
             if (includePrivate)
-                return BinaryList.ToBytes(publicRawData, signature, privateRawData);
+                return DC.Merge(publicRawData, signature, privateRawData);
             else
-                return BinaryList.ToBytes(publicRawData, signature);
+                return DC.Merge(publicRawData, signature);
         }
     }
 }

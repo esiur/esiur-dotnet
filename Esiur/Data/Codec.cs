@@ -28,7 +28,7 @@ using System.Text;
 using Esiur.Misc;
 using System.ComponentModel;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using System.Linq;
@@ -128,24 +128,24 @@ namespace Esiur.Data
             var rt = new BinaryList();
             var comparsion = StructureComparisonResult.Structure;
 
-            rt.Append((byte)comparsion);
-            rt.Append(ComposeStructure(structures[0], connection, true, true, true));
+            rt.AddUInt8((byte)comparsion)
+              .AddUInt8Array(ComposeStructure(structures[0], connection, true, true, true));
 
             for (var i = 1; i < structures.Length; i++)
             {
                 comparsion = Compare(structures[i - 1], structures[i], connection);
-                rt.Append((byte)comparsion);
+                rt.AddUInt8((byte)comparsion);
 
                 if (comparsion == StructureComparisonResult.Structure)
-                    rt.Append(ComposeStructure(structures[i], connection, true, true, true));
+                    rt.AddUInt8Array(ComposeStructure(structures[i], connection, true, true, true));
                 else if (comparsion == StructureComparisonResult.StructureSameKeys)
-                    rt.Append(ComposeStructure(structures[i], connection, false, true, true));
+                    rt.AddUInt8Array(ComposeStructure(structures[i], connection, false, true, true));
                 else if (comparsion == StructureComparisonResult.StructureSameTypes)
-                    rt.Append(ComposeStructure(structures[i], connection, false, false, true));
+                    rt.AddUInt8Array(ComposeStructure(structures[i], connection, false, false, true));
             }
 
             if (prependLength)
-                rt.Insert(0, rt.Length);
+                rt.InsertInt32(0, rt.Length);
 
             return rt.ToArray();
         }
@@ -244,17 +244,19 @@ namespace Esiur.Data
                 foreach (var i in value)
                 {
                     var key = DC.ToBytes(i.Key);
-                    rt.Append((byte)key.Length, key, Compose(i.Value, connection));
+                    rt.AddUInt8((byte)key.Length)
+                      .AddUInt8Array(key)
+                      .AddUInt8Array(Compose(i.Value, connection));
                 }
             }
             else
             {
                 foreach (var i in value)
-                    rt.Append(Compose(i.Value, connection, includeTypes));
+                    rt.AddUInt8Array(Compose(i.Value, connection, includeTypes));
             }
 
             if (prependLength)
-                rt.Insert(0, rt.Length);
+                rt.InsertInt32(0, rt.Length);
 
             return rt.ToArray();
         }
@@ -587,7 +589,7 @@ namespace Esiur.Data
         /// <param name="resource">Resource to check.</param>
         /// <param name="connection">DistributedConnection to check if the resource is local to it.</param>
         /// <returns>True, if the resource owner is the given connection, otherwise False.</returns>
-        static bool IsLocalResource(IResource resource, DistributedConnection connection)
+        public static bool IsLocalResource(IResource resource, DistributedConnection connection)
         {
             if (resource is DistributedResource)
                 if ((resource as DistributedResource).Connection == connection)
@@ -628,7 +630,8 @@ namespace Esiur.Data
                 return DC.ToBytes((resource as DistributedResource).Id);
             else
             {
-                return BinaryList.ToBytes(resource.Instance.Template.ClassId, resource.Instance.Id);
+                return new BinaryList().AddGuid(resource.Instance.Template.ClassId).AddUInt32(resource.Instance.Id).ToArray();
+                //return BinaryList.ToBytes(resource.Instance.Template.ClassId, resource.Instance.Id);
             }
         }
 
@@ -648,25 +651,25 @@ namespace Esiur.Data
             var rt = new BinaryList();
             var comparsion = Compare(null, resources[0], connection);
 
-            rt.Append((byte)comparsion);
+            rt.AddUInt8((byte)comparsion);
 
             if (comparsion == ResourceComparisonResult.Local)
-                rt.Append((resources[0] as DistributedResource).Id);
+                rt.AddUInt32((resources[0] as DistributedResource).Id);
             else if (comparsion == ResourceComparisonResult.Distributed)
-                rt.Append(resources[0].Instance.Id);
+                rt.AddUInt32(resources[0].Instance.Id);
             
             for (var i = 1; i < resources.Length; i++)
             {
                 comparsion = Compare(resources[i - 1], resources[i], connection);
-                rt.Append((byte)comparsion);
+                rt.AddUInt8((byte)comparsion);
                 if (comparsion == ResourceComparisonResult.Local)
-                    rt.Append((resources[i] as DistributedResource).Id);
+                    rt.AddUInt32((resources[i] as DistributedResource).Id);
                 else if (comparsion == ResourceComparisonResult.Distributed)
-                    rt.Append(resources[i].Instance.Id);
+                    rt.AddUInt32(resources[i].Instance.Id);
             }
 
             if (prependLength)
-                rt.Insert(0, rt.Length);
+                rt.InsertInt32(0, rt.Length);
 
             return rt.ToArray();
         }
@@ -831,9 +834,16 @@ namespace Esiur.Data
         /// <returns>Array of bytes in the network byte order.</returns>
         public static byte[] ComposePropertyValue(PropertyValue propertyValue, DistributedConnection connection)//, bool includeAge = true)
         {
+
+            return new BinaryList()
+                .AddUInt64(propertyValue.Age)
+                .AddDateTime(propertyValue.Date)
+                .AddUInt8Array(Compose(propertyValue.Value, connection))
+                .ToArray();
+
             // age, date, value
             //if (includeAge)
-                return BinaryList.ToBytes(propertyValue.Age, propertyValue.Date, Compose(propertyValue.Value, connection));
+                // return BinaryList.ToBytes(propertyValue.Age, propertyValue.Date, Compose(propertyValue.Value, connection));
             //else
               //  return BinaryList.ToBytes(propertyValue.Date, Compose(propertyValue.Value, connection));
 
@@ -905,7 +915,7 @@ namespace Esiur.Data
             while (offset < ends)
             {
                 var index = data[offset++];
-                var pt = resource.Instance.Template.GetPropertyTemplate(index);
+                var pt = resource.Instance.Template.GetPropertyTemplateByIndex(index);
                 list.Add(pt, null);
                 var cs = DC.GetUInt32(data, offset);
                 offset += 4;
@@ -933,16 +943,20 @@ namespace Esiur.Data
         /// <param name="history">History</param>
         /// <param name="connection">DistributedConnection is required to fetch resources.</param>
         /// <returns></returns>
-        public static byte[] ComposeHistory(KeyList<PropertyTemplate, PropertyValue[]> history, DistributedConnection  connection, bool prependLength = false)
+        public static byte[] ComposeHistory(KeyList<PropertyTemplate, PropertyValue[]> history,
+                                            DistributedConnection  connection, bool prependLength = false)
         {
             var rt = new BinaryList();
 
             for (var i = 0; i < history.Count; i++)
-                rt.Append((byte)history.Keys.ElementAt(i).Index, 
-                          ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
+                rt.AddUInt8(history.Keys.ElementAt(i).Index)
+                  .AddUInt8Array(ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
+
+            //    rt.Append((byte)history.Keys.ElementAt(i).Index, 
+              //            ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
 
             if (prependLength)
-                rt.Insert(0, (uint)rt.Length);
+                rt.InsertInt32(0, rt.Length);
 
             return rt.ToArray();
         }
@@ -1005,47 +1019,47 @@ namespace Esiur.Data
 
                 case DataType.String:
                     var st = DC.ToBytes((string)value);
-                    rt.Append(st.Length, st);
+                    rt.AddInt32(st.Length).AddUInt8Array(st);
                     break;
 
                 case DataType.Resource:
-                    rt.Append((value as DistributedResource).Id);
+                    rt.AddUInt32((value as DistributedResource).Id);
                     break;
 
                 case DataType.DistributedResource:
                     //rt.Append((value as IResource).Instance.Template.ClassId, (value as IResource).Instance.Id);
-                    rt.Append((value as IResource).Instance.Id);
+                    rt.AddUInt32((value as IResource).Instance.Id);
 
                     break;
 
                 case DataType.Structure:
-                    rt.Append(ComposeStructure((Structure)value, connection, true, true, true));
+                    rt.AddUInt8Array(ComposeStructure((Structure)value, connection, true, true, true));
                     break;
 
                 case DataType.VarArray:
-                    rt.Append(ComposeVarArray((object[])value, connection, true));
+                    rt.AddUInt8Array(ComposeVarArray((object[])value, connection, true));
                     break;
 
                 case DataType.ResourceArray:
                     if (value is IResource[])
-                        rt.Append(ComposeResourceArray((IResource[])value, connection, true));
+                        rt.AddUInt8Array(ComposeResourceArray((IResource[])value, connection, true));
                     else
-                        rt.Append(ComposeResourceArray((IResource[])DC.CastConvert(value, typeof(IResource[])), connection, true));
+                        rt.AddUInt8Array(ComposeResourceArray((IResource[])DC.CastConvert(value, typeof(IResource[])), connection, true));
                     break;
 
                 case DataType.StructureArray:
-                    rt.Append(ComposeStructureArray((Structure[])value, connection, true));
+                    rt.AddUInt8Array(ComposeStructureArray((Structure[])value, connection, true));
                     break;
 
                 default:
-                    rt.Append(value);
+                    rt.Add(type, value);
                     if (type.IsArray())
-                        rt.Insert(0, rt.Length);
+                        rt.InsertInt32(0, rt.Length);
                     break;
             }
 
             if (prependType)
-                rt.Insert(0, (byte)type);
+                rt.InsertUInt8(0, (byte)type);
 
             return rt.ToArray();
         }
@@ -1058,23 +1072,56 @@ namespace Esiur.Data
         /// <returns>True, if <paramref name="type"/> implements <paramref name="iface"/>.</returns>
         public static bool ImplementsInterface(Type type, Type iface)
         {
-
-          
-            while (type != null)
+            /*
+            if (iface.GetTypeInfo().IsGenericType)
             {
-                if (type == iface)
-                    return true;
+                //var x = (type.GetTypeInfo().GetInterfaces().Any(x => x.GetTypeInfo().IsGenericType Contains(iface))
+
+                iface = iface.GetTypeInfo().GetGenericTypeDefinition();
+
+                //if (type.GetTypeInfo().IsGenericType)
+                //    type = 
+                while (type != null)
+                {
+                    if (type == iface)
+                        return true;
 
 #if NETSTANDARD1_5
-                if (type.GetTypeInfo().GetInterfaces().Contains(iface))
-                    return true;
-                type = type.GetTypeInfo().BaseType;
+                    if (type.GetTypeInfo().GetInterfaces().Contains(iface))// (x=>x.GetTypeInfo().IsGenericType (iface))
+                        return true;
+
+                    type = type.GetTypeInfo().BaseType;
 #else
                 if (type.GetInterfaces().Contains(iface))
                     return true;
                 type = type.BaseType;
 #endif
+                }
+
+
             }
+            else
+                */
+            //{
+
+                while (type != null)
+                {
+                    if (type == iface)
+                        return true;
+
+#if NETSTANDARD1_5
+                    if (type.GetTypeInfo().GetInterfaces().Contains(iface))
+                        return true;
+
+                    type = type.GetTypeInfo().BaseType;
+#else
+                if (type.GetInterfaces().Contains(iface))
+                    return true;
+                type = type.BaseType;
+#endif
+                }
+
+            //}
             return false;
         }
 

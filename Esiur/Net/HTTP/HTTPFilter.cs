@@ -32,7 +32,7 @@ using System.Net;
 using System.Collections;
 using System.Collections.Generic;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Resource;
 
 namespace Esiur.Net.HTTP

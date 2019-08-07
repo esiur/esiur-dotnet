@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Esiur.Engine
+namespace Esiur.Core
 {
     public interface IAsyncReply<out T>//IAsyncEnumerator<T> 
     {   
@@ -12,7 +12,7 @@ namespace Esiur.Engine
         IAsyncReply<T> Progress(Action<ProgressType, int, int> callback);
         IAsyncReply<T> Chunk(Action<T> callback);
         void Trigger(object result);
-        void TriggerError(AsyncException exception);
+        void TriggerError(Exception exception);
         void TriggerProgress(ProgressType type, int value, int max);
         void TriggerChunk(object value);
 

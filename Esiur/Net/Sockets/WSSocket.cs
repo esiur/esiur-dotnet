@@ -31,7 +31,7 @@ using System.Net;
 using Esiur.Net.Packets;
 using Esiur.Misc;
 using System.IO;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Resource;
 using Esiur.Data;
 
@@ -236,7 +236,7 @@ namespace Esiur.Net.Sockets
             sock.Close();
         }
 
-        public bool Connect(string hostname, ushort port)
+        public AsyncReply<bool> Connect(string hostname, ushort port)
         {
             throw new NotImplementedException();
         }

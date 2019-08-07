@@ -11,7 +11,7 @@
     <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
     <RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Version>1.2.3</Version>
+    <Version>1.2.5</Version>
   </PropertyGroup>
 
   <ItemGroup>

@@ -34,7 +34,7 @@ using Esiur.Data;
 using Esiur.Misc;
 using System.Collections.Concurrent;
 using Esiur.Resource;
-using Esiur.Engine;
+using Esiur.Core;
 
 namespace Esiur.Net.Sockets
 {
@@ -53,7 +53,7 @@ namespace Esiur.Net.Sockets
         void Send(byte[] message);
         void Send(byte[] message, int offset, int size);
         void Close();
-        bool Connect(string hostname, ushort port);
+        AsyncReply<bool> Connect(string hostname, ushort port);
         bool Begin();
         //ISocket Accept();
         AsyncReply<ISocket> Accept();

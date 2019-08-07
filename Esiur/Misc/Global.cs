@@ -35,7 +35,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Net.NetworkInformation;
 using System.Linq;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 

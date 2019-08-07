@@ -27,7 +27,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Resource;
 
 namespace Esiur.Net.DataLink

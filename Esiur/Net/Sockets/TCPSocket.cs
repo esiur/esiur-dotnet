@@ -29,7 +29,7 @@ using System.Text;
 using System.Net.Sockets;
 using System.Net;
 using Esiur.Misc;
-using Esiur.Engine;
+using Esiur.Core;
 using System.Threading;
 using Esiur.Resource;
 using System.Threading.Tasks;
@@ -62,13 +62,6 @@ namespace Esiur.Net.Sockets
 
         SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
 
-        private void Connected(Task t)
-        {
-            state = SocketState.Established;
-            OnConnect?.Invoke();
-            Begin();
-        }
-
         public bool Begin()
         {
             if (began)
@@ -86,18 +79,34 @@ namespace Esiur.Net.Sockets
             return true;
         }
 
-        public bool Connect(string hostname, ushort port)
+        public AsyncReply<bool> Connect(string hostname, ushort port)
         {
+            var rt = new AsyncReply<bool>();
+
             try
             {
                 state = SocketState.Connecting;
-                sock.ConnectAsync(hostname, port).ContinueWith(Connected);
-                return true;
+                sock.ConnectAsync(hostname, port).ContinueWith((x) =>
+                {
+
+                    if (x.IsFaulted)
+                        rt.TriggerError(x.Exception);
+                    else
+                    {
+
+                        state = SocketState.Established;
+                        OnConnect?.Invoke();
+                        Begin();
+                        rt.Trigger(true);
+                    }
+                });
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                rt.TriggerError(ex);
             }
+
+            return rt;
         }
 
 
@@ -117,7 +126,7 @@ namespace Esiur.Net.Sockets
                 }
 
                 //if (receiveNetworkBuffer.Protected)
-                  //  Console.WriteLine();
+                //  Console.WriteLine();
 
                 //lock (receiveNetworkBuffer.SyncLock)
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
@@ -128,7 +137,7 @@ namespace Esiur.Net.Sockets
                 if (state == SocketState.Established)
                 {
                     sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
-                    
+
                 }
 
             }
@@ -149,7 +158,7 @@ namespace Esiur.Net.Sockets
             try
             {
                 // SocketError err;
-               
+
                 if (state == SocketState.Closed || state == SocketState.Terminated)
                     return;
 
@@ -162,7 +171,7 @@ namespace Esiur.Net.Sockets
                 //if (receiveNetworkBuffer.Protected)
                 //    Console.WriteLine();
 
-                
+
                 //lock (receiveNetworkBuffer.SyncLock)
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)e.BytesTransferred);
 

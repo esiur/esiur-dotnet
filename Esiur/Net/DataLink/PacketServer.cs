@@ -26,7 +26,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Data;
 using System.Runtime.InteropServices;
 using Esiur.Net.Packets;

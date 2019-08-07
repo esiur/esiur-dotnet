@@ -73,20 +73,44 @@ namespace Esiur.Resource.Template
             {
                 var rexp = DC.ToBytes(ReadExpansion);
                 var wexp = DC.ToBytes(WriteExpansion);
-                return BinaryList.ToBytes((byte)(0x38 | pv), (byte)name.Length, name, wexp.Length, wexp, rexp.Length, rexp);
+                return new BinaryList()
+                    .AddUInt8((byte)(0x38 | pv))
+                    .AddUInt8((byte)name.Length)
+                    .AddUInt8Array(name)
+                    .AddInt32(wexp.Length)
+                    .AddUInt8Array(wexp)
+                    .AddInt32(rexp.Length)
+                    .AddUInt8Array(rexp)
+                    .ToArray();
             }
             else if (WriteExpansion != null)
             {
                 var wexp = DC.ToBytes(WriteExpansion);
-                return BinaryList.ToBytes((byte)(0x30 | pv), (byte)name.Length, name, wexp.Length, wexp);
+                return new BinaryList()
+                    .AddUInt8((byte)(0x30 | pv))
+                    .AddUInt8((byte)name.Length)
+                    .AddUInt8Array(name)
+                    .AddInt32(wexp.Length)
+                    .AddUInt8Array(wexp)
+                    .ToArray();
             }
             else if (ReadExpansion != null)
             {
                 var rexp = DC.ToBytes(ReadExpansion);
-                return BinaryList.ToBytes((byte)(0x28 | pv), (byte)name.Length, name, rexp.Length, rexp);
+                return new BinaryList()
+                    .AddUInt8((byte)(0x28 | pv))
+                    .AddUInt8((byte)name.Length)
+                    .AddUInt8Array(name)
+                    .AddInt32(rexp.Length)
+                    .AddUInt8Array(rexp)
+                    .ToArray();
             }
             else
-                return BinaryList.ToBytes((byte)(0x20 | pv), (byte)name.Length, name);
+                return new BinaryList()
+                    .AddUInt8((byte)(0x20 | pv))
+                    .AddUInt8((byte)name.Length)
+                    .AddUInt8Array(name)
+                    .ToArray();
         }
 
         public PropertyTemplate(ResourceTemplate template, byte index, string name, string read, string write, StorageMode storage)

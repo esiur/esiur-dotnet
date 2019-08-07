@@ -27,7 +27,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Engine
+namespace Esiur.Core
 {
     public delegate void DestroyedEvent(object sender);
 

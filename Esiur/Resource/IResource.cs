@@ -27,7 +27,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 
 namespace Esiur.Resource
 {

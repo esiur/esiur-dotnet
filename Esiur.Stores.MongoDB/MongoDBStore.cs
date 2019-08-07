@@ -1,6 +1,6 @@
 ﻿using Esiur.Resource;
 using System;
-using Esiur.Engine;
+using Esiur.Core;
 using MongoDB.Driver.Core;
 using MongoDB.Driver;
 using MongoDB.Bson;
@@ -530,12 +530,14 @@ namespace Esiur.Stores.MongoDB
 
             var attrsDoc = ComposeStructure(attrs);
 
+            var type = ResourceProxy.GetBaseType(resource);
+
             var document = new BsonDocument
             {
                 { "parents", parents },
                 { "children", children },
                 {"attributes", attrsDoc },
-                { "classname", resource.GetType().FullName + "," + resource.GetType().GetTypeInfo().Assembly.GetName().Name },
+                { "classname", type.FullName + "," + type.GetTypeInfo().Assembly.GetName().Name },
                 { "name", resource.Instance.Name },
                 { "_id", new BsonObjectId(new ObjectId(resource.Instance.Attributes["objectId"].ToString())) },
                 {"values", values }

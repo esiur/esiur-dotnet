@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 using Esiur.Data;
-using Esiur.Engine;
+using Esiur.Core;
 using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Resource.Template;
@@ -52,7 +52,7 @@ namespace Esiur.Net.IIP
 
         KeyList<uint, IAsyncReply<object>> requests = new KeyList<uint, IAsyncReply<object>>();
 
-        uint callbackCounter = 0;
+        volatile uint callbackCounter = 0;
 
         AsyncQueue<DistributedResourceQueueItem> queue = new AsyncQueue<DistributedResourceQueueItem>();
 
@@ -62,6 +62,16 @@ namespace Esiur.Net.IIP
         /// <param name="action">Packet action.</param>
         /// <param name="args">Arguments to send.</param>
         /// <returns></returns>
+        internal SendList SendRequest(IIPPacket.IIPPacketAction action)
+        {
+            var reply = new AsyncReply<object[]>();
+            var c = callbackCounter++; // avoid thread racing
+            requests.Add(c, reply);
+
+            return (SendList)SendParams(reply).AddUInt8((byte)(0x40 | (byte)action)).AddUInt32(c);
+        }
+
+        /*
         internal IAsyncReply<object[]> SendRequest(IIPPacket.IIPPacketAction action, params object[] args)
         {
             var reply = new AsyncReply<object[]>();
@@ -72,11 +82,13 @@ namespace Esiur.Net.IIP
             requests.Add(callbackCounter, reply);
             return reply;
         }
+        */
 
-        uint maxcallerid = 0;
+        //uint maxcallerid = 0;
 
-        internal void SendReply(IIPPacket.IIPPacketAction action, uint callbackId, params object[] args)
+        internal SendList SendReply(IIPPacket.IIPPacketAction action, uint callbackId)
         {
+            /*
             if (callbackId > maxcallerid)
             {
                 maxcallerid = callbackId;
@@ -86,18 +98,18 @@ namespace Esiur.Net.IIP
                 Console.Beep();
 
             }
+            */
 
-            var bl = new BinaryList((byte)(0x80 | (byte)action), callbackId);
-            bl.AddRange(args);
-            Send(bl.ToArray());
-            //Console.WriteLine("SendReply " + action.ToString() + " " + callbackId);
+            return (SendList)SendParams().AddUInt8((byte)(0x80 | (byte)action)).AddUInt32(callbackId);
         }
 
-        internal void SendEvent(IIPPacket.IIPPacketEvent evt, params object[] args)
+        internal SendList SendEvent(IIPPacket.IIPPacketEvent evt)
         {
-            var bl = new BinaryList((byte)(evt));
-            bl.AddRange(args);
-            Send(bl.ToArray());
+            //var bl = new BinaryList((byte)(evt));
+            //bl.AddRange(args);
+            //Send(bl.ToArray());
+
+            return (SendList)SendParams().AddUInt8((byte)(evt));
         }
 
         internal AsyncReply<object> SendInvokeByArrayArguments(uint instanceId, byte index, object[] parameters)
@@ -105,11 +117,19 @@ namespace Esiur.Net.IIP
             var pb = Codec.ComposeVarArray(parameters, this, true);
 
             var reply = new AsyncReply<object>();
-            callbackCounter++;
-            var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments),
-                                    callbackCounter, instanceId, index, pb);
-            Send(bl.ToArray());
-            requests.Add(callbackCounter, reply);
+            var c = callbackCounter++;
+            requests.Add(c, reply);
+
+            SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments))
+                        .AddUInt32(c)
+                        .AddUInt32(instanceId)
+                        .AddUInt8(index)
+                        .AddUInt8Array(pb)
+                        .Done();
+
+            //var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments),
+            //                        callbackCounter, instanceId, index, pb);
+            //Send(bl.ToArray());
 
             return reply;
         }
@@ -118,6 +138,7 @@ namespace Esiur.Net.IIP
         {
             var pb = Codec.ComposeStructure(parameters, this, true, true, true);
 
+            /*
             var reply = new AsyncReply<object>();
             callbackCounter++;
             var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments),
@@ -126,6 +147,19 @@ namespace Esiur.Net.IIP
             requests.Add(callbackCounter, reply);
 
             return reply;
+            */
+
+            var reply = new AsyncReply<object>();
+            var c = callbackCounter++;
+            requests.Add(c, reply);
+
+            SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments))
+                        .AddUInt32(c)
+                        .AddUInt32(instanceId)
+                        .AddUInt8(index)
+                        .AddUInt8Array(pb)
+                        .Done();
+            return reply;
         }
 
 
@@ -133,20 +167,40 @@ namespace Esiur.Net.IIP
         {
             var msg = DC.ToBytes(errorMessage);
             if (type == ErrorType.Management)
-                SendParams((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ManagementError), callbackId, errorCode);
+                SendParams()
+                            .AddUInt8((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ManagementError))
+                            .AddUInt32(callbackId)
+                            .AddUInt16(errorCode)
+                            .Done();
             else if (type == ErrorType.Exception)
-                SendParams((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ExecutionError), callbackId, errorCode, (ushort)msg.Length, msg);
+                SendParams()
+                            .AddUInt8((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ExecutionError))
+                            .AddUInt32(callbackId)
+                            .AddUInt16(errorCode)
+                            .AddUInt16((ushort)msg.Length)
+                            .AddUInt8Array(msg)
+                            .Done();
         }
 
         void SendProgress(uint callbackId, int value, int max)
         {
-            SendParams((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ProgressReport), callbackId, value, max);
+            SendParams()
+                .AddUInt8((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ProgressReport))
+                .AddUInt32(callbackId)
+                .AddInt32(value)
+                .AddInt32(max)
+                .Done();
+            //SendParams(, callbackId, value, max);
         }
 
         void SendChunk(uint callbackId, object chunk)
         {
             var c = Codec.Compose(chunk, this, true);
-            SendParams((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ChunkStream), callbackId, c);
+            SendParams()
+                .AddUInt8((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ChunkStream))
+                .AddUInt32(callbackId)
+                .AddUInt8Array(c)
+                .Done();
         }
 
         void IIPReply(uint callbackId, params object[] results)
@@ -214,7 +268,7 @@ namespace Esiur.Net.IIP
 
                 Codec.Parse(content, 0, this).Then((arguments) =>
                 {
-                    var pt = r.Instance.Template.GetPropertyTemplate(index);
+                    var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
                     if (pt != null)
                     {
                         item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
@@ -277,7 +331,7 @@ namespace Esiur.Net.IIP
 
                 Codec.ParseVarArray(content, this).Then((arguments) =>
                 {
-                    var et = r.Instance.Template.GetEventTemplate(index);
+                    var et = r.Instance.Template.GetEventTemplateByIndex(index);
                     if (et != null)
                     {
                         item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
@@ -384,10 +438,19 @@ namespace Esiur.Net.IIP
                     }
 
                     var r = res as IResource;
+
+                    // unsubscribe
+                    r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    r.Instance.ResourceModified -= Instance_PropertyModified;
+                    r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                    r.Instance.Children.OnAdd -= Children_OnAdd;
+                    r.Instance.Children.OnRemoved -= Children_OnRemoved;
+                    r.Instance.Attributes.OnModified -= Attributes_OnModified;
+
+                    // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
                     r.Instance.ResourceModified += Instance_PropertyModified;
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
-
                     r.Instance.Children.OnAdd += Children_OnAdd;
                     r.Instance.Children.OnRemoved += Children_OnRemoved;
                     r.Instance.Attributes.OnModified += Attributes_OnModified;
@@ -397,18 +460,24 @@ namespace Esiur.Net.IIP
                     if (r is DistributedResource)
                     {
                         // reply ok
-                        SendReply(IIPPacket.IIPPacketAction.AttachResource,
-                            callback, r.Instance.Template.ClassId,
-                            r.Instance.Age, (ushort)link.Length, link,
-                            Codec.ComposePropertyValueArray((r as DistributedResource)._Serialize(), this, true));
+                        SendReply(IIPPacket.IIPPacketAction.AttachResource, callback)
+                                .AddGuid(r.Instance.Template.ClassId)
+                                .AddUInt64(r.Instance.Age)
+                                .AddUInt16((ushort)link.Length)
+                                .AddUInt8Array(link)
+                                .AddUInt8Array(Codec.ComposePropertyValueArray((r as DistributedResource)._Serialize(), this, true))
+                                .Done();
                     }
                     else
                     {
                         // reply ok
-                        SendReply(IIPPacket.IIPPacketAction.AttachResource,
-                            callback, r.Instance.Template.ClassId,
-                            r.Instance.Age, (ushort)link.Length, link,
-                            Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true));
+                        SendReply(IIPPacket.IIPPacketAction.AttachResource, callback)
+                                .AddGuid(r.Instance.Template.ClassId)
+                                .AddUInt64(r.Instance.Age)
+                                .AddUInt16((ushort)link.Length)
+                                .AddUInt8Array(link)
+                                .AddUInt8Array(Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true))
+                                .Done();
                     }
                 }
                 else
@@ -426,19 +495,29 @@ namespace Esiur.Net.IIP
             {
                 var instance = (sender.Owner as Instance);
                 var name = DC.ToBytes(newValue.ToString());
-                SendEvent(IIPPacket.IIPPacketEvent.ChildRemoved, instance.Id, (ushort)name.Length, name);
+                SendEvent(IIPPacket.IIPPacketEvent.ChildRemoved)
+                        .AddUInt32(instance.Id)
+                        .AddUInt16((ushort)name.Length)
+                        .AddUInt8Array(name)
+                        .Done();
             }
         }
 
         private void Children_OnRemoved(Instance sender, IResource value)
         {
-            SendEvent(IIPPacket.IIPPacketEvent.ChildRemoved, sender.Id, value.Instance.Id);
+            SendEvent(IIPPacket.IIPPacketEvent.ChildRemoved)
+                .AddUInt32(sender.Id)
+                .AddUInt32(value.Instance.Id)
+                .Done();
         }
 
         private void Children_OnAdd(Instance sender, IResource value)
         {
             //if (sender.Applicable(sender.Resource, this.session, ActionType.))
-            SendEvent(IIPPacket.IIPPacketEvent.ChildAdded, sender.Id, value.Instance.Id);
+            SendEvent(IIPPacket.IIPPacketEvent.ChildAdded)
+                .AddUInt32(sender.Id)
+                .AddUInt32(value.Instance.Id)
+                .Done();
         }
 
         void IIPRequestReattachResource(uint callback, uint resourceId, ulong resourceAge)
@@ -448,13 +527,27 @@ namespace Esiur.Net.IIP
                 if (res != null)
                 {
                     var r = res as IResource;
+                    // unsubscribe
+                    r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    r.Instance.ResourceModified -= Instance_PropertyModified;
+                    r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                    r.Instance.Children.OnAdd -= Children_OnAdd;
+                    r.Instance.Children.OnRemoved -= Children_OnRemoved;
+                    r.Instance.Attributes.OnModified -= Attributes_OnModified;
+
+                    // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
                     r.Instance.ResourceModified += Instance_PropertyModified;
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+                    r.Instance.Children.OnAdd += Children_OnAdd;
+                    r.Instance.Children.OnRemoved += Children_OnRemoved;
+                    r.Instance.Attributes.OnModified += Attributes_OnModified;
+
                     // reply ok
-                    SendReply(IIPPacket.IIPPacketAction.ReattachResource,
-                        callback, r.Instance.Age,
-                        Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true));
+                    SendReply(IIPPacket.IIPPacketAction.ReattachResource, callback)
+                                .AddUInt64(r.Instance.Age)
+                                .AddUInt8Array(Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true))
+                                .Done();
                 }
                 else
                 {
@@ -475,7 +568,7 @@ namespace Esiur.Net.IIP
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
                     // reply ok
-                    SendReply(IIPPacket.IIPPacketAction.DetachResource, callback);
+                    SendReply(IIPPacket.IIPPacketAction.DetachResource, callback).Done();
                 }
                 else
                 {
@@ -599,7 +692,9 @@ namespace Esiur.Net.IIP
 
                                 Warehouse.Put(resource, name, store as IStore, parent);
 
-                                SendReply(IIPPacket.IIPPacketAction.CreateResource, callback, resource.Instance.Id);
+                                SendReply(IIPPacket.IIPPacketAction.CreateResource, callback)
+                                           .AddUInt32(resource.Instance.Id)
+                                           .Done();
 
                             });
                         });
@@ -625,7 +720,7 @@ namespace Esiur.Net.IIP
                 }
 
                 if (Warehouse.Remove(r))
-                    SendReply(IIPPacket.IIPPacketAction.DeleteResource, callback);
+                    SendReply(IIPPacket.IIPPacketAction.DeleteResource, callback).Done();
                 //SendParams((byte)0x84, callback);
                 else
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteFailed);
@@ -657,8 +752,9 @@ namespace Esiur.Net.IIP
                 var st = r.Instance.GetAttributes(attrs);
 
                 if (st != null)
-                    SendReply(all ? IIPPacket.IIPPacketAction.GetAllAttributes : IIPPacket.IIPPacketAction.GetAttributes, callback,
-                                Codec.ComposeStructure(st, this, true, true, true));
+                    SendReply(all ? IIPPacket.IIPPacketAction.GetAllAttributes : IIPPacket.IIPPacketAction.GetAttributes, callback)
+                              .AddUInt8Array(Codec.ComposeStructure(st, this, true, true, true))
+                              .Done();
                 else
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GetAttributesFailed);
 
@@ -697,7 +793,7 @@ namespace Esiur.Net.IIP
 
                     parent.Instance.Children.Add(child);
 
-                    SendReply(IIPPacket.IIPPacketAction.AddChild, callback);
+                    SendReply(IIPPacket.IIPPacketAction.AddChild, callback).Done();
                     //child.Instance.Parents
                 });
 
@@ -736,7 +832,7 @@ namespace Esiur.Net.IIP
 
                     parent.Instance.Children.Remove(child);
 
-                    SendReply(IIPPacket.IIPPacketAction.RemoveChild, callback);
+                    SendReply(IIPPacket.IIPPacketAction.RemoveChild, callback).Done();
                     //child.Instance.Parents
                 });
 
@@ -761,7 +857,7 @@ namespace Esiur.Net.IIP
 
 
                 resource.Instance.Name = name.GetString(0, (uint)name.Length);
-                SendReply(IIPPacket.IIPPacketAction.RenameResource, callback);
+                SendReply(IIPPacket.IIPPacketAction.RenameResource, callback).Done();
             });
         }
 
@@ -775,10 +871,9 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                SendReply(IIPPacket.IIPPacketAction.ResourceChildren, callback,
-
-                    Codec.ComposeResourceArray(resource.Instance.Children.ToArray(), this, true)
-                    );
+                SendReply(IIPPacket.IIPPacketAction.ResourceChildren, callback)
+                    .AddUInt8Array(Codec.ComposeResourceArray(resource.Instance.Children.ToArray(), this, true))
+                    .Done();
 
             });
         }
@@ -793,11 +888,9 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                SendReply(IIPPacket.IIPPacketAction.ResourceParents, callback,
-
-                    Codec.ComposeResourceArray(resource.Instance.Parents.ToArray(), this, true)
-                    );
-
+                SendReply(IIPPacket.IIPPacketAction.ResourceParents, callback)
+                        .AddUInt8Array(Codec.ComposeResourceArray(resource.Instance.Parents.ToArray(), this, true))
+                        .Done();
             });
         }
 
@@ -823,7 +916,7 @@ namespace Esiur.Net.IIP
                     attrs = attributes.GetStringArray(0, (uint)attributes.Length);
 
                 if (r.Instance.RemoveAttributes(attrs))
-                    SendReply(all ? IIPPacket.IIPPacketAction.ClearAllAttributes : IIPPacket.IIPPacketAction.ClearAttributes, callback);
+                    SendReply(all ? IIPPacket.IIPPacketAction.ClearAllAttributes : IIPPacket.IIPPacketAction.ClearAttributes, callback).Done();
                 else
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
 
@@ -850,7 +943,7 @@ namespace Esiur.Net.IIP
                 {
                     if (r.Instance.SetAttributes(attrs, clearAttributes))
                         SendReply(clearAttributes ? IIPPacket.IIPPacketAction.ClearAllAttributes : IIPPacket.IIPPacketAction.ClearAttributes,
-                                  callback);
+                                  callback).Done();
                     else
                         SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
                 });
@@ -864,7 +957,10 @@ namespace Esiur.Net.IIP
             Warehouse.GetTemplate(className).Then((t) =>
             {
                 if (t != null)
-                    SendReply(IIPPacket.IIPPacketAction.TemplateFromClassName, callback, (uint)t.Content.Length, t.Content);
+                    SendReply(IIPPacket.IIPPacketAction.TemplateFromClassName, callback)
+                            .AddInt32(t.Content.Length)
+                            .AddUInt8Array(t.Content)
+                            .Done();
                 else
                 {
                     // reply failed
@@ -878,7 +974,10 @@ namespace Esiur.Net.IIP
             Warehouse.GetTemplate(classId).Then((t) =>
             {
                 if (t != null)
-                    SendReply(IIPPacket.IIPPacketAction.TemplateFromClassId, callback, (uint)t.Content.Length, t.Content);
+                    SendReply(IIPPacket.IIPPacketAction.TemplateFromClassId, callback)
+                            .AddInt32(t.Content.Length)
+                            .AddUInt8Array(t.Content)
+                            .Done();
                 else
                 {
                     // reply failed
@@ -894,8 +993,10 @@ namespace Esiur.Net.IIP
             Warehouse.Get(resourceId).Then((r) =>
             {
                 if (r != null)
-                    SendReply(IIPPacket.IIPPacketAction.TemplateFromResourceId, callback,
-                        (uint)r.Instance.Template.Content.Length, r.Instance.Template.Content);
+                    SendReply(IIPPacket.IIPPacketAction.TemplateFromResourceId, callback)
+                            .AddInt32(r.Instance.Template.Content.Length)
+                            .AddUInt8Array(r.Instance.Template.Content)
+                            .Done();
                 else
                 {
                     // reply failed
@@ -918,7 +1019,9 @@ namespace Esiur.Net.IIP
                 if (list.Length == 0)
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
-                    SendReply(IIPPacket.IIPPacketAction.QueryLink, callback, Codec.ComposeResourceArray(list, this, true));
+                    SendReply(IIPPacket.IIPPacketAction.QueryLink, callback)
+                                .AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
+                                .Done();
                 //}
                 //else
                 //{
@@ -942,7 +1045,7 @@ namespace Esiur.Net.IIP
                 {
                     Codec.ParseVarArray(content, this).Then((arguments) =>
                     {
-                        var ft = r.Instance.Template.GetFunctionTemplate(index);
+                        var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
                         if (ft != null)
                         {
                             if (r is DistributedResource)
@@ -952,7 +1055,9 @@ namespace Esiur.Net.IIP
                                 {
                                     rt.Then(res =>
                                     {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
+                                                    .AddUInt8Array(Codec.Compose(res, this))
+                                                    .Done();
                                     });
                                 }
                                 else
@@ -1007,7 +1112,7 @@ namespace Esiur.Net.IIP
                                     {
                                         rt = fi.Invoke(r, args);
                                     }
-                                    catch(Exception ex)
+                                    catch (Exception ex)
                                     {
                                         SendError(ErrorType.Exception, callback, 0, ex.ToString());
                                         return;
@@ -1020,7 +1125,9 @@ namespace Esiur.Net.IIP
                                         foreach (var v in enu)
                                             SendChunk(callback, v);
 
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, (byte)DataType.Void);
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
+                                                    .AddUInt8((byte)DataType.Void)
+                                                    .Done();
 
                                     }
                                     else if (rt is Task)
@@ -1032,18 +1139,22 @@ namespace Esiur.Net.IIP
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
+                                                     .AddUInt8Array(Codec.Compose(res, this))
+                                                     .Done();
                                         });
 
                                         //await t;
                                         //SendParams((byte)0x90, callback, Codec.Compose(res, this));
                                     }
-                                    else if (rt.GetType().GetTypeInfo().IsGenericType 
-                                          && rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
+                                    else if (rt is IAsyncReply<object>)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
+                                          //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
                                     {
                                         (rt as IAsyncReply<object>).Then(res =>
                                         {
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(res, this));
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
+                                                        .AddUInt8Array(Codec.Compose(res, this))
+                                                        .Done();
                                         }).Error(ex =>
                                         {
                                             SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
@@ -1057,7 +1168,9 @@ namespace Esiur.Net.IIP
                                     }
                                     else
                                     {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback, Codec.Compose(rt, this));
+                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
+                                                .AddUInt8Array(Codec.Compose(rt, this))
+                                                .Done();
                                     }
                                 }
                                 else
@@ -1087,29 +1200,31 @@ namespace Esiur.Net.IIP
             {
                 if (r != null)
                 {
-                   Codec.ParseStructure(content, 0, (uint)content.Length, this).Then((namedArgs) =>
-                    {
-                        var ft = r.Instance.Template.GetFunctionTemplate(index);
-                        if (ft != null)
-                        {
-                            if (r is DistributedResource)
-                            {
-                                var rt = (r as DistributedResource)._InvokeByNamedArguments(index, namedArgs);
-                                if (rt != null)
-                                {
-                                    rt.Then(res =>
-                                    {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
-                                    });
-                                }
-                                else
-                                {
+                    Codec.ParseStructure(content, 0, (uint)content.Length, this).Then((namedArgs) =>
+                     {
+                         var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
+                         if (ft != null)
+                         {
+                             if (r is DistributedResource)
+                             {
+                                 var rt = (r as DistributedResource)._InvokeByNamedArguments(index, namedArgs);
+                                 if (rt != null)
+                                 {
+                                     rt.Then(res =>
+                                     {
+                                         SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                 .AddUInt8Array(Codec.Compose(res, this))
+                                                 .Done();
+                                     });
+                                 }
+                                 else
+                                 {
 
                                     // function not found on a distributed object
                                 }
-                            }
-                            else
-                            {
+                             }
+                             else
+                             {
 #if NETSTANDARD1_5
                                 var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
 #else
@@ -1117,101 +1232,107 @@ namespace Esiur.Net.IIP
 #endif
 
                                 if (fi != null)
-                                {
-                                    if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
-                                    {
-                                        SendError(ErrorType.Management, callback,
-                                            (ushort)ExceptionCode.InvokeDenied);
-                                        return;
-                                    }
+                                 {
+                                     if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
+                                     {
+                                         SendError(ErrorType.Management, callback,
+                                             (ushort)ExceptionCode.InvokeDenied);
+                                         return;
+                                     }
 
                                     // cast arguments
                                     ParameterInfo[] pi = fi.GetParameters();
 
-                                    object[] args = new object[pi.Length];
+                                     object[] args = new object[pi.Length];
 
-                                    for (var i = 0; i < pi.Length; i++)
-                                    {
-                                        if (pi[i].ParameterType == typeof(DistributedConnection))
-                                        {
-                                            args[i] = this;
-                                        }
-                                        else if (namedArgs.ContainsKey(pi[i].Name))
-                                        {
-                                            args[i] = DC.CastConvert(namedArgs[pi[i].Name], pi[i].ParameterType);
-                                        }
-                                    }
+                                     for (var i = 0; i < pi.Length; i++)
+                                     {
+                                         if (pi[i].ParameterType == typeof(DistributedConnection))
+                                         {
+                                             args[i] = this;
+                                         }
+                                         else if (namedArgs.ContainsKey(pi[i].Name))
+                                         {
+                                             args[i] = DC.CastConvert(namedArgs[pi[i].Name], pi[i].ParameterType);
+                                         }
+                                     }
 
-                                    
-                                    object rt;
 
-                                    try
-                                    {
-                                        rt = fi.Invoke(r, args);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        SendError(ErrorType.Exception, callback, 0, ex.ToString());
-                                        return;
-                                    }
+                                     object rt;
 
-                                    if (rt is System.Collections.IEnumerable && !(rt is Array))
-                                    {
-                                        var enu = rt as System.Collections.IEnumerable;
+                                     try
+                                     {
+                                         rt = fi.Invoke(r, args);
+                                     }
+                                     catch (Exception ex)
+                                     {
+                                         SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                         return;
+                                     }
 
-                                        foreach (var v in enu)
-                                            SendChunk(callback, v);
+                                     if (rt is System.Collections.IEnumerable && !(rt is Array))
+                                     {
+                                         var enu = rt as System.Collections.IEnumerable;
 
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, (byte)DataType.Void);
+                                         foreach (var v in enu)
+                                             SendChunk(callback, v);
 
-                                    }
-                                    else if (rt is Task)
-                                    {
-                                        (rt as Task).ContinueWith(t =>
-                                        {
+                                         SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                 .AddUInt8((byte)DataType.Void)
+                                                 .Done();
+                                     }
+                                     else if (rt is Task)
+                                     {
+                                         (rt as Task).ContinueWith(t =>
+                                         {
 #if NETSTANDARD1_5
                                             var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
-                                        });
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                 .AddUInt8Array(Codec.Compose(res, this))
+                                                 .Done();
+                                         });
 
-                                    }
-//                                    else if (rt is AsyncReply)
-                                      else if (rt.GetType().GetTypeInfo().IsGenericType
-                                                && rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
-                                        {
-                                                (rt as IAsyncReply<object>).Then(res =>
-                                        {
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(res, this));
-                                        }).Error(ex =>
-                                        {
-                                            SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
-                                        }).Progress((pt, pv, pm) =>
-                                        {
-                                            SendProgress(callback, pv, pm);
-                                        }).Chunk(v =>
-                                        {
-                                            SendChunk(callback, v);
-                                        });
-                                    }
-                                    else
-                                    {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback, Codec.Compose(rt, this));
-                                    }
-                                }
-                                else
+                                     }
+                                    else if (rt is IAsyncReply<object>)
+                                     {
+                                         (rt as IAsyncReply<object>).Then(res =>
                                 {
+                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                         .AddUInt8Array(Codec.Compose(res, this))
+                                                         .Done();
+
+                                         }).Error(ex =>
+                                         {
+                                             SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                         }).Progress((pt, pv, pm) =>
+                                         {
+                                             SendProgress(callback, pv, pm);
+                                         }).Chunk(v =>
+                                         {
+                                             SendChunk(callback, v);
+                                         });
+                                     }
+                                     else
+                                     {
+                                         SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                 .AddUInt8Array(Codec.Compose(rt, this))
+                                                 .Done();
+                                     }
+                                 }
+                                 else
+                                 {
                                     // ft found, fi not found, this should never happen
                                 }
-                            }
-                        }
-                        else
-                        {
+                             }
+                         }
+                         else
+                         {
                             // no function at this index
                         }
-                    });
+                     });
                 }
                 else
                 {
@@ -1226,13 +1347,14 @@ namespace Esiur.Net.IIP
             {
                 if (r != null)
                 {
-                    var pt = r.Instance.Template.GetFunctionTemplate(index);
+                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
                     if (pt != null)
                     {
                         if (r is DistributedResource)
                         {
-                            SendReply(IIPPacket.IIPPacketAction.GetProperty, callback,
-                                Codec.Compose((r as DistributedResource)._Get(pt.Index), this));
+                            SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
+                                        .AddUInt8Array(Codec.Compose((r as DistributedResource)._Get(pt.Index), this))
+                                        .Done();
                         }
                         else
                         {
@@ -1244,8 +1366,9 @@ namespace Esiur.Net.IIP
 
                             if (pi != null)
                             {
-                                SendReply(IIPPacket.IIPPacketAction.GetProperty,
-                                    callback, Codec.Compose(pi.GetValue(r), this));
+                                SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
+                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
+                                            .Done();
                             }
                             else
                             {
@@ -1292,7 +1415,9 @@ namespace Esiur.Net.IIP
 
                         }*/
 
-                        SendReply(IIPPacket.IIPPacketAction.ResourceHistory, callback, history);
+                        SendReply(IIPPacket.IIPPacketAction.ResourceHistory, callback)
+                                .AddUInt8Array(history)
+                                .Done();
 
                     });
                 }
@@ -1305,7 +1430,7 @@ namespace Esiur.Net.IIP
             {
                 if (r != null)
                 {
-                    var pt = r.Instance.Template.GetFunctionTemplate(index);
+                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
                     if (pt != null)
                     {
                         if (r.Instance.GetAge(index) > age)
@@ -1317,8 +1442,9 @@ namespace Esiur.Net.IIP
 #endif
                             if (pi != null)
                             {
-                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback,
-                                    Codec.Compose(pi.GetValue(r), this));
+                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
+                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
+                                            .Done();
                             }
                             else
                             {
@@ -1327,8 +1453,9 @@ namespace Esiur.Net.IIP
                         }
                         else
                         {
-                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback,
-                                (byte)DataType.NotModified);
+                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
+                                    .AddUInt8((byte)DataType.NotModified)
+                                    .Done();
                         }
                     }
                     else
@@ -1351,7 +1478,7 @@ namespace Esiur.Net.IIP
                 {
 
 
-                    var pt = r.Instance.Template.GetPropertyTemplate(index);
+                    var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
                     if (pt != null)
                     {
                         Codec.Parse(content, 0, this).Then((value) =>
@@ -1361,7 +1488,7 @@ namespace Esiur.Net.IIP
                                 // propagation
                                 (r as DistributedResource)._Set(index, value).Then((x) =>
                                 {
-                                    SendReply(IIPPacket.IIPPacketAction.SetProperty, callback);
+                                    SendReply(IIPPacket.IIPPacketAction.SetProperty, callback).Done();
                                 }).Error(x =>
                                 {
                                     SendError(x.Type, callback, (ushort)x.Code, x.Message);
@@ -1378,7 +1505,7 @@ namespace Esiur.Net.IIP
 #endif*/
 
                                 var pi = pt.Info;
-                                
+
                                 if (pi != null)
                                 {
 
@@ -1405,17 +1532,17 @@ namespace Esiur.Net.IIP
                                         value = DC.CastConvert(value, pi.PropertyType);
                                     }
 
-                                 
+
                                     try
                                     {
                                         pi.SetValue(r, value);
-                                        SendReply(IIPPacket.IIPPacketAction.SetProperty, callback);
+                                        SendReply(IIPPacket.IIPPacketAction.SetProperty, callback).Done();
                                     }
-                                    catch(Exception ex)
+                                    catch (Exception ex)
                                     {
                                         SendError(ErrorType.Exception, callback, 0, ex.Message);
                                     }
-                               
+
                                 }
                                 else
                                 {
@@ -1591,16 +1718,19 @@ namespace Esiur.Net.IIP
             var reply = new AsyncReply<ResourceTemplate>();
             templateRequests.Add(classId, reply);
 
-            SendRequest(IIPPacket.IIPPacketAction.TemplateFromClassId, classId).Then((rt) =>
-            {
-                templateRequests.Remove(classId);
-                templates.Add(((ResourceTemplate)rt[0]).ClassId, (ResourceTemplate)rt[0]);
-                Warehouse.PutTemplate(rt[0] as ResourceTemplate);
-                reply.Trigger(rt[0]);
-            }).Error((ex) =>
-            {
-                reply.TriggerError(ex);
-            });
+            SendRequest(IIPPacket.IIPPacketAction.TemplateFromClassId)
+                        .AddGuid(classId)
+                        .Done()
+                        .Then((rt) =>
+                        {
+                            templateRequests.Remove(classId);
+                            templates.Add(((ResourceTemplate)rt[0]).ClassId, (ResourceTemplate)rt[0]);
+                            Warehouse.PutTemplate(rt[0] as ResourceTemplate);
+                            reply.Trigger(rt[0]);
+                        }).Error((ex) =>
+                        {
+                            reply.TriggerError(ex);
+                        });
 
             return reply;
         }
@@ -1692,29 +1822,32 @@ namespace Esiur.Net.IIP
             var reply = new AsyncReply<DistributedResource>();
             resourceRequests.Add(id, reply);
 
-            SendRequest(IIPPacket.IIPPacketAction.AttachResource, id).Then((rt) =>
-            {
-                var dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
+            SendRequest(IIPPacket.IIPPacketAction.AttachResource)
+                        .AddUInt32(id)
+                        .Done()
+                        .Then((rt) =>
+                        {
+                            var dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
 
-                GetTemplate((Guid)rt[0]).Then((tmp) =>
-                {
-                    // ClassId, ResourceAge, ResourceLink, Content
-                    Warehouse.Put(dr, id.ToString(), this, null, tmp);
+                            GetTemplate((Guid)rt[0]).Then((tmp) =>
+                            {
+                                // ClassId, ResourceAge, ResourceLink, Content
+                                Warehouse.Put(dr, id.ToString(), this, null, tmp);
 
-                    Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
-                    {
-                        dr._Attached(ar);
-                        resourceRequests.Remove(id);
-                        reply.Trigger(dr);
-                    });
-                }).Error((ex) =>
-                {
-                    reply.TriggerError(ex);
-                });
-            }).Error((ex) =>
-            {
-                reply.TriggerError(ex);
-            });
+                                Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
+                                {
+                                    dr._Attached(ar);
+                                    resourceRequests.Remove(id);
+                                    reply.Trigger(dr);
+                                });
+                            }).Error((ex) =>
+                            {
+                                reply.TriggerError(ex);
+                            });
+                        }).Error((ex) =>
+                        {
+                            reply.TriggerError(ex);
+                        });
 
             return reply;
         }
@@ -1724,14 +1857,17 @@ namespace Esiur.Net.IIP
         {
             var rt = new AsyncReply<IResource[]>();
 
-            SendRequest(IIPPacket.IIPPacketAction.ResourceChildren, resource.Instance.Id).Then(ar =>
-            {
-                var d = (byte[])ar[0];
-                Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
-                {
-                    rt.Trigger(resources);
-                }).Error(ex => rt.TriggerError(ex));
-            });
+            SendRequest(IIPPacket.IIPPacketAction.ResourceChildren)
+                        .AddUInt32(resource.Instance.Id)
+                        .Done()
+                        .Then(ar =>
+                        {
+                            var d = (byte[])ar[0];
+                            Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
+                            {
+                                rt.Trigger(resources);
+                            }).Error(ex => rt.TriggerError(ex));
+                        });
 
             return rt;
         }
@@ -1740,14 +1876,17 @@ namespace Esiur.Net.IIP
         {
             var rt = new AsyncReply<IResource[]>();
 
-            SendRequest(IIPPacket.IIPPacketAction.ResourceParents, resource.Instance.Id).Then(ar =>
-            {
-                var d = (byte[])ar[0];
-                Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
+            SendRequest(IIPPacket.IIPPacketAction.ResourceParents)
+                .AddUInt32(resource.Instance.Id)
+                .Done()
+                .Then(ar =>
                 {
-                    rt.Trigger(resources);
-                }).Error(ex => rt.TriggerError(ex));
-            });
+                    var d = (byte[])ar[0];
+                    Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
+                    {
+                        rt.Trigger(resources);
+                    }).Error(ex => rt.TriggerError(ex));
+                });
 
             return rt;
         }
@@ -1757,17 +1896,21 @@ namespace Esiur.Net.IIP
             var rt = new AsyncReply<bool>();
 
             if (attributes == null)
-                SendRequest(IIPPacket.IIPPacketAction.ClearAllAttributes, resource.Instance.Id).Then(ar =>
-                {
-                    rt.Trigger(true);
-                }).Error(ex => rt.TriggerError(ex));
+                SendRequest(IIPPacket.IIPPacketAction.ClearAllAttributes)
+                    .AddUInt32(resource.Instance.Id)
+                    .Done()
+                    .Then(ar => rt.Trigger(true))
+                    .Error(ex => rt.TriggerError(ex));
             else
             {
                 var attrs = DC.ToBytes(attributes);
-                SendRequest(IIPPacket.IIPPacketAction.ClearAttributes, resource.Instance.Id, (uint)attrs.Length, attrs).Then(ar =>
-                {
-                    rt.Trigger(true);
-                }).Error(ex => rt.TriggerChunk(ex));
+                SendRequest(IIPPacket.IIPPacketAction.ClearAttributes)
+                    .AddUInt32(resource.Instance.Id)
+                    .AddInt32(attrs.Length)
+                    .AddUInt8Array(attrs)
+                    .Done()
+                    .Then(ar => rt.Trigger(true))
+                    .Error(ex => rt.TriggerError(ex));
             }
 
             return rt;
@@ -1777,12 +1920,12 @@ namespace Esiur.Net.IIP
         {
             var rt = new AsyncReply<bool>();
 
-            SendRequest(clearAttributes ? IIPPacket.IIPPacketAction.UpdateAllAttributes : IIPPacket.IIPPacketAction.UpdateAttributes
-                                    , resource.Instance.Id,
-                                    Codec.ComposeStructure(attributes, this, true, true, true)).Then(ar =>
-                                    {
-                                        rt.Trigger(true);
-                                    }).Error(ex => rt.TriggerError(ex));
+            SendRequest(clearAttributes ? IIPPacket.IIPPacketAction.UpdateAllAttributes : IIPPacket.IIPPacketAction.UpdateAttributes)
+                .AddUInt32(resource.Instance.Id)
+                .AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
+                .Done()
+                .Then(ar => rt.Trigger(true))
+                .Error(ex => rt.TriggerError(ex));
 
             return rt;
         }
@@ -1793,32 +1936,40 @@ namespace Esiur.Net.IIP
 
             if (attributes == null)
             {
-                SendRequest(IIPPacket.IIPPacketAction.GetAllAttributes, resource.Instance.Id).Then(ar =>
-                {
-                    var d = ar[0] as byte[];
-                    Codec.ParseStructure(d, 0, (uint)d.Length, this).Then(st =>
+                SendRequest(IIPPacket.IIPPacketAction.GetAllAttributes)
+                    .AddUInt32(resource.Instance.Id)
+                    .Done()
+                    .Then(ar =>
                     {
+                        var d = ar[0] as byte[];
+                        Codec.ParseStructure(d, 0, (uint)d.Length, this).Then(st =>
+                        {
 
-                        resource.Instance.SetAttributes(st);
+                            resource.Instance.SetAttributes(st);
 
-                        rt.Trigger(st);
-                    }).Error(ex => rt.TriggerError(ex));
-                });
+                            rt.Trigger(st);
+                        }).Error(ex => rt.TriggerError(ex));
+                    });
             }
             else
             {
                 var attrs = DC.ToBytes(attributes);
-                SendRequest(IIPPacket.IIPPacketAction.GetAttributes, resource.Instance.Id, (uint)attrs.Length, attrs).Then(ar =>
-                {
-                    var d = ar[0] as byte[];
-                    Codec.ParseStructure(d, 0, (uint)d.Length, this).Then(st =>
+                SendRequest(IIPPacket.IIPPacketAction.GetAttributes)
+                    .AddUInt32(resource.Instance.Id)
+                    .AddInt32(attrs.Length)
+                    .AddUInt8Array(attrs)
+                    .Done()
+                    .Then(ar =>
                     {
+                        var d = ar[0] as byte[];
+                        Codec.ParseStructure(d, 0, (uint)d.Length, this).Then(st =>
+                        {
 
-                        resource.Instance.SetAttributes(st);
+                            resource.Instance.SetAttributes(st);
 
-                        rt.Trigger(st);
-                    }).Error(ex => rt.TriggerError(ex));
-                });
+                            rt.Trigger(st);
+                        }).Error(ex => rt.TriggerError(ex));
+                    });
             }
 
             return rt;
@@ -1842,18 +1993,19 @@ namespace Esiur.Net.IIP
 
                 var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
 
-                SendRequest(IIPPacket.IIPPacketAction.ResourceHistory, dr.Id, fromDate, toDate).Then(rt =>
-                {
-                    var content = (byte[])rt[0];
-
-                    Codec.ParseHistory(content, 0, (uint)content.Length, resource, this).Then((history) =>
+                SendRequest(IIPPacket.IIPPacketAction.ResourceHistory)
+                    .AddUInt32(dr.Id)
+                    .AddDateTime(fromDate)
+                    .AddDateTime(toDate)
+                    .Done()
+                    .Then(rt =>
                     {
-                        reply.Trigger(history);
-                    });
-                }).Error((ex) =>
-                {
-                    reply.TriggerError(ex);
-                }); ;
+                        var content = (byte[])rt[0];
+
+                        Codec.ParseHistory(content, 0, (uint)content.Length, resource, this)
+                                          .Then((history) => reply.Trigger(history));
+
+                    }).Error((ex) => reply.TriggerError(ex));
 
                 return reply;
             }
@@ -1871,15 +2023,18 @@ namespace Esiur.Net.IIP
             var str = DC.ToBytes(path);
             var reply = new AsyncReply<IResource[]>();
 
-            SendRequest(IIPPacket.IIPPacketAction.QueryLink, (ushort)str.Length, str).Then(args =>
-            {
-                var content = args[0] as byte[];
+            SendRequest(IIPPacket.IIPPacketAction.QueryLink)
+                        .AddUInt16((ushort)str.Length)
+                        .AddUInt8Array(str)
+                        .Done()
+                        .Then(args =>
+                        {
+                            var content = args[0] as byte[];
 
-                Codec.ParseResourceArray(content, 0, (uint)content.Length, this).Then(resources =>
-                {
-                    reply.Trigger(resources);
-                });
-            });
+                            Codec.ParseResourceArray(content, 0, (uint)content.Length, this)
+                                                    .Then(resources => reply.Trigger(resources));
+
+                        }).Error(ex=>reply.TriggerError(ex));
 
             return reply;
         }
@@ -1897,25 +2052,30 @@ namespace Esiur.Net.IIP
         public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, object[] parameters, Structure attributes, Structure values)
         {
             var reply = new AsyncReply<DistributedResource>();
-            var pkt = new BinaryList(store.Instance.Id,
-                                    parent.Instance.Id,
-                                    className.Length, Encoding.ASCII.GetBytes(className),
-                                    Codec.ComposeVarArray(parameters, this, true),
-                                    Codec.ComposeStructure(attributes, this, true, true, true),
-                                    Codec.ComposeStructure(values, this));
+            var pkt = new BinaryList()
+                                    .AddUInt32(store.Instance.Id)
+                                    .AddUInt32(parent.Instance.Id)
+                                    .AddUInt8((byte)className.Length)
+                                    .AddString(className)
+                                    .AddUInt8Array(Codec.ComposeVarArray(parameters, this, true))
+                                    .AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
+                                    .AddUInt8Array(Codec.ComposeStructure(values, this));
 
-            pkt.Insert(8, pkt.Length);
+            pkt.InsertInt32(8, pkt.Length);
 
-            SendRequest(IIPPacket.IIPPacketAction.CreateResource, pkt.ToArray()).Then(args =>
-            {
-                var rid = (uint)args[0];
-
-                Fetch(rid).Then((r) =>
+            SendRequest(IIPPacket.IIPPacketAction.CreateResource)
+                .AddUInt8Array(pkt.ToArray())
+                .Done()
+                .Then(args =>
                 {
-                    reply.Trigger(r);
-                });
+                    var rid = (uint)args[0];
 
-            });
+                    Fetch(rid).Then((r) =>
+                    {
+                        reply.Trigger(r);
+                    });
+
+                });
 
             return reply;
         }
@@ -1923,17 +2083,23 @@ namespace Esiur.Net.IIP
         private void Instance_ResourceDestroyed(IResource resource)
         {
             // compose the packet
-            SendEvent(IIPPacket.IIPPacketEvent.ResourceDestroyed, resource.Instance.Id);
+            SendEvent(IIPPacket.IIPPacketEvent.ResourceDestroyed)
+                        .AddUInt32(resource.Instance.Id)
+                        .Done();
         }
 
         private void Instance_PropertyModified(IResource resource, string name, object newValue)
         {
-            var pt = resource.Instance.Template.GetPropertyTemplate(name);
+            var pt = resource.Instance.Template.GetPropertyTemplateByName(name);
 
             if (pt == null)
                 return;
 
-           SendEvent(IIPPacket.IIPPacketEvent.PropertyUpdated, resource.Instance.Id, pt.Index, Codec.Compose(newValue, this));
+            SendEvent(IIPPacket.IIPPacketEvent.PropertyUpdated)
+                        .AddUInt32(resource.Instance.Id)
+                        .AddUInt8(pt.Index)
+                        .AddUInt8Array(Codec.Compose(newValue, this))
+                        .Done();
 
         }
 
@@ -1941,7 +2107,7 @@ namespace Esiur.Net.IIP
 
         private void Instance_EventOccurred(IResource resource, object issuer, Session[] receivers, string name, object[] args)
         {
-            var et = resource.Instance.Template.GetEventTemplate(name);
+            var et = resource.Instance.Template.GetEventTemplateByName(name);
 
             if (et == null)
                 return;
@@ -1964,8 +2130,11 @@ namespace Esiur.Net.IIP
                 return;
 
             // compose the packet
-            SendEvent(IIPPacket.IIPPacketEvent.EventOccurred,
-                resource.Instance.Id, (byte)et.Index, Codec.ComposeVarArray(args, this, true));
+            SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
+                        .AddUInt32(resource.Instance.Id)
+                        .AddUInt8((byte)et.Index)
+                        .AddUInt8Array(Codec.ComposeVarArray(args, this, true))
+                        .Done();
         }
     }
 }
