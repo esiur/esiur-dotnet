@@ -10,13 +10,13 @@ using Esiur.Resource.Template;
 
 namespace Esiur.Stores
 {
-    public class MemoryStore : IStore
+    public class TemporaryStore : IStore
     {
         public Instance Instance { get; set; }
 
         public event DestroyedEvent OnDestroy;
 
-        Dictionary<uint, IResource> resources = new Dictionary<uint, IResource>();
+        Dictionary<uint, WeakReference> resources = new Dictionary<uint, WeakReference>();
 
         public void Destroy()
         {
@@ -34,18 +34,15 @@ namespace Esiur.Stores
         public AsyncReply<IResource> Get(string path)
         {
             foreach (var r in resources)
-                if (r.Value.Instance.Name == path)
-                    return new AsyncReply<IResource>(r.Value);
+                if (r.Value.IsAlive && (r.Value.Target as IResource).Instance.Name == path)
+                    return new AsyncReply<IResource>(r.Value.Target as IResource);
 
             return new AsyncReply<IResource>(null);
         }
 
         public bool Put(IResource resource)
         {
-            resources.Add(resource.Instance.Id, resource);//  new WeakReference<IResource>(resource));
-            resource.Instance.Attributes["children"] = new AutoList<IResource, Instance>(resource.Instance);
-            resource.Instance.Attributes["parents"] = new AutoList<IResource, Instance>(resource.Instance);
-
+            resources.Add(resource.Instance.Id, new WeakReference( resource));//  new WeakReference<IResource>(resource));
             return true;
         }
 
@@ -53,8 +50,8 @@ namespace Esiur.Stores
         {
             if (resources.ContainsKey(iid))
             {
-                if (resources.ContainsKey(iid))// .TryGetTarget(out r))
-                    return new AsyncReply<IResource>(resources[iid]);
+                if (resources.ContainsKey(iid) && resources[iid].IsAlive)// .TryGetTarget(out r))
+                    return new AsyncReply<IResource>(resources[iid].Target as IResource);
                 else
                     return new AsyncReply<IResource>(null);
             }
@@ -90,13 +87,7 @@ namespace Esiur.Stores
 
         public AsyncReply<bool> AddChild(IResource parent, IResource child)
         {
-            if (parent.Instance.Store == this)
-            {
-                (parent.Instance.Attributes["children"] as AutoList<IResource, Instance>).Add(child);
-                return new AsyncReply<bool>(true);
-            }
-            else
-                return new AsyncReply<bool>(false);
+            throw new NotImplementedException();
         }
 
         public AsyncReply<bool> RemoveChild(IResource parent, IResource child)
@@ -104,16 +95,9 @@ namespace Esiur.Stores
             throw new NotImplementedException();
         }
 
-        public AsyncReply<bool> AddParent(IResource resource, IResource parent)
+        public AsyncReply<bool> AddParent(IResource child, IResource parent)
         {
-
-            if (resource.Instance.Store == this)
-            {
-                (resource.Instance.Attributes["parents"] as AutoList<IResource, Instance>).Add(parent);
-                return new AsyncReply<bool>(true);
-            }
-            else
-                return new AsyncReply<bool>(false);
+            throw new NotImplementedException();
         }
 
         public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
@@ -123,23 +107,12 @@ namespace Esiur.Stores
 
         public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
         {
-            var children = (resource.Instance.Attributes["children"] as AutoList<IResource, Instance>);
-
-            if (name == null)
-                return new AsyncBag<T>(children.Where(x=>x is T).Select(x=>(T)x).ToArray());
-            else
-                return new AsyncBag<T>(children.Where(x => x is T && x.Instance.Name == name).Select(x => (T)x).ToArray());
-            
+            throw new NotImplementedException();
         }
 
         public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
         {
-            var parents = (resource.Instance.Attributes["parents"] as AutoList<IResource, Instance>);
-
-            if (name == null)
-                return new AsyncBag<T>(parents.Where(x => x is T).Select(x => (T)x).ToArray());
-            else
-                return new AsyncBag<T>(parents.Where(x => x is T && x.Instance.Name == name).Select(x => (T)x).ToArray());
+            throw new NotImplementedException();
         }
     }
 }

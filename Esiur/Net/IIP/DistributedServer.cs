@@ -56,6 +56,12 @@ namespace Esiur.Net.IIP
             set;
         }
 
+        public EntryPoint EntryPoint
+        {
+            get;
+            set;
+        }
+
         //[Storable]
         //[ResourceProperty]
         public ushort port
@@ -128,8 +134,7 @@ namespace Esiur.Net.IIP
 
         protected override void ClientConnected(DistributedConnection sender)
         {
-            Console.WriteLine("DistributedConnection Client Connected");
-            
+            //Console.WriteLine("DistributedConnection Client Connected");
         }
 
         private void Sender_OnReady(DistributedConnection sender)

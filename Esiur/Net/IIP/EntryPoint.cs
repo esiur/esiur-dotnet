@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2019 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,36 +25,16 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Esiur.Core;
+using Esiur.Data;
+using Esiur.Resource;
+using Esiur.Resource.Template;
 
-namespace Esiur.Resource
+namespace Esiur.Net.IIP
 {
-    public class Resource : IResource
+    public abstract class EntryPoint : Esiur.Resource.Resource
     {
-        public Instance Instance { get; set; }
 
-        public event DestroyedEvent OnDestroy;
-
-        public virtual void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-        }
-
-        public virtual AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)
-                return new AsyncReply<bool>(this.Create());
-            else
-                return new AsyncReply<bool>(true);
-        }
-
-        public virtual bool Create()
-        {
-            return true;
-        }
-
-        ~Resource()
-        {
-            Destroy();
-        }
+        public abstract AsyncReply<IResource[]> Query(string path, DistributedConnection sender);
+        public abstract override bool Create();
     }
 }

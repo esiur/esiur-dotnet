@@ -16,6 +16,6 @@ namespace Esiur.Core
         void TriggerProgress(ProgressType type, int value, int max);
         void TriggerChunk(object value);
 
-
+        T Wait();
     }
 }

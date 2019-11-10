@@ -95,5 +95,11 @@ namespace Esiur.Core
 
         }
 
+        public AsyncBag(T[] results)
+        {
+            resultReady = true;
+            base.result = results;
+        }
+
     }
 }

@@ -62,7 +62,7 @@ namespace Esiur.Data
                     list.Add((byte)i);
                 else
                 {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                     MethodInfo mi = typeof(DC).GetTypeInfo().GetMethod("ToBytes", new Type[] { i.GetType() });
 #else
                     MethodInfo mi = typeof(DC).GetMethod("ToBytes", new Type[] { i.GetType() });
@@ -100,7 +100,7 @@ namespace Esiur.Data
                     list.Add((byte)i);
                 else
                 {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                     MethodInfo mi = typeof(DC).GetTypeInfo().GetMethod("ToBytes", new Type[] { i.GetType() });
 #else
                     MethodInfo mi = typeof(DC).GetMethod("ToBytes", new Type[] { i.GetType() });
@@ -138,7 +138,7 @@ namespace Esiur.Data
                 }
                 else
                 {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                     MethodInfo mi = typeof(DC).GetTypeInfo().GetMethod("ToBytes", new Type[] { i.GetType() });
 #else
                     MethodInfo mi = typeof(DC).GetMethod("ToBytes", new Type[] { i.GetType() });

@@ -387,7 +387,10 @@ namespace Esiur.Net.IIP
             {
                 Fetch(childId).Then(child =>
                 {
-                    parent.Instance.Children.Add(child);
+                    parent.children.Add(child);
+                    child.parents.Add(parent);
+
+                    //parent.Instance.Children.Add(child);
                 });
             });
         }
@@ -398,7 +401,10 @@ namespace Esiur.Net.IIP
             {
                 Fetch(childId).Then(child =>
                 {
-                    parent.Instance.Children.Remove(child);
+                    parent.children.Remove(child);
+                    child.parents.Remove(parent);
+
+//                    parent.Instance.Children.Remove(child);
                 });
             });
         }
@@ -443,16 +449,16 @@ namespace Esiur.Net.IIP
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-                    r.Instance.Children.OnAdd -= Children_OnAdd;
-                    r.Instance.Children.OnRemoved -= Children_OnRemoved;
+                   // r.Instance.Children.OnAdd -= Children_OnAdd;
+                   // r.Instance.Children.OnRemoved -= Children_OnRemoved;
                     r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
                     // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
                     r.Instance.ResourceModified += Instance_PropertyModified;
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
-                    r.Instance.Children.OnAdd += Children_OnAdd;
-                    r.Instance.Children.OnRemoved += Children_OnRemoved;
+                    //r.Instance.Children.OnAdd += Children_OnAdd;
+                    //r.Instance.Children.OnRemoved += Children_OnRemoved;
                     r.Instance.Attributes.OnModified += Attributes_OnModified;
 
                     var link = DC.ToBytes(r.Instance.Link);
@@ -520,6 +526,28 @@ namespace Esiur.Net.IIP
                 .Done();
         }
 
+
+        public bool RemoveChild(IResource parent, IResource child)
+        {
+            SendEvent(IIPPacket.IIPPacketEvent.ChildRemoved)
+                .AddUInt32((parent as DistributedResource).Id)
+                .AddUInt32((child as DistributedResource).Id)
+                .Done();
+
+            return true;
+        }
+
+        public bool AddChild(IResource parent, IResource child)
+        {
+            SendEvent(IIPPacket.IIPPacketEvent.ChildAdded)
+                .AddUInt32((parent as DistributedResource).Id)
+                .AddUInt32((child as DistributedResource).Id)
+                .Done();
+
+            return true;
+        }
+
+
         void IIPRequestReattachResource(uint callback, uint resourceId, ulong resourceAge)
         {
             Warehouse.Get(resourceId).Then((res) =>
@@ -531,16 +559,16 @@ namespace Esiur.Net.IIP
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-                    r.Instance.Children.OnAdd -= Children_OnAdd;
-                    r.Instance.Children.OnRemoved -= Children_OnRemoved;
+                    //r.Instance.Children.OnAdd -= Children_OnAdd;
+                    //r.Instance.Children.OnRemoved -= Children_OnRemoved;
                     r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
                     // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
                     r.Instance.ResourceModified += Instance_PropertyModified;
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
-                    r.Instance.Children.OnAdd += Children_OnAdd;
-                    r.Instance.Children.OnRemoved += Children_OnRemoved;
+                    //r.Instance.Children.OnAdd += Children_OnAdd;
+                    //r.Instance.Children.OnRemoved += Children_OnRemoved;
                     r.Instance.Attributes.OnModified += Attributes_OnModified;
 
                     // reply ok
@@ -646,7 +674,7 @@ namespace Esiur.Net.IIP
                             Codec.ParseStructure(content, offset, cl, this).Then(values =>
                             {
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
                                 var constructors = Type.GetType(className).GetTypeInfo().GetConstructors();
 #else
                                 var constructors = Type.GetType(className).GetConstructors();
@@ -791,7 +819,7 @@ namespace Esiur.Net.IIP
                         return;
                     }
 
-                    parent.Instance.Children.Add(child);
+                    parent.Instance.Store.AddChild(parent, child);
 
                     SendReply(IIPPacket.IIPPacketAction.AddChild, callback).Done();
                     //child.Instance.Parents
@@ -830,7 +858,7 @@ namespace Esiur.Net.IIP
                         return;
                     }
 
-                    parent.Instance.Children.Remove(child);
+                    parent.Instance.Store.RemoveChild(parent, child);// Children.Remove(child);
 
                     SendReply(IIPPacket.IIPPacketAction.RemoveChild, callback).Done();
                     //child.Instance.Parents
@@ -871,9 +899,14 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                SendReply(IIPPacket.IIPPacketAction.ResourceChildren, callback)
-                    .AddUInt8Array(Codec.ComposeResourceArray(resource.Instance.Children.ToArray(), this, true))
-                    .Done();
+                resource.Instance.Children<IResource>().Then(children =>
+                {
+                    SendReply(IIPPacket.IIPPacketAction.ResourceChildren, callback)
+                        .AddUInt8Array(Codec.ComposeResourceArray(children, this, true))
+                        .Done();
+
+                });
+
 
             });
         }
@@ -888,9 +921,14 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                SendReply(IIPPacket.IIPPacketAction.ResourceParents, callback)
-                        .AddUInt8Array(Codec.ComposeResourceArray(resource.Instance.Parents.ToArray(), this, true))
-                        .Done();
+                resource.Instance.Parents<IResource>().Then(parents =>
+                {
+                    SendReply(IIPPacket.IIPPacketAction.ResourceParents, callback)
+                    .AddUInt8Array(Codec.ComposeResourceArray(parents, this, true))
+                    .Done();
+
+                });
+
             });
         }
 
@@ -1010,7 +1048,8 @@ namespace Esiur.Net.IIP
 
         void IIPRequestQueryResources(uint callback, string resourceLink)
         {
-            Warehouse.Query(resourceLink).Then((r) =>
+
+            Action<IResource[]> queryCallback = (r) =>
             {
                 //if (r != null)
                 //{
@@ -1022,12 +1061,12 @@ namespace Esiur.Net.IIP
                     SendReply(IIPPacket.IIPPacketAction.QueryLink, callback)
                                 .AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
                                 .Done();
-                //}
-                //else
-                //{
-                // reply failed
-                //}
-            });
+            };
+
+            if (Server?.EntryPoint != null)
+                Server.EntryPoint.Query(resourceLink, this).Then(queryCallback);
+            else
+                Warehouse.Query(resourceLink).ContinueWith(x => queryCallback(x.Result));
         }
 
         void IIPRequestResourceAttribute(uint callback, uint resourceId)
@@ -1068,7 +1107,7 @@ namespace Esiur.Net.IIP
                             }
                             else
                             {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                                 var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
 #else
                                 var fi = r.GetType().GetMethod(ft.Name);
@@ -1134,7 +1173,7 @@ namespace Esiur.Net.IIP
                                     {
                                         (rt as Task).ContinueWith(t =>
                                         {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                                             var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
@@ -1225,7 +1264,7 @@ namespace Esiur.Net.IIP
                              }
                              else
                              {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                                 var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
 #else
                                 var fi = r.GetType().GetMethod(ft.Name);
@@ -1285,7 +1324,7 @@ namespace Esiur.Net.IIP
                                      {
                                          (rt as Task).ContinueWith(t =>
                                          {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                                             var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
@@ -1358,7 +1397,7 @@ namespace Esiur.Net.IIP
                         }
                         else
                         {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                             var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                             var pi = r.GetType().GetProperty(pt.Name);
@@ -1435,7 +1474,7 @@ namespace Esiur.Net.IIP
                     {
                         if (r.Instance.GetAge(index) > age)
                         {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                             var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                             var pi = r.GetType().GetProperty(pt.Name);
@@ -1498,7 +1537,7 @@ namespace Esiur.Net.IIP
                             {
 
                                 /*
-#if NETSTANDARD1_5
+#if NETSTANDARD
                                 var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                                 var pi = r.GetType().GetProperty(pt.Name);
@@ -1748,12 +1787,18 @@ namespace Esiur.Net.IIP
 
             Query(path).Then(ar =>
             {
+
+                //if (filter != null)
+                  //  ar = ar?.Where(filter).ToArray();
+
+                // MISSING: should dispatch the unused resources. 
                 if (ar?.Length > 0)
                     rt.Trigger(ar[0]);
                 else
                     rt.Trigger(null);
             }).Error(ex => rt.TriggerError(ex));
 
+            
             return rt;
 
             /*

@@ -65,11 +65,15 @@ namespace Esiur.Net.TCP
         }
         public Instance Instance { get; set; }
 
+        TCPFilter[] filters = null;
+
+
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
             if (trigger == ResourceTrigger.Initialize)
             {
                 TCPSocket listener;
+
 
                 if (ip != null)
                     listener =new TCPSocket(new IPEndPoint(IPAddress.Parse(ip), port));
@@ -77,6 +81,8 @@ namespace Esiur.Net.TCP
                     listener = new TCPSocket(new IPEndPoint(IPAddress.Any, port));
 
                 Start(listener, timeout, clock);
+
+
             }
             else if (trigger == ResourceTrigger.Terminate)
             {
@@ -86,6 +92,10 @@ namespace Esiur.Net.TCP
             {
                 Trigger(ResourceTrigger.Terminate);
                 Trigger(ResourceTrigger.Initialize);
+            }
+            else if (trigger == ResourceTrigger.SystemInitialized)
+            {
+                Instance.Children<TCPFilter>().Then(x => filters = x);
             }
 
             return new AsyncReply<bool>(true);
@@ -97,14 +107,10 @@ namespace Esiur.Net.TCP
         {
             var msg = data.Read();
 
-            foreach (var resource in Instance.Children)
-            {
-                if (resource is TCPFilter)
-                {
-                    var f = resource as TCPFilter;
-                    if (f.Execute(msg, data, sender))
+            foreach (var filter in filters)
+            { 
+                    if (filter.Execute(msg, data, sender))
                         return;
-                }
             }
         }
 
@@ -115,25 +121,17 @@ namespace Esiur.Net.TCP
 
         protected override void ClientConnected(TCPConnection sender)
         {
-            foreach (var resource in Instance.Children)
+            foreach (var filter in filters)
             {
-                if (resource is TCPFilter)
-                {
-                    var f = resource as TCPFilter;
-                    f.Connected(sender);
-                }
+                filter.Connected(sender);
             }
         }
 
         protected override void ClientDisconnected(TCPConnection sender)
         {
-            foreach (var resource in Instance.Children)
+            foreach (var filter in filters)
             {
-                if (resource is TCPFilter)
-                {
-                    var f = resource as TCPFilter;
-                    f.Disconnected(sender);
-                }
+                filter.Disconnected(sender);
             }
         }
 

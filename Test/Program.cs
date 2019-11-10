@@ -51,8 +51,6 @@ namespace Test
         {
 
 
-            Warehouse.Protocols.Add("iip", () => new DistributedConnection());
-
             // Create stores to keep objects.
             var system = Warehouse.New<MemoryStore>("system");
             var remote = Warehouse.New<MemoryStore>("remote");
@@ -64,12 +62,12 @@ namespace Test
             // Set membership which handles authentication.
             iip.Membership = Warehouse.New<MyMembership>("ms", system);
             // Start the server on port 5000.
-            iip.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 5000)), 600000, 60000);
+            iip.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 500)), 600000, 60000);
 
 
             // Create http server to handle IIP over Websockets
             var http = Warehouse.New<HTTPServer>("http", system);
-            http.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 5001)), 600000, 60000);
+            http.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 501)), 600000, 60000);
 
             // Create IIP over Websocket HTTP module and give it to HTTP server.
             var wsOverHttp = Warehouse.New<IIPoWS>("IIPoWS", system, http);
@@ -106,13 +104,10 @@ namespace Test
                         }
                     }));
             else
-                localObject = (MyObject)(await Warehouse.Get("db/my"));//.Then((o) => { myObject = (MyObject)o; });
+                localObject = (MyObject)(await Warehouse.Get("db/my"));
 
 
-            //var obj = ProxyObject.<MyObject>();
-            //Warehouse.Put(obj, "dd", system);
-            //obj.Level2= 33;
-
+            iip.EntryPoint = localObject;
 
             Warehouse.StoreConnected += (store, name) =>
             {
@@ -160,7 +155,7 @@ namespace Test
         private static async void TestClient()
         {
 
-            remoteObject = await Warehouse.Get("iip://localhost:5000/db/my", new Structure() { ["username"] = "demo", ["password"] = "1234" });
+            remoteObject = await Warehouse.Get("iip://localhost:500/db/my", new { username= "demo", password = 1234 });
 
             dynamic x = remoteObject;
 

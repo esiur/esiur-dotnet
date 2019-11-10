@@ -35,13 +35,27 @@ namespace Esiur.Resource
 {
     public interface IStore:IResource
     {
-        AsyncReply<IResource> Get(string path);
-        AsyncReply<IResource> Retrieve(uint iid);
+        AsyncReply<IResource> Get(string path);//, Func<IResource, bool> filter = null);
+        //AsyncReply<IResource> Retrieve(uint iid);
         bool Put(IResource resource);
         string Link(IResource resource);
         bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
         bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
         bool Remove(IResource resource);
+
+
+        AsyncReply<bool> AddChild(IResource parent, IResource child);
+        AsyncReply<bool> RemoveChild(IResource parent, IResource child);
+
+        AsyncReply<bool> AddParent(IResource child, IResource parent);
+        AsyncReply<bool> RemoveParent(IResource child, IResource parent);
+
+
+        AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource;
+        AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource;
+
+
+
         //AsyncReply<PropertyValue[]> GetPropertyRecord(IResource resource, string propertyName, ulong fromAge, ulong toAge);
         //AsyncReply<PropertyValue[]> GetPropertyRecordByDate(IResource resource, string propertyName, DateTime fromDate, DateTime toDate);
 

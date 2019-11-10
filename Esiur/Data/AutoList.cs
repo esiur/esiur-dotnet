@@ -96,7 +96,7 @@ namespace Esiur.Data
         public AutoList(ST state)
         {
             this.state = state;
-#if NETSTANDARD1_5
+#if NETSTANDARD
             removableList = (typeof(IDestructible).GetTypeInfo().IsAssignableFrom(typeof(T).GetTypeInfo()));
 #else
                         removableList = (typeof(IDestructible).IsAssignableFrom(typeof(T)));
@@ -111,7 +111,7 @@ namespace Esiur.Data
         public AutoList(ST state, T[] values)
         {
             this.state = state;
-                #if NETSTANDARD1_5
+                #if NETSTANDARD
                             removableList = (typeof(IDestructible).GetTypeInfo().IsAssignableFrom(typeof(T).GetTypeInfo()));
                 #else
                                         removableList = (typeof(IDestructible).IsAssignableFrom(typeof(T)));

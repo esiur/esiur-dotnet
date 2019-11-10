@@ -31,6 +31,7 @@ using System.Threading.Tasks;
 using Esiur.Data;
 using Esiur.Misc;
 using Esiur.Core;
+using System.Reflection;
 
 namespace Esiur.Data
 {
@@ -61,6 +62,26 @@ namespace Esiur.Data
             return rt.TrimEnd('\r', '\n');
         }
 
+
+        public static Structure FromObject(object obj)
+        {
+            var type = obj.GetType();
+
+            if (obj is Structure)
+                return obj as Structure;
+            else if (Codec.IsAnonymous(type))
+            {
+                var st = new Structure();
+
+                var pi = type.GetTypeInfo().GetProperties();
+                foreach (var p in pi)
+                    st[p.Name] = p.GetValue(obj);
+
+                return st;
+            }
+            else
+                return null;
+        }
         public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
             return dic.GetEnumerator();

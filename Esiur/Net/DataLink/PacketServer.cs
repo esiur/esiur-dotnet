@@ -72,20 +72,20 @@ namespace Esiur.Net.DataLink
         {
             if (trigger == ResourceTrigger.Initialize)
             {
-
-                foreach (Instance instance in Instance.Children)
+                /*
+                foreach (var resource in Instance.Children<IResource>())
                 {
 
-                    if (instance.Resource is PacketFilter)
+                    if (resource is PacketFilter)
                     {
-                        filters.Add(instance.Resource as PacketFilter);
+                        filters.Add(resource as PacketFilter);
                     }
-                    else if (instance.Resource is PacketSource)
+                    else if (resource is PacketSource)
                     {
-                        sources.Add(instance.Resource as PacketSource);
+                        sources.Add(resource as PacketSource);
                     }
                 }
-
+                */
                 foreach (var src in sources)
                 {
                     src.OnNewPacket += PacketReceived;

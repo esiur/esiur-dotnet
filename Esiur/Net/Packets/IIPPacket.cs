@@ -209,8 +209,8 @@ namespace Esiur.Net.Packets
         {
             if (offset + needed > ends)
             {
-                //dataLengthNeeded = needed - (ends - offset);
-                dataLengthNeeded = needed - (ends - originalOffset);
+                dataLengthNeeded = needed - (ends - offset);
+                //dataLengthNeeded = needed - (ends - originalOffset);
 
                 return true;
             }

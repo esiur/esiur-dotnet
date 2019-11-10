@@ -32,6 +32,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Esiur.Net.IIP;
+using System.Text.RegularExpressions;
 
 namespace Esiur.Resource
 {
@@ -40,13 +42,13 @@ namespace Esiur.Resource
     {
         //static byte prefixCounter;
 
-        static AutoList<IResource, Instance> stores = new AutoList<IResource, Instance>(null);
-        static Dictionary<uint, IResource> resources = new Dictionary<uint, IResource>();
+        static AutoList<IStore, Instance> stores = new AutoList<IStore, Instance>(null);
+        static Dictionary<uint, WeakReference<IResource>> resources = new Dictionary<uint, WeakReference<IResource>>();
         static uint resourceCounter = 0;
 
         static KeyList<Guid, ResourceTemplate> templates = new KeyList<Guid, ResourceTemplate>();
 
-        static bool storeIsOpen = false;
+        static bool warehouseIsOpen = false;
 
         public delegate void StoreConnectedEvent(IStore store, string name);
         public delegate void StoreDisconnectedEvent(IStore store);
@@ -54,7 +56,15 @@ namespace Esiur.Resource
         public static event StoreConnectedEvent StoreConnected;
         public static event StoreDisconnectedEvent StoreDisconnected;
 
-        public static KeyList<string, Func<IStore>> Protocols { get; } = new KeyList<string, Func<IStore>>();
+        public static KeyList<string, Func<IStore>> Protocols { get; } = getSupportedProtocols();
+
+
+        static KeyList<string, Func<IStore>> getSupportedProtocols()
+        {
+            var rt = new KeyList<string, Func<IStore>>();
+            rt.Add("iip", () => new DistributedConnection());
+            return rt;
+        }
 
         /// <summary>
         /// Get a store by its name.
@@ -77,7 +87,13 @@ namespace Esiur.Resource
         public static AsyncReply<IResource> Get(uint id)
         {
             if (resources.ContainsKey(id))
-                return new AsyncReply<IResource>(resources[id]);
+            {
+                IResource r;
+                if (resources[id].TryGetTarget(out r))
+                    return new AsyncReply<IResource>(r);
+                else
+                    return new AsyncReply<IResource>(null); 
+            }
             else
                 return new AsyncReply<IResource>(null);
         }
@@ -109,7 +125,11 @@ namespace Esiur.Resource
 
                 var rBag = new AsyncBag<bool>();
                 foreach (var rk in resources)
-                    rBag.Add(rk.Value.Trigger(ResourceTrigger.SystemInitialized));
+                {
+                    IResource r;
+                    if (rk.Value.TryGetTarget(out r))
+                        rBag.Add(r.Trigger(ResourceTrigger.SystemInitialized));
+                }
 
                 rBag.Seal();
 
@@ -123,7 +143,7 @@ namespace Esiur.Resource
                         }
 
                     rt.Trigger(true);
-                    storeIsOpen = true;
+                    warehouseIsOpen = true;
                 });
 
             });
@@ -142,15 +162,30 @@ namespace Esiur.Resource
             var bag = new AsyncBag<bool>();
 
             foreach (var resource in resources.Values)
-                if (!(resource is IStore))
-                    bag.Add(resource.Trigger(ResourceTrigger.Terminate));
+            {
+                IResource r;
+                if (resource.TryGetTarget(out r))
+                {
+                    if (!(r is IStore))
+                        bag.Add(r.Trigger(ResourceTrigger.Terminate));
+
+                }
+            }
 
             foreach (var store in stores)
                 bag.Add(store.Trigger(ResourceTrigger.Terminate));
 
+
             foreach (var resource in resources.Values)
-                if (!(resource is IStore))
-                    bag.Add(resource.Trigger(ResourceTrigger.SystemTerminated));
+            {
+                IResource r;
+                if (resource.TryGetTarget(out r))
+                {
+                    if (!(r is IStore))
+                        bag.Add(r.Trigger(ResourceTrigger.SystemTerminated));
+                }
+            }
+
 
             foreach (var store in stores)
                 bag.Add(store.Trigger(ResourceTrigger.SystemTerminated));
@@ -174,7 +209,8 @@ namespace Esiur.Resource
         }
 
 
-        private static IResource[] QureyIn(string[] path, int index, AutoList<IResource, Instance> resources)
+        /*
+        private static IResource[] QureyIn(string[] path, int index, IEnumerable<IResource> resources)// AutoList<IResource, Instance> resources)
         {
             var rt = new List<IResource>();
 
@@ -191,18 +227,16 @@ namespace Esiur.Resource
             else
                 foreach (IResource child in resources)
                     if (child.Instance.Name == path[index])
-                        rt.AddRange(QureyIn(path, index+1, child.Instance.Children));
+                        rt.AddRange(QureyIn(path, index+1, child.Instance.Children<IResource>()));
 
             return rt.ToArray();
         }
 
         public static AsyncReply<IResource[]> Query(string path)
         {
-
-
             if (path == null || path == "")
             {
-                var roots = stores.Where(s => s.Instance.Parents.Count == 0).ToArray();
+                var roots = stores.Where(s => s.Instance.Parents<IResource>().Count() == 0).ToArray();
                 return new AsyncReply<IResource[]>(roots);
             }
             else
@@ -229,6 +263,51 @@ namespace Esiur.Resource
             }
 
         }
+        */
+
+
+        
+        public static async Task<IResource[]> Query(string path)
+        {
+            var rt = new AsyncReply<IResource[]>();
+
+            var p = path.Trim().Split('/');
+            IResource resource;
+
+            foreach (var store in stores)
+                if (p[0] == store.Instance.Name)
+                {
+
+                    if (p.Length == 1)
+                        return new IResource[] { store };
+
+                    var res = await store.Get(String.Join("/", p.Skip(1).ToArray()));
+                    if (res != null)
+                        return new IResource[] { res };
+                    
+                    
+                    resource = store;
+                    for (var i = 1; i < p.Length; i++)
+                    {
+                        var children = await resource.Instance.Children<IResource>(p[i]);
+                        if (children.Length > 0)
+                        {
+                            if (i == p.Length - 1)
+                                return children;
+                            else
+                                resource = children[0];
+                        }
+                        else
+                            break;
+                    }
+
+                    return null;
+                }
+
+
+
+            return null;
+        }
 
         /// <summary>
         /// Get a resource by its path.
@@ -236,38 +315,15 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <returns>Resource instance.</returns>
-        public static AsyncReply<IResource> Get(string path, Structure attributes = null, IResource parent = null, IPermissionsManager manager = null)
+        public static AsyncReply<IResource> Get(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
         {
 
-            var p = path.Split('/');
-            IResource res;
 
-            foreach(IStore d in stores)
-                if (p[0] == d.Instance.Name)
-                {
-                    var i = 1;
-                    res = d;
-                    while(p.Length > i)
-                    {
-                        var si = i;
 
-                        foreach (IResource r in res.Instance.Children)
-                            if (r.Instance.Name == p[i])
-                            {
-                                i++;
-                                res = r;
-                                break;
-                            }
-
-                        if (si == i)
-                            // not found, ask the store
-                            return d.Get(path.Substring(p[0].Length + 1));
-                    }
-
-                    return new AsyncReply<IResource>(res);
-                }
-
+            var rt = new AsyncReply<IResource>();
+            
             // Should we create a new store ?
+
             if (path.Contains("://"))
             {
                 var url = path.Split(new string[] { "://" }, 2, StringSplitOptions.None);
@@ -275,17 +331,18 @@ namespace Esiur.Resource
                 var pathname = string.Join("/", url[1].Split(new char[] { '/' }).Skip(1));
 
 
-                var rt = new AsyncReply<IResource>();
-
                 if (Protocols.ContainsKey(url[0]))
                 {
                     var handler = Protocols[url[0]];
 
-                    var store = handler();// Activator.CreateInstance(handler.GetType()) as IStore;
-                    Put(store, url[0] + "://" + hostname, null, parent, null, 0, manager, attributes);
+                    var store = handler();
+                    Put(store, hostname, null, parent, null, 0, manager, attributes);
 
 
                     store.Trigger(ResourceTrigger.Open).Then(x => {
+
+                        warehouseIsOpen = true;
+
                         if (pathname.Length > 0 && pathname != "")
                             store.Get(pathname).Then(r => {
                                 rt.Trigger(r);
@@ -296,13 +353,24 @@ namespace Esiur.Resource
                         rt.TriggerError(e);
                         Warehouse.Remove(store);
                     });
+
+                    return rt;
                 }
-
-                return rt;
             }
+            
+            
+            Query(path).ContinueWith(rs =>
+            {
+ //                rt.TriggerError(new Exception());
+                if (rs.Result != null && rs.Result.Length > 0)
+                    rt.Trigger(rs.Result[0]);
+                else
+                    rt.Trigger(null);
+            });
+            
+            return rt;
+      
 
-
-            return new AsyncReply<IResource>(null);
         }
 
         /// <summary>
@@ -312,12 +380,31 @@ namespace Esiur.Resource
         /// <param name="name">Resource name.</param>
         /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, Structure attributes = null)
+        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null)
         {
+
+            if (store == null)
+            {
+                // assign parent as a store
+                if (parent is IStore)
+                    store = (IStore)parent;
+                // assign parent's store as a store
+                else if (parent != null)
+                    store = parent.Instance.Store;
+                // assign self as a store (root store)
+                else if (resource is IStore)
+                {
+                    store = (IStore)resource;
+                    stores.Add(resource as IStore);
+                }
+                else
+                    throw new Exception("Can't find a store for the resource.");
+            }
+
             resource.Instance = new Instance(resourceCounter++, name, resource, store, customTemplate, age);
 
             if (attributes != null)
-                resource.Instance.SetAttributes(attributes);
+                resource.Instance.SetAttributes(Structure.FromObject(attributes));
 
             if (manager != null)
                 resource.Instance.Managers.Add(manager);
@@ -325,6 +412,8 @@ namespace Esiur.Resource
             if (store == parent)
                 parent = null;
 
+
+            /*
             if (parent == null)
             {
                 if (!(resource is IStore))
@@ -332,20 +421,26 @@ namespace Esiur.Resource
             }
             else
                 parent.Instance.Children.Add(resource);
-
+               */
                 
 
-            if (resource is IStore)
-            {
-                stores.Add(resource as IStore);
+            if (resource is IStore)                    
                 StoreConnected?.Invoke(resource as IStore, name);
-            }
             else
                 store.Put(resource);
 
-            resources.Add(resource.Instance.Id, resource);
 
-            if (storeIsOpen)
+            if (parent != null)
+            {
+                parent.Instance.Store.AddChild(parent, resource);
+                store.AddParent(resource, parent);
+                //store.AddChild(parent, resource);
+
+            }
+
+            resources.Add(resource.Instance.Id, new WeakReference<IResource>(resource));
+
+            if (warehouseIsOpen)
                  resource.Trigger(ResourceTrigger.Initialize);
 
         }
@@ -430,9 +525,17 @@ namespace Esiur.Resource
                 stores.Remove(resource as IStore);
 
                 // remove all objects associated with the store
-                var toBeRemoved = resources.Values.Where(x => x.Instance.Store == resource);
+                var toBeRemoved = resources.Values.Where(x => {
+                    IResource r;
+                    return x.TryGetTarget(out r) && r.Instance.Store == resource;
+                });
+
                 foreach (var o in toBeRemoved)
-                    Remove(o);
+                {
+                    IResource r;
+                    if (o.TryGetTarget(out r))
+                        Remove(r);
+                }
 
                 StoreDisconnected?.Invoke(resource as IStore);
             }

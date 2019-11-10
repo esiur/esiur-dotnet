@@ -312,7 +312,7 @@ namespace Esiur.Net.IIP
             {
                 var rt = packet.Parse(msg, offset, ends);
                 //Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
-                
+
                 /*
                 if (packet.Command == IIPPacketCommand.Event)
                     Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Event.ToString());
@@ -321,21 +321,27 @@ namespace Esiur.Net.IIP
                 else
                     Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Action.ToString() + " " + packet.ResourceId + " " + offset + "/" + ends);
                   */
-                  
+
 
                 //packs.Add(packet.Command.ToString() + " " + packet.Action.ToString() + " " + packet.Event.ToString());
 
                 //if (packs.Count > 1)
-                  //  Console.WriteLine("P2");
+                //  Console.WriteLine("P2");
+
+                //Console.WriteLine("");
 
                 if (rt <= 0)
                 {
+                    //Console.WriteLine("Hold");
                     var size = ends - offset;
                     data.HoldFor(msg, offset, size, size + (uint)(-rt));
                     return ends;
                 }
                 else
                 {
+
+                    //Console.WriteLine($"CMD {packet.Command} {offset} {ends}");
+
                     offset += (uint)rt;
 
                     if (packet.Command == IIPPacket.IIPPacketCommand.Event)
@@ -807,7 +813,9 @@ namespace Esiur.Net.IIP
                     sock.Connect(domain, port).Then((x)=> {
                         Assign(sock);
                         //rt.trigger(true);
-                    }).Error((x) => openReply.TriggerError(x));
+                    }).Error((x) => 
+                        openReply.TriggerError(x)
+                        );
 
                     return openReply;
                 }
@@ -840,6 +848,65 @@ namespace Esiur.Net.IIP
             // nothing to do
             return true;
         }
-         
+
+        AsyncReply<bool> IStore.AddChild(IResource parent, IResource child)
+        {
+            // not implemented
+            throw new NotImplementedException();
+        }
+
+        AsyncReply<bool> IStore.RemoveChild(IResource parent, IResource child)
+        {
+            // not implemeneted
+            throw new NotImplementedException();
+        }
+
+        public AsyncReply<bool> AddParent(IResource child, IResource parent)
+        {
+            throw new NotImplementedException();
+        }
+
+        public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
+        {
+            throw new NotImplementedException();
+        }
+
+        public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
+        {
+            throw new Exception("SS");
+
+            //if (Codec.IsLocalResource(resource, this))
+              //  return new AsyncBag<T>((resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x));
+
+            return null;
+        }
+
+        public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
+        {
+            throw new Exception("SS");
+            //if (Codec.IsLocalResource(resource, this))
+              //  return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
+
+            return null;
+        }
+
+        /*
+        public AsyncBag<T> Children<T>(IResource resource)
+        {
+            if (Codec.IsLocalResource(resource, this))
+                return (resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
+
+            return null;
+        }
+
+        public AsyncBag<T> Parents<T>(IResource resource)
+        {
+            if (Codec.IsLocalResource(resource, this))
+                return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
+
+            return null;
+        }
+        */
+
     }
 }

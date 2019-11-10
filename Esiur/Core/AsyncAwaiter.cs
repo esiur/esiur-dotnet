@@ -2,39 +2,51 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Esiur.Core
 {
     public class AsyncAwaiter<T> : INotifyCompletion
     {
-        public Action callback = null;
-        public T result;
-        private bool completed;
+        Action callback = null;
+
+        AsyncException exception = null;
+
+        T result;
 
         public AsyncAwaiter(AsyncReply<T> reply)
         {
             reply.Then(x =>
             {
-                this.completed = true;
+                this.IsCompleted = true;
                 this.result = x;
+                this.callback?.Invoke();
+            }).Error(x =>
+            {
+                exception = x;
+                this.IsCompleted = true;
                 this.callback?.Invoke();
             });
         }
 
         public T GetResult()
         {
+            if (exception != null)
+                throw exception;
             return result;
         }
 
-        public bool IsCompleted => completed;
+        public bool IsCompleted { get; private set; }
 
         public void OnCompleted(Action continuation)
         {
-            // Continue....
-            callback = continuation;
+            if (IsCompleted)
+                continuation?.Invoke();
+            else
+                // Continue....
+                callback = continuation;
         }
 
-
-
+      
     }
 }

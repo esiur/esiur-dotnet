@@ -12,6 +12,7 @@ using Esiur.Security.Permissions;
 using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Proxy;
+using Esiur.Core;
 
 namespace Esiur.Resource
 {
@@ -19,16 +20,17 @@ namespace Esiur.Resource
     {
         string name;
 
-        AutoList<IResource, Instance> children;// = new AutoList<IResource, Instance>();
-        IResource resource;
+        //IQueryable<IResource> children;//
+        //AutoList<IResource, Instance> children;// = new AutoList<IResource, Instance>();
+        WeakReference<IResource> resource;
         IStore store;
-        AutoList<IResource, Instance> parents;// = new AutoList<IResource>();
+        //AutoList<IResource, Instance> parents;// = new AutoList<IResource>();
         //bool inherit;
         ResourceTemplate template;
 
         AutoList<IPermissionsManager, Instance> managers;// = new AutoList<IPermissionManager, Instance>();
 
- 
+
         public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue);
         //public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, string[] users, DistributedConnection[] connections, object[] args);
 
@@ -39,6 +41,8 @@ namespace Esiur.Resource
         public event ResourceModifiedEvent ResourceModified;
         public event ResourceEventOccurredEvent ResourceEventOccurred;
         public event ResourceDestroyedEvent ResourceDestroyed;
+
+        bool loading = false;
 
         KeyList<string, object> attributes;
 
@@ -90,7 +94,7 @@ namespace Esiur.Resource
                 attributes = clone.ToArray();// this.attributes.Keys.ToList().Add("managers");
             }
 
-            foreach(var attr in attributes)
+            foreach (var attr in attributes)
             {
                 if (attr == "name")
                     st["name"] = this.name;
@@ -109,15 +113,15 @@ namespace Esiur.Resource
                 }
                 else if (attr == "parents")
                 {
-                    st["parents"] = parents.ToArray();
+                    //st["parents"] = parents.ToArray();
                 }
                 else if (attr == "children")
                 {
-                    st["children"] = children.ToArray();
+                    //st["children"] = children.ToArray();
                 }
                 else if (attr == "childrenCount")
                 {
-                    st["childrenCount"] = children.Count;
+                    //st["childrenCount"] = children.Count;
                 }
                 else if (attr == "type")
                 {
@@ -131,7 +135,7 @@ namespace Esiur.Resource
         }
 
         public bool SetAttributes(Structure attributes, bool clearAttributes = false)
-        {            
+        {
             try
             {
 
@@ -155,8 +159,13 @@ namespace Esiur.Resource
                             {
                                 var settings = m["settings"] as Structure;
                                 var manager = Activator.CreateInstance(type) as IPermissionsManager;
-                                manager.Initialize(settings, this.resource);
-                                this.managers.Add(manager);
+
+                                IResource res;
+                                if (this.resource.TryGetTarget(out res))
+                                {
+                                    manager.Initialize(settings, res);
+                                    this.managers.Add(manager);
+                                }
                             }
                             else
                                 return false;
@@ -166,7 +175,7 @@ namespace Esiur.Resource
                     {
                         this.attributes[attr.Key] = attr.Value;
                     }
-                
+
             }
             catch
             {
@@ -175,7 +184,7 @@ namespace Esiur.Resource
 
             return true;
         }
-        
+
         /*
         public Structure GetAttributes()
         {
@@ -256,7 +265,7 @@ namespace Esiur.Resource
                 return DateTime.MinValue;
         }
 
-        
+
         /// <summary>
         /// Load property value (used by stores)
         /// </summary>
@@ -266,13 +275,19 @@ namespace Esiur.Resource
         /// <returns></returns>
         public bool LoadProperty(string name, ulong age, DateTime modificationDate, object value)
         {
+
+            IResource res;
+
+            if (!resource.TryGetTarget(out res))
+                return false;
+
             var pt = template.GetPropertyTemplateByName(name);
 
             if (pt == null)
                 return false;
 
             /*
-#if NETSTANDARD1_5
+#if NETSTANDARD
             var pi = resource.GetType().GetTypeInfo().GetProperty(name, new[] { resource.GetType() });
 #else
             var pi = resource.GetType().GetProperty(pt.Name);
@@ -282,17 +297,24 @@ namespace Esiur.Resource
             if (pt.Info.PropertyType == typeof(DistributedPropertyContext))
                 return false;
 
-       
-            try
+
+            if (pt.Info.CanWrite)
             {
-                if (pt.Info.CanWrite)
-                    pt.Info.SetValue(resource, DC.CastConvert(value, pt.Info.PropertyType));
+                try
+                {
+                    loading = true;
+
+                    pt.Info.SetValue(res, DC.CastConvert(value, pt.Info.PropertyType));
+                }
+                catch (Exception ex)
+                {
+                    //Console.WriteLine(resource.ToString() + " " + name);
+                    Global.Log(ex);
+                }
+
+                loading = false;
             }
-            catch(Exception ex)
-            {
-                //Console.WriteLine(resource.ToString() + " " + name);
-                Global.Log(ex);
-            }
+
 
             SetAge(pt.Index, age);
             SetModificationDate(pt.Index, modificationDate);
@@ -359,16 +381,19 @@ namespace Esiur.Resource
             foreach (var pt in template.Properties)
             {
                 /*
-#if NETSTANDARD1_5
+#if NETSTANDARD
                 var pi = resource.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
                 var pi = resource.GetType().GetProperty(pt.Name);
 #endif
 */
 
-
-                var rt = pt.Info.GetValue(resource, null);
-                props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
+                IResource res;
+                if (resource.TryGetTarget(out res))
+                {
+                    var rt = pt.Info.GetValue(res, null);
+                    props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
+                }
             }
 
             return props.ToArray();
@@ -446,7 +471,7 @@ namespace Esiur.Resource
         /// <returns></returns>
         public bool IsStorable()
         {
-#if NETSTANDARD1_5
+#if NETSTANDARD
             var attrs = resource.GetType().GetTypeInfo().GetCustomAttributes(typeof(Storable), true).ToArray();
 #else
             var attrs = resource.GetType().GetCustomAttributes(typeof(Storable), true);
@@ -458,22 +483,27 @@ namespace Esiur.Resource
 
         internal void EmitModification(PropertyTemplate pt, object value)
         {
-            instanceAge++;
-            var now = DateTime.UtcNow;
 
-            ages[pt.Index] = instanceAge;
-            modificationDates[pt.Index] = now;
-
-            if (pt.Storage == StorageMode.NonVolatile)
+            IResource res;
+            if (this.resource.TryGetTarget(out res))
             {
-                store.Modify(resource, pt.Name, value, ages[pt.Index], now);
-            }
-            else if (pt.Storage == StorageMode.Recordable)
-            { 
-                store.Record(resource, pt.Name, value, ages[pt.Index], now);
-            }
+                instanceAge++;
+                var now = DateTime.UtcNow;
 
-            ResourceModified?.Invoke(resource, pt.Name, value);
+                ages[pt.Index] = instanceAge;
+                modificationDates[pt.Index] = now;
+
+                if (pt.Storage == StorageMode.NonVolatile)
+                {
+                    store.Modify(res, pt.Name, value, ages[pt.Index], now);
+                }
+                else if (pt.Storage == StorageMode.Recordable)
+                {
+                    store.Record(res, pt.Name, value, ages[pt.Index], now);
+                }
+
+                ResourceModified?.Invoke(res, pt.Name, value);
+            }
         }
 
         /// <summary>
@@ -484,6 +514,9 @@ namespace Esiur.Resource
         /// <param name="oldValue"></param>
         public void Modified([CallerMemberName] string propertyName = "")
         {
+            if (loading)
+                return;
+
             object value;
             if (GetPropertyValue(propertyName, out value))
             {
@@ -496,7 +529,12 @@ namespace Esiur.Resource
 
         internal void EmitResourceEvent(object issuer, Session[] receivers, string name, object[] args)
         {
-            ResourceEventOccurred?.Invoke(resource, issuer, receivers, name, args);
+            IResource res;
+            if (this.resource.TryGetTarget(out res))
+            {
+
+                ResourceEventOccurred?.Invoke(res, issuer, receivers, name, args);
+            }
         }
 
         /// <summary>
@@ -508,7 +546,7 @@ namespace Esiur.Resource
         public bool GetPropertyValue(string name, out object value)
         {
             /*
-#if NETSTANDARD1_5
+#if NETSTANDARD
             PropertyInfo pi = resource.GetType().GetTypeInfo().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
 #else
@@ -521,7 +559,7 @@ namespace Esiur.Resource
             if (pt != null && pt.Info != null)
             {
                 /*
-#if NETSTANDARD1_5
+#if NETSTANDARD
                 object[] ca = pi.GetCustomAttributes(typeof(ResourceProperty), false).ToArray();
 
 #else
@@ -537,7 +575,15 @@ namespace Esiur.Resource
                 }
                 */
 
-                value = pt.Info.GetValue(resource, null);
+                IResource res;
+                if (resource.TryGetTarget(out res))
+                    value = pt.Info.GetValue(res, null);
+                else
+                {
+                    value = null;
+                    return false;
+                }
+
                 return true;
 
             }
@@ -556,10 +602,7 @@ namespace Esiur.Resource
         /// <summary>
         /// List of parents.
         /// </summary>
-        public AutoList<IResource, Instance> Parents
-        {
-            get { return parents; }
-        }
+        //public AutoList<IResource, Instance> Parents => parents;
 
         /// <summary>
         /// Store responsible for creating and keeping the resource.
@@ -572,15 +615,54 @@ namespace Esiur.Resource
         /// <summary>
         /// List of children.
         /// </summary>
-        public AutoList<IResource, Instance> Children
-        {
-            get { return children; }
-        }
+       // public AutoList<IResource, Instance> Children => children;
 
         /// <summary>
         /// The unique and permanent link to the resource.
         /// </summary>
         public string Link
+        {
+            get
+            {
+                IResource res;
+                if (this.resource.TryGetTarget(out res))
+                {
+                    if (res == res.Instance.store)
+                        return name; // root store
+                    else
+                        return store.Link(res);
+                }
+                else
+                    return null;
+            }
+        }
+
+        public AsyncBag<T> Children<T>(string name = null) where T : IResource
+        {
+            IResource res;
+            if (this.resource.TryGetTarget(out res))
+            {
+                //if (!(store is null))
+                    return store.Children<T>(res, name);
+                //else
+                //    return (res as IStore).Children<T>(res, name);
+            }
+            else
+                return new AsyncBag<T>(null);
+        }
+
+        public AsyncBag<T> Parents<T>(string name = null) where T : IResource
+        {
+            IResource res;
+            if (this.resource.TryGetTarget(out res))
+            {
+                return store.Parents<T>(res, name);
+            }
+            else
+                return new AsyncBag<T>(null);
+        }
+
+        /*
         {
             get
             {
@@ -607,6 +689,8 @@ namespace Esiur.Resource
                 }
             }
         }
+        *
+        */
 
         /// <summary>
         /// Instance name.
@@ -623,7 +707,16 @@ namespace Esiur.Resource
         /// </summary>
         public IResource Resource
         {
-            get { return resource; }
+            get
+            {
+                IResource res;
+                if (this.resource.TryGetTarget(out res))
+                {
+                    return res;
+                }
+                else
+                    return null;
+            }
         }
 
         /// <summary>
@@ -658,11 +751,15 @@ namespace Esiur.Resource
         /// <returns>Ruling.</returns>
         public Ruling Applicable(Session session, ActionType action, MemberTemplate member, object inquirer = null)
         {
-            foreach (IPermissionsManager manager in managers)
+            IResource res;
+            if (this.resource.TryGetTarget(out res))
             {
-                var r = manager.Applicable(this.resource, session, action, member, inquirer);
-                if (r != Ruling.DontCare)
-                    return r;
+                foreach (IPermissionsManager manager in managers)
+                {
+                    var r = manager.Applicable(res, session, action, member, inquirer);
+                    if (r != Ruling.DontCare)
+                        return r;
+                }
             }
 
             return Ruling.DontCare;
@@ -684,19 +781,19 @@ namespace Esiur.Resource
         public Instance(uint id, string name, IResource resource, IStore store, ResourceTemplate customTemplate = null, ulong age = 0)
         {
             this.store = store;
-            this.resource = resource;
+            this.resource = new WeakReference<IResource>(resource);
             this.id = id;
             this.name = name;
             this.instanceAge = age;
 
             this.attributes = new KeyList<string, object>(this);
-            children = new AutoList<IResource, Instance>(this);
-            parents = new AutoList<IResource, Instance>(this);
+            //children = new AutoList<IResource, Instance>(this);
+            //parents = new AutoList<IResource, Instance>(this);
             managers = new AutoList<IPermissionsManager, Instance>(this);
-            children.OnAdd += Children_OnAdd;
-            children.OnRemoved += Children_OnRemoved;
-            parents.OnAdd += Parents_OnAdd;
-            parents.OnRemoved += Parents_OnRemoved;
+            //children.OnAdd += Children_OnAdd;
+            //children.OnRemoved += Children_OnRemoved;
+            //parents.OnAdd += Parents_OnAdd;
+            //parents.OnRemoved += Parents_OnRemoved;
 
             resource.OnDestroy += Resource_OnDestroy;
 
@@ -715,7 +812,7 @@ namespace Esiur.Resource
             // connect events
             Type t = ResourceProxy.GetBaseType(resource);
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
             var events = t.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
 #else
@@ -783,7 +880,12 @@ namespace Esiur.Resource
             }
         }
 
-        private void Children_OnRemoved(Instance parent, IResource value)
+
+        //IQueryable<IResource> Children => store.GetChildren(this);
+
+        
+        /*
+         *         private void Children_OnRemoved(Instance parent, IResource value)
         {
             value.Instance.parents.Remove(resource);
         }
@@ -804,7 +906,7 @@ namespace Esiur.Resource
             if (!value.Instance.children.Contains(resource))
                 value.Instance.children.Add(resource);
         }
-
+        */
 
         private void Resource_OnDestroy(object sender)
         {

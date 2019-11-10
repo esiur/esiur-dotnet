@@ -12,7 +12,7 @@ namespace Esiur.Proxy
     {
         static Dictionary<Type, Type> cache = new Dictionary<Type, Type>();
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
         static MethodInfo modifyMethod = typeof(Instance).GetTypeInfo().GetMethod("Modified");
         static MethodInfo instanceGet = typeof(IResource).GetTypeInfo().GetProperty("Instance").GetGetMethod();
 #else
@@ -44,7 +44,7 @@ namespace Esiur.Proxy
             if (cache.ContainsKey(type))
                 return cache[type];
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
             var typeInfo = type.GetTypeInfo();
 
             if (typeInfo.IsSealed)
@@ -78,7 +78,7 @@ namespace Esiur.Proxy
 
 
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
             var t = typeBuilder.CreateTypeInfo().AsType();
             cache.Add(type, t);
             return t;

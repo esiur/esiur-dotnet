@@ -34,6 +34,7 @@ using Esiur.Resource;
 using System.Linq;
 using System.Reflection;
 using Esiur.Resource.Template;
+using System.Runtime.CompilerServices;
 
 namespace Esiur.Data
 {
@@ -171,7 +172,7 @@ namespace Esiur.Data
 
             var result = (StructureComparisonResult)data[offset++];
 
-            IAsyncReply<Structure> previous = null;
+            AsyncReply<Structure> previous = null;
            // string[] previousKeys = null;
            // DataType[] previousTypes = null;
 
@@ -1064,6 +1065,16 @@ namespace Esiur.Data
             return rt.ToArray();
         }
 
+
+        public static bool IsAnonymous(Type type)
+        {
+            // Detect anonymous types
+            var info = type.GetTypeInfo();
+            var hasCompilerGeneratedAttribute = info.GetCustomAttributes(typeof(CompilerGeneratedAttribute), false).Count() > 0;
+            var nameContainsAnonymousType = type.FullName.Contains("AnonymousType");
+            return hasCompilerGeneratedAttribute && nameContainsAnonymousType;
+        }
+
         /// <summary>
         /// Check if a type implements an interface
         /// </summary>
@@ -1086,7 +1097,7 @@ namespace Esiur.Data
                     if (type == iface)
                         return true;
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
                     if (type.GetTypeInfo().GetInterfaces().Contains(iface))// (x=>x.GetTypeInfo().IsGenericType (iface))
                         return true;
 
@@ -1109,7 +1120,7 @@ namespace Esiur.Data
                     if (type == iface)
                         return true;
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
                     if (type.GetTypeInfo().GetInterfaces().Contains(iface))
                         return true;
 
@@ -1137,7 +1148,7 @@ namespace Esiur.Data
             {
                 if (childType == parentType)
                     return true;
-#if NETSTANDARD1_5
+#if NETSTANDARD
                 childType = childType.GetTypeInfo().BaseType;
 #else
                 childType = childType.BaseType;

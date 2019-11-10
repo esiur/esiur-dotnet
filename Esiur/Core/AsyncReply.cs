@@ -34,25 +34,29 @@ using System.Runtime.CompilerServices;
 
 namespace Esiur.Core
 {
-    public class AsyncReply<T>: IAsyncReply<T>
+    [AsyncMethodBuilder(typeof(AsyncReply<>))]
+    public class AsyncReply<T> : IAsyncReply<T>
     {
+
+        public bool Debug = false;
 
         protected List<Action<T>> callbacks = new List<Action<T>>();
         protected T result;
 
         protected List<Action<AsyncException>> errorCallbacks = new List<Action<AsyncException>>();
-        
+
         protected List<Action<ProgressType, int, int>> progressCallbacks = new List<Action<ProgressType, int, int>>();
 
         protected List<Action<T>> chunkCallbacks = new List<Action<T>>();
 
         //List<AsyncAwaiter> awaiters = new List<AsyncAwaiter>();
 
-        object callbacksLock = new object();
+        //  object callbacksLock = new object();
 
         protected bool resultReady = false;
         AsyncException exception;
 
+        AutoResetEvent mutex = new AutoResetEvent(false);
 
         public bool Ready
         {
@@ -60,7 +64,24 @@ namespace Esiur.Core
 
         }
 
-        
+        public T Wait()
+        {
+
+            if (resultReady)
+                return result;
+
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {GetHashCode()} Wait");
+
+            //mutex = new AutoResetEvent(false);
+            mutex.WaitOne();
+
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {GetHashCode()} Wait ended");
+
+            return result;
+        }
+
 
         public object Result
         {
@@ -69,53 +90,91 @@ namespace Esiur.Core
 
         public IAsyncReply<T> Then(Action<T> callback)
         {
-            callbacks.Add(callback);
+            //lock (callbacksLock)
+            //{
+
 
             if (resultReady)
+            {
+                if (Debug)
+                    Console.WriteLine($"AsyncReply: {GetHashCode()} Then ready");
+
                 callback(result);
+                return this;
+            }
+
+
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {GetHashCode()} Then pending");
+
+
+
+            callbacks.Add(callback);
 
             return this;
+            //}
         }
 
         public IAsyncReply<T> Error(Action<AsyncException> callback)
         {
+            // lock (callbacksLock)
+            //  {
             errorCallbacks.Add(callback);
 
             if (exception != null)
                 callback(exception);
 
             return this;
+            //}
         }
 
         public IAsyncReply<T> Progress(Action<ProgressType, int, int> callback)
         {
+            //lock (callbacksLock)
+            //{
             progressCallbacks.Add(callback);
             return this;
+            //}
         }
 
-        
+
         public IAsyncReply<T> Chunk(Action<T> callback)
         {
+            // lock (callbacksLock)
+            // {
             chunkCallbacks.Add(callback);
             return this;
+            // }
         }
 
         public void Trigger(object result)
         {
 
-            lock (callbacksLock)
-            {
-                if (resultReady)
-                    return;
-
-                this.result = (T)result;
-                resultReady = true;
-
-                foreach (var cb in callbacks)
-                    cb((T)result);
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {GetHashCode()} Trigger");
 
 
-            }
+            //lock (callbacksLock)
+            //{
+            if (resultReady)
+                return;
+
+            this.result = (T)result;
+
+            resultReady = true;
+
+            //if (mutex != null)
+            mutex.Set();
+
+            foreach (var cb in callbacks)
+                cb((T)result);
+
+
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {GetHashCode()} Trigger ended");
+
+
+            //}
 
         }
 
@@ -128,13 +187,15 @@ namespace Esiur.Core
                 this.exception = exception as AsyncException;
             else
                 this.exception = new AsyncException(ErrorType.Management, 0, exception.Message);
-             
 
-            lock (callbacksLock)
-            {
-                foreach (var cb in errorCallbacks)
-                    cb(this.exception);
-            }
+
+            // lock (callbacksLock)
+            // {
+            foreach (var cb in errorCallbacks)
+                cb(this.exception);
+            //  }
+
+            mutex?.Set();
 
         }
 
@@ -143,26 +204,26 @@ namespace Esiur.Core
             if (resultReady)
                 return;
 
-            lock (callbacksLock)
-            {
-                foreach (var cb in progressCallbacks)
-                    cb(type, value, max);
+            //lock (callbacksLock)
+            //{
+            foreach (var cb in progressCallbacks)
+                cb(type, value, max);
 
-            }
+            //}
         }
 
-        
+
         public void TriggerChunk(object value)
         {
             if (resultReady)
                 return;
 
-            lock (callbacksLock)
-            {
-                foreach (var cb in chunkCallbacks)
-                    cb((T)value);
+            //lock (callbacksLock)
+            //{
+            foreach (var cb in chunkCallbacks)
+                cb((T)value);
 
-            }
+            //}
         }
 
         public AsyncAwaiter<T> GetAwaiter()
@@ -170,21 +231,20 @@ namespace Esiur.Core
             return new AsyncAwaiter<T>(this);
         }
 
-    
-
 
 
         public AsyncReply()
         {
-
+            //this.Debug = true;
         }
 
         public AsyncReply(T result)
         {
+            //this.Debug = true;
             resultReady = true;
             this.result = result;
         }
-    
+
         /*
     public AsyncReply<T> Then(Action<T> callback)
         {
@@ -218,7 +278,7 @@ namespace Esiur.Core
                 return base.Task.ContinueWith<T>((t) =>
                 {
 
-#if NETSTANDARD1_5
+#if NETSTANDARD
                     return (T)t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
                     return (T)t.GetType().GetProperty("Result").GetValue(t);

@@ -33,7 +33,7 @@ using Esiur.Security.Authority;
 
 namespace Esiur.Security.Permissions
 {
-    public class ParentalPermissionsManager : IPermissionsManager
+    public class StorePermissionsManager : IPermissionsManager
     {
         Structure settings;
 
@@ -41,20 +41,12 @@ namespace Esiur.Security.Permissions
 
         public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null)
         {
-
-            foreach (IResource parent in resource.Instance.Parents)
-            {
-                var ruling = parent.Instance.Applicable(session, action, member, inquirer);
-                if (ruling != Ruling.DontCare)
-                    return ruling;
-            }
-
-            return Ruling.DontCare;
+            return  resource.Instance.Store.Instance.Applicable(session, action, member, inquirer);
         }
 
         public bool Initialize(Structure settings, IResource resource)
         {
-            throw new NotImplementedException();
+            return true;
         }
     }
 }

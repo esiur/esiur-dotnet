@@ -9,7 +9,7 @@ using System.Threading;
 
 namespace Test
 {
-    public class MyObject : Resource
+    public class MyObject : EntryPoint
     {
 
         [ResourceEvent]
@@ -88,6 +88,16 @@ namespace Test
             }, null, 10, 3000);
             
             return reply;
+        }
+
+        public override AsyncReply<IResource[]> Query(string path, DistributedConnection sender)
+        {
+            return new AsyncReply<IResource[]>(new IResource[] { this });
+        }
+
+        public override bool Create()
+        {
+            return true;
         }
 
         [ResourceProperty]

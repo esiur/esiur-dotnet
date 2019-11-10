@@ -1,13 +1,12 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26228.9
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29324.140
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur", "Esiur\Esiur.csproj", "{DEBF78DB-E3B3-47F4-994C-5C970E98C686}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur", "Esiur\Esiur.csproj", "{4F74A8C1-D38F-4CC0-ACD1-24459BA0EAFC}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{08AC2E1C-24F0-4309-B35E-73D36A427D2D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Stores.MongoDB", "Esiur.Stores.MongoDB\Esiur.Stores.MongoDB.csproj", "{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Stores.MongoDB", "Esiur.Stores.MongoDB\Esiur.Stores.MongoDB.csproj", "{F7FB2243-12AB-46A6-9DA4-FF8DABC77D8F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Stores.MySql", "Esiur.Stores.MySql\Esiur.Stores.MySql.csproj", "{7BD6148A-3335-411C-9189-3803B1824264}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,20 +14,23 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{DEBF78DB-E3B3-47F4-994C-5C970E98C686}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DEBF78DB-E3B3-47F4-994C-5C970E98C686}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DEBF78DB-E3B3-47F4-994C-5C970E98C686}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DEBF78DB-E3B3-47F4-994C-5C970E98C686}.Release|Any CPU.Build.0 = Release|Any CPU
-		{08AC2E1C-24F0-4309-B35E-73D36A427D2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{08AC2E1C-24F0-4309-B35E-73D36A427D2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{08AC2E1C-24F0-4309-B35E-73D36A427D2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{08AC2E1C-24F0-4309-B35E-73D36A427D2D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F7FB2243-12AB-46A6-9DA4-FF8DABC77D8F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F7FB2243-12AB-46A6-9DA4-FF8DABC77D8F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F7FB2243-12AB-46A6-9DA4-FF8DABC77D8F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F7FB2243-12AB-46A6-9DA4-FF8DABC77D8F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F74A8C1-D38F-4CC0-ACD1-24459BA0EAFC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F74A8C1-D38F-4CC0-ACD1-24459BA0EAFC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F74A8C1-D38F-4CC0-ACD1-24459BA0EAFC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F74A8C1-D38F-4CC0-ACD1-24459BA0EAFC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7BD6148A-3335-411C-9189-3803B1824264}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7BD6148A-3335-411C-9189-3803B1824264}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7BD6148A-3335-411C-9189-3803B1824264}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7BD6148A-3335-411C-9189-3803B1824264}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C584421D-5EC0-4821-B7D8-2633D8D405F2}
 	EndGlobalSection
 EndGlobal

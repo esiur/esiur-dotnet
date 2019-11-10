@@ -46,25 +46,31 @@ namespace Esiur.Net.HTTP
         public override bool Execute(HTTPConnection sender)
         {
 
-            if (DistributedServer == null)
-                return false;
+            if (sender.IsWebsocketRequest())
+            {
+                if (DistributedServer == null)
+                    return false;
 
-            var tcpSocket = sender.Unassign();
+                var tcpSocket = sender.Unassign();
 
-            if (tcpSocket == null)
-                return false;
+                if (tcpSocket == null)
+                    return false;
 
-            var httpServer = sender.Parent;
-            var wsSocket = new WSSocket(tcpSocket);
-            httpServer.RemoveConnection(sender);
+                var httpServer = sender.Parent;
+                var wsSocket = new WSSocket(tcpSocket);
+                httpServer.RemoveConnection(sender);
 
-            var iipConnection = new DistributedConnection();
+                var iipConnection = new DistributedConnection();
 
-            DistributedServer.AddConnection(iipConnection);
-            iipConnection.Assign(wsSocket);
-            wsSocket.Begin();
+                DistributedServer.AddConnection(iipConnection);
+                iipConnection.Assign(wsSocket);
+                wsSocket.Begin();
 
-            return true;
+                return true;
+            }
+
+            return false;
+
             /*
             if (sender.Request.Filename.StartsWith("/iip/"))
             {

@@ -67,7 +67,7 @@ namespace Esiur.Data
                     {
                         try
                         {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                             if (destinationType.GetTypeInfo().IsInstanceOfType(v.GetValue(i)))
 #else
                             if (destinationType.IsInstanceOfType(v.GetValue(i)))
@@ -97,7 +97,7 @@ namespace Esiur.Data
                                 destinationType = underType;
                         }
                            
-#if NETSTANDARD1_5
+#if NETSTANDARD
                         if (destinationType.GetTypeInfo().IsInstanceOfType(value))
 #else
                         if (destinationType.IsInstanceOfType(value))
@@ -589,7 +589,7 @@ namespace Esiur.Data
         {
             try
             {
-#if NETSTANDARD1_5
+#if NETSTANDARD
                 var tryParse = typeof(T).GetTypeInfo().GetDeclaredMethod("TryParse");
                 if ((bool)tryParse.Invoke(null, new object[] { Input, null }))
                 {

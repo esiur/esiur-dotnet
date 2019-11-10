@@ -53,7 +53,7 @@ namespace Esiur.Net.IIP
         /// Raised when the distributed resource is destroyed.
         /// </summary>
         public event DestroyedEvent OnDestroy;
-
+        public event Instance.ResourceModifiedEvent OnModified;
         uint instanceId;
         DistributedConnection connection;
 
@@ -68,6 +68,9 @@ namespace Esiur.Net.IIP
         //ulong age;
         //ulong[] ages;
         object[] properties;
+        internal List<DistributedResource> parents = new List<DistributedResource>();
+        internal List<DistributedResource> children = new List<DistributedResource>();
+
         DistributedResourceEvent[] events;
 
         //ResourceTemplate template;
@@ -171,10 +174,12 @@ namespace Esiur.Net.IIP
             this.link = link;
             this.connection = connection;
             this.instanceId = instanceId;
+
             //this.Instance.Template = template;
             //this.Instance.Age = age;
             //this.template = template;
             //this.age = age;
+
         }
 
         internal void _Ready()
@@ -270,16 +275,12 @@ namespace Esiur.Net.IIP
                 if (args.Length == 1)
                 {
                     // Detect anonymous types
-                    var type = args[0].GetType().GetTypeInfo();
-                    var hasCompilerGeneratedAttribute = type.GetCustomAttributes(typeof(CompilerGeneratedAttribute), false).Count() > 0;
-                    var nameContainsAnonymousType = type.FullName.Contains("AnonymousType");
-                    var isAnonymousType = hasCompilerGeneratedAttribute && nameContainsAnonymousType;
-
-                    if (isAnonymousType)
+                    var type = args[0].GetType();
+                    if (Codec.IsAnonymous(type))
                     {
                         var namedArgs = new Structure();
 
-                        var pi = type.GetProperties();
+                        var pi = type.GetTypeInfo().GetProperties();
                         foreach (var p in pi)
                             namedArgs[p.Name] = p.GetValue(args[0]);
                         result = _InvokeByNamedArguments(ft.Index, namedArgs);
@@ -453,9 +454,10 @@ namespace Esiur.Net.IIP
         public DistributedResource()
         {
             //stack = new DistributedResourceStack(this);
+            //this.Instance.ResourceModified += this.OnModified;
 
         }
-         
+
         /// <summary>
         /// Resource interface.
         /// </summary>
@@ -463,6 +465,10 @@ namespace Esiur.Net.IIP
         /// <returns></returns>
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
+
+            if (trigger == ResourceTrigger.Initialize)
+                this.Instance.ResourceModified += this.OnModified;
+
             // do nothing.
             return new AsyncReply<bool>(true);
         }

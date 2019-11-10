@@ -53,6 +53,7 @@ namespace Esiur.Net.Sockets
         bool asyncSending;
         bool began = false;
 
+        
         SocketState state = SocketState.Initial;
 
         public event ISocketReceiveEvent OnReceive;
@@ -313,23 +314,23 @@ namespace Esiur.Net.Sockets
         public void Close()
         {
             if (state != SocketState.Closed && state != SocketState.Terminated)
+            {
                 state = SocketState.Closed;
 
-            if (sock.Connected)
-            {
-                try
+                if (sock.Connected)
                 {
-                    sock.Shutdown(SocketShutdown.Both);
-                }
-                catch
-                {
-                    state = SocketState.Terminated;
+                    try
+                    {
+                        sock.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    {
+                        state = SocketState.Terminated;
+                    }
                 }
 
-                sock.Shutdown(SocketShutdown.Both);// Close();
                 OnClose?.Invoke();
             }
-
         }
 
         public void Send(byte[] message)

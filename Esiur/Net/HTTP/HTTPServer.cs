@@ -44,6 +44,7 @@ namespace Esiur.Net.HTTP
     public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     {
         Dictionary<string, HTTPSession> sessions= new Dictionary<string, HTTPSession>();
+        HTTPFilter[] filters = null;
 
         public Instance Instance
         {
@@ -183,13 +184,8 @@ namespace Esiur.Net.HTTP
         {
             //Console.WriteLine("OUT: " + this.Connections.Count);
 
-            foreach (IResource resource in Instance.Children)
-            {
-                if (resource is HTTPFilter)
-                {
-                   (resource as HTTPFilter).ClientDisconnected(sender);
-                }
-            }
+            foreach (var filter in filters)
+                filter.ClientDisconnected(sender);
         }
 
 
@@ -268,16 +264,11 @@ namespace Esiur.Net.HTTP
 
             try
             {
-                foreach (IResource resource in Instance.Children)
-                {
-                    if (resource is HTTPFilter)
-                    {
-                        if ((resource as HTTPFilter).Execute(sender))
-                            return;
-                    }
-                }
+                foreach (var resource in filters)
+                    resource.Execute(sender);
+                
 
-               sender.Send("Bad Request");
+                sender.Send("Bad Request");
                 sender.Close();
             }
             catch (Exception ex)
@@ -289,21 +280,19 @@ namespace Esiur.Net.HTTP
 
                     //Console.WriteLine(ex.ToString());
                     //EventLog.WriteEntry("HttpServer", ex.ToString(), EventLogEntryType.Error);
-                    sender.Send(Return500(ex.Message));
+                    sender.Send(Error500(ex.Message));
                 }
 
             }
         }
 
-        private string Return500(string sMessage)
+        private string Error500(string msg)
         {
-            string sTMP = null;
-            sTMP = "<HTML><HEAD><TITLE>500 Internal Server Error</TITLE></HEAD><br>\r\n";
-            sTMP = sTMP + "<BODY BGCOLOR=" + (char)(34) + "#FFFFFF" + (char)(34) + " Text=" + (char)(34) + "#000000" + (char)(34) + " LINK=" + (char)(34) + "#0000FF" + (char)(34) + " VLINK=" + (char)(34) + "#000080" + (char)(34) + " ALINK=" + (char)(34) + "#008000" + (char)(34) + "><br>\r\n";
-            sTMP = sTMP + "<b>500</b> Sorry - Internal Server Error<br>" + sMessage + "\r\n";
-            sTMP = sTMP + "</BODY><br>\r\n";
-            sTMP = sTMP + "</HTML><br>\r\n";
-            return sTMP;
+            return "<html><head><title>500 Internal Server Error</title></head><br>\r\n"
+                     + "<body><br>\r\n"
+                     + "<b>500</b> Internal Server Error<br>" + msg + "\r\n"
+                     + "</body><br>\r\n"
+                     + "</html><br>\r\n";
         }
 
 
@@ -382,6 +371,10 @@ namespace Esiur.Net.HTTP
                 Trigger(ResourceTrigger.Terminate);
                 Trigger(ResourceTrigger.Initialize);
             }
+            else if (trigger == ResourceTrigger.SystemInitialized)
+            {
+                Instance.Children<HTTPFilter>().Then(x => filters = x);
+            }
 
             return new AsyncReply<bool>(true);
 
@@ -395,12 +388,9 @@ namespace Esiur.Net.HTTP
 
             //Console.WriteLine("IN: " + this.Connections.Count);
 
-            foreach (var resource in Instance.Children)
+            foreach (var resource in filters)
             {
-                if (resource is HTTPFilter)
-                {
-                    (resource as HTTPFilter).ClientConnected(sender);
-                }
+                resource.ClientConnected(sender);
             }
         }
 

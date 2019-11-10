@@ -1,9 +1,6 @@
 ﻿using Esiur.Resource;
 using System;
 using Esiur.Core;
-using MongoDB.Driver.Core;
-using MongoDB.Driver;
-using MongoDB.Bson;
 using Esiur.Data;
 using System.Collections.Generic;
 using System.Reflection;
@@ -12,38 +9,31 @@ using Esiur.Resource.Template;
 using System.Linq;
 using Esiur.Security.Permissions;
 using Esiur.Proxy;
+using MySql.Data.MySqlClient;
 
-namespace Esiur.Stores.MongoDB
+namespace Esiur.Stores.MySql
 {
-    public class MongoDBStore : IStore
+    public class MySqlStore : IStore
     {
         public Instance Instance { get; set; }
 
         public event DestroyedEvent OnDestroy;
-        MongoClient client;
-        IMongoDatabase database;
-        IMongoCollection<BsonDocument> resourcesCollection;
 
-        //List<IResource> storeParents = new List<IResource>();
-        //List<IResource> storeChildren = new List<IResource>();
+        string connectionString;
 
-        //string collectionName;
-        //string dbName;
-
-        Dictionary<string, WeakReference> resources = new Dictionary<string, WeakReference>();
+        
+        Dictionary<string, IResource> resources = new Dictionary<string, IResource>();
 
 
-        public long Count
+        public int Count
         {
-            get
-            {
-                return resourcesCollection.CountDocuments(x => true);
-            }// resources.Count; }
+            get { return resources.Count; }
         }
 
         public void Destroy()
         {
 
+            
         }
 
 
@@ -84,35 +74,24 @@ namespace Esiur.Stores.MongoDB
             return true;
         }
 
-        AsyncReply<T> Fetch<T>(string id) where T : IResource
+        AsyncReply<IResource> Fetch(string id)
         {
 
-            if (resources.ContainsKey(id) && resources[id].IsAlive)
-            {
-                if (resources[id].Target is T)
-                    return new AsyncReply<T>((T)resources[id].Target);
-                else
-                    return new AsyncReply<T>(default(T)); ;
-            }
+            MySqlHelper.
 
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(id)));
             var list = resourcesCollection.Find(filter).ToList();
             if (list.Count == 0)
-                return new AsyncReply<T>(default(T));
+                return new AsyncReply<IResource>(null);
             var document = list[0];
 
             var type = Type.GetType(document["classname"].AsString);
 
             if (type == null)
-                return new AsyncReply<T>(default(T));
+                return new AsyncReply<IResource>(null);
 
             IResource resource = (IResource)Activator.CreateInstance(ResourceProxy.GetProxy(type));
-
-            //var iid = document["_id"].AsObjectId.ToString();
-            if (resources.ContainsKey(id))
-                resources[id] = new WeakReference(resource);
-            else
-                resources.Add(id, new WeakReference(resource));
+            resources.Add(document["_id"].AsObjectId.ToString(), resource);
 
             Warehouse.Put(resource, document["name"].AsString, this);
 
@@ -121,16 +100,14 @@ namespace Esiur.Stores.MongoDB
             var children = document["children"].AsBsonArray;
             //var managers = document["managers"].AsBsonArray;
 
-            var attributes = Parse(document["attributes"]).Then(x =>
-            {
+            var attributes = Parse(document["attributes"]).Then(x => {
                 resource.Instance.SetAttributes(x as Structure);
             });
 
             var bag = new AsyncBag<object>();
 
-            /*
             foreach (var p in parents)
-            { 
+            {
                 var ap = Warehouse.Get(p.AsString);
                 bag.Add(ap);
                 ap.Then((x) =>
@@ -151,10 +128,6 @@ namespace Esiur.Stores.MongoDB
                         resource.Instance.Children.Add(x);
                 });
             }
-            */
-
-            resource.Instance.Attributes.Add("children", children.Select(x => x.AsString).ToArray());
-            resource.Instance.Attributes.Add("parents", parents.Select(x => x.AsString).ToArray());
 
             // Apply store managers
             foreach (var m in this.Instance.Managers)
@@ -181,33 +154,26 @@ namespace Esiur.Stores.MongoDB
 
             foreach (var v in values)
             {
+
+
                 var valueInfo = v.Value as BsonDocument;
 
                 var av = Parse(valueInfo["value"]);
+                bag.Add(av);
                 av.Then((x) =>
                 {
-                    resource.Instance.LoadProperty(v.Name,
-                                                    (ulong)valueInfo["age"].AsInt64,
-                                                    valueInfo["modification"].ToUniversalTime(),
-                                                    x);
+                    resource.Instance.LoadProperty(v.Name, (ulong)valueInfo["age"].AsInt64, valueInfo["modification"].ToUniversalTime(), x);
                 });
-
-                bag.Add(av);
             }
-
-            var rt = new AsyncReply<T>();
-
-            bag.Then((x) =>
-            {
-                if (resource is T)
-                    rt.Trigger(resource);
-                else
-                    rt.Trigger(null);
-            });
 
             bag.Seal();
 
+            var rt = new AsyncReply<IResource>();
 
+            bag.Then((x) =>
+            {
+                rt.Trigger(resource);
+            });
 
             return rt;
         }
@@ -276,40 +242,44 @@ namespace Esiur.Stores.MongoDB
                 if (p[0] == "id")
                 {
                     // load from Id
-                    return Fetch<IResource>(p[1]);
 
-
-                    /*
                     if (resources.ContainsKey(p[1]))
                         return new AsyncReply<IResource>(resources[p[1]]);
                     else
                         return Fetch(p[1]);
-                        */
                 }
 
             return new AsyncReply<IResource>(null);
         }
-
-
 
         public string Link(IResource resource)
         {
             return this.Instance.Name + "/id/" + (string)resource.Instance.Attributes["objectId"];
         }
 
-        public bool Put(IResource resource)
-        {
-            PutResource(resource).Wait();
 
-            return true;
+        string MakeTable(Type type)
+        {
+            var props = type.GetTypeInfo().GetProperties();
+
+
+            foreach(var p in props)
+            {
+                var rp = p.GetCustomAttribute<ResourceProperty>();
+                if (rp == null)
+                    continue;
+
+                
+            }
         }
 
-        private async Task<bool> PutResource(IResource resource)
+        public bool Put(IResource resource)
         {
+
             var attrs = resource.Instance.GetAttributes();
 
             foreach (var kv in resources)
-                if (kv.Value.Target == resource)
+                if (kv.Value == resource)
                 {
                     resource.Instance.Attributes.Add("objectId", kv.Key);
                     return true;
@@ -336,39 +306,16 @@ namespace Esiur.Stores.MongoDB
 
             var template = resource.Instance.Template;
 
-            // setup attributes
-            resource.Instance.Attributes["children"] = new string[0];
-            resource.Instance.Attributes["parents"] = new string[] { this.Instance.Link };
+            foreach (IResource c in resource.Instance.Children)
+                children.Add(c.Instance.Link);
 
-            // copy old children (in case we are moving a resource from a store to another.
-            if (resource.Instance.Store != this)
-            {
-                var resourceChildren = await resource.Instance.Children<IResource>();
-
-                if (resourceChildren != null)
-                    foreach (IResource c in resourceChildren)
-                        children.Add(c.Instance.Link);
-
-                var resourceParents = await resource.Instance.Parents<IResource>();
-
-                if (resourceParents == null)
-                {
-                    parents.Add(this.Instance.Link);
-                }
-                else
-                {
-                    foreach (IResource p in resourceParents)
-                        parents.Add(p.Instance.Link);
-                }
-            }
-            else
-            {
-                // just add self
-                parents.Add(this.Instance.Link);
-            }
+            foreach (IResource p in resource.Instance.Parents)
+                parents.Add(p.Instance.Link);
 
 
             var attrsDoc = ComposeStructure(attrs);
+
+
 
 
             var values = new BsonDocument();
@@ -382,7 +329,6 @@ namespace Esiur.Stores.MongoDB
                                      { "modification", resource.Instance.GetModificationDate(pt.Index) },
                                      { "value", Compose(rt) } });
             }
-
 
             //            var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
             //            var update = Builders<BsonDocument>.Update
@@ -409,7 +355,6 @@ namespace Esiur.Stores.MongoDB
 
 
             //resource.Instance.Attributes["objectId"] = document["_id"].ToString();
-
 
             return true;
         }
@@ -527,8 +472,6 @@ namespace Esiur.Stores.MongoDB
 
                 // return new AsyncReply<bool>(true);
 
-
-                /*
                 var filter = new BsonDocument();
 
                 var list = resourcesCollection.Find(filter).ToList();
@@ -539,9 +482,9 @@ namespace Esiur.Stores.MongoDB
 
                 var bag = new AsyncBag<IResource>();
 
-                for(var i = 0; i < list.Count; i++)
+                for (var i = 0; i < list.Count; i++)
                 {
-                    Console.WriteLine("Loading {0}/{1}", i, list.Count);
+                    //Console.WriteLine("Loading {0}/{1}", i, list.Count);
                     bag.Add(Get("id/" + list[i]["_id"].AsObjectId.ToString()));
                 }
 
@@ -549,24 +492,15 @@ namespace Esiur.Stores.MongoDB
 
                 var rt = new AsyncReply<bool>();
 
-                bag.Then((x) => {
-
-                   // storeChildren.AddRange(x);
-                    rt.Trigger(true);
-
-                });
+                bag.Then((x) => { rt.Trigger(true); });
 
                 return rt;
-                */
-
-                return new AsyncReply<bool>(true);
             }
             else if (trigger == ResourceTrigger.Terminate)
             {
                 // save all resources
                 foreach (var resource in resources.Values)
-                    if (resource.IsAlive)
-                        SaveResource(resource.Target as IResource);
+                    SaveResource(resource);
 
                 return new AsyncReply<bool>(true);
             }
@@ -583,13 +517,11 @@ namespace Esiur.Stores.MongoDB
             var children = new BsonArray();
             var template = resource.Instance.Template;
 
-            //foreach (IResource c in resource.Instance.Children)
-            //  children.Add(c.Instance.Link);
+            foreach (IResource c in resource.Instance.Children)
+                children.Add(c.Instance.Link);
 
-            var plist = resource.Instance.Attributes["parents"] as string[];
-
-            foreach (var link in plist)// Parents)
-                parents.Add(link);
+            foreach (IResource p in resource.Instance.Parents)
+                parents.Add(p.Instance.Link);
 
 
             var values = new BsonDocument();
@@ -620,7 +552,7 @@ namespace Esiur.Stores.MongoDB
             {
                 { "parents", parents },
                 { "children", children },
-                { "attributes", attrsDoc },
+                {"attributes", attrsDoc },
                 { "classname", type.FullName + "," + type.GetTypeInfo().Assembly.GetName().Name },
                 { "name", resource.Instance.Name },
                 { "_id", new BsonObjectId(new ObjectId(resource.Instance.Attributes["objectId"].ToString())) },
@@ -770,145 +702,17 @@ namespace Esiur.Stores.MongoDB
         public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
         {
 
+            var sql = $"UPDATE `{resource.Instance.Template.ClassName}` SET `{propertyName}` = @value, `{propertyName}_age` = @age, `{propertyName}_date` = @date WHERE `_id` = @id";
 
-            var objectId = resource.Instance.Attributes["objectId"].ToString();
-
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
-            var update = Builders<BsonDocument>.Update
-                .Set("values." + propertyName, new BsonDocument { { "age", BsonValue.Create(age) },
-                                     { "modification", dateTime },
-                                     { "value", Compose(value) } });
-
-            resourcesCollection.UpdateOne(filter, update);
+            MySqlHelper.ExecuteNonQuery(connectionString, sql, 
+                                        new MySqlParameter("@value", value),
+                                        new MySqlParameter("@age", age),
+                                        new MySqlParameter("@date", dateTime),
+                                        new MySqlParameter("@id", resource.Instance.Attributes["objectId"]));
 
             return true;
 
         }
 
-
-        public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
-        {
-
-            if (resource == this)
-            {
-                IFindFluent<BsonDocument, BsonDocument> match;
-
-                if (name == null)
-                    match = resourcesCollection.Find(x => (x["parents"] as BsonArray).Contains(this.Instance.Name));
-                else
-                    match = resourcesCollection.Find(x => (x["parents"] as BsonArray).Contains(this.Instance.Name) && x["name"] == name);
-
-
-                var st = match.ToList().Select(x => x["_id"].ToString()).ToArray();
-
-
-                var bag = new AsyncBag<T>();
-
-                foreach (var s in st)
-                {
-                    var r = Fetch<T>(s);
-                    if (r.Ready && r.Result == null)
-                        continue;
-
-                    bag.Add(r);
-                }
-
-                bag.Seal();
-                return bag;
-            }
-            else
-            {
-                var children = (string[])resource.Instance.Attributes["children"];
-
-                if (children == null)
-                {
-                    return new AsyncBag<T>(null);
-                }
-
-                var rt = new AsyncBag<T>();
-
-
-                foreach (var child in children)
-                {
-                    var r = Warehouse.Get(child);
-                    if (r is IAsyncReply<T>)
-                        rt.Add((IAsyncReply<T>)r);
-                }
-
-                rt.Seal();
-                return rt;
-            }
-        }
-
-        public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
-        {
-            Console.WriteLine("Parents start");
-
-            if (resource == this)
-            {
-                return new AsyncBag<T>(null);
-            }
-            else
-            {
-                Console.WriteLine("Parents 1");
-
-                var parents = (string[])resource.Instance.Attributes["parents"];
-
-                if (parents == null)
-                {
-                    return new AsyncBag<T>(null);
-                }
-
-                var rt = new AsyncBag<T>();
-
-                Console.WriteLine("Parents 2");
-
-                foreach (var parent in parents)
-                {
-                    var r = Warehouse.Get(parent);
-                    if (r is IAsyncReply<T>)
-                        rt.Add((IAsyncReply<T>)r);
-                }
-
-                Console.WriteLine($"Parents 3 {parents.Length}");
-
-                rt.Seal();
-
-                Console.WriteLine("Parents end");
-
-                return rt;
-            }
-        }
-
-
-        public AsyncReply<bool> AddChild(IResource resource, IResource child)
-        {
-            var list = (string[])resource.Instance.Attributes["children"];
-            resource.Instance.Attributes["children"] = list.Concat(new string[] { child.Instance.Link }).ToArray();
-
-            SaveResource(resource);
-
-            return new AsyncReply<bool>(true);
-        }
-
-        public AsyncReply<bool> RemoveChild(IResource parent, IResource child)
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<bool> AddParent(IResource resource, IResource parent)
-        {
-            var list = (string[])resource.Instance.Attributes["parents"];
-            resource.Instance.Attributes["parents"] = list.Concat(new string[] { parent.Instance.Link }).ToArray();
-
-            SaveResource(resource);
-
-            return new AsyncReply<bool>(true);
-        }
-
-        public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
