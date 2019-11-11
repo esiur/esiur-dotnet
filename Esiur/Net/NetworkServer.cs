@@ -294,7 +294,14 @@ namespace Esiur.Net
 
                     c.Assign(sock);
 
-                    ClientConnected(c);
+                    try
+                    {
+                        ClientConnected(c);
+                    }
+                    catch
+                    {
+                       // something wrong with the child.
+                    }
 
                     // Accept more
                     listener.Accept().Then(NewConnection);

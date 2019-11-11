@@ -426,8 +426,8 @@ namespace Esiur.Resource
 
             if (resource is IStore)                    
                 StoreConnected?.Invoke(resource as IStore, name);
-            else
-                store.Put(resource);
+            //else
+            store.Put(resource);
 
 
             if (parent != null)

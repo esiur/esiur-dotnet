@@ -1153,7 +1153,7 @@ namespace Esiur.Net.IIP
                                     }
                                     catch (Exception ex)
                                     {
-                                        SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                        SendError(ErrorType.Exception, callback, 0, ex.InnerException.ToString());
                                         return;
                                     }
 

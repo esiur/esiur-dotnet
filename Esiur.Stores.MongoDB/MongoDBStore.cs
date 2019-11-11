@@ -299,6 +299,9 @@ namespace Esiur.Stores.MongoDB
 
         public bool Put(IResource resource)
         {
+            if (resource == this)
+                return true;
+
             PutResource(resource).Wait();
 
             return true;
