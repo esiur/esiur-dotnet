@@ -179,7 +179,9 @@ namespace Esiur.Net
             listener = socket;
 
             // Start accepting
-            listener.Accept().Then(NewConnection);
+            var r = listener.Accept();
+            r.Then(NewConnection);
+            //r.timeout?.Dispose();
 
             //var rt = listener.Accept().Then()
             //thread = new Thread(new System.Threading.ThreadStart(ListenForConnections));
@@ -303,8 +305,11 @@ namespace Esiur.Net
                        // something wrong with the child.
                     }
 
-                    // Accept more
-                    listener.Accept().Then(NewConnection);
+                // Accept more
+                var l = listener.Accept();
+                
+                l.Then(NewConnection);
+                //l.timeout?.Dispose();
 
                     sock.Begin();
 

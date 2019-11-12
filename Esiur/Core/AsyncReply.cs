@@ -31,6 +31,7 @@ using Esiur.Resource;
 using System.Reflection;
 using System.Threading;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
 
 namespace Esiur.Core
 {
@@ -51,12 +52,17 @@ namespace Esiur.Core
 
         //List<AsyncAwaiter> awaiters = new List<AsyncAwaiter>();
 
-        //  object callbacksLock = new object();
+        object asyncLock = new object();
 
+        //public Timer timeout;// = new Timer()
         protected bool resultReady = false;
         AsyncException exception;
-
+        StackTrace trace;
         AutoResetEvent mutex = new AutoResetEvent(false);
+
+        public static int MaxId;
+
+        public int Id;
 
         public bool Ready
         {
@@ -64,6 +70,7 @@ namespace Esiur.Core
 
         }
 
+        
         public T Wait()
         {
 
@@ -71,13 +78,14 @@ namespace Esiur.Core
                 return result;
 
             if (Debug)
-                Console.WriteLine($"AsyncReply: {GetHashCode()} Wait");
+                Console.WriteLine($"AsyncReply: {Id} Wait");
 
             //mutex = new AutoResetEvent(false);
             mutex.WaitOne();
 
             if (Debug)
-                Console.WriteLine($"AsyncReply: {GetHashCode()} Wait ended");
+                Console.WriteLine($"AsyncReply: {Id} Wait ended");
+
 
             return result;
         }
@@ -88,32 +96,50 @@ namespace Esiur.Core
             get { return result; }
         }
 
+
         public IAsyncReply<T> Then(Action<T> callback)
         {
             //lock (callbacksLock)
             //{
+            lock (asyncLock)
+            { 
+                trace = new StackTrace();
+
+                if (resultReady)
+                {
+                    if (Debug)
+                        Console.WriteLine($"AsyncReply: {Id} Then ready");
+
+                    callback(result);
+                    return this;
+                }
 
 
-            if (resultReady)
-            {
+                //timeout = new Timer(x =>
+                //{
+                //    // Get calling method name
+                //    Console.WriteLine(trace.GetFrame(1).GetMethod().Name);
+
+                //    var tr = String.Join("\r\n", trace.GetFrames().Select(f => f.GetMethod().Name));
+                //    timeout.Dispose();
+
+                //    tr = trace.ToString();
+                //    throw new Exception("Request timeout " + Id);
+                //}, null, 15000, 0);
+
+
                 if (Debug)
-                    Console.WriteLine($"AsyncReply: {GetHashCode()} Then ready");
+                    Console.WriteLine($"AsyncReply: {Id} Then pending");
 
-                callback(result);
+
+
+                callbacks.Add(callback);
+
                 return this;
             }
-
-
-            if (Debug)
-                Console.WriteLine($"AsyncReply: {GetHashCode()} Then pending");
-
-
-
-            callbacks.Add(callback);
-
-            return this;
-            //}
         }
+
+
 
         public IAsyncReply<T> Error(Action<AsyncException> callback)
         {
@@ -149,37 +175,37 @@ namespace Esiur.Core
 
         public void Trigger(object result)
         {
+            lock (asyncLock)
+            {
+                //timeout?.Dispose();
 
-            if (Debug)
-                Console.WriteLine($"AsyncReply: {GetHashCode()} Trigger");
+                if (Debug)
+                    Console.WriteLine($"AsyncReply: {Id} Trigger");
 
+                if (resultReady)
+                    return;
 
-            //lock (callbacksLock)
-            //{
-            if (resultReady)
-                return;
+                this.result = (T)result;
 
-            this.result = (T)result;
+                resultReady = true;
 
-            resultReady = true;
+                //if (mutex != null)
+                mutex.Set();
 
-            //if (mutex != null)
-            mutex.Set();
-
-            foreach (var cb in callbacks)
-                cb((T)result);
-
-
-            if (Debug)
-                Console.WriteLine($"AsyncReply: {GetHashCode()} Trigger ended");
+                foreach (var cb in callbacks)
+                    cb((T)result);
 
 
-            //}
+                if (Debug)
+                    Console.WriteLine($"AsyncReply: {Id} Trigger ended");
 
+            }
         }
 
         public void TriggerError(Exception exception)
         {
+            //timeout?.Dispose();
+
             if (resultReady)
                 return;
 
@@ -201,6 +227,8 @@ namespace Esiur.Core
 
         public void TriggerProgress(ProgressType type, int value, int max)
         {
+            //timeout?.Dispose();
+
             if (resultReady)
                 return;
 
@@ -215,6 +243,9 @@ namespace Esiur.Core
 
         public void TriggerChunk(object value)
         {
+
+            //timeout?.Dispose();
+
             if (resultReady)
                 return;
 
@@ -235,14 +266,17 @@ namespace Esiur.Core
 
         public AsyncReply()
         {
-            //this.Debug = true;
+         //   this.Debug = true;
+            Id = MaxId++;
         }
 
         public AsyncReply(T result)
         {
-            //this.Debug = true;
+         //   this.Debug = true;
             resultReady = true;
             this.result = result;
+
+            Id = MaxId++;
         }
 
         /*

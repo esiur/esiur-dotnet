@@ -285,13 +285,15 @@ namespace Esiur.Net.IIP
 
         void init()
         {
-            queue.Then((x) =>
+            var q = queue;
+            q.Then((x) =>
             {
                 if (x.Type == DistributedResourceQueueItem.DistributedResourceQueueItemType.Event)
                     x.Resource._EmitEventByIndex(x.Index, (object[])x.Value);
                 else
                     x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
             });
+            //q.timeout?.Dispose();
 
             var r = new Random();
             localNonce = new byte[32];
