@@ -306,9 +306,7 @@ namespace Esiur.Net
                     }
 
                 // Accept more
-                var l = listener.Accept();
-                
-                l.Then(NewConnection);
+                listener.Accept().Then(NewConnection);
                 //l.timeout?.Dispose();
 
                     sock.Begin();
