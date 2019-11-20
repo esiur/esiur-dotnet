@@ -44,7 +44,10 @@ namespace Esiur.Net.Sockets
 
         ISocket sock;
         NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
+        NetworkBuffer sendNetworkBuffer = new NetworkBuffer();
+
         object sendLock = new object();
+        bool held;
 
         public event ISocketReceiveEvent OnReceive;
         public event ISocketConnectEvent OnConnect;
@@ -206,12 +209,19 @@ namespace Esiur.Net.Sockets
         {
             lock(sendLock)
             {
-                totalSent += message.Length;
-                //Console.WriteLine("TX " + message.Length +"/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
+                if (held)
+                {
+                    sendNetworkBuffer.Write(message);
+                }
+                else
+                {
+                    totalSent += message.Length;
+                    //Console.WriteLine("TX " + message.Length +"/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
 
-                pkt_send.Message = message;
-                if (pkt_send.Compose())
-                    sock.Send(pkt_send.Data);
+                    pkt_send.Message = message;
+                    if (pkt_send.Compose())
+                        sock.Send(pkt_send.Data);
+                }
             }
         }
 
@@ -220,13 +230,20 @@ namespace Esiur.Net.Sockets
         {
             lock (sendLock)
             {
-                totalSent += size;
-                //Console.WriteLine("TX " + size + "/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
+                if (held)
+                {
+                    sendNetworkBuffer.Write(message, (uint)offset, (uint)size);
+                }
+                else
+                {
+                    totalSent += size;
+                    //Console.WriteLine("TX " + size + "/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
 
-                pkt_send.Message = new byte[size];
-                Buffer.BlockCopy(message, offset, pkt_send.Message, 0, size);
-                if (pkt_send.Compose())
-                    sock.Send(pkt_send.Data);
+                    pkt_send.Message = new byte[size];
+                    Buffer.BlockCopy(message, offset, pkt_send.Message, 0, size);
+                    if (pkt_send.Compose())
+                        sock.Send(pkt_send.Data);
+                }
             }
         }
 
@@ -261,6 +278,36 @@ namespace Esiur.Net.Sockets
         public AsyncReply<ISocket> Accept()
         {
             throw new NotImplementedException();
+        }
+
+        public void Hold()
+        {
+               //Console.WriteLine("WS Hold  ");
+            held = true;
+        }
+
+        public void Unhold()
+        {
+            lock(sendLock)
+            {
+                held = false;
+
+                var message = sendNetworkBuffer.Read();
+
+                //Console.WriteLine("WS Unhold {0}", message == null ? 0 : message.Length);
+
+                if (message == null)
+                    return;
+
+                totalSent += message.Length;
+
+                pkt_send.Message = message;
+                if (pkt_send.Compose())
+                    sock.Send(pkt_send.Data);
+
+                
+
+            }
         }
     }
 }

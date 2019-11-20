@@ -433,7 +433,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestAttachResource(uint callback, uint resourceId)
         {
-            Warehouse.Get(resourceId).Then((res) =>
+            Warehouse.GetById(resourceId).Then((res) =>
             {
                 if (res != null)
                 {
@@ -460,6 +460,9 @@ namespace Esiur.Net.IIP
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
                     r.Instance.Attributes.OnModified += Attributes_OnModified;
+
+                    // add it to attached resources so GC won't remove it from memory
+                    attachedResources.Add(r);
 
                     var link = DC.ToBytes(r.Instance.Link);
 
@@ -550,7 +553,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestReattachResource(uint callback, uint resourceId, ulong resourceAge)
         {
-            Warehouse.Get(resourceId).Then((res) =>
+            Warehouse.GetById(resourceId).Then((res) =>
             {
                 if (res != null)
                 {
@@ -587,7 +590,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestDetachResource(uint callback, uint resourceId)
         {
-            Warehouse.Get(resourceId).Then((res) =>
+            Warehouse.GetById(resourceId).Then((res) =>
             {
                 if (res != null)
                 {
@@ -595,6 +598,10 @@ namespace Esiur.Net.IIP
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+
+                    // remove from attached resources
+                    attachedResources.Remove(res);
+
                     // reply ok
                     SendReply(IIPPacket.IIPPacketAction.DetachResource, callback).Done();
                 }
@@ -609,7 +616,7 @@ namespace Esiur.Net.IIP
         void IIPRequestCreateResource(uint callback, uint storeId, uint parentId, byte[] content)
         {
 
-            Warehouse.Get(storeId).Then(store =>
+            Warehouse.GetById(storeId).Then(store =>
             {
                 if (store == null)
                 {
@@ -630,7 +637,7 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                Warehouse.Get(parentId).Then(parent =>
+                Warehouse.GetById(parentId).Then(parent =>
                 {
 
                     // check security
@@ -733,7 +740,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestDeleteResource(uint callback, uint resourceId)
         {
-            Warehouse.Get(resourceId).Then(r =>
+            Warehouse.GetById(resourceId).Then(r =>
             {
                 if (r == null)
                 {
@@ -757,7 +764,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestGetAttributes(uint callback, uint resourceId, byte[] attributes, bool all = false)
         {
-            Warehouse.Get(resourceId).Then(r =>
+            Warehouse.GetById(resourceId).Then(r =>
             {
                 if (r == null)
                 {
@@ -791,7 +798,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestAddChild(uint callback, uint parentId, uint childId)
         {
-            Warehouse.Get(parentId).Then(parent =>
+            Warehouse.GetById(parentId).Then(parent =>
             {
                 if (parent == null)
                 {
@@ -799,7 +806,7 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                Warehouse.Get(childId).Then(child =>
+                Warehouse.GetById(childId).Then(child =>
                 {
                     if (child == null)
                     {
@@ -830,7 +837,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestRemoveChild(uint callback, uint parentId, uint childId)
         {
-            Warehouse.Get(parentId).Then(parent =>
+            Warehouse.GetById(parentId).Then(parent =>
             {
                 if (parent == null)
                 {
@@ -838,7 +845,7 @@ namespace Esiur.Net.IIP
                     return;
                 }
 
-                Warehouse.Get(childId).Then(child =>
+                Warehouse.GetById(childId).Then(child =>
                 {
                     if (child == null)
                     {
@@ -869,7 +876,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestRenameResource(uint callback, uint resourceId, byte[] name)
         {
-            Warehouse.Get(resourceId).Then(resource =>
+            Warehouse.GetById(resourceId).Then(resource =>
             {
                 if (resource == null)
                 {
@@ -891,7 +898,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestResourceChildren(uint callback, uint resourceId)
         {
-            Warehouse.Get(resourceId).Then(resource =>
+            Warehouse.GetById(resourceId).Then(resource =>
             {
                 if (resource == null)
                 {
@@ -913,7 +920,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestResourceParents(uint callback, uint resourceId)
         {
-            Warehouse.Get(resourceId).Then(resource =>
+            Warehouse.GetById(resourceId).Then(resource =>
             {
                 if (resource == null)
                 {
@@ -934,7 +941,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestClearAttributes(uint callback, uint resourceId, byte[] attributes, bool all = false)
         {
-            Warehouse.Get(resourceId).Then(r =>
+            Warehouse.GetById(resourceId).Then(r =>
             {
                 if (r == null)
                 {
@@ -963,7 +970,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestUpdateAttributes(uint callback, uint resourceId, byte[] attributes, bool clearAttributes = false)
         {
-            Warehouse.Get(resourceId).Then(r =>
+            Warehouse.GetById(resourceId).Then(r =>
             {
                 if (r == null)
                 {
@@ -1028,7 +1035,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestTemplateFromResourceId(uint callback, uint resourceId)
         {
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                     SendReply(IIPPacket.IIPPacketAction.TemplateFromResourceId, callback)
@@ -1078,7 +1085,7 @@ namespace Esiur.Net.IIP
         {
             //Console.WriteLine("IIPRequestInvokeFunction " + callback + " " + resourceId + "  " + index);
 
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {
@@ -1235,7 +1242,7 @@ namespace Esiur.Net.IIP
         void IIPRequestInvokeFunctionNamedArguments(uint callback, uint resourceId, byte index, byte[] content)
         {
 
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {
@@ -1382,7 +1389,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestGetProperty(uint callback, uint resourceId, byte index)
         {
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {
@@ -1429,7 +1436,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestInquireResourceHistory(uint callback, uint resourceId, DateTime fromDate, DateTime toDate)
         {
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {
@@ -1465,7 +1472,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestGetPropertyIfModifiedSince(uint callback, uint resourceId, byte index, ulong age)
         {
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {
@@ -1511,7 +1518,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestSetProperty(uint callback, uint resourceId, byte index, byte[] content)
         {
-            Warehouse.Get(resourceId).Then((r) =>
+            Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {

@@ -192,17 +192,9 @@ namespace Esiur.Net.HTTP
 
         protected override void DataReceived(HTTPConnection sender, NetworkBuffer data)
         {
-            //Console.WriteLine(Data);
-            // Initialize a new session
-            //HTTPConnection HTTP = (HTTPConnection)sender.ExtraObject;
-
-            //string Data = System.Text.Encoding.Default.GetString(ReceivedData);
-
+ 
             byte[] msg = data.Read();
-
-
-
-
+ 
             var BL = sender.Parse(msg);
 
             if (BL == 0)
@@ -265,7 +257,8 @@ namespace Esiur.Net.HTTP
             try
             {
                 foreach (var resource in filters)
-                    resource.Execute(sender);
+                    if (resource.Execute(sender))
+                        return;
                 
 
                 sender.Send("Bad Request");

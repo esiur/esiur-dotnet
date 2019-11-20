@@ -62,6 +62,9 @@ namespace Esiur.Net.IIP
 
         Session session;
 
+
+        List<IResource> attachedResources = new List<IResource>();
+
         AsyncReply<bool> openReply;
 
         byte[] localPassword;
@@ -304,7 +307,7 @@ namespace Esiur.Net.IIP
 
         private uint processPacket(byte[] msg, uint offset, uint ends, NetworkBuffer data, int chunkId)
         {
-            var packet = new IIPPacket();
+            //var packet = new IIPPacket();
 
             
 
@@ -771,14 +774,17 @@ namespace Esiur.Net.IIP
 
             var chunkId = (new Random()).Next(1000, 1000000);
 
-            
+            var list = new List<Structure>();// double, IIPPacketCommand>();
 
+ 
+            this.Socket.Hold();
             while (offset < ends)
             {
-                offset = processPacket(msg, offset, ends, data, chunkId);
-            }
+                 offset = processPacket(msg, offset, ends, data, chunkId);
+             }
 
-        }
+            this.Socket.Unhold();
+         }
 
         /// <summary>
         /// Resource interface

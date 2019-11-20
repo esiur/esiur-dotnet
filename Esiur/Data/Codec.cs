@@ -546,7 +546,7 @@ namespace Esiur.Data
         /// <returns>Resource</returns>
         public static AsyncReply<IResource> ParseResource(byte[] data, uint offset)
         {
-            return Warehouse.Get(data.GetUInt32(offset));
+            return Warehouse.GetById(data.GetUInt32(offset));
         }
 
         /// <summary>
@@ -703,7 +703,7 @@ namespace Esiur.Data
                 previous = new AsyncReply<IResource>(null);
             else if (result == ResourceComparisonResult.Local)
             {
-                previous = Warehouse.Get(data.GetUInt32(offset));
+                previous = Warehouse.GetById(data.GetUInt32(offset));
                 offset += 4;
             }
             else if (result == ResourceComparisonResult.Distributed)
@@ -731,7 +731,7 @@ namespace Esiur.Data
                 }
                 else if (result == ResourceComparisonResult.Local)
                 {
-                    current = Warehouse.Get(data.GetUInt32(offset));
+                    current = Warehouse.GetById(data.GetUInt32(offset));
                     offset += 4;
                 }
                 else if (result == ResourceComparisonResult.Distributed)

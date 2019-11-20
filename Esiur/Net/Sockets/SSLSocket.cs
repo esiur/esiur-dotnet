@@ -339,5 +339,15 @@ namespace Esiur.Net.Sockets
 
             return reply;
         }
+
+        public void Hold()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Unhold()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

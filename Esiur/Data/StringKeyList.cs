@@ -89,7 +89,7 @@ namespace Esiur.Data
             {
                 var key = Key.ToLower();
 
-                var toRemove = m_Variables.Where(x => x.Key.ToLower() == key);
+                var toRemove = m_Variables.Where(x => x.Key.ToLower() == key).ToArray();
 
                 foreach (var item in toRemove)
                     m_Variables.Remove(item);

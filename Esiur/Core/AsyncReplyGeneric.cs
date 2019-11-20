@@ -57,7 +57,7 @@ namespace Esiur.Core
         //public Timer timeout;// = new Timer()
         protected bool resultReady = false;
         AsyncException exception;
-        StackTrace trace;
+       // StackTrace trace;
         AutoResetEvent mutex = new AutoResetEvent(false);
 
         public static int MaxId;
@@ -103,7 +103,7 @@ namespace Esiur.Core
             //{
             lock (asyncLock)
             {
-                trace = new StackTrace();
+              //  trace = new StackTrace();
 
                 if (resultReady)
                 {

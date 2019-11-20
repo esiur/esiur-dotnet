@@ -42,6 +42,8 @@ namespace Esiur.Net.Sockets
         Socket sock;
         byte[] receiveBuffer;
 
+        bool held;
+
         ArraySegment<byte> receiveBufferSegment;
 
         NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
@@ -241,9 +243,12 @@ namespace Esiur.Net.Sockets
 
                 if (sendBufferQueue.Count > 0)
                 {
-                    byte[] data = sendBufferQueue.Dequeue();
                     lock (sendLock)
+                    {
+                        byte[] data = sendBufferQueue.Dequeue();
+                        //Console.WriteLine(Encoding.UTF8.GetString(data));
                         sock.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ContinueWith(DataSent);
+                    }
                 }
                 else
                 {
@@ -340,22 +345,57 @@ namespace Esiur.Net.Sockets
 
         public void Send(byte[] message, int offset, int size)
         {
+            //sock.Blocking =
+            //sock.Send(message, offset, size, SocketFlags.None);
+            //return;
             if (sock.Connected)
                 lock (sendLock)
                 {
-                    if (asyncSending)
+
+                    if (asyncSending || held)
                     {
                         sendBufferQueue.Enqueue(message.Clip((uint)offset, (uint)size));
                     }
                     else
                     {
                         asyncSending = true;
-                        sock.SendAsync(new ArraySegment<byte>(message, offset, size), SocketFlags.None).ContinueWith(DataSent);
+                        sock.BeginSend(message, offset, size, SocketFlags.None, PacketSent, null);
+                        //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
                     }
                 }
         }
 
+        private void PacketSent(IAsyncResult ar)
+        {
+            try
+            {
+                if (sendBufferQueue.Count > 0)
+                {
+                    lock (sendLock)
+                    {
+                        byte[] data = sendBufferQueue.Dequeue();
 
+                        sock.BeginSend(data, 0, data.Length, SocketFlags.None, PacketSent, null);
+                    }
+                }
+                else
+                {
+                    asyncSending = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (state != SocketState.Closed && !sock.Connected)
+                {
+                    state = SocketState.Terminated;
+                    Close();
+                }
+
+                asyncSending = false;
+
+                Global.Log("TCPSocket", LogType.Error, ex.ToString());
+            }
+        }
 
         public bool Trigger(ResourceTrigger trigger)
         {
@@ -393,6 +433,17 @@ namespace Esiur.Net.Sockets
             }
 
             return reply;
+        }
+
+        public void Hold()
+        {
+            held = true;
+        }
+
+        public void Unhold()
+        {
+            DataSent(null);
+            held = false;
         }
     }
 }

@@ -388,12 +388,15 @@ namespace Esiur.Resource
 #endif
 */
 
-                IResource res;
-                if (resource.TryGetTarget(out res))
-                {
-                    var rt = pt.Info.GetValue(res, null);
-                    props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
-                }
+                //if (pt.Serilize)
+                //{
+                    IResource res;
+                    if (resource.TryGetTarget(out res))
+                    {
+                         var rt = pt.Serilize ? pt.Info.GetValue(res, null) : null;
+                        props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
+                    }
+                //}
             }
 
             return props.ToArray();

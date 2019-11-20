@@ -39,58 +39,24 @@ using System.Security.Cryptography;
 
 namespace Esiur.Net.HTTP
 {
-    //[Serializable]
     public class HTTPConnection : NetworkConnection
     {
-        /*
-        public enum SendOptions : int
-        {
-            AllCalculateLength,
-            AllDontCalculateLength,
-            SpecifiedHeadersOnly,
-            DataOnly
-        }
-         */
-
-        public HTTPConnection()
-        {
-            Response = new HTTPResponsePacket();
-            variables = new KeyList<string, object>();
-        }
 
         public void SetParent(HTTPServer Parent)
         {
             Server = Parent;
         }
 
-        //public bool HeadersSent;
-
-
-        private KeyList<string, object> variables;
-        private bool Busy = false;
-        private DateTime RequestTime = DateTime.MinValue;
-
-        public bool WSMode;
+        public bool WSMode { get; internal set; }
         private HTTPServer Server;
-        public WebsocketPacket WSRequest;
-        public HTTPRequestPacket Request;
-        public HTTPResponsePacket Response;
+        public WebsocketPacket WSRequest { get; set; }
+        public HTTPRequestPacket Request { get; set; }
+        public HTTPResponsePacket Response { get; } = new HTTPResponsePacket();
 
         HTTPSession session;
 
-        public KeyList<string, object> Variables
-        {
-            get
-            {
-                return variables;
-            }
-        }
+        public KeyList<string, object> Variables { get; } = new KeyList<string, object>();
 
-
-        public bool IsBusy()
-        {
-            return Busy;
-        }
 
 
         internal long Parse(byte[] data)
@@ -115,7 +81,7 @@ namespace Esiur.Net.HTTP
             }
             else
             {
-                HTTPRequestPacket rp = new HTTPRequestPacket();
+                var rp = new HTTPRequestPacket();
                 var pSize = rp.Parse(data, 0, (uint)data.Length);
                 if (pSize > 0)
                 {
@@ -129,31 +95,6 @@ namespace Esiur.Net.HTTP
             }
         }
 
-
-        /*
-        public override void Send(string Response)
-        {
-            Send(Response, SendOptions.AllCalculateLength);
-        }
-
-        public void Send(string Message, SendOptions Options)
-        {
-            
-            if (Response.Handled)
-                return;
-
-            if (Response != null)
-                Send(Encoding.Default.GetBytes(Response), Options);
-            else
-                Send((byte[])null, Options);
-        }
-
-        public void Send(MemoryStream ms)
-        {
-            Send(ms.ToArray(), SendOptions.AllCalculateLength);
-        }
-
-         */
 
         public void Flush()
         {
@@ -171,21 +112,18 @@ namespace Esiur.Net.HTTP
                 // Compute the SHA1 hash
                 SHA1 sha = SHA1.Create();
                 byte[] sha1Hash = sha.ComputeHash(Encoding.UTF8.GetBytes(ret));
-                Response.Headers["Upgrade"] =  Request.Headers["Upgrade"];
+                Response.Headers["Upgrade"] = Request.Headers["Upgrade"];
                 Response.Headers["Connection"] = Request.Headers["Connection"];// "Upgrade";
                 Response.Headers["Sec-WebSocket-Accept"] = Convert.ToBase64String(sha1Hash);
 
                 if (Request.Headers.ContainsKey("Sec-WebSocket-Protocol"))
                     Response.Headers["Sec-WebSocket-Protocol"] = Request.Headers["Sec-WebSocket-Protocol"];
 
-                //Response.Headers["Sec-WebSocket-Protocol"] = Request.Headers["Sec-WebSocket-Protocol"];
-                //Response.Headers["Origin"] = Request.Headers["Origin"];
 
                 Response.Number = HTTPResponsePacket.ResponseCode.HTTP_SWITCHING;
                 Response.Text = "Switching Protocols";
                 WSMode = true;
 
-                //Send((byte[])null, SendOptions.AllDontCalculateLength);
                 Send();
 
                 return true;
@@ -208,6 +146,12 @@ namespace Esiur.Net.HTTP
             Send();
         }
 
+        public override void Send(byte[] msg, int offset, int length)
+        {
+            Response.Message = DC.Clip(msg, (uint)offset, (uint)length);
+            Send();
+        }
+
         public override void Send(byte[] message)
         {
             Response.Message = message;
@@ -219,7 +163,6 @@ namespace Esiur.Net.HTTP
             if (Response.Handled)
                 return;
 
-            Busy = true;
 
             try
             {
@@ -235,17 +178,17 @@ namespace Esiur.Net.HTTP
             {
                 try
                 {
-                    Close();// Server.CloseClient(Connection);
+                    Close();
                 }
                 finally { }
             }
             finally
             {
-                Busy = false;
+
             }
         }
 
-        
+
         public void CreateNewSession()
         {
             if (session == null)
@@ -272,7 +215,7 @@ namespace Esiur.Net.HTTP
                 && Request.Headers.ContainsKey("Sec-WebSocket-Version")
                 && Request.Headers["Sec-WebSocket-Version"] == "13"
                 && Request.Headers.ContainsKey("Sec-WebSocket-Key"))
-                //&& Request.Headers.ContainsKey("Sec-WebSocket-Protocol"))
+            //&& Request.Headers.ContainsKey("Sec-WebSocket-Protocol"))
             {
                 return true;
             }
@@ -282,10 +225,13 @@ namespace Esiur.Net.HTTP
             }
         }
 
+        bool bb;
+
         public void SendFile(string filename)
         {
             if (Response.Handled == true)
                 return;
+
 
             try
             {
@@ -302,22 +248,22 @@ namespace Esiur.Net.HTTP
                 if (!File.Exists(filename))
                 {
                     Response.Number = HTTPResponsePacket.ResponseCode.HTTP_NOTFOUND;
-                    Send("File Not Found");//, SendOptions.AllCalculateLength);
+                    Send("File Not Found");
                     return;
                 }
 
-                Busy = true;
 
-                System.DateTime FWD = File.GetLastWriteTime(filename);
-                if (Request.Headers.ContainsKey("if-modified-since"))// != DateTime.Parse("12:00:00 AM"))
+                var fileEditTime = File.GetLastWriteTime(filename).ToUniversalTime();
+                if (Request.Headers.ContainsKey("if-modified-since"))
                 {
                     try
                     {
-                        DateTime IMS = DateTime.Parse(Request.Headers["if-modified-since"]);
-                        if (FWD <= IMS)
+                        var ims = DateTime.Parse(Request.Headers["if-modified-since"]);
+                        if (Math.Abs((fileEditTime - ims).TotalSeconds) < 0)
                         {
                             Response.Number = HTTPResponsePacket.ResponseCode.HTTP_NOTMODIFIED;
                             Response.Text = "Not Modified";
+                            Send((byte[])null);
                         }
                     }
                     catch
@@ -327,38 +273,42 @@ namespace Esiur.Net.HTTP
                 }
 
 
-                if (Response.Number == HTTPResponsePacket.ResponseCode.HTTP_NOTMODIFIED)
+
+                Response.Number = HTTPResponsePacket.ResponseCode.HTTP_OK;
+                // Fri, 30 Oct 2007 14:19:41 GMT
+                Response.Headers["Last-Modified"] = fileEditTime.ToString("ddd, dd MMM yyyy HH:mm:ss");
+                FileInfo fi = new FileInfo(filename);
+                Response.Headers["Content-Length"] = fi.Length.ToString();
+                Send(HTTPResponsePacket.ComposeOptions.SpecifiedHeadersOnly);
+
+                //var fd = File.ReadAllBytes(filename);
+
+                //base.Send(fd);
+
+                
+                using (var fs = new FileStream(filename, FileMode.Open))
                 {
-                    Send((byte[])null);
-                }
-                else
-                {
-                    // Fri, 30 Oct 2007 14:19:41 GMT
-                    Response.Headers["Last-Modified"] = FWD.ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss");
-                    FileInfo fi = new FileInfo(filename);
-                    Response.Headers["Content-Length"] = fi.Length.ToString();
-                    Send(HTTPResponsePacket.ComposeOptions.SpecifiedHeadersOnly);
-                    using (var fs = new FileStream(filename, FileMode.Open))
+
+                    var buffer = new byte[5000];
+
+
+                    while (true)
                     {
-                        var buffer = new byte[5000];
-                        var offset = 0;
-                        while (offset < fs.Length)
-                        {
-                            var n = fs.Read(buffer, offset, buffer.Length);
-                            offset += n;
-                            base.Send(buffer);
-                        }
+                        var n = fs.Read(buffer, 0, 5000);
+
+                        if (n <= 0)
+                            break;
+
+
+                        base.Send(buffer, 0, n);
+
                     }
                 }
+                
 
-                Busy = false;
-
-                return;
             }
             catch
             {
-                Busy = false;
-
                 try
                 {
                     Close();

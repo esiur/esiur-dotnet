@@ -175,7 +175,7 @@ namespace Esiur.Net.Packets
             {
                 if (Message != null)
                    msg.AddRange(Message);
-            }           
+            }
             
             Data = msg.ToArray();
 

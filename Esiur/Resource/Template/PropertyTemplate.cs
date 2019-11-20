@@ -24,6 +24,10 @@ namespace Esiur.Resource.Template
             set;
         }
 
+        public bool Serilize
+        {
+            get;set;
+        }
         //bool ReadOnly;
         //IIPTypes::DataType ReturnType;
         public PropertyPermission Permission {

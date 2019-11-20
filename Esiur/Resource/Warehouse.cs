@@ -84,7 +84,7 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="id">Instance Id</param>
         /// <returns></returns>
-        public static AsyncReply<IResource> Get(uint id)
+        public static AsyncReply<IResource> GetById(uint id)
         {
             if (resources.ContainsKey(id))
             {
@@ -317,9 +317,6 @@ namespace Esiur.Resource
         /// <returns>Resource instance.</returns>
         public static AsyncReply<IResource> Get(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
         {
-
-
-
             var rt = new AsyncReply<IResource>();
             
             // Should we create a new store ?
@@ -528,7 +525,7 @@ namespace Esiur.Resource
                 var toBeRemoved = resources.Values.Where(x => {
                     IResource r;
                     return x.TryGetTarget(out r) && r.Instance.Store == resource;
-                });
+                }).ToArray();
 
                 foreach (var o in toBeRemoved)
                 {

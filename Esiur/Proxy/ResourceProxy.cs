@@ -12,6 +12,7 @@ namespace Esiur.Proxy
     {
         static Dictionary<Type, Type> cache = new Dictionary<Type, Type>();
 
+        
 #if NETSTANDARD
         static MethodInfo modifyMethod = typeof(Instance).GetTypeInfo().GetMethod("Modified");
         static MethodInfo instanceGet = typeof(IResource).GetTypeInfo().GetProperty("Instance").GetGetMethod();
@@ -74,7 +75,7 @@ namespace Esiur.Proxy
                 TypeAttributes.Public | TypeAttributes.Class, type);
 
             foreach (PropertyInfo propertyInfo in props)
-                CreateProperty(propertyInfo, typeBuilder);
+                CreateProperty(propertyInfo, typeBuilder, type);
 
 
 
@@ -98,7 +99,8 @@ namespace Esiur.Proxy
 
 
 
-        private static void CreateProperty(PropertyInfo pi, TypeBuilder typeBuilder)
+        //private static void C
+        private static void CreateProperty(PropertyInfo pi, TypeBuilder typeBuilder, Type resourceType)
         {
             var propertyBuilder = typeBuilder.DefineProperty(pi.Name, PropertyAttributes.None, pi.PropertyType, null);
 
@@ -108,24 +110,51 @@ namespace Esiur.Proxy
             builder.DefineParameter(1, ParameterAttributes.None, "value");
             ILGenerator g = builder.GetILGenerator();
 
+            var getInstance = resourceType.GetTypeInfo().GetProperty("Instance").GetGetMethod();
+
+            g.Emit(OpCodes.Nop);
+            g.Emit(OpCodes.Ldarg_0);
+            g.Emit(OpCodes.Call, getInstance);
+            g.Emit(OpCodes.Ldstr, pi.Name);
+            g.Emit(OpCodes.Callvirt, modifyMethod);
+
+            g.Emit(OpCodes.Nop);
+            g.Emit(OpCodes.Ldarg_0);
+            g.Emit(OpCodes.Ldarg_1);
+            g.Emit(OpCodes.Call, pi.GetSetMethod());
+            g.Emit(OpCodes.Nop);
+            g.Emit(OpCodes.Ret);
+            propertyBuilder.SetSetMethod(builder);
+
+
+           // builder = typeBuilder.DefineMethod("get_" + pi.Name, MethodAttributes.Public | MethodAttributes.Virtual, pi.PropertyType, null);
+           // g = builder.GetILGenerator();
+           // g.Emit(OpCodes.Ldarg_0);
+           // g.Emit(OpCodes.Call, pi.GetGetMethod());
+           // g.Emit(OpCodes.Ret);
+
+           // propertyBuilder.SetGetMethod(builder);
+
+
+            /*
             Label callModified = g.DefineLabel();
             Label exitMethod = g.DefineLabel();
 
-            /*
-                IL_0000: ldarg.0
-	            IL_0001: call instance class [Esiur]Esiur.Resource.Instance [Esiur]Esiur.Resource.Resource::get_Instance()
-	            // (no C# code)
-	            IL_0006: dup
-	            IL_0007: brtrue.s IL_000c
-	            IL_0009: pop
-	            // }
-	            IL_000a: br.s IL_0017
-	            // (no C# code)
-	            IL_000c: ldstr "Level3"
-	            IL_0011: call instance void [Esiur]Esiur.Resource.Instance::Modified(string)
-	            IL_0016: nop
-	            IL_0017: ret
-             */
+            
+             //   IL_0000: ldarg.0
+	            //IL_0001: call instance class [Esiur]Esiur.Resource.Instance [Esiur]Esiur.Resource.Resource::get_Instance()
+	            //// (no C# code)
+	            //IL_0006: dup
+	            //IL_0007: brtrue.s IL_000c
+	            //IL_0009: pop
+	            //// }
+	            //IL_000a: br.s IL_0017
+	            //// (no C# code)
+	            //IL_000c: ldstr "Level3"
+	            //IL_0011: call instance void [Esiur]Esiur.Resource.Instance::Modified(string)
+	            //IL_0016: nop
+	            //IL_0017: ret
+             
 
             // Add IL code for set method
             g.Emit(OpCodes.Nop);
@@ -133,13 +162,13 @@ namespace Esiur.Proxy
             g.Emit(OpCodes.Ldarg_1);
             g.Emit(OpCodes.Call, pi.GetSetMethod());
 
-            /*
-                IL_0000: ldarg.0
- 	            IL_0001: call instance class [Esiur]Esiur.Resource.Instance [Esiur]Esiur.Resource.Resource::get_Instance()
- 	            IL_0006: ldstr "Level3"
-	            IL_000b: callvirt instance void [Esiur]Esiur.Resource.Instance::Modified(string)
-	            IL_0010: ret
-             */
+            
+             //   IL_0000: ldarg.0
+ 	           // IL_0001: call instance class [Esiur]Esiur.Resource.Instance [Esiur]Esiur.Resource.Resource::get_Instance()
+ 	           // IL_0006: ldstr "Level3"
+	            //IL_000b: callvirt instance void [Esiur]Esiur.Resource.Instance::Modified(string)
+	            //IL_0010: ret
+             
 
             // Call property changed for object
             g.Emit(OpCodes.Nop);
@@ -158,6 +187,11 @@ namespace Esiur.Proxy
             g.MarkLabel(exitMethod);
             g.Emit(OpCodes.Ret);
             propertyBuilder.SetSetMethod(builder);
+
+
+            // create get method
+
+            */
         }
 
     }

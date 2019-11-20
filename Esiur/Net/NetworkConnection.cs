@@ -259,25 +259,33 @@ namespace Esiur.Net
 
         public virtual void Send(byte[] msg)
         {
-            //Console.WriteLine("TXX " + msg.Length);
-
             try
             {
-                //if (!connected)
-                //{
-                    //Console.WriteLine("not connected");
-                //    return;
-                //}
-
                 if (sock != null)
                 {
                     lastAction = DateTime.Now;
                     sock.Send(msg);
                 }
             }
-            catch (Exception ex)
+            catch 
             {
-                Console.WriteLine(ex.ToString());
+
+            }
+        }
+
+        public virtual void Send(byte[] msg, int offset, int length)
+        {
+            try
+            {
+                if (sock != null)
+                {
+                    lastAction = DateTime.Now;
+                    sock.Send(msg, offset, length);
+                }
+            }
+            catch 
+            {
+
             }
         }
 

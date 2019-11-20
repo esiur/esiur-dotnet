@@ -161,6 +161,7 @@ namespace Esiur.Resource.Template
                 {
                     var pt = new PropertyTemplate(this, i++, pi.Name, ps[0].ReadExpansion, ps[0].WriteExpansion, ps[0].Storage);
                     pt.Info = pi;
+                    pt.Serilize = ps[0].Serialize;
                     properties.Add(pt);
                 }
             }

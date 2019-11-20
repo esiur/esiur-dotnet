@@ -59,5 +59,9 @@ namespace Esiur.Net.Sockets
         AsyncReply<ISocket> Accept();
         IPEndPoint RemoteEndPoint { get; }
         IPEndPoint LocalEndPoint { get; }
+
+        void Hold();
+
+        void Unhold();
     }
 }
