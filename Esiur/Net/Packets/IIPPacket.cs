@@ -52,7 +52,7 @@ namespace Esiur.Net.Packets
                 rt += " " + Action.ToString();
                 if (Action == IIPPacketAction.AttachResource)
                 {
-                    rt += " CID: " + CallbackId + " RID: " + ResourceId; 
+                    rt += " CID: " + CallbackId + " RID: " + ResourceId;
                 }
             }
             else if (Command == IIPPacketCommand.Reply)
@@ -71,7 +71,7 @@ namespace Esiur.Net.Packets
             Report,
         }
 
-        public enum IIPPacketEvent: byte
+        public enum IIPPacketEvent : byte
         {
             // Event Manage
             ResourceReassigned = 0,
@@ -124,14 +124,14 @@ namespace Esiur.Net.Packets
             ClearAttributes
         }
 
-        public enum IIPPacketReport: byte
+        public enum IIPPacketReport : byte
         {
             ManagementError,
             ExecutionError,
             ProgressReport = 0x8,
             ChunkStream = 0x9
         }
-         
+
 
         public IIPPacketReport Report
         {
@@ -173,13 +173,6 @@ namespace Esiur.Net.Packets
             set;
         }
 
-
-        //public uint[] ResourcesIds { get; set; }
-        //public uint NewResourcesIds { get; set; }
-        //public uint ChildrenIds { get; set; }
-        //public uint StoresIds { get; set; }
-
-        //public IIPPacketAttachInfo[] AttachReply { get; set; }
 
         public uint ResourceId { get; set; }
         public uint NewResourceId { get; set; }
@@ -235,7 +228,7 @@ namespace Esiur.Net.Packets
             PreviousCommand = Command;
 
             Command = (IIPPacketCommand)(data[offset] >> 6);
-            
+
             if (Command == IIPPacketCommand.Event)
             {
                 Event = (IIPPacketEvent)(data[offset++] & 0x3f);
@@ -256,11 +249,11 @@ namespace Esiur.Net.Packets
                 CallbackId = data.GetUInt32(offset);
                 offset += 4;
             }
-            else // response or reply
+            else
             {
                 PreviousAction = Action;
-                Action = (IIPPacketAction)(data[offset] & 0x1f);
-                //Bulk = (data[offset++] & 0x20) == 0x20;
+                Action = (IIPPacketAction)(data[offset++] & 0x3f);
+
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
@@ -275,7 +268,7 @@ namespace Esiur.Net.Packets
                     if (NotEnough(offset, ends, 4))
                         return -dataLengthNeeded;
 
-                    NewResourceId = data.GetUInt32( offset);
+                    NewResourceId = data.GetUInt32(offset);
                     offset += 4;
 
                 }
@@ -292,7 +285,7 @@ namespace Esiur.Net.Packets
                     ChildId = data.GetUInt32(offset);
                     offset += 4;
                 }
-                else if(Event == IIPPacketEvent.Renamed)
+                else if (Event == IIPPacketEvent.Renamed)
                 {
                     if (NotEnough(offset, ends, 2))
                         return -dataLengthNeeded;
@@ -322,13 +315,13 @@ namespace Esiur.Net.Packets
                         if (NotEnough(offset, ends, 4))
                             return -dataLengthNeeded;
 
-                        var cl = data.GetUInt32( offset);
+                        var cl = data.GetUInt32(offset);
                         offset += 4;
 
                         if (NotEnough(offset, ends, cl))
                             return -dataLengthNeeded;
 
-                        Content = data.Clip( offset - 5, cl + 5);
+                        Content = data.Clip(offset - 5, cl + 5);
                         offset += cl;
                     }
                     else
@@ -342,15 +335,15 @@ namespace Esiur.Net.Packets
                 }
                 else if (Event == IIPPacketEvent.EventOccurred)
                 {
-                    if (NotEnough(offset, ends, 5)) 
+                    if (NotEnough(offset, ends, 5))
                         return -dataLengthNeeded;
 
                     MethodIndex = data[offset++];
 
-                    var cl = data.GetUInt32( offset);
+                    var cl = data.GetUInt32(offset);
                     offset += 4;
 
-                    Content = data.Clip( offset, cl);
+                    Content = data.Clip(offset, cl);
                     offset += cl;
 
                 }
@@ -378,21 +371,8 @@ namespace Esiur.Net.Packets
                     if (NotEnough(offset, ends, 4))
                         return -dataLengthNeeded;
 
-                    /*if (Bulk)
-                    {
-                        var cl = data.GetUInt32(offset);
-                        offset += 4;
-
-                        if (NotEnough(offset, ends, cl))
-                            return -dataLengthNeeded;
-
-                        ResourcesIds = data.GetUInt32Array(offset, cl);
-                    }
-                    else*/
-                    {
-                        ResourceId = data.GetUInt32(offset);
-                        offset += 4;
-                    }
+                    ResourceId = data.GetUInt32(offset);
+                    offset += 4;
                 }
                 else if (Action == IIPPacketAction.ReattachResource)
                 {
@@ -609,7 +589,7 @@ namespace Esiur.Net.Packets
                         if (NotEnough(offset, ends, cl))
                             return -dataLengthNeeded;
 
-                        Content = data.Clip(offset-5, cl + 5);
+                        Content = data.Clip(offset - 5, cl + 5);
                         offset += cl;
                     }
                     else
@@ -617,7 +597,7 @@ namespace Esiur.Net.Packets
                         if (NotEnough(offset, ends, (uint)size))
                             return -dataLengthNeeded;
 
-                        Content = data.Clip(offset-1, (uint)size + 1);
+                        Content = data.Clip(offset - 1, (uint)size + 1);
                         offset += (uint)size;
                     }
                 }
@@ -648,74 +628,35 @@ namespace Esiur.Net.Packets
                    || Action == IIPPacketAction.ReattachResource)
                 {
 
-                    //if (!Bulk)
-                    //{
-                        if (NotEnough(offset, ends, 26))
-                            return -dataLengthNeeded;
+                    if (NotEnough(offset, ends, 26))
+                        return -dataLengthNeeded;
 
-                        ClassId = data.GetGuid(offset);
-                        offset += 16;
+                    ClassId = data.GetGuid(offset);
+                    offset += 16;
 
-                        ResourceAge = data.GetUInt64(offset);
-                        offset += 8;
+                    ResourceAge = data.GetUInt64(offset);
+                    offset += 8;
 
-                        uint cl = data.GetUInt16(offset);
-                        offset += 2;
+                    uint cl = data.GetUInt16(offset);
+                    offset += 2;
 
-                        if (NotEnough(offset, ends, cl))
-                            return -dataLengthNeeded;
+                    if (NotEnough(offset, ends, cl))
+                        return -dataLengthNeeded;
 
-                        ResourceLink = data.GetString(offset, cl);
-                        offset += cl;
+                    ResourceLink = data.GetString(offset, cl);
+                    offset += cl;
 
-                        if (NotEnough(offset, ends, 4))
-                            return -dataLengthNeeded;
+                    if (NotEnough(offset, ends, 4))
+                        return -dataLengthNeeded;
 
-                        cl = data.GetUInt32(offset);
-                        offset += 4;
+                    cl = data.GetUInt32(offset);
+                    offset += 4;
 
-                        if (NotEnough(offset, ends, cl))
-                            return -dataLengthNeeded;
+                    if (NotEnough(offset, ends, cl))
+                        return -dataLengthNeeded;
 
-                        Content = data.Clip(offset, cl);
-                        offset += cl;
-                    //}
-                    //else
-                    //{
-                    //    // length
-                    //    if (NotEnough(offset, ends, 4))
-                    //        return -dataLengthNeeded;
-
-                    //    var cl = data.GetUInt32(offset);
-                    //    offset += 4;
-
-                    //    if (NotEnough(offset, ends, cl))
-                    //        return -dataLengthNeeded;
-
-                    //    //  Content = data.Clip(offset, cl);
-                    //    //offset += cl;
-                    //    cl += offset;
-
-                    //    var list = new List<IIPPacketAttachInfo>();
-
-                    //    while(offset < cl)
-                    //    {
-                    //        Guid classId = data.GetGuid(offset);
-                    //        offset += 16;
-                    //        ulong age = data.GetUInt64(offset);
-                    //        offset += 8;
-                    //        var len = data.GetUInt16(offset);
-                    //        offset += 2;
-                    //        var link = data.GetString(offset, len);
-                    //        offset += len;
-                    //        var cc = data.GetUInt32(offset);
-                    //        list.Add(new IIPPacketAttachInfo(classId, age, link, data.Clip(offset, cc)));
-                    //        offset += cc;
-                    //    }
-
-                        //AttachReply = list.ToArray();
-
-                    //}
+                    Content = data.Clip(offset, cl);
+                    offset += cl;
                 }
                 else if (Action == IIPPacketAction.DetachResource)
                 {
@@ -737,7 +678,7 @@ namespace Esiur.Net.Packets
                 {
                     // nothing to do
                 }
-                        // Inquire
+                // Inquire
                 else if (Action == IIPPacketAction.TemplateFromClassName
                         || Action == IIPPacketAction.TemplateFromClassId
                         || Action == IIPPacketAction.TemplateFromResourceId
@@ -871,7 +812,7 @@ namespace Esiur.Net.Packets
                         offset += (uint)size;
                     }
                 }
-            } 
+            }
 
             return offset - originalOffset;
         }

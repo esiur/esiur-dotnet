@@ -55,7 +55,7 @@ namespace Esiur.Net.Sockets
         bool asyncSending;
         bool began = false;
 
-        
+
         SocketState state = SocketState.Initial;
 
         public event ISocketReceiveEvent OnReceive;
@@ -240,19 +240,20 @@ namespace Esiur.Net.Sockets
         {
             try
             {
-
-                if (sendBufferQueue.Count > 0)
+                lock (sendLock)
                 {
-                    lock (sendLock)
+
+                    if (sendBufferQueue.Count > 0)
                     {
                         byte[] data = sendBufferQueue.Dequeue();
                         //Console.WriteLine(Encoding.UTF8.GetString(data));
                         sock.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ContinueWith(DataSent);
                     }
-                }
-                else
-                {
-                    asyncSending = false;
+
+                    else
+                    {
+                        asyncSending = false;
+                    }
                 }
             }
             catch (Exception ex)
