@@ -845,7 +845,6 @@ namespace Esiur.Stores.MongoDB
 
         public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
         {
-            Console.WriteLine("Parents start");
 
             if (resource == this)
             {
@@ -853,8 +852,6 @@ namespace Esiur.Stores.MongoDB
             }
             else
             {
-                Console.WriteLine("Parents 1");
-
                 var parents = (string[])resource.Instance.Attributes["parents"];
 
                 if (parents == null)
@@ -864,7 +861,7 @@ namespace Esiur.Stores.MongoDB
 
                 var rt = new AsyncBag<T>();
 
-                Console.WriteLine("Parents 2");
+                
 
                 foreach (var parent in parents)
                 {
@@ -873,11 +870,9 @@ namespace Esiur.Stores.MongoDB
                         rt.Add((IAsyncReply<T>)r);
                 }
 
-                Console.WriteLine($"Parents 3 {parents.Length}");
 
                 rt.Seal();
 
-                Console.WriteLine("Parents end");
 
                 return rt;
             }
