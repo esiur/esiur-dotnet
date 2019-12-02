@@ -1,12 +1,12 @@
-# Esiur.Net
+# Esyur.Net
 
-Esiur Library for .Net Framework
+Esyur Library for .Net Framework
 
 # Installation (Nuget)
 
-- Install-Package Esiur
-- Install-Package Esiur.Stores.MongoDB
+- Install-Package Esyur
+- Install-Package Esyur.Stores.MongoDB
 
 # Installation (.Net CLI)
-- dotnet add package Esiur
-- dotnet add package Esiur.Stores.MongoDB
+- dotnet add package Esyur
+- dotnet add package Esyur.Stores.MongoDB
