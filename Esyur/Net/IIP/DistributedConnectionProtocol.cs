@@ -1058,22 +1058,25 @@ namespace Esyur.Net.IIP
 
             Action<IResource[]> queryCallback = (r) =>
             {
-                //if (r != null)
-                //{
-                var list = r.Where(x => x.Instance.Applicable(session, ActionType.Attach, null) != Ruling.Denied).ToArray();
-
-                if (list.Length == 0)
+                if (r == null)
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
-                    SendReply(IIPPacket.IIPPacketAction.QueryLink, callback)
-                                .AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
-                                .Done();
+                {
+                    var list = r.Where(x => x.Instance.Applicable(session, ActionType.Attach, null) != Ruling.Denied).ToArray();
+
+                    if (list.Length == 0)
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    else
+                        SendReply(IIPPacket.IIPPacketAction.QueryLink, callback)
+                                    .AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
+                                    .Done();
+                }
             };
 
             if (Server?.EntryPoint != null)
                 Server.EntryPoint.Query(resourceLink, this).Then(queryCallback);
             else
-                Warehouse.Query(resourceLink).ContinueWith(x => queryCallback(x.Result));
+                Warehouse.Query(resourceLink).Then(x => queryCallback(x));
         }
 
         void IIPRequestResourceAttribute(uint callback, uint resourceId)

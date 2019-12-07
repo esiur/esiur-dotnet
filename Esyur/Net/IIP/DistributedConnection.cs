@@ -798,13 +798,12 @@ namespace Esyur.Net.IIP
                 if (Instance.Attributes.ContainsKey("username")
                       && Instance.Attributes.ContainsKey("password"))
                 {
-                    //var hostname = String.Join("://", Instance.Name.Split(new string[] { "://" }, StringSplitOptions.None).Skip(1)).Split('/')[0];
                     // assign domain from hostname if not provided
 
                     var host = Instance.Name.Split(':');
 
-                    var address = host[0];// hostname.Split(':')[0];
-                    var port = ushort.Parse(host[1]);// hostname.Split(':')[1]);
+                    var address = host[0];
+                    var port = ushort.Parse(host[1]);
                     var username = Instance.Attributes["username"].ToString();
 
                     var domain = Instance.Attributes.ContainsKey("domain") ? Instance.Attributes["domain"].ToString() : address;

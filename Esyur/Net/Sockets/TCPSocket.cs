@@ -176,6 +176,8 @@ namespace Esyur.Net.Sockets
 
 
                 //lock (receiveNetworkBuffer.SyncLock)
+               // Console.WriteLine(e. + " " + e.BytesTransferred);
+
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)e.BytesTransferred);
 
                 //Console.WriteLine("TC IN: " + (uint)e.BytesTransferred + " " + DC.ToHex(receiveBuffer, 0, (uint)e.BytesTransferred));

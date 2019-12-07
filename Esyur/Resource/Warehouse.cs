@@ -297,7 +297,7 @@ namespace Esyur.Resource
 
 
         
-        public static async Task<IResource[]> Query(string path)
+        public static async AsyncReply<IResource[]> Query(string path)
         {
             var rt = new AsyncReply<IResource[]>();
 
@@ -386,11 +386,11 @@ namespace Esyur.Resource
             }
             
             
-            Query(path).ContinueWith(rs =>
+            Query(path).Then(rs =>
             {
  //                rt.TriggerError(new Exception());
-                if (rs.Result != null && rs.Result.Length > 0)
-                    rt.Trigger(rs.Result[0]);
+                if (rs != null && rs.Length > 0)
+                    rt.Trigger(rs.First());
                 else
                     rt.Trigger(null);
             });
