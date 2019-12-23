@@ -111,20 +111,45 @@ namespace Esyur.Proxy
             ILGenerator g = builder.GetILGenerator();
 
             var getInstance = resourceType.GetTypeInfo().GetProperty("Instance").GetGetMethod();
- 
+
+
+            //g.Emit(OpCodes.Ldarg_0);
+            //g.Emit(OpCodes.Ldarg_1);
+            //g.Emit(OpCodes.Call, pi.GetSetMethod());
+            //g.Emit(OpCodes.Nop);
+
+            //g.Emit(OpCodes.Ldarg_0);
+            //g.Emit(OpCodes.Call, getInstance);
+            //g.Emit(OpCodes.Ldstr, pi.Name);
+            //g.Emit(OpCodes.Call, modifyMethod);
+            //g.Emit(OpCodes.Nop);
+
+            //g.Emit(OpCodes.Ret);
+
+            Label exitMethod = g.DefineLabel();
+            Label callModified = g.DefineLabel();
 
             g.Emit(OpCodes.Ldarg_0);
             g.Emit(OpCodes.Ldarg_1);
             g.Emit(OpCodes.Call, pi.GetSetMethod());
-            g.Emit(OpCodes.Nop);
+            //g.Emit(OpCodes.Nop);
 
-            g.Emit(OpCodes.Nop);
             g.Emit(OpCodes.Ldarg_0);
             g.Emit(OpCodes.Call, getInstance);
+            g.Emit(OpCodes.Dup);
+
+            g.Emit(OpCodes.Brtrue_S, callModified);
+
+            g.Emit(OpCodes.Pop);
+            g.Emit(OpCodes.Br_S, exitMethod);
+
+            g.MarkLabel(callModified);
+
             g.Emit(OpCodes.Ldstr, pi.Name);
             g.Emit(OpCodes.Call, modifyMethod);
             g.Emit(OpCodes.Nop);
 
+            g.MarkLabel(exitMethod);
             g.Emit(OpCodes.Ret);
             propertyBuilder.SetSetMethod(builder);
 

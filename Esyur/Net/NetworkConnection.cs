@@ -177,8 +177,9 @@ namespace Esyur.Net
         public void Close()
         {
             //if (!connected)
-              //  return;
+            //  return;
 
+ 
             try
             {
                 if (sock != null)

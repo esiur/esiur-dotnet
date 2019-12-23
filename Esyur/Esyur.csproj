@@ -7,7 +7,7 @@
     <PackageLicenseUrl>https://github.com/Esyur/Esyur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>http://www.esyur.com</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.4.3</Version>
+    <Version>1.4.5</Version>
     <RepositoryUrl>https://github.com/esyur/esyur-dotnet</RepositoryUrl>
     <Authors>Ahmed Kh. Zamil</Authors>
     <AssemblyVersion>1.3.1.0</AssemblyVersion>

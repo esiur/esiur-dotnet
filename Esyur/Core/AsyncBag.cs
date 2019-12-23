@@ -90,6 +90,8 @@ namespace Esyur.Core
                 Add(r);
         }
 
+      
+
         public AsyncBag()
         {
 

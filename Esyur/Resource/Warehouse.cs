@@ -52,11 +52,13 @@ namespace Esyur.Resource
 
         public delegate void StoreConnectedEvent(IStore store, string name);
         public delegate void StoreDisconnectedEvent(IStore store);
-        
+
         public static event StoreConnectedEvent StoreConnected;
         public static event StoreDisconnectedEvent StoreDisconnected;
 
         public static KeyList<string, Func<IStore>> Protocols { get; } = getSupportedProtocols();
+
+        private static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
 
         static KeyList<string, Func<IStore>> getSupportedProtocols()
@@ -92,7 +94,7 @@ namespace Esyur.Resource
                 if (resources[id].TryGetTarget(out r))
                     return new AsyncReply<IResource>(r);
                 else
-                    return new AsyncReply<IResource>(null); 
+                    return new AsyncReply<IResource>(null);
             }
             else
                 return new AsyncReply<IResource>(null);
@@ -106,7 +108,7 @@ namespace Esyur.Resource
         public static async AsyncReply<bool> Open()
         {
 
-            foreach(var rk in resources)
+            foreach (var rk in resources)
             {
                 IResource r;
                 if (rk.Value.TryGetTarget(out r))
@@ -296,7 +298,7 @@ namespace Esyur.Resource
         */
 
 
-        
+
         public static async AsyncReply<IResource[]> Query(string path)
         {
             var rt = new AsyncReply<IResource[]>();
@@ -314,8 +316,8 @@ namespace Esyur.Resource
                     var res = await store.Get(String.Join("/", p.Skip(1).ToArray()));
                     if (res != null)
                         return new IResource[] { res };
-                    
-                    
+
+
                     resource = store;
                     for (var i = 1; i < p.Length; i++)
                     {
@@ -348,35 +350,42 @@ namespace Esyur.Resource
         public static AsyncReply<IResource> Get(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
         {
             var rt = new AsyncReply<IResource>();
-            
+
             // Should we create a new store ?
 
-            if (path.Contains("://"))
+            if (urlRegex.IsMatch(path))
             {
-                var url = path.Split(new string[] { "://" }, 2, StringSplitOptions.None);
-                var hostname = url[1].Split(new char[] { '/' }, 2)[0];
-                var pathname = string.Join("/", url[1].Split(new char[] { '/' }).Skip(1));
+
+                //if (path.Contains("://"))
+                //{
+                var url = urlRegex.Split(path);
+                //var url = path.Split(new string[] { "://" }, 2, StringSplitOptions.None);
+                //var hostname = url[1].Split(new char[] { '/' }, 2)[0];
+                //var pathname = string.Join("/", url[1].Split(new char[] { '/' }).Skip(1));
 
 
-                if (Protocols.ContainsKey(url[0]))
+                if (Protocols.ContainsKey(url[1]))
                 {
-                    var handler = Protocols[url[0]];
+                    var handler = Protocols[url[1]];
 
                     var store = handler();
-                    Put(store, hostname, null, parent, null, 0, manager, attributes);
+                    Put(store, url[2], null, parent, null, 0, manager, attributes);
 
 
-                    store.Trigger(ResourceTrigger.Open).Then(x => {
+                    store.Trigger(ResourceTrigger.Open).Then(x =>
+                    {
 
                         warehouseIsOpen = true;
 
-                        if (pathname.Length > 0 && pathname != "")
-                            store.Get(pathname).Then(r => {
+                        if (url[3].Length > 0 && url[3] != "")
+                            store.Get(url[3]).Then(r =>
+                            {
                                 rt.Trigger(r);
                             }).Error(e => rt.TriggerError(e));
                         else
                             rt.Trigger(store);
-                    }).Error(e => {
+                    }).Error(e =>
+                    {
                         rt.TriggerError(e);
                         Warehouse.Remove(store);
                     });
@@ -384,19 +393,19 @@ namespace Esyur.Resource
                     return rt;
                 }
             }
-            
-            
+
+
             Query(path).Then(rs =>
             {
- //                rt.TriggerError(new Exception());
+                //                rt.TriggerError(new Exception());
                 if (rs != null && rs.Length > 0)
                     rt.Trigger(rs.First());
                 else
                     rt.Trigger(null);
             });
-            
+
             return rt;
-      
+
 
         }
 
@@ -449,9 +458,9 @@ namespace Esyur.Resource
             else
                 parent.Instance.Children.Add(resource);
                */
-                
 
-            if (resource is IStore)                    
+
+            if (resource is IStore)
                 StoreConnected?.Invoke(resource as IStore, name);
             //else
             store.Put(resource);
@@ -468,15 +477,59 @@ namespace Esyur.Resource
             resources.Add(resource.Instance.Id, new WeakReference<IResource>(resource));
 
             if (warehouseIsOpen)
-                 resource.Trigger(ResourceTrigger.Initialize);
+                resource.Trigger(ResourceTrigger.Initialize);
 
         }
 
-        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null)
-            where T:IResource
+        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null, Structure arguments = null, Structure properties = null)
+            where T : IResource
         {
             var type = ResourceProxy.GetProxy<T>();
+
+
+            /*
+            if (arguments != null)
+            {
+                var constructors = type.GetConstructors(System.Reflection.BindingFlags.Public);
+                
+                foreach(var constructor in constructors)
+                {
+                    var pi = constructor.GetParameters();
+                    if (pi.Length == constructor.le)
+                }
+
+                // cast arguments
+                ParameterInfo[] pi = fi.GetParameters();
+
+                object[] args = new object[pi.Length];
+
+                for (var i = 0; i < pi.Length; i++)
+                {
+                    if (pi[i].ParameterType == typeof(DistributedConnection))
+                    {
+                        args[i] = this;
+                    }
+                    else if (namedArgs.ContainsKey(pi[i].Name))
+                    {
+                        args[i] = DC.CastConvert(namedArgs[pi[i].Name], pi[i].ParameterType);
+                    }
+                }
+
+                constructors[0].
+            }
+            */
             var res = Activator.CreateInstance(type) as IResource;
+
+            if (properties != null)
+            {
+                foreach (var p in properties)
+                {
+                    var pi = typeof(T).GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
+                    if (pi != null)
+                        pi.SetValue(res, p.Value);
+                }
+            }
+
             Put(res, name, store, parent, null, 0, manager, attributes);
             return (T)res;
         }
@@ -533,7 +586,7 @@ namespace Esyur.Resource
                 if (t.ClassName == className)
                     return new AsyncReply<ResourceTemplate>(t);
 
-            return null; 
+            return null;
         }
 
         public static bool Remove(IResource resource)
@@ -542,7 +595,7 @@ namespace Esyur.Resource
             if (resource.Instance == null)
                 return false;
 
-            if (resources.ContainsKey(resource.Instance.Id)) 
+            if (resources.ContainsKey(resource.Instance.Id))
                 resources.Remove(resource.Instance.Id);
             else
                 return false;
@@ -552,7 +605,8 @@ namespace Esyur.Resource
                 stores.Remove(resource as IStore);
 
                 // remove all objects associated with the store
-                var toBeRemoved = resources.Values.Where(x => {
+                var toBeRemoved = resources.Values.Where(x =>
+                {
                     IResource r;
                     return x.TryGetTarget(out r) && r.Instance.Store == resource;
                 }).ToArray();
@@ -566,13 +620,13 @@ namespace Esyur.Resource
 
                 StoreDisconnected?.Invoke(resource as IStore);
             }
-            
+
             if (resource.Instance.Store != null)
                 resource.Instance.Store.Remove(resource);
 
             resource.Destroy();
 
             return true;
-         }
+        }
     }
 }

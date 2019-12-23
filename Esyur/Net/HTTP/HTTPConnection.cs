@@ -286,7 +286,7 @@ namespace Esyur.Net.HTTP
                 //base.Send(fd);
 
                 
-                using (var fs = new FileStream(filename, FileMode.Open))
+                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
 
                     var buffer = new byte[5000];

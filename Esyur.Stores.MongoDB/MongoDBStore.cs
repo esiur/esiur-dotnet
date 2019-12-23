@@ -24,21 +24,24 @@ namespace Esyur.Stores.MongoDB
         IMongoDatabase database;
         IMongoCollection<BsonDocument> resourcesCollection;
 
-        //List<IResource> storeParents = new List<IResource>();
-        //List<IResource> storeChildren = new List<IResource>();
 
-        //string collectionName;
-        //string dbName;
 
         Dictionary<string, WeakReference> resources = new Dictionary<string, WeakReference>();
 
 
-        public long Count
+        [ResourceEvent]
+        public event ResourceEventHanlder ResourceAdded;
+
+        [ResourceEvent]
+        public event ResourceEventHanlder ResourceRemoved;
+
+        [ResourceProperty]
+        public virtual int Count
         {
             get
             {
-                return resourcesCollection.CountDocuments(x => true);
-            }// resources.Count; }
+                return (int)resourcesCollection.CountDocuments(x => true);
+            }
         }
 
         public void Destroy()
@@ -73,6 +76,7 @@ namespace Esyur.Stores.MongoDB
             return true;
         }
 
+        [ResourceFunction]
         public bool Remove(IResource resource)
         {
             var objectId = resource.Instance.Attributes["objectId"].ToString();
@@ -81,8 +85,14 @@ namespace Esyur.Stores.MongoDB
             this.database.DropCollection("record_" + objectId);
             resourcesCollection.DeleteOne(filter);
 
+            ResourceRemoved?.Invoke(resource);
+
+            Instance.Modified("Count");
+
             return true;
         }
+
+     
 
         AsyncReply<T> Fetch<T>(string id) where T : IResource
         {
@@ -303,6 +313,10 @@ namespace Esyur.Stores.MongoDB
                 return true;
 
             PutResource(resource).Wait();
+
+            ResourceAdded?.Invoke(resource);
+
+            Instance.Modified("Count");
 
             return true;
         }
@@ -773,6 +787,8 @@ namespace Esyur.Stores.MongoDB
         public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
         {
 
+            if (resource == this)
+                return true;
 
             var objectId = resource.Instance.Attributes["objectId"].ToString();
 

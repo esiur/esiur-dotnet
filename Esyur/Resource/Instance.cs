@@ -816,10 +816,10 @@ namespace Esyur.Resource
             Type t = ResourceProxy.GetBaseType(resource);
 
 #if NETSTANDARD
-            var events = t.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+            var events = t.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
 
 #else
-            var events = t.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+            var events = t.GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
 #endif
 
             foreach (var evt in events)
