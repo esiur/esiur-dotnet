@@ -202,6 +202,7 @@ namespace Esyur.Stores.MongoDB
                                                     x);
                 });
 
+                
                 bag.Add(av);
             }
 
@@ -222,7 +223,7 @@ namespace Esyur.Stores.MongoDB
             return rt;
         }
 
-        IAsyncReply<object> Parse(BsonValue value)
+        AsyncReply Parse(BsonValue value)
         {
             if (value.BsonType == BsonType.Document)
             {
@@ -850,8 +851,8 @@ namespace Esyur.Stores.MongoDB
                 foreach (var child in children)
                 {
                     var r = Warehouse.Get(child);
-                    if (r is IAsyncReply<T>)
-                        rt.Add((IAsyncReply<T>)r);
+                    if (r is AsyncReply<T>)
+                        rt.Add(r);// (AsyncReply<T>)r);
                 }
 
                 rt.Seal();
@@ -882,8 +883,8 @@ namespace Esyur.Stores.MongoDB
                 foreach (var parent in parents)
                 {
                     var r = Warehouse.Get(parent);
-                    if (r is IAsyncReply<T>)
-                        rt.Add((IAsyncReply<T>)r);
+                    if (r is AsyncReply<T>)
+                        rt.Add(r);// (AsyncReply<T>)r);
                 }
 
 

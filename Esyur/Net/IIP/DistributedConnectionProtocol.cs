@@ -50,7 +50,7 @@ namespace Esyur.Net.IIP
 
         Dictionary<Guid, ResourceTemplate> templates = new Dictionary<Guid, ResourceTemplate>();
 
-        KeyList<uint, IAsyncReply<object>> requests = new KeyList<uint, IAsyncReply<object>>();
+        KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
 
         volatile uint callbackCounter = 0;
 
@@ -1196,10 +1196,10 @@ namespace Esyur.Net.IIP
                                         //await t;
                                         //SendParams((byte)0x90, callback, Codec.Compose(res, this));
                                     }
-                                    else if (rt is IAsyncReply<object>)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
+                                    else if (rt is AsyncReply)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
                                           //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
                                     {
-                                        (rt as IAsyncReply<object>).Then(res =>
+                                        (rt as AsyncReply).Then(res =>
                                         {
                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
                                                         .AddUInt8Array(Codec.Compose(res, this))
@@ -1345,9 +1345,9 @@ namespace Esyur.Net.IIP
                                          });
 
                                      }
-                                    else if (rt is IAsyncReply<object>)
+                                    else if (rt is AsyncReply)
                                      {
-                                         (rt as IAsyncReply<object>).Then(res =>
+                                         (rt as AsyncReply).Then(res =>
                                 {
                                              SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
                                                          .AddUInt8Array(Codec.Compose(res, this))

@@ -60,6 +60,7 @@ namespace Esyur.Resource
 
         private static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
+        private static object resourcesLock = new object();
 
         static KeyList<string, Func<IStore>> getSupportedProtocols()
         {
@@ -591,12 +592,13 @@ namespace Esyur.Resource
 
         public static bool Remove(IResource resource)
         {
-
+            
             if (resource.Instance == null)
                 return false;
 
             if (resources.ContainsKey(resource.Instance.Id))
-                resources.Remove(resource.Instance.Id);
+                lock(resourcesLock)
+                    resources.Remove(resource.Instance.Id);
             else
                 return false;
 
@@ -604,12 +606,17 @@ namespace Esyur.Resource
             {
                 stores.Remove(resource as IStore);
 
-                // remove all objects associated with the store
-                var toBeRemoved = resources.Values.Where(x =>
+                WeakReference<IResource>[] toBeRemoved;
+
+                lock (resourcesLock)
                 {
-                    IResource r;
-                    return x.TryGetTarget(out r) && r.Instance.Store == resource;
-                }).ToArray();
+                    // remove all objects associated with the store
+                     toBeRemoved = resources.Values.Where(x =>
+                    {
+                        IResource r;
+                        return x.TryGetTarget(out r) && r.Instance.Store == resource;
+                    }).ToArray();
+                }
 
                 foreach (var o in toBeRemoved)
                 {

@@ -14,12 +14,12 @@ namespace Esyur.Core
 
         T result;
 
-        public AsyncAwaiter(AsyncReply<T> reply)
+        public AsyncAwaiter(AsyncReply reply)
         {
             reply.Then(x =>
             {
                 this.IsCompleted = true;
-                this.result = x;
+                this.result = (T)x;
                 this.callback?.Invoke();
             }).Error(x =>
             {

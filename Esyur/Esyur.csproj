@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <Compile Remove="Core\AsyncReplyNon.cs" />
+    <Compile Remove="Core\IAsyncReply.cs" />
     <Compile Remove="Net\UDP\UDPServer.cs" />
   </ItemGroup>
 
@@ -37,6 +38,7 @@
 
   <ItemGroup>
     <None Include="Core\AsyncReplyNon.cs" />
+    <None Include="Core\IAsyncReply.cs" />
     <None Include="Net\UDP\UDPServer.cs" />
   </ItemGroup>
 

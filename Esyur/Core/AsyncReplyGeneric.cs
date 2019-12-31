@@ -36,28 +36,64 @@ using System.Diagnostics;
 namespace Esyur.Core
 {
     [AsyncMethodBuilder(typeof(AsyncReplyBuilder<>))]
-    public class AsyncReply<T> : IAsyncReply<T>
+    public class AsyncReply<T> : AsyncReply
     {
 
-        public bool Debug = false;
+        public AsyncReply<T> Then(Action<T> callback)
+        {
+            base.Then((x)=>callback((T)x));
+            return this;
+        }
 
-        protected List<Action<T>> callbacks = new List<Action<T>>();
-        protected T result;
+        public new AsyncReply<T> Progress(Action<ProgressType, int, int> callback)
+        {
+            base.Progress(callback);
+            return this;
+        }
 
-        protected List<Action<AsyncException>> errorCallbacks = new List<Action<AsyncException>>();
 
-        protected List<Action<ProgressType, int, int>> progressCallbacks = new List<Action<ProgressType, int, int>>();
+        public AsyncReply<T> Chunk(Action<T> callback)
+        {
+            chunkCallbacks.Add((x)=>callback((T)x));
+            return this;
+        }
 
-        protected List<Action<T>> chunkCallbacks = new List<Action<T>>();
+        public AsyncReply(T result)
+           : base(result)
+        {
+
+        }
+
+        public AsyncReply()
+            :base()
+        {
+
+        }
+
+        public new AsyncAwaiter<T> GetAwaiter()
+        {
+            return new AsyncAwaiter<T>(this);
+        }
+
+
+        /*
+        protected new List<Action> callbacks = new List<Action>();
+        protected new object result;
+
+        protected new List<Action<AsyncException>> errorCallbacks = new List<Action<AsyncException>>();
+
+        protected new List<Action<ProgressType, int, int>> progressCallbacks = new List<Action<ProgressType, int, int>>();
+
+        protected new List<Action> chunkCallbacks = new List<Action>();
 
         //List<AsyncAwaiter> awaiters = new List<AsyncAwaiter>();
 
         object asyncLock = new object();
 
         //public Timer timeout;// = new Timer()
-        protected bool resultReady = false;
+
         AsyncException exception;
-       // StackTrace trace;
+        // StackTrace trace;
         AutoResetEvent mutex = new AutoResetEvent(false);
 
         public static int MaxId;
@@ -103,7 +139,7 @@ namespace Esyur.Core
             //{
             lock (asyncLock)
             {
-              //  trace = new StackTrace();
+                //  trace = new StackTrace();
 
                 if (resultReady)
                 {
@@ -323,13 +359,10 @@ namespace Esyur.Core
 
         public T Current => throw new NotImplementedException();
 
-        public AsyncReply(T result)
-            : base(result)
-        {
-
-        }
+       
 
  */
+
 
 
 

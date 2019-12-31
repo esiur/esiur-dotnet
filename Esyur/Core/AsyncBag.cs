@@ -30,23 +30,27 @@ using System.Threading.Tasks;
 
 namespace Esyur.Core
 {
-    public class AsyncBag<T>: AsyncReply<T[]>
+    public class AsyncBag: AsyncReply
     {
-        //Dictionary<AsyncReply, T> results = new Dictionary<AsyncReply, T>();
 
-        List<IAsyncReply<T>> replies = new List<IAsyncReply<T>>();
-        List<T> results = new List<T>();
+        protected List<AsyncReply> replies = new List<AsyncReply>();
+        List<object> results = new List<object>();
 
         int count = 0;
         bool sealedBag = false;
 
-        /*
-        public AsyncBag<T> Then(Action<T[]> callback)
+        
+        public AsyncBag Then(Action<object[]> callback)
         {
-            base.Then(new Action<object>(o => callback((T[])o)));
+            base.Then(new Action<object>(o => callback((object[])o)));
             return this;
         }
-        */
+
+        public new AsyncAwaiter<object[]> GetAwaiter()
+        {
+            return new AsyncAwaiter<object[]>(this);
+        }
+
 
         public void Seal()
         {
@@ -56,7 +60,7 @@ namespace Esyur.Core
             sealedBag = true;
 
             if (results.Count == 0)
-                Trigger(new T[0]);
+                Trigger(new object[0]);
 
             for (var i = 0; i < results.Count; i++)
             //foreach(var reply in results.Keys)
@@ -66,7 +70,7 @@ namespace Esyur.Core
 
                 k.Then((r) =>
                 {
-                    results[index] = (T)r;
+                    results[index] = r;
                     count++;
                     if (count == results.Count)
                         Trigger(results.ToArray());
@@ -74,17 +78,16 @@ namespace Esyur.Core
             }
         }
 
-        public void Add(IAsyncReply<T> reply)
+        public void Add(AsyncReply reply)
         {
             if (!sealedBag)
             {
-                results.Add(default(T));
+                results.Add(null);
                 replies.Add(reply);
             }
-                //results.Add(reply, default(T));            
         }
 
-        public void AddBag(AsyncBag<T> bag)
+        public void AddBag(AsyncBag bag)
         {
             foreach (var r in bag.replies)
                 Add(r);
@@ -97,10 +100,10 @@ namespace Esyur.Core
 
         }
 
-        public AsyncBag(T[] results)
+        public AsyncBag(object[] results)
+            : base(results)
         {
-            resultReady = true;
-            base.result = results;
+
         }
 
     }

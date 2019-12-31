@@ -114,7 +114,7 @@ namespace Esyur.Net.IIP
         /// Send data to the other end as parameters
         /// </summary>
         /// <param name="values">Values will be converted to bytes then sent.</param>
-        internal SendList SendParams(IAsyncReply<object[]> reply = null)//params object[] values)
+        internal SendList SendParams(AsyncReply<object[]> reply = null)//params object[] values)
         {
             return new SendList(this, reply);
 

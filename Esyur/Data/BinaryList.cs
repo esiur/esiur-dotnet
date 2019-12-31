@@ -705,7 +705,7 @@ namespace Esyur.Data
             return list.ToArray();
         }
 
-        public virtual IAsyncReply<object[]> Done()
+        public virtual AsyncReply<object[]> Done()
         {
             return null;
             // 

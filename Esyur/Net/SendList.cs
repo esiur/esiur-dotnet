@@ -9,15 +9,15 @@ namespace Esyur.Net
     public class SendList : BinaryList
     {
         NetworkConnection connection;
-        IAsyncReply<object[]> reply;
+        AsyncReply<object[]> reply;
 
-        public SendList(NetworkConnection connection, IAsyncReply<object[]> reply)
+        public SendList(NetworkConnection connection, AsyncReply<object[]> reply)
         {
             this.reply = reply;
             this.connection = connection;
         }
 
-        public override IAsyncReply<object[]> Done()
+        public override AsyncReply<object[]> Done()
         {
             connection.Send(this.ToArray());
             return reply;

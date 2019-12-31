@@ -365,7 +365,7 @@ namespace Esyur.Data
         /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
         /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
         /// <returns>Structure</returns>
-        public static IAsyncReply<object> Parse(byte[] data, uint offset, DistributedConnection connection, DataType dataType = DataType.Unspecified)
+        public static AsyncReply Parse(byte[] data, uint offset, DistributedConnection connection, DataType dataType = DataType.Unspecified)
         {
             uint size;
             return Parse(data, offset, out size, connection);
@@ -380,7 +380,7 @@ namespace Esyur.Data
         /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
         /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
         /// <returns>Value</returns>
-        public static IAsyncReply<object> Parse(byte[] data, uint offset, out uint size, DistributedConnection connection, DataType dataType = DataType.Unspecified)
+        public static AsyncReply Parse(byte[] data, uint offset, out uint size, DistributedConnection connection, DataType dataType = DataType.Unspecified)
         {
  
             bool isArray;
@@ -697,7 +697,7 @@ namespace Esyur.Data
             // 
             var result = (ResourceComparisonResult)data[offset++];
 
-            IAsyncReply<IResource> previous = null;
+            AsyncReply previous = null;
 
             if (result == ResourceComparisonResult.Null)
                 previous = new AsyncReply<IResource>(null);
@@ -719,7 +719,7 @@ namespace Esyur.Data
             {
                 result = (ResourceComparisonResult)data[offset++];
 
-                IAsyncReply<IResource> current = null;
+                AsyncReply current = null;
 
                 if (result == ResourceComparisonResult.Null)
                 {
