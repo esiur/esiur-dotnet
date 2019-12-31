@@ -778,12 +778,23 @@ namespace Esyur.Net.IIP
 
  
             this.Socket.Hold();
-            while (offset < ends)
-            {
-                 offset = processPacket(msg, offset, ends, data, chunkId);
-             }
 
-            this.Socket.Unhold();
+            try
+            {
+                while (offset < ends)
+                {
+                    offset = processPacket(msg, offset, ends, data, chunkId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                Console.Beep();
+            }
+            finally
+            {
+                this.Socket.Unhold();
+            }
          }
 
         /// <summary>

@@ -129,10 +129,12 @@ namespace Esyur.Proxy
             Label exitMethod = g.DefineLabel();
             Label callModified = g.DefineLabel();
 
+            g.Emit(OpCodes.Nop);
+
             g.Emit(OpCodes.Ldarg_0);
             g.Emit(OpCodes.Ldarg_1);
             g.Emit(OpCodes.Call, pi.GetSetMethod());
-            //g.Emit(OpCodes.Nop);
+            g.Emit(OpCodes.Nop);
 
             g.Emit(OpCodes.Ldarg_0);
             g.Emit(OpCodes.Call, getInstance);
@@ -154,13 +156,19 @@ namespace Esyur.Proxy
             propertyBuilder.SetSetMethod(builder);
 
 
-           // builder = typeBuilder.DefineMethod("get_" + pi.Name, MethodAttributes.Public | MethodAttributes.Virtual, pi.PropertyType, null);
-           // g = builder.GetILGenerator();
-           // g.Emit(OpCodes.Ldarg_0);
-           // g.Emit(OpCodes.Call, pi.GetGetMethod());
-           // g.Emit(OpCodes.Ret);
+            builder = typeBuilder.DefineMethod("get_" + pi.Name, MethodAttributes.Public | MethodAttributes.Virtual, pi.PropertyType, null);
+            g = builder.GetILGenerator();
+            g.Emit(OpCodes.Ldarg_0);
+            g.Emit(OpCodes.Call, pi.GetGetMethod());
+            g.Emit(OpCodes.Ret);
 
-           // propertyBuilder.SetGetMethod(builder);
+            propertyBuilder.SetGetMethod(builder);
+
+            // g.Emit(OpCodes.Ldarg_0);
+            // g.Emit(OpCodes.Call, pi.GetGetMethod());
+            // g.Emit(OpCodes.Ret);
+
+            // propertyBuilder.SetGetMethod(builder);
 
 
             /*

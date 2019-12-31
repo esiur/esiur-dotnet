@@ -445,8 +445,19 @@ namespace Esyur.Net.Sockets
 
         public void Unhold()
         {
-            DataSent(null);
-            held = false;
+            try
+            {
+                DataSent(null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                Console.Beep();
+            }
+            finally
+            {
+                held = false;
+            }
         }
     }
 }
