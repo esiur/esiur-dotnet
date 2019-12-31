@@ -72,7 +72,6 @@ namespace Esyur.Core
 
         public object Wait()
         {
-
             if (resultReady)
                 return result;
 

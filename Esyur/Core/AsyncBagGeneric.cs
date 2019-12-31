@@ -56,6 +56,11 @@ namespace Esyur.Core
             return new AsyncAwaiter<T[]>(this);
         }
 
+        public new T[] Wait()
+        {
+            return base.Wait().Select(x => (T)x).ToArray();
+        }
+
         public AsyncBag()
         {
 

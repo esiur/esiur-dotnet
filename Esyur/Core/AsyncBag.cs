@@ -51,6 +51,11 @@ namespace Esyur.Core
             return new AsyncAwaiter<object[]>(this);
         }
 
+        public new object[] Wait()
+        {
+            return (object[])base.Wait();
+        }
+
 
         public void Seal()
         {

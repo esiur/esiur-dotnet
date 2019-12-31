@@ -75,7 +75,10 @@ namespace Esyur.Core
             return new AsyncAwaiter<T>(this);
         }
 
-
+        public new T Wait()
+        {
+            return (T)base.Wait();
+        }
         /*
         protected new List<Action> callbacks = new List<Action>();
         protected new object result;
