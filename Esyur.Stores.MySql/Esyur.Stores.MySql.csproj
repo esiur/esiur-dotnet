@@ -5,6 +5,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="MySqlStore.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="MySqlStore.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MySql.Data" Version="8.0.17" />
   </ItemGroup>
 
