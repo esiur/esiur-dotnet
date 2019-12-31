@@ -6,21 +6,20 @@ using System.Threading.Tasks;
 
 namespace Esyur.Core
 {
-    public class AsyncAwaiter : INotifyCompletion
+    public class AsyncAwaiter<T> : INotifyCompletion
     {
         Action callback = null;
 
         AsyncException exception = null;
 
-        object result;
+        T result;
 
-
-        public AsyncAwaiter(AsyncReply reply)
+        public AsyncAwaiter(AsyncReply<T> reply)
         {
             reply.Then(x =>
             {
                 this.IsCompleted = true;
-                this.result = x;
+                this.result = (T)x;
                 this.callback?.Invoke();
             }).Error(x =>
             {
@@ -30,7 +29,7 @@ namespace Esyur.Core
             });
         }
 
-        public object GetResult()
+        public T GetResult()
         {
             if (exception != null)
                 throw exception;
@@ -51,3 +50,4 @@ namespace Esyur.Core
 
     }
 }
+

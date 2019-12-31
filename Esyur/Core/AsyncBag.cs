@@ -46,9 +46,9 @@ namespace Esyur.Core
             return this;
         }
 
-        public new AsyncAwaiter<object[]> GetAwaiter()
+        public new AsyncBagAwaiter GetAwaiter()
         {
-            return new AsyncAwaiter<object[]>(this);
+            return new AsyncBagAwaiter(this);
         }
 
         public new object[] Wait()

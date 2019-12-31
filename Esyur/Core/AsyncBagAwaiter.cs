@@ -6,16 +6,15 @@ using System.Threading.Tasks;
 
 namespace Esyur.Core
 {
-    public class AsyncAwaiter : INotifyCompletion
+    public class AsyncBagAwaiter : INotifyCompletion
     {
         Action callback = null;
 
         AsyncException exception = null;
 
-        object result;
+        object[] result;
 
-
-        public AsyncAwaiter(AsyncReply reply)
+        public AsyncBagAwaiter(AsyncBag reply)
         {
             reply.Then(x =>
             {
@@ -30,7 +29,7 @@ namespace Esyur.Core
             });
         }
 
-        public object GetResult()
+        public object[] GetResult()
         {
             if (exception != null)
                 throw exception;
@@ -51,3 +50,4 @@ namespace Esyur.Core
 
     }
 }
+

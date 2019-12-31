@@ -255,9 +255,9 @@ namespace Esyur.Core
             //}
         }
 
-        public AsyncAwaiter<object> GetAwaiter()
+        public AsyncAwaiter GetAwaiter()
         {
-            return new AsyncAwaiter<object>(this);
+            return new AsyncAwaiter(this);
         }
 
 
