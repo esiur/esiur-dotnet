@@ -1167,7 +1167,7 @@ namespace Esyur.Net.IIP
                                         return;
                                     }
 
-                                    if (rt is System.Collections.IEnumerable && !(rt is Array))
+                                    if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Structure))
                                     {
                                         var enu = rt as System.Collections.IEnumerable;
 

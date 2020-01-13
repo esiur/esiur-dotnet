@@ -640,7 +640,7 @@ namespace Esyur.Data
         public static sbyte[] GetInt8Array(this byte[] data, uint offset, uint length)
         {
             var rt = new sbyte[length];
-            Buffer.BlockCopy(rt, (int)offset, rt, 0, (int)length);
+            Buffer.BlockCopy(data, (int)offset, rt, 0, (int)length);
             return rt;
         }
 
@@ -652,7 +652,7 @@ namespace Esyur.Data
         public static byte[] GetUInt8Array(this byte[] data, uint offset, uint length)
         {
             var rt = new byte[length];
-            Buffer.BlockCopy(rt, (int)offset, rt, 0, (int)length);
+            Buffer.BlockCopy(data, (int)offset, rt, 0, (int)length);
             return rt;
         }
 

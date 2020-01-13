@@ -25,7 +25,6 @@ namespace Esyur.Stores.MongoDB
         IMongoCollection<BsonDocument> resourcesCollection;
 
 
-
         Dictionary<string, WeakReference> resources = new Dictionary<string, WeakReference>();
 
 
@@ -35,12 +34,16 @@ namespace Esyur.Stores.MongoDB
         [ResourceEvent]
         public event ResourceEventHanlder ResourceRemoved;
 
+        int count = 0;
+
         [ResourceProperty]
         public virtual int Count
         {
             get
             {
-                return (int)resourcesCollection.CountDocuments(x => true);
+                return count;
+
+                //return (int)resourcesCollection.Count(x => true);
             }
         }
 
@@ -85,7 +88,10 @@ namespace Esyur.Stores.MongoDB
             this.database.DropCollection("record_" + objectId);
             resourcesCollection.DeleteOne(filter);
 
+            count--;
+
             ResourceRemoved?.Invoke(resource);
+
 
             Instance.Modified("Count");
 
@@ -317,6 +323,8 @@ namespace Esyur.Stores.MongoDB
 
             ResourceAdded?.Invoke(resource);
 
+            count++;
+
             Instance.Modified("Count");
 
             return true;
@@ -542,6 +550,10 @@ namespace Esyur.Stores.MongoDB
                 database = client.GetDatabase(dbName);
 
                 resourcesCollection = this.database.GetCollection<BsonDocument>(collectionName);
+
+
+                count = (int)resourcesCollection.CountDocuments(x => true);
+
 
                 // return new AsyncReply<bool>(true);
 

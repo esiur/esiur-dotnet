@@ -34,6 +34,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Esyur.Net.IIP;
 using System.Text.RegularExpressions;
+using Esyur.Misc;
 
 namespace Esyur.Resource
 {
@@ -81,6 +82,8 @@ namespace Esyur.Resource
                     return s as IStore;
             return null;
         }
+
+        public static WeakReference<IResource>[] Resources => resources.Values.ToArray();
 
         /// <summary>
         /// Get a resource by instance Id.
@@ -475,6 +478,9 @@ namespace Esyur.Resource
 
             }
 
+            var t = resource.GetType();
+            Global.Counters["T-" + t.Namespace + "." + t.Name]++;
+
             resources.Add(resource.Instance.Id, new WeakReference<IResource>(resource));
 
             if (warehouseIsOpen)
@@ -531,7 +537,9 @@ namespace Esyur.Resource
                 }
             }
 
-            Put(res, name, store, parent, null, 0, manager, attributes);
+            if (store != null || parent != null || res is IStore)
+                Put(res, name, store, parent, null, 0, manager, attributes);
+
             return (T)res;
         }
 

@@ -16,7 +16,7 @@ namespace Esyur.Stores
 
         public event DestroyedEvent OnDestroy;
 
-        Dictionary<uint, IResource> resources = new Dictionary<uint, IResource>();
+        KeyList<uint, IResource> resources = new KeyList<uint, IResource>();
 
         public void Destroy()
         {
@@ -37,11 +37,13 @@ namespace Esyur.Stores
                 if (r.Value.Instance.Name == path)
                     return new AsyncReply<IResource>(r.Value);
 
+
             return new AsyncReply<IResource>(null);
         }
 
         public bool Put(IResource resource)
         {
+            
             resources.Add(resource.Instance.Id, resource);//  new WeakReference<IResource>(resource));
             resource.Instance.Attributes["children"] = new AutoList<IResource, Instance>(resource.Instance);
             resource.Instance.Attributes["parents"] = new AutoList<IResource, Instance>(resource.Instance);

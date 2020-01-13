@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <Folder Include="Net\DataLink\Sources\" />
+    <Folder Include="obj\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -36,7 +36,7 @@ using Esyur.Core;
 namespace Esyur.Data
 {
 
-    public class KeyList<KT, T> : IEnumerable
+    public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
     {
         private readonly object syncRoot = new object();
         private Dictionary<KT, T> dic;
@@ -144,10 +144,17 @@ namespace Esyur.Data
             }
         }
 
-        public IEnumerator GetEnumerator()
+     
+        public IEnumerator<KeyValuePair<KT, T>> GetEnumerator()
         {
             return dic.GetEnumerator();
         }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return dic.GetEnumerator();
+        }
+
 
         public void Clear()
         {
