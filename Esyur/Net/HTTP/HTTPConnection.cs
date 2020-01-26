@@ -298,13 +298,12 @@ namespace Esyur.Net.HTTP
                         if (n <= 0)
                             break;
 
-                        Thread.Sleep(50);
+                        //Thread.Sleep(50);
                         base.Send(buffer, 0, n);
 
                     }
                 }
-                
-
+               
             }
             catch
             {

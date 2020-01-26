@@ -55,6 +55,8 @@ namespace Esyur.Net
         public event DestroyedEvent OnDestroy;
         object receivingLock = new object();
 
+        object sendLock = new object();
+
         bool processing = false;
 
 
@@ -260,33 +262,39 @@ namespace Esyur.Net
 
         public virtual void Send(byte[] msg)
         {
-            try
+            lock (sendLock)
             {
-                if (sock != null)
+                try
                 {
-                    lastAction = DateTime.Now;
-                    sock.Send(msg);
+                    if (sock != null)
+                    {
+                        lastAction = DateTime.Now;
+                        sock.Send(msg);
+                    }
                 }
-            }
-            catch 
-            {
+                catch
+                {
 
+                }
             }
         }
 
         public virtual void Send(byte[] msg, int offset, int length)
         {
-            try
+            lock (sendLock)
             {
-                if (sock != null)
+                try
                 {
-                    lastAction = DateTime.Now;
-                    sock.Send(msg, offset, length);
+                    if (sock != null)
+                    {
+                        lastAction = DateTime.Now;
+                        sock.Send(msg, offset, length);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                }
             }
         }
 
