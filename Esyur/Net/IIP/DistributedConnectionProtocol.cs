@@ -1097,6 +1097,10 @@ namespace Esyur.Net.IIP
                         var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
                         if (ft != null)
                         {
+
+                            // un hold the socket to send data immediately
+                            this.Socket.Unhold();
+
                             if (r is DistributedResource)
                             {
                                 var rt = (r as DistributedResource)._InvokeByArrayArguments(index, arguments);
@@ -1163,7 +1167,8 @@ namespace Esyur.Net.IIP
                                     }
                                     catch (Exception ex)
                                     {
-                                        SendError(ErrorType.Exception, callback, 0, ex.InnerException.ToString());
+                                        SendError(ErrorType.Exception, callback, 0, 
+                                            ex.InnerException != null ? ex.InnerException.ToString() : ex.ToString());
                                         return;
                                     }
 
@@ -1171,12 +1176,18 @@ namespace Esyur.Net.IIP
                                     {
                                         var enu = rt as System.Collections.IEnumerable;
 
-                                        foreach (var v in enu)
-                                            SendChunk(callback, v);
-
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
-                                                    .AddUInt8((byte)DataType.Void)
-                                                    .Done();
+                                        try
+                                        {
+                                            foreach (var v in enu)
+                                                SendChunk(callback, v);
+                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
+                                            .AddUInt8((byte)DataType.Void)
+                                            .Done();
+                                        }
+                                        catch(Exception ex)
+                                        {
+                                            SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                        }
 
                                     }
                                     else if (rt is Task)
@@ -1254,6 +1265,9 @@ namespace Esyur.Net.IIP
                          var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
                          if (ft != null)
                          {
+                             // un hold the socket to send data immediately
+                             this.Socket.Unhold();
+
                              if (r is DistributedResource)
                              {
                                  var rt = (r as DistributedResource)._InvokeByNamedArguments(index, namedArgs);
@@ -1323,12 +1337,19 @@ namespace Esyur.Net.IIP
                                      {
                                          var enu = rt as System.Collections.IEnumerable;
 
-                                         foreach (var v in enu)
-                                             SendChunk(callback, v);
+                                         try
+                                         {
+                                             foreach (var v in enu)
+                                                 SendChunk(callback, v);
 
-                                         SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                                 .AddUInt8((byte)DataType.Void)
-                                                 .Done();
+                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                     .AddUInt8((byte)DataType.Void)
+                                                     .Done();
+                                         }
+                                         catch (Exception ex)
+                                         {
+                                             SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                         }
                                      }
                                      else if (rt is Task)
                                      {

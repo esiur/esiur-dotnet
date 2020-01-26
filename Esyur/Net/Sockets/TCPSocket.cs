@@ -48,11 +48,11 @@ namespace Esyur.Net.Sockets
 
         NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
 
-        object sendLock = new object();
+        readonly object sendLock = new object();
 
         Queue<byte[]> sendBufferQueue = new Queue<byte[]>();
 
-        bool asyncSending;
+         bool asyncSending;
         bool began = false;
 
 
@@ -176,7 +176,7 @@ namespace Esyur.Net.Sockets
 
 
                 //lock (receiveNetworkBuffer.SyncLock)
-               // Console.WriteLine(e. + " " + e.BytesTransferred);
+                // Console.WriteLine(e. + " " + e.BytesTransferred);
 
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)e.BytesTransferred);
 
@@ -238,39 +238,39 @@ namespace Esyur.Net.Sockets
 
         }
 
-        private void DataSent(Task<int> task)
-        {
-            try
-            {
-                lock (sendLock)
-                {
+        //private void DataSent(Task<int> task)
+        //{
+        //    try
+        //    {
+        //        lock (sendLock)
+        //        {
 
-                    if (sendBufferQueue.Count > 0)
-                    {
-                        byte[] data = sendBufferQueue.Dequeue();
-                        //Console.WriteLine(Encoding.UTF8.GetString(data));
-                        sock.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ContinueWith(DataSent);
-                    }
+        //            if (sendBufferQueue.Count > 0)
+        //            {
+        //                byte[] data = sendBufferQueue.Dequeue();
+        //                //Console.WriteLine(Encoding.UTF8.GetString(data));
+        //                sock.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ContinueWith(DataSent);
+        //            }
 
-                    else
-                    {
-                        asyncSending = false;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                if (state != SocketState.Closed && !sock.Connected)
-                {
-                    state = SocketState.Terminated;
-                    Close();
-                }
+        //            else
+        //            {
+        //                asyncSending = false;
+        //            }
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        if (state != SocketState.Closed && !sock.Connected)
+        //        {
+        //            state = SocketState.Terminated;
+        //            Close();
+        //        }
 
-                asyncSending = false;
+        //        asyncSending = false;
 
-                Global.Log("TCPSocket", LogType.Error, ex.ToString());
-            }
-        }
+        //        Global.Log("TCPSocket", LogType.Error, ex.ToString());
+        //    }
+        //}
 
         public TCPSocket(IPEndPoint localEndPoint)
         {
@@ -348,42 +348,44 @@ namespace Esyur.Net.Sockets
 
         public void Send(byte[] message, int offset, int size)
         {
-            //sock.Blocking =
-            //sock.Send(message, offset, size, SocketFlags.None);
-            //return;
-            if (sock.Connected)
-                lock (sendLock)
-                {
 
-                    if (asyncSending || held)
-                    {
-                        sendBufferQueue.Enqueue(message.Clip((uint)offset, (uint)size));
-                    }
-                    else
-                    {
-                        asyncSending = true;
-                        sock.BeginSend(message, offset, size, SocketFlags.None, PacketSent, null);
-                        //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
-                    }
+            var msg = message.Clip((uint)offset, (uint)size);
+
+            lock (sendLock)
+            {
+                if (!sock.Connected)
+                    return;
+
+                if (asyncSending || held)
+                {
+                    sendBufferQueue.Enqueue(msg);
                 }
+                else
+                {
+                    asyncSending = true;
+                    sock.BeginSend(msg, 0, size, SocketFlags.None, PacketSent, null);
+                    //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
+                }
+            }
+
         }
 
         private void PacketSent(IAsyncResult ar)
         {
             try
             {
-                if (sendBufferQueue.Count > 0)
+                lock (sendLock)
                 {
-                    lock (sendLock)
+                    if (sendBufferQueue.Count > 0)
                     {
                         byte[] data = sendBufferQueue.Dequeue();
 
                         sock.BeginSend(data, 0, data.Length, SocketFlags.None, PacketSent, null);
                     }
-                }
-                else
-                {
-                    asyncSending = false;
+                    else
+                    {
+                        asyncSending = false;
+                    }
                 }
             }
             catch (Exception ex)
@@ -447,12 +449,11 @@ namespace Esyur.Net.Sockets
         {
             try
             {
-                DataSent(null);
+                PacketSent(null);
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                Console.Beep();
             }
             finally
             {

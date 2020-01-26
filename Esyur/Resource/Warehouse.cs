@@ -111,30 +111,38 @@ namespace Esyur.Resource
         /// <returns>True, if no problem occurred.</returns>
         public static async AsyncReply<bool> Open()
         {
+            warehouseIsOpen = true;
 
-            foreach (var rk in resources)
+            var resSnap = resources.Select(x => {
+                    IResource r;
+                if (x.Value.TryGetTarget(out r))
+                    return r;
+                else
+                    return null;
+                }).Where(r=>r!=null).ToArray();
+
+            foreach (var r in resSnap)
             {
-                IResource r;
-                if (rk.Value.TryGetTarget(out r))
-                {
+                //IResource r;
+                //if (rk.Value.TryGetTarget(out r))
+                //{
                     var rt = await r.Trigger(ResourceTrigger.Initialize);
                     if (!rt)
                         return false;
-                }
+                //}
             }
 
-            foreach (var rk in resources)
+            foreach (var r in resSnap)
             {
-                IResource r;
-                if (rk.Value.TryGetTarget(out r))
-                {
+                //IResource r;
+                //if (rk.Value.TryGetTarget(out r))
+                //{
                     var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
                     if (!rt)
                         return false;
-                }
+                //}
             }
 
-            warehouseIsOpen = true;
 
             return true;
 
@@ -422,6 +430,8 @@ namespace Esyur.Resource
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
         public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null)
         {
+            if (resource.Instance != null)
+                throw new Exception("Resource has a store.");
 
             if (store == null)
             {
@@ -467,6 +477,8 @@ namespace Esyur.Resource
             if (resource is IStore)
                 StoreConnected?.Invoke(resource as IStore, name);
             //else
+
+            
             store.Put(resource);
 
 
@@ -481,7 +493,8 @@ namespace Esyur.Resource
             var t = resource.GetType();
             Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
-            resources.Add(resource.Instance.Id, new WeakReference<IResource>(resource));
+            lock (resourcesLock)
+                resources.Add(resource.Instance.Id, new WeakReference<IResource>(resource));
 
             if (warehouseIsOpen)
                 resource.Trigger(ResourceTrigger.Initialize);

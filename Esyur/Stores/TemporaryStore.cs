@@ -31,16 +31,16 @@ namespace Esyur.Stores
             return null;
         }
 
-        public AsyncReply<IResource> Get(string path)
+        public async AsyncReply<IResource> Get(string path)
         {
             foreach (var r in resources)
                 if (r.Value.IsAlive && (r.Value.Target as IResource).Instance.Name == path)
-                    return new AsyncReply<IResource>(r.Value.Target as IResource);
+                    return r.Value.Target as IResource;
 
-            return new AsyncReply<IResource>(null);
+            return null;
         }
 
-        public bool Put(IResource resource)
+        public async AsyncReply<bool> Put(IResource resource)
         {
             resources.Add(resource.Instance.Id, new WeakReference( resource));//  new WeakReference<IResource>(resource));
             return true;

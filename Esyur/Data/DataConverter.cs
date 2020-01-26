@@ -43,8 +43,12 @@ namespace Esyur.Data
     {
         public static object CastConvert(object value, Type destinationType)
         {
+
             if (value == null)
                 return null;
+
+            //if (destinationType.IsArray && destinationType.GetElementType().IsArray)
+              //  Console.Beep();
 
             var sourceType = value.GetType();
 
@@ -54,10 +58,9 @@ namespace Esyur.Data
             }
             else
             {
-                if (sourceType.IsArray)
+                if (sourceType.IsArray && (destinationType.IsArray || destinationType == typeof(object)))
                 {
-                    if (destinationType.IsArray)
-                        destinationType = destinationType.GetElementType();
+                    destinationType = destinationType.GetElementType();
 
                     var v = value as Array;
 
@@ -65,29 +68,34 @@ namespace Esyur.Data
 
                     for (var i = 0; i < rt.Length; i++)
                     {
-                        try
-                        {
-#if NETSTANDARD
-                            if (destinationType.GetTypeInfo().IsInstanceOfType(v.GetValue(i)))
-#else
-                            if (destinationType.IsInstanceOfType(v.GetValue(i)))
-#endif
-                                rt.SetValue(v.GetValue(i), i);
-                            else
-                                rt.SetValue(Convert.ChangeType(v.GetValue(i), destinationType), i);
-                        }
-                        catch
-                        {
-                            rt.SetValue(null, i);
-                        }
+                        rt.SetValue(CastConvert(v.GetValue(i), destinationType), i);
+
+                        //                        try
+                        //                        {
+                        //#if NETSTANDARD
+                        //                            if (destinationType.GetTypeInfo().IsInstanceOfType(v.GetValue(i)))
+                        //#else
+                        //                            if (destinationType.IsInstanceOfType(v.GetValue(i)))
+                        //#endif
+                        //                                rt.SetValue(v.GetValue(i), i);
+                        //                            else
+                        //                                rt.SetValue(Convert.ChangeType(v.GetValue(i), destinationType), i);
+                        //                        }
+                        //                        catch
+                        //                        {
+                        //                            rt.SetValue(null, i);
+                        //                        }
                     }
 
                     return rt;
+
                 }
                 else
                 {
                     try
                     {
+
+
                         var underType = Nullable.GetUnderlyingType(destinationType);
                         if (underType != null)
                         {
@@ -96,15 +104,26 @@ namespace Esyur.Data
                             else
                                 destinationType = underType;
                         }
-                           
-#if NETSTANDARD
-                        if (destinationType.GetTypeInfo().IsInstanceOfType(value))
-#else
+
+
                         if (destinationType.IsInstanceOfType(value))
-#endif
+                        {
                             return value;
+                        }
+                        else if (typeof(IUserType).IsAssignableFrom(destinationType))
+                        {
+                            var rt = Activator.CreateInstance(destinationType) as IUserType;
+                            rt.Set(value);
+                            return rt;
+                        }
+                        else if (sourceType == typeof(Structure) && sourceType.IsAssignableFrom(destinationType))
+                        {
+                            return Structure.FromStructure((Structure)value, destinationType);
+                        }
                         else
+                        {
                             return Convert.ChangeType(value, destinationType);
+                        }
                     }
                     catch
                     {

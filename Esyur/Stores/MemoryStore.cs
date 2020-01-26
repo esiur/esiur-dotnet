@@ -41,7 +41,7 @@ namespace Esyur.Stores
             return new AsyncReply<IResource>(null);
         }
 
-        public bool Put(IResource resource)
+        public async AsyncReply<bool> Put(IResource resource)
         {
             
             resources.Add(resource.Instance.Id, resource);//  new WeakReference<IResource>(resource));

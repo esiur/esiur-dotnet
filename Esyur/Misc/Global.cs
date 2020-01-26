@@ -410,7 +410,7 @@ namespace Esyur.Misc
 
         public static string GenerateCode(int length)
         {
-            return GenerateCode(length, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*()_-+=\\?/");
+            return GenerateCode(length, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");// ~!@#$%^&*()_-+=\\?/");
         }
 
         public static string GenerateCode(int length, string chars)

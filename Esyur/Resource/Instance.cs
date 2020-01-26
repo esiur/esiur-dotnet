@@ -394,6 +394,7 @@ namespace Esyur.Resource
                     if (resource.TryGetTarget(out res))
                     {
                          var rt = pt.Serilize ? pt.Info.GetValue(res, null) : null;
+                    
                         props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
                     }
                 //}

@@ -284,9 +284,9 @@ namespace Esyur.Net
                     sock.Send(msg, offset, length);
                 }
             }
-            catch 
+            catch (Exception ex)
             {
-
+                Console.WriteLine(ex);
             }
         }
 

@@ -8,6 +8,8 @@ namespace Esyur.Core
     {
         HostNotReachable,
         AccessDenied,
+        UserNotFound,
+        ChallengeFailed,
         ResourceNotFound,
         AttachDenied,
         InvalidMethod,

@@ -50,6 +50,7 @@ namespace Esyur.Net.Sockets
         event ISocketConnectEvent OnConnect;
         event ISocketCloseEvent OnClose;
 
+
         void Send(byte[] message);
         void Send(byte[] message, int offset, int size);
         void Close();

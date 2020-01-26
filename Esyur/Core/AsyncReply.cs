@@ -227,9 +227,6 @@ namespace Esyur.Core
         {
             //timeout?.Dispose();
 
-            if (resultReady)
-                return;
-
             //lock (callbacksLock)
             //{
             foreach (var cb in progressCallbacks)
@@ -244,9 +241,7 @@ namespace Esyur.Core
 
             //timeout?.Dispose();
 
-            if (resultReady)
-                return;
-
+            
             //lock (callbacksLock)
             //{
             foreach (var cb in chunkCallbacks)

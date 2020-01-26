@@ -73,7 +73,9 @@ namespace Esyur.Data
             var types = new DataType[keys.Length];
 
             for (var i = 0; i < keys.Length; i++)
-                types[i] = Codec.GetDataType(structure[keys[i]], connection);
+            {
+                types[i] = Codec.GetDataType(structure[keys[i]], connection).type;
+            }
             return types;
         }
 
@@ -125,7 +127,7 @@ namespace Esyur.Data
         {
             if (structures == null || structures?.Length == 0)
                 return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
- 
+
             var rt = new BinaryList();
             var comparsion = StructureComparisonResult.Structure;
 
@@ -173,8 +175,8 @@ namespace Esyur.Data
             var result = (StructureComparisonResult)data[offset++];
 
             AsyncReply<Structure> previous = null;
-           // string[] previousKeys = null;
-           // DataType[] previousTypes = null;
+            // string[] previousKeys = null;
+            // DataType[] previousTypes = null;
 
             Structure.StructureMetadata metadata = new Structure.StructureMetadata();
 
@@ -188,7 +190,7 @@ namespace Esyur.Data
                 previous = ParseStructure(data, offset, cs, connection, out metadata);
                 offset += cs;
             }
- 
+
             reply.Add(previous);
 
 
@@ -382,7 +384,7 @@ namespace Esyur.Data
         /// <returns>Value</returns>
         public static AsyncReply Parse(byte[] data, uint offset, out uint size, DistributedConnection connection, DataType dataType = DataType.Unspecified)
         {
- 
+
             bool isArray;
             DataType t;
 
@@ -434,7 +436,7 @@ namespace Esyur.Data
                         return new AsyncReply<char[]>(data.GetCharArray(offset, contentLength));
 
                     case DataType.Int16:
-                        return new AsyncReply<short[]>(data.GetInt16Array( offset, contentLength));
+                        return new AsyncReply<short[]>(data.GetInt16Array(offset, contentLength));
 
                     case DataType.UInt16:
                         return new AsyncReply<ushort[]>(data.GetUInt16Array(offset, contentLength));
@@ -595,7 +597,7 @@ namespace Esyur.Data
             if (resource is DistributedResource)
                 if ((resource as DistributedResource).Connection == connection)
                     return true;
-                
+
             return false;
         }
 
@@ -658,7 +660,7 @@ namespace Esyur.Data
                 rt.AddUInt32((resources[0] as DistributedResource).Id);
             else if (comparsion == ResourceComparisonResult.Distributed)
                 rt.AddUInt32(resources[0].Instance.Id);
-            
+
             for (var i = 1; i < resources.Length; i++)
             {
                 comparsion = Compare(resources[i - 1], resources[i], connection);
@@ -756,12 +758,12 @@ namespace Esyur.Data
         /// <param name="connection">DistributedConnection is required to check locality.</param>
         /// <param name="prependLength">If True, prepend the length as UInt32 at the beginning of the output.</param>
         /// <returns>Array of bytes in the network byte order.</returns>
-        public static byte[] ComposeVarArray(object[] array, DistributedConnection connection, bool prependLength = false)
+        public static byte[] ComposeVarArray(Array array, DistributedConnection connection, bool prependLength = false)
         {
             var rt = new List<byte>();
 
             for (var i = 0; i < array.Length; i++)
-                rt.AddRange(Compose(array[i], connection));
+                rt.AddRange(Compose(array.GetValue(i), connection));
             if (prependLength)
                 rt.InsertRange(0, DC.ToBytes(rt.Count));
             return rt.ToArray();
@@ -844,9 +846,9 @@ namespace Esyur.Data
 
             // age, date, value
             //if (includeAge)
-                // return BinaryList.ToBytes(propertyValue.Age, propertyValue.Date, Compose(propertyValue.Value, connection));
+            // return BinaryList.ToBytes(propertyValue.Age, propertyValue.Date, Compose(propertyValue.Value, connection));
             //else
-              //  return BinaryList.ToBytes(propertyValue.Date, Compose(propertyValue.Value, connection));
+            //  return BinaryList.ToBytes(propertyValue.Date, Compose(propertyValue.Value, connection));
 
         }
 
@@ -858,14 +860,14 @@ namespace Esyur.Data
         /// <param name="offset">Zero-indexed offset.</param>
         /// <param name="connection">DistributedConnection is required to fetch resources.</param>
         /// <param name="cs">Output content size.</param>
-         /// <returns>PropertyValue.</returns>
+        /// <returns>PropertyValue.</returns>
         public static AsyncReply<PropertyValue> ParsePropertyValue(byte[] data, uint offset, out uint cs, DistributedConnection connection)//, bool ageIncluded = true)
         {
             var reply = new AsyncReply<PropertyValue>();
 
             var age = data.GetUInt64(offset);
             offset += 8;
-  
+
             DateTime date = data.GetDateTime(offset);
             offset += 8;
 
@@ -928,14 +930,14 @@ namespace Esyur.Data
 
             bagOfBags.Then(x =>
             {
-                for(var i = 0; i < list.Count; i++)
+                for (var i = 0; i < list.Count; i++)
                     list[list.Keys.ElementAt(i)] = x[i];
 
                 reply.Trigger(list);
             });
 
             return reply;
-            
+
         }
 
         /// <summary>
@@ -945,7 +947,7 @@ namespace Esyur.Data
         /// <param name="connection">DistributedConnection is required to fetch resources.</param>
         /// <returns></returns>
         public static byte[] ComposeHistory(KeyList<PropertyTemplate, PropertyValue[]> history,
-                                            DistributedConnection  connection, bool prependLength = false)
+                                            DistributedConnection connection, bool prependLength = false)
         {
             var rt = new BinaryList();
 
@@ -954,7 +956,7 @@ namespace Esyur.Data
                   .AddUInt8Array(ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
 
             //    rt.Append((byte)history.Keys.ElementAt(i).Index, 
-              //            ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
+            //            ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
 
             if (prependLength)
                 rt.InsertInt32(0, rt.Length);
@@ -1001,15 +1003,10 @@ namespace Esyur.Data
         /// <param name="connection">DistributedConnection is required to check locality.</param>
         /// <param name="prependType">If True, prepend the DataType at the beginning of the output.</param>
         /// <returns>Array of bytes in the network byte order.</returns>
-        public static byte[] Compose(object value, DistributedConnection connection, bool prependType = true)
+        public static byte[] Compose(object valueOrSource, DistributedConnection connection, bool prependType = true)
         {
 
-            if (value is Func<DistributedConnection, object>)
-                value = (value as Func<DistributedConnection, object>)(connection);
-            else if (value is DistributedPropertyContext)
-                value = (value as DistributedPropertyContext).Method(connection);
-            
-            var type = GetDataType(value, connection);
+            var (type, value) = GetDataType(valueOrSource, connection);
             var rt = new BinaryList();
 
             switch (type)
@@ -1038,7 +1035,7 @@ namespace Esyur.Data
                     break;
 
                 case DataType.VarArray:
-                    rt.AddUInt8Array(ComposeVarArray((object[])value, connection, true));
+                    rt.AddUInt8Array(ComposeVarArray((Array)value, connection, true));
                     break;
 
                 case DataType.ResourceArray:
@@ -1115,22 +1112,22 @@ namespace Esyur.Data
                 */
             //{
 
-                while (type != null)
-                {
-                    if (type == iface)
-                        return true;
+            while (type != null)
+            {
+                if (type == iface)
+                    return true;
 
 #if NETSTANDARD
-                    if (type.GetTypeInfo().GetInterfaces().Contains(iface))
-                        return true;
+                if (type.GetTypeInfo().GetInterfaces().Contains(iface))
+                    return true;
 
-                    type = type.GetTypeInfo().BaseType;
+                type = type.GetTypeInfo().BaseType;
 #else
                 if (type.GetInterfaces().Contains(iface))
                     return true;
                 type = type.BaseType;
 #endif
-                }
+            }
 
             //}
             return false;
@@ -1165,16 +1162,36 @@ namespace Esyur.Data
         /// <param name="value">Value to find its DataType.</param>
         /// <param name="connection">DistributedConnection is required to check locality of resources.</param>
         /// <returns>DataType.</returns>
-        public static DataType GetDataType(object value, DistributedConnection connection)
+        public static (DataType type, object value) GetDataType(object value, DistributedConnection connection)
         {
+            
             if (value == null)
-                return DataType.Void;
+                return (DataType.Void, null);
+
+            if (value is IUserType)
+                value = (value as IUserType).Get();
+
+
+            if (value is Func<DistributedConnection, object>)
+                //if (connection != null)
+                    value = (value as Func<DistributedConnection, object>)(connection);
+                //else
+                //    return (DataType.Void, null);
+            else if (value is DistributedPropertyContext)
+                //if (connection != null)
+                    value = (value as DistributedPropertyContext).Method(connection);
+                //else
+                //    return (DataType.Void, null);
+                
+            if (value == null)
+                return (DataType.Void, null);
+
 
             var t = value.GetType();
-
+                
             var isArray = t.IsArray;
             if (isArray)
-               t = t.GetElementType();
+                t = t.GetElementType();
 
             DataType type;
 
@@ -1208,27 +1225,27 @@ namespace Esyur.Data
                 type = DataType.String;
             else if (t == typeof(DateTime))
                 type = DataType.DateTime;
-            else if (t == typeof(Structure))
+            else if (typeof(Structure).IsAssignableFrom(t))
                 type = DataType.Structure;
             //else if (t == typeof(DistributedResource))
-              //  type = DataType.DistributedResource;
+            //  type = DataType.DistributedResource;
             else if (ImplementsInterface(t, typeof(IResource)))
             {
                 if (isArray)
-                    return DataType.ResourceArray;
+                    return (DataType.ResourceArray, value);
                 else
                 {
-                    return IsLocalResource((IResource)value, connection) ? DataType.Resource : DataType.DistributedResource;
+                    return (IsLocalResource((IResource)value, connection) ? DataType.Resource : DataType.DistributedResource, value);
                 }
             }
             else
                 type = DataType.Void;
 
-            
+
             if (isArray)
-                return (DataType)((byte)type | 0x80);
+                return ((DataType)((byte)type | 0x80), value);
             else
-                return type;
+                return (type, value);
 
         }
 

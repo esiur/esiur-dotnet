@@ -225,7 +225,6 @@ namespace Esyur.Net.HTTP
             }
         }
 
-        bool bb;
 
         public void SendFile(string filename)
         {
@@ -299,7 +298,7 @@ namespace Esyur.Net.HTTP
                         if (n <= 0)
                             break;
 
-
+                        Thread.Sleep(50);
                         base.Send(buffer, 0, n);
 
                     }

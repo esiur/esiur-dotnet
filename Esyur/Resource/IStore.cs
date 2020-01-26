@@ -37,7 +37,7 @@ namespace Esyur.Resource
     {
         AsyncReply<IResource> Get(string path);//, Func<IResource, bool> filter = null);
         //AsyncReply<IResource> Retrieve(uint iid);
-        bool Put(IResource resource);
+        AsyncReply<bool> Put(IResource resource);
         string Link(IResource resource);
         bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
         bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);

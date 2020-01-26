@@ -53,48 +53,48 @@ namespace Esyur.Net.HTTP
         }
 
         [Storable]
-        string ip
+        public virtual string ip
         {
             get;
             set;
         }
         [Storable]
-        ushort port
-        {
-            get;
-            set;
-        }
-
-        [Storable]
-        uint timeout
+        public virtual ushort port
         {
             get;
             set;
         }
 
         [Storable]
-        uint clock
+        public virtual uint timeout
         {
             get;
             set;
         }
 
         [Storable]
-        uint maxPost
+        public virtual uint clock
         {
             get;
             set;
         }
 
         [Storable]
-        bool ssl
+        public virtual uint maxPost
         {
             get;
             set;
         }
 
         [Storable]
-        string certificate
+        public virtual bool ssl
+        {
+            get;
+            set;
+        }
+
+        [Storable]
+        public virtual string certificate
         {
             get;
             set;
@@ -380,6 +380,11 @@ namespace Esyur.Net.HTTP
             sender.SetParent(this);
 
             //Console.WriteLine("IN: " + this.Connections.Count);
+            if (filters == null)
+            {
+                sender.Close();
+                return;
+            }
 
             foreach (var resource in filters)
             {

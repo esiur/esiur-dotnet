@@ -610,8 +610,10 @@ namespace Esyur.Net.IIP
                                     else
                                     {
                                         //Console.WriteLine("User not found");
-                                        //SendParams((byte)0xc0, (byte)1, (ushort)14, DC.ToBytes("User not found"));
-                                        SendParams().AddUInt8(0xc0).AddUInt8(1).AddUInt16(14).AddString("User not found").Done();
+                                        SendParams().AddUInt8(0xc0)
+                                                    .AddUInt8((byte)ExceptionCode.UserNotFound)
+                                                    .AddUInt16(14)
+                                                    .AddString("User not found").Done();
                                     }
                                 });
 
@@ -649,9 +651,11 @@ namespace Esyur.Net.IIP
                                                                       else
                                                                       {
                                                                           //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
-                                                                          //Console.WriteLine("Incorrect password");
-                                                                          //SendParams((byte)0xc0, (byte)1, (ushort)5, DC.ToBytes("Error"));
-                                                                          SendParams().AddUInt8(0xc0).AddUInt8(1).AddUInt16(5).AddString("Error").Done();
+                                                                          SendParams().AddUInt8(0xc0)
+                                                                                      .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                                                                      .AddUInt16(13)
+                                                                                      .AddString("Access Denied")
+                                                                                      .Done();
                                                                       }
                                                                   }
                                                               });
@@ -729,9 +733,9 @@ namespace Esyur.Net.IIP
                                 {
                                     SendParams()
                                                 .AddUInt8(0xc0)
-                                                .AddUInt8(1)
-                                                .AddUInt16(5)
-                                                .AddString("Error")
+                                                .AddUInt8((byte)ExceptionCode.ChallengeFailed)
+                                                .AddUInt16(16)
+                                                .AddString("Challenge Failed")
                                                 .Done();
 
                                     //SendParams((byte)0xc0, 1, (ushort)5, DC.ToBytes("Error"));
@@ -789,7 +793,6 @@ namespace Esyur.Net.IIP
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                Console.Beep();
             }
             finally
             {
@@ -830,7 +833,7 @@ namespace Esyur.Net.IIP
                     var sock = new TCPSocket();
 
 
-                    sock.Connect(domain, port).Then((x)=> {
+                    sock.Connect(address, port).Then((x)=> {
                         Assign(sock);
                         //rt.trigger(true);
                     }).Error((x) => 
@@ -849,7 +852,7 @@ namespace Esyur.Net.IIP
         /// </summary>
         /// <param name="resource">Resource.</param>
         /// <returns></returns>
-        public bool Put(IResource resource)
+        public async AsyncReply<bool> Put(IResource resource)
         {
             if (Codec.IsLocalResource(resource, this))
                 resources.Add((resource as DistributedResource).Id, (DistributedResource)resource);

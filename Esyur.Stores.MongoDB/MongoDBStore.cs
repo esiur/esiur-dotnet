@@ -24,7 +24,6 @@ namespace Esyur.Stores.MongoDB
         IMongoDatabase database;
         IMongoCollection<BsonDocument> resourcesCollection;
 
-
         Dictionary<string, WeakReference> resources = new Dictionary<string, WeakReference>();
 
 
@@ -52,6 +51,13 @@ namespace Esyur.Stores.MongoDB
 
         }
 
+        /*
+        public IResource[] Query(string json)
+        {
+            //var json = "{ SendId: 4, 'Events.Code' : { $all : [2], $nin : [3] } }";
+            resourcesCollection.Find(new QueryDocument(BsonDocument.Parse(json)));
+
+        }*/
 
         public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime date)
         {
@@ -98,29 +104,27 @@ namespace Esyur.Stores.MongoDB
             return true;
         }
 
-     
-
-        AsyncReply<T> Fetch<T>(string id) where T : IResource
+        async AsyncReply<T> Fetch<T>(string id) where T : IResource
         {
 
             if (resources.ContainsKey(id) && resources[id].IsAlive)
             {
                 if (resources[id].Target is T)
-                    return new AsyncReply<T>((T)resources[id].Target);
+                    return (T)resources[id].Target;// new AsyncReply<T>((T)resources[id].Target);
                 else
-                    return new AsyncReply<T>(default(T)); ;
+                    return default(T);// new AsyncReply<T>(default(T)); ;
             }
 
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(id)));
             var list = resourcesCollection.Find(filter).ToList();
             if (list.Count == 0)
-                return new AsyncReply<T>(default(T));
+                return default(T);// new AsyncReply<T>(default(T));
             var document = list[0];
 
             var type = Type.GetType(document["classname"].AsString);
 
             if (type == null)
-                return new AsyncReply<T>(default(T));
+                return default(T);// new AsyncReply<T>(default(T));
 
             IResource resource = (IResource)Activator.CreateInstance(ResourceProxy.GetProxy(type));
 
@@ -142,32 +146,7 @@ namespace Esyur.Stores.MongoDB
                 resource.Instance.SetAttributes(x as Structure);
             });
 
-            var bag = new AsyncBag<object>();
-
-            /*
-            foreach (var p in parents)
-            { 
-                var ap = Warehouse.Get(p.AsString);
-                bag.Add(ap);
-                ap.Then((x) =>
-                {
-                    if (!resource.Instance.Parents.Contains(x))
-                        resource.Instance.Parents.Add(x);
-                });
-            }
-
-            foreach (var c in children)
-            {
-
-                var ac = Warehouse.Get(c.AsString);
-                bag.Add(ac);
-                ac.Then((x) =>
-                {
-                    if (!resource.Instance.Children.Contains(x))
-                        resource.Instance.Children.Add(x);
-                });
-            }
-            */
+            // var bag = new AsyncBag<object>();
 
             resource.Instance.Attributes.Add("children", children.Select(x => x.AsString).ToArray());
             resource.Instance.Attributes.Add("parents", parents.Select(x => x.AsString).ToArray());
@@ -199,34 +178,19 @@ namespace Esyur.Stores.MongoDB
             {
                 var valueInfo = v.Value as BsonDocument;
 
-                var av = Parse(valueInfo["value"]);
-                av.Then((x) =>
-                {
-                    resource.Instance.LoadProperty(v.Name,
-                                                    (ulong)valueInfo["age"].AsInt64,
-                                                    valueInfo["modification"].ToUniversalTime(),
-                                                    x);
-                });
+                var x = await Parse(valueInfo["value"]);
+                resource.Instance.LoadProperty(v.Name,
+                                (ulong)valueInfo["age"].AsInt64,
+                                valueInfo["modification"].ToUniversalTime(),
+                                x);
 
-                
-                bag.Add(av);
+                //bag.Add(av);
             }
 
-            var rt = new AsyncReply<T>();
-
-            bag.Then((x) =>
-            {
-                if (resource is T)
-                    rt.Trigger(resource);
-                else
-                    rt.Trigger(null);
-            });
-
-            bag.Seal();
-
-
-
-            return rt;
+            if (resource is T)
+                return (T)resource;
+            else
+                return default(T);
         }
 
         AsyncReply Parse(BsonValue value)
@@ -314,131 +278,119 @@ namespace Esyur.Stores.MongoDB
             return this.Instance.Name + "/id/" + (string)resource.Instance.Attributes["objectId"];
         }
 
-        public bool Put(IResource resource)
+        public async AsyncReply<bool> Put(IResource resource)
         {
-            if (resource == this)
-                return true;
-
-            PutResource(resource).Wait();
-
-            ResourceAdded?.Invoke(resource);
-
-            count++;
-
-            Instance.Modified("Count");
-
-            return true;
-        }
-
-        private async Task<bool> PutResource(IResource resource)
-        {
-            var attrs = resource.Instance.GetAttributes();
-
-            foreach (var kv in resources)
-                if (kv.Value.Target == resource)
-                {
-                    resource.Instance.Attributes.Add("objectId", kv.Key);
+            try
+            {
+                if (resource == this)
                     return true;
-                }
 
-            var type = ResourceProxy.GetBaseType(resource);
 
-            // insert the document
-            var document = new BsonDocument
+                var attrs = resource.Instance.GetAttributes();
+
+                foreach (var kv in resources)
+                    if (kv.Value.Target == resource)
+                    {
+                        resource.Instance.Attributes.Add("objectId", kv.Key);
+                        return true;
+                    }
+
+                count++;
+
+                Instance.Modified("Count");
+
+                var type = ResourceProxy.GetBaseType(resource);
+
+                // insert the document
+                var document = new BsonDocument
             {
                 { "classname", type.FullName + "," + type.GetTypeInfo().Assembly.GetName().Name },
                 { "name", resource.Instance.Name },
             };
 
-            resourcesCollection.InsertOne(document);
-            resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+                resourcesCollection.InsertOne(document);
+                resource.Instance.Attributes["objectId"] = document["_id"].ToString();
 
 
-            // now update the document
-            // * insert first to get the object id, update values, attributes, children and parents after in case the same resource has a property references self
+                // now update the document
+                // * insert first to get the object id, update values, attributes, children and parents after in case the same resource has a property references self
 
-            var parents = new BsonArray();
-            var children = new BsonArray();
+                var parents = new BsonArray();
+                var children = new BsonArray();
 
-            var template = resource.Instance.Template;
+                var template = resource.Instance.Template;
 
-            // setup attributes
-            resource.Instance.Attributes["children"] = new string[0];
-            resource.Instance.Attributes["parents"] = new string[] { this.Instance.Link };
+                // setup attributes
+                resource.Instance.Attributes["children"] = new string[0];
+                resource.Instance.Attributes["parents"] = new string[] { this.Instance.Link };
 
-            // copy old children (in case we are moving a resource from a store to another.
-            if (resource.Instance.Store != this)
-            {
-                var resourceChildren = await resource.Instance.Children<IResource>();
-
-                if (resourceChildren != null)
-                    foreach (IResource c in resourceChildren)
-                        children.Add(c.Instance.Link);
-
-                var resourceParents = await resource.Instance.Parents<IResource>();
-
-                if (resourceParents == null)
+                // copy old children (in case we are moving a resource from a store to another.
+                if (resource.Instance.Store != this)
                 {
-                    parents.Add(this.Instance.Link);
+                    var resourceChildren = await resource.Instance.Children<IResource>();
+
+                    if (resourceChildren != null)
+                        foreach (IResource c in resourceChildren)
+                            children.Add(c.Instance.Link);
+
+                    var resourceParents = await resource.Instance.Parents<IResource>();
+
+                    if (resourceParents == null)
+                    {
+                        parents.Add(this.Instance.Link);
+                    }
+                    else
+                    {
+                        foreach (IResource p in resourceParents)
+                            parents.Add(p.Instance.Link);
+                    }
                 }
                 else
                 {
-                    foreach (IResource p in resourceParents)
-                        parents.Add(p.Instance.Link);
+                    // just add self
+                    parents.Add(this.Instance.Link);
                 }
-            }
-            else
-            {
-                // just add self
-                parents.Add(this.Instance.Link);
-            }
 
 
-            var attrsDoc = ComposeStructure(attrs);
+                var attrsDoc = ComposeStructure(attrs);
 
 
-            var values = new BsonDocument();
+                var values = new BsonDocument();
 
-            foreach (var pt in template.Properties)
-            {
-                var rt = pt.Info.GetValue(resource, null);
+                foreach (var pt in template.Properties)
+                {
+                    var rt = pt.Info.GetValue(resource, null);
 
-                values.Add(pt.Name,
-                  new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
+                    values.Add(pt.Name,
+                      new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
                                      { "modification", resource.Instance.GetModificationDate(pt.Index) },
                                      { "value", Compose(rt) } });
+                }
+
+
+                var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
+                var update = Builders<BsonDocument>.Update
+                                .Set("values", values).Set("parents", parents).Set("children", children).Set("attributes", attrsDoc);
+                resourcesCollection.UpdateOne(filter, update);
+
+
+                resources.Add(document["_id"].AsObjectId.ToString(), new WeakReference(resource));
+
+                //resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+
+                ResourceAdded?.Invoke(resource);
+
+                return true;
+
             }
-
-
-            //            var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
-            //            var update = Builders<BsonDocument>.Update
-            //                .Set("values", values);
-            //            col.UpdateOne(filter, update);
-
-
-            /*
-            var document = new BsonDocument
+            catch(Exception ex)
             {
-                { "parents", parents },
-                { "children", children },
-                { "attributes", attrsDoc },
-                { "classname", resource.GetType().FullName + "," + resource.GetType().GetTypeInfo().Assembly.GetName().Name },
-                { "name", resource.Instance.Name },
-                { "values", values }
-            };
-            */
-
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", document["_id"]);
-            var update = Builders<BsonDocument>.Update
-                            .Set("values", values).Set("parents", parents).Set("children", children).Set("attributes", attrsDoc);
-            resourcesCollection.UpdateOne(filter, update);
-
-
-            //resource.Instance.Attributes["objectId"] = document["_id"].ToString();
-
-
-            return true;
+                Console.WriteLine(ex);
+                return false;
+            }
         }
+
+
 
 
         public BsonDocument ComposeStructure(Structure value)
@@ -453,12 +405,12 @@ namespace Esyur.Stores.MongoDB
             return rt;
         }
 
-        public BsonArray ComposeVarArray(object[] array)
+        public BsonArray ComposeVarArray(Array array)
         {
             var rt = new BsonArray();
 
             for (var i = 0; i < array.Length; i++)
-                rt.Add(Compose(array[i]));
+                rt.Add(Compose(array.GetValue(i)));// [i]));
 
             return rt;
         }
@@ -491,9 +443,9 @@ namespace Esyur.Stores.MongoDB
             return rt;
         }
 
-        private BsonValue Compose(object value)
+        private BsonValue Compose(object valueObj)
         {
-            var type = Codec.GetDataType(value, null);
+            var (type, value) = Codec.GetDataType(valueObj, null);
 
             switch (type)
             {
@@ -515,7 +467,7 @@ namespace Esyur.Stores.MongoDB
                     return ComposeStructure((Structure)value);
 
                 case DataType.VarArray:
-                    return ComposeVarArray((object[])value);
+                    return ComposeVarArray((Array)value);
 
                 case DataType.ResourceArray:
                     if (value is IResource[])
