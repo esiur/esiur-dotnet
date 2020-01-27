@@ -1041,8 +1041,8 @@ namespace Esyur.Data
             if (data.Length < offset + length)
                 return null;
 
-            if (length == data.Length && offset == 0)
-                return data;
+           // if (length == data.Length && offset == 0)
+             //   return data.ToArray();
 
             var b = new byte[length];
             Buffer.BlockCopy(data, (int)offset, b, 0, (int)length);

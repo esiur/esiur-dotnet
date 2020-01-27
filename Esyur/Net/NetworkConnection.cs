@@ -38,10 +38,10 @@ using Esyur.Resource;
 
 namespace Esyur.Net
 {
-    public class NetworkConnection: IDestructible// <TS>: IResource where TS : NetworkSession
+    public class NetworkConnection : IDestructible// <TS>: IResource where TS : NetworkSession
     {
         private ISocket sock;
-//        private bool connected;
+        //        private bool connected;
 
         private DateTime lastAction;
 
@@ -53,16 +53,16 @@ namespace Esyur.Net
         public event DataReceivedEvent OnDataReceived;
         public event ConnectionClosedEvent OnClose;
         public event DestroyedEvent OnDestroy;
-        object receivingLock = new object();
+        //object receivingLock = new object();
 
-        object sendLock = new object();
+        //object sendLock = new object();
 
         bool processing = false;
 
 
         public void Destroy()
         {
-           // if (connected)
+            // if (connected)
             Close();
             OnDestroy?.Invoke(this);
         }
@@ -135,7 +135,7 @@ namespace Esyur.Net
 
                     processing = false;
                 }
-                
+
             }
             catch (Exception ex)
             {
@@ -147,7 +147,7 @@ namespace Esyur.Net
         {
             if (sock != null)
             {
-               // connected = false;
+                // connected = false;
                 sock.OnClose -= Socket_OnClose;
                 sock.OnConnect -= Socket_OnConnect;
                 sock.OnReceive -= Socket_OnReceive;
@@ -175,19 +175,19 @@ namespace Esyur.Net
                 }
             }
         }
-        
+
         public void Close()
         {
             //if (!connected)
             //  return;
 
- 
+
             try
             {
                 if (sock != null)
                     sock.Close();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Global.Log("NetworkConenction:Close", LogType.Error, ex.ToString());
 
@@ -227,7 +227,7 @@ namespace Esyur.Net
             }
         }
 
-        
+
         public bool Connected
         {
             get
@@ -260,41 +260,41 @@ namespace Esyur.Net
         }
         */
 
+        public virtual AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
+        {
+            try
+            {
+                return sock.SendAsync(message, offset, length);
+            }
+            catch
+            {
+                return new AsyncReply<bool>(false);
+            }
+        }
+
         public virtual void Send(byte[] msg)
         {
-            lock (sendLock)
+            try
             {
-                try
-                {
-                    if (sock != null)
-                    {
-                        lastAction = DateTime.Now;
-                        sock.Send(msg);
-                    }
-                }
-                catch
-                {
+                sock.Send(msg);
+                lastAction = DateTime.Now;
+            }
+            catch
+            {
 
-                }
             }
         }
 
         public virtual void Send(byte[] msg, int offset, int length)
         {
-            lock (sendLock)
+            try
             {
-                try
-                {
-                    if (sock != null)
-                    {
-                        lastAction = DateTime.Now;
-                        sock.Send(msg, offset, length);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                }
+                sock.Send(msg, offset, length);
+                lastAction = DateTime.Now;
+            }
+            catch
+            {
+
             }
         }
 

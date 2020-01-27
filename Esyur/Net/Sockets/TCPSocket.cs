@@ -50,9 +50,9 @@ namespace Esyur.Net.Sockets
 
         readonly object sendLock = new object();
 
-        Queue<byte[]> sendBufferQueue = new Queue<byte[]>();
+        Queue<KeyValuePair<AsyncReply<bool>, byte[]>> sendBufferQueue = new Queue<KeyValuePair<AsyncReply<bool>, byte[]>>();// Queue<byte[]>();
 
-         bool asyncSending;
+        bool asyncSending;
         bool began = false;
 
 
@@ -349,21 +349,23 @@ namespace Esyur.Net.Sockets
         public void Send(byte[] message, int offset, int size)
         {
 
+
             var msg = message.Clip((uint)offset, (uint)size);
 
             lock (sendLock)
             {
+
                 if (!sock.Connected)
                     return;
 
                 if (asyncSending || held)
                 {
-                    sendBufferQueue.Enqueue(msg);
+                    sendBufferQueue.Enqueue(new KeyValuePair<AsyncReply<bool>, byte[]>(null, msg));// message.Clip((uint)offset, (uint)size));
                 }
                 else
                 {
                     asyncSending = true;
-                    sock.BeginSend(msg, 0, size, SocketFlags.None, PacketSent, null);
+                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, null);
                     //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
                 }
             }
@@ -372,33 +374,38 @@ namespace Esyur.Net.Sockets
 
         private void PacketSent(IAsyncResult ar)
         {
-            try
-            {
-                lock (sendLock)
-                {
-                    if (sendBufferQueue.Count > 0)
-                    {
-                        byte[] data = sendBufferQueue.Dequeue();
+            if (ar != null && ar.AsyncState != null)
+                ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
 
-                        sock.BeginSend(data, 0, data.Length, SocketFlags.None, PacketSent, null);
-                    }
-                    else
+            lock (sendLock)
+            {
+                if (sendBufferQueue.Count > 0)
+                {
+                    var kv = sendBufferQueue.Dequeue();
+
+                    try
                     {
+                        sock.BeginSend(kv.Value, 0, kv.Value.Length, SocketFlags.None, PacketSent, kv.Key);
+                    }
+                    catch (Exception ex)
+                    {
+                        kv.Key.Trigger(false);
+
+                        if (state != SocketState.Closed && !sock.Connected)
+                        {
+                            state = SocketState.Terminated;
+                            Close();
+                        }
+
                         asyncSending = false;
+
+                        Global.Log("TCPSocket", LogType.Error, ex.ToString());
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                if (state != SocketState.Closed && !sock.Connected)
+                else
                 {
-                    state = SocketState.Terminated;
-                    Close();
+                    asyncSending = false;
                 }
-
-                asyncSending = false;
-
-                Global.Log("TCPSocket", LogType.Error, ex.ToString());
             }
         }
 
@@ -458,6 +465,33 @@ namespace Esyur.Net.Sockets
             finally
             {
                 held = false;
+            }
+        }
+
+        public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
+        {
+
+            var msg = message.Clip((uint)offset, (uint)length);
+
+            lock (sendLock)
+            {
+                if (!sock.Connected)
+                    return new AsyncReply<bool>(false);
+
+                var rt = new AsyncReply<bool>();
+
+                if (asyncSending || held)
+                {
+                    sendBufferQueue.Enqueue(new KeyValuePair<AsyncReply<bool>, byte[]>(rt, msg));
+                }
+                else
+                {
+                    asyncSending = true;
+                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, rt);// null);
+                    //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
+                }
+
+                return rt;
             }
         }
     }

@@ -50,9 +50,10 @@ namespace Esyur.Net.Sockets
         event ISocketConnectEvent OnConnect;
         event ISocketCloseEvent OnClose;
 
+        AsyncReply<bool> SendAsync(byte[] message, int offset, int length);
 
         void Send(byte[] message);
-        void Send(byte[] message, int offset, int size);
+        void Send(byte[] message, int offset, int length);
         void Close();
         AsyncReply<bool> Connect(string hostname, ushort port);
         bool Begin();

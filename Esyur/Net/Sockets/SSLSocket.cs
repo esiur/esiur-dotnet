@@ -349,5 +349,10 @@ namespace Esyur.Net.Sockets
         {
             throw new NotImplementedException();
         }
+
+        public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

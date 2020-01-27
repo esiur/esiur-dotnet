@@ -36,6 +36,7 @@ using Esyur.Data;
 using Esyur.Net.Packets;
 using Esyur.Misc;
 using System.Security.Cryptography;
+using Esyur.Core;
 
 namespace Esyur.Net.HTTP
 {
@@ -226,10 +227,10 @@ namespace Esyur.Net.HTTP
         }
 
 
-        public void SendFile(string filename)
+        public async AsyncReply<bool> SendFile(string filename)
         {
             if (Response.Handled == true)
-                return;
+                return false;
 
 
             try
@@ -248,7 +249,7 @@ namespace Esyur.Net.HTTP
                 {
                     Response.Number = HTTPResponsePacket.ResponseCode.HTTP_NOTFOUND;
                     Send("File Not Found");
-                    return;
+                    return true;
                 }
 
 
@@ -288,21 +289,23 @@ namespace Esyur.Net.HTTP
                 using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
 
-                    var buffer = new byte[5000];
+                    var buffer = new byte[60000];
 
 
                     while (true)
                     {
-                        var n = fs.Read(buffer, 0, 5000);
+                        var n = fs.Read(buffer, 0, 60000);
 
                         if (n <= 0)
                             break;
 
                         //Thread.Sleep(50);
-                        base.Send(buffer, 0, n);
+                        await base.SendAsync(buffer, 0, n);
 
                     }
                 }
+
+                return true;
                
             }
             catch
@@ -311,7 +314,11 @@ namespace Esyur.Net.HTTP
                 {
                     Close();
                 }
-                finally { }
+                finally { 
+                
+                }
+
+                return false;
             }
         }
     }
