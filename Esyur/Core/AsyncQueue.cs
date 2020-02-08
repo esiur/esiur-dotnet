@@ -66,6 +66,7 @@ namespace Esyur.Core
                     if (list[i].Ready)
                     {
                         Trigger(list[i].Result);
+                        resultReady = false;
                         list.RemoveAt(i);
                         i--;
                     }

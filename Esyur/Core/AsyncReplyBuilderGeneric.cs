@@ -45,8 +45,7 @@ namespace Esyur.Core
             where TAwaiter : INotifyCompletion
             where TStateMachine : IAsyncStateMachine
         {
-            Console.WriteLine("AwaitOnCompleted");
-
+            awaiter.OnCompleted(stateMachine.MoveNext);
         }
 
         public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(
@@ -54,8 +53,7 @@ namespace Esyur.Core
             where TAwaiter : ICriticalNotifyCompletion
             where TStateMachine : IAsyncStateMachine
         {
-            Console.WriteLine("AwaitUnsafeOnCompleted");
-
+            awaiter.UnsafeOnCompleted(stateMachine.MoveNext);
         }
 
         public AsyncReply<T> Task

@@ -389,15 +389,24 @@ namespace Esyur.Net.Sockets
                     }
                     catch (Exception ex)
                     {
-                        kv.Key.Trigger(false);
+                        asyncSending = false;
 
-                        if (state != SocketState.Closed && !sock.Connected)
+                        try
                         {
-                            state = SocketState.Terminated;
-                            Close();
+                            kv.Key.Trigger(false);
+
+                            if (state != SocketState.Closed && !sock.Connected)
+                            {
+                                state = SocketState.Terminated;
+                                Close();
+                            }
+                        }
+                        catch (Exception ex2)
+                        {
+                            Console.WriteLine("Level 2 {0}", ex2);
                         }
 
-                        asyncSending = false;
+
 
                         Global.Log("TCPSocket", LogType.Error, ex.ToString());
                     }
