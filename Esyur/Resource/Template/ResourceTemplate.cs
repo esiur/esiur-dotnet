@@ -19,6 +19,7 @@ namespace Esyur.Resource.Template
         List<FunctionTemplate> functions = new List<FunctionTemplate>();
         List<EventTemplate> events = new List<EventTemplate>();
         List<PropertyTemplate> properties = new List<PropertyTemplate>();
+        List<AttributeTemplate> attributes = new List<AttributeTemplate>();
         int version;
         //bool isReady;
 
@@ -84,6 +85,14 @@ namespace Esyur.Resource.Template
         {
             foreach (var i in properties)
                 if (i.Name == propertyName)
+                    return i;
+            return null;
+        }
+
+        public AttributeTemplate GetAttributeTemplate(string attributeName)
+        {
+            foreach (var i in attributes)
+                if (i.Name == attributeName)
                     return i;
             return null;
         }
@@ -156,13 +165,23 @@ namespace Esyur.Resource.Template
 
             foreach (var pi in propsInfo)
             {
-                var ps = (ResourceProperty[])pi.GetCustomAttributes(typeof(ResourceProperty), true);
-                if (ps.Length > 0)
+                var rp = pi.GetCustomAttribute<ResourceProperty>(true);
+                
+                if (rp != null)
                 {
-                    var pt = new PropertyTemplate(this, i++, pi.Name, ps[0].ReadExpansion, ps[0].WriteExpansion, ps[0].Storage);
+                    var pt = new PropertyTemplate(this, i++, pi.Name, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
                     pt.Info = pi;
-                    pt.Serilize = ps[0].Serialize;
+                    pt.Serilize = rp.Serialize;
                     properties.Add(pt);
+                }
+
+                var ra = pi.GetCustomAttribute<ResourceAttribute>(true);
+
+                if (ra != null)
+                {
+                    var at = new AttributeTemplate(this, i++, pi.Name);
+                    at.Info = pi;
+                    attributes.Add(at);
                 }
             }
 
@@ -170,7 +189,7 @@ namespace Esyur.Resource.Template
 
             foreach (var ei in eventsInfo)
             {
-                var es = (ResourceEvent[])ei.GetCustomAttributes(typeof(ResourceEvent), true);
+                var es = ei.GetCustomAttributes<ResourceEvent>(true).ToArray();
                 if (es.Length > 0)
                 {
                     var et = new EventTemplate(this, i++, ei.Name, es[0].Expansion);
@@ -181,7 +200,7 @@ namespace Esyur.Resource.Template
             i = 0;
             foreach (MethodInfo mi in methodsInfo)
             {
-                var fs = (ResourceFunction[])mi.GetCustomAttributes(typeof(ResourceFunction), true);
+                var fs = mi.GetCustomAttributes<ResourceFunction>(true).ToArray();
                 if (fs.Length > 0)
                 {
                     var ft = new FunctionTemplate(this, i++, mi.Name, mi.ReturnType == typeof(void), fs[0].Expansion);

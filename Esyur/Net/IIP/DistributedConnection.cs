@@ -800,6 +800,15 @@ namespace Esyur.Net.IIP
             }
          }
 
+
+        [ResourceAttribute]
+        public string Username { get; set; }
+
+        [ResourceAttribute]
+        public string Password { get; set; }
+
+        [ResourceAttribute]
+        public string Domain { get; set; }
         /// <summary>
         /// Resource interface
         /// </summary>
@@ -809,8 +818,8 @@ namespace Esyur.Net.IIP
         {
             if (trigger == ResourceTrigger.Open)
             {
-                if (Instance.Attributes.ContainsKey("username")
-                      && Instance.Attributes.ContainsKey("password"))
+                if (Username != null // Instance.Attributes.ContainsKey("username")
+                      && Password != null)/// Instance.Attributes.ContainsKey("password"))
                 {
                     // assign domain from hostname if not provided
 
@@ -818,16 +827,16 @@ namespace Esyur.Net.IIP
 
                     var address = host[0];
                     var port = ushort.Parse(host[1]);
-                    var username = Instance.Attributes["username"].ToString();
+                    var username = Username;// Instance.Attributes["username"].ToString();
 
-                    var domain = Instance.Attributes.ContainsKey("domain") ? Instance.Attributes["domain"].ToString() : address;
+                    var domain = Domain != null ? Domain : address;// Instance.Attributes.ContainsKey("domain") ? Instance.Attributes["domain"].ToString() : address;
 
                     session = new Session(new ClientAuthentication()
                                                 , new HostAuthentication());
 
                     session.LocalAuthentication.Domain = domain;
                     session.LocalAuthentication.Username = username;
-                    localPassword = DC.ToBytes(Instance.Attributes["password"].ToString());
+                    localPassword = DC.ToBytes(Password);// Instance.Attributes["password"].ToString());
 
                     openReply = new AsyncReply<bool>();
                     var sock = new TCPSocket();

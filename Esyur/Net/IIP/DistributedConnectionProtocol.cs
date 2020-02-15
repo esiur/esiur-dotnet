@@ -413,7 +413,7 @@ namespace Esyur.Net.IIP
         {
             Fetch(resourceId).Then(resource =>
             {
-                resource.Instance.Attributes["name"] = name.GetString(0, (uint)name.Length);
+                resource.Instance.Variables["name"] = name.GetString(0, (uint)name.Length);
             });
         }
 
@@ -451,7 +451,8 @@ namespace Esyur.Net.IIP
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
                    // r.Instance.Children.OnAdd -= Children_OnAdd;
                    // r.Instance.Children.OnRemoved -= Children_OnRemoved;
-                    r.Instance.Attributes.OnModified -= Attributes_OnModified;
+                    
+                    //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
                     // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
@@ -459,7 +460,8 @@ namespace Esyur.Net.IIP
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
-                    r.Instance.Attributes.OnModified += Attributes_OnModified;
+                    
+                    //r.Instance.Attributes.OnModified += Attributes_OnModified;
 
                     // add it to attached resources so GC won't remove it from memory
                     attachedResources.Add(r);
@@ -564,7 +566,8 @@ namespace Esyur.Net.IIP
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
                     //r.Instance.Children.OnAdd -= Children_OnAdd;
                     //r.Instance.Children.OnRemoved -= Children_OnRemoved;
-                    r.Instance.Attributes.OnModified -= Attributes_OnModified;
+                    
+                    //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
                     // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
@@ -572,7 +575,8 @@ namespace Esyur.Net.IIP
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
-                    r.Instance.Attributes.OnModified += Attributes_OnModified;
+                    
+                    //r.Instance.Attributes.OnModified += Attributes_OnModified;
 
                     // reply ok
                     SendReply(IIPPacket.IIPPacketAction.ReattachResource, callback)

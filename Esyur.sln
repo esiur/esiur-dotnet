@@ -6,7 +6,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esyur", "Esyur\Esyur.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esyur.Stores.MongoDB", "Esyur.Stores.MongoDB\Esyur.Stores.MongoDB.csproj", "{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esyur.Stores.MySql", "Esyur.Stores.MySql\Esyur.Stores.MySql.csproj", "{7BD6148A-3335-411C-9189-3803B1824264}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esyur.Stores.EntityCore", "Esyur.Stores.EntityCore\Esyur.Stores.EntityCore.csproj", "{53DE5A30-CFA9-4DE7-A840-77CFF519D31B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,10 +22,10 @@ Global
 		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4C90D4B3-8EA2-48AE-A2F9-2B722FCEF9C4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7BD6148A-3335-411C-9189-3803B1824264}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7BD6148A-3335-411C-9189-3803B1824264}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7BD6148A-3335-411C-9189-3803B1824264}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7BD6148A-3335-411C-9189-3803B1824264}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53DE5A30-CFA9-4DE7-A840-77CFF519D31B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53DE5A30-CFA9-4DE7-A840-77CFF519D31B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53DE5A30-CFA9-4DE7-A840-77CFF519D31B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53DE5A30-CFA9-4DE7-A840-77CFF519D31B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

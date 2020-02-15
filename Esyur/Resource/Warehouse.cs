@@ -501,10 +501,9 @@ namespace Esyur.Resource
 
         }
 
-        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null, Structure arguments = null, Structure properties = null)
-            where T : IResource
+        public static IResource New(Type type, string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null, Structure arguments = null, Structure properties = null)
         {
-            var type = ResourceProxy.GetProxy<T>();
+            type = ResourceProxy.GetProxy(type);
 
 
             /*
@@ -544,7 +543,7 @@ namespace Esyur.Resource
             {
                 foreach (var p in properties)
                 {
-                    var pi = typeof(T).GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
+                    var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
                     if (pi != null)
                         pi.SetValue(res, p.Value);
                 }
@@ -553,7 +552,14 @@ namespace Esyur.Resource
             if (store != null || parent != null || res is IStore)
                 Put(res, name, store, parent, null, 0, manager, attributes);
 
-            return (T)res;
+            return res;
+
+        }
+
+        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null, Structure arguments = null, Structure properties = null)
+            where T : IResource
+        {
+            return (T)New(typeof(T), name, store, parent, manager, attributes, arguments, properties);
         }
 
         /// <summary>

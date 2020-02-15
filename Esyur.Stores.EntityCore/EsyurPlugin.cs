@@ -22,31 +22,39 @@ SOFTWARE.
 
 */
 
-using Esyur.Core;
-using Esyur.Data;
-using Esyur.Proxy;
-using Esyur.Resource;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
+using Microsoft.EntityFrameworkCore.Proxies.Internal;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
-namespace Esyur.Stores.MongoDB
+namespace Esyur.Stores.EntityCore
 {
-    public class MongoDBStore<T> : MongoDBStore where T:IResource
+    public class EsyurPlugin : IConventionSetPlugin
     {
-        [ResourceFunction]
-        public T Create(string name, Structure values)
+        private readonly IDbContextOptions _options;
+        private readonly ProviderConventionSetBuilderDependencies _conventionSetBuilderDependencies;
+
+        public EsyurPlugin(
+             IDbContextOptions options,
+            ProviderConventionSetBuilderDependencies conventionSetBuilderDependencies)
         {
-            return  Warehouse.New<T>(name, this, null, null, null, null, values);
+            _options = options;
+            _conventionSetBuilderDependencies = conventionSetBuilderDependencies;
         }
 
-        [ResourceFunction]
-        public async AsyncReply<IResource[]> Slice(int index, int limit)
+     
+        public ConventionSet ModifyConventions(ConventionSet conventionSet)
         {
-            var list = await this.Instance.Children<IResource>();
-            return list.Skip(index).Take(limit).ToArray();
-        }
+            var extension = _options.FindExtension<EsyurExtensionOptions>();
+            conventionSet.ModelFinalizedConventions.Add(new EsyurProxyRewrite(
+                    extension,
+                    _conventionSetBuilderDependencies));
+            return conventionSet;
 
+        }
     }
+
 }

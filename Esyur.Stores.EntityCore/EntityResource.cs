@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2020 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,27 +22,50 @@ SOFTWARE.
 
 */
 
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using Esyur.Data;
 using Esyur.Core;
+using Esyur.Resource;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
-namespace Esyur.Resource
+namespace Esyur.Stores.EntityCore
 {
-    public delegate bool QueryFilter<T>(T value);
-
-    public interface IResource : IDestructible///, INotifyPropertyChanged
+    public class EntityResource : IResource
     {
+        public event DestroyedEvent OnDestroy;
+        public event PropertyChangedEventHandler PropertyChanged;
 
-        AsyncReply<bool> Trigger(ResourceTrigger trigger);
-        
-        Instance Instance
+        [NotMapped]
+        public Instance Instance { get; set; }
+
+        public EntityResource()
         {
-            get;
-            set;
+
         }
+ 
+
+        protected virtual void Create()
+        {
+
+        }
+
+        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+        {
+            if (trigger == ResourceTrigger.Initialize)
+                Create();
+
+            return new AsyncReply<bool>(true);
+        }
+
+        public void Destroy()
+        {
+            //throw new NotImplementedException();
+        }
+
+    
     }
 }

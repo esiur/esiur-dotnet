@@ -35,6 +35,7 @@ using System.Linq;
 using System.Reflection;
 using Esyur.Resource.Template;
 using System.Runtime.CompilerServices;
+using System.Collections;
 
 namespace Esyur.Data
 {
@@ -1171,6 +1172,8 @@ namespace Esyur.Data
             if (value is IUserType)
                 value = (value as IUserType).Get();
 
+          
+            //  value = (List<>)value.ToArray();
 
             if (value is Func<DistributedConnection, object>)
                 //if (connection != null)
@@ -1188,8 +1191,22 @@ namespace Esyur.Data
 
 
             var t = value.GetType();
+
+            // Convert ICollection<T> to Array<T>
+            if (!t.IsArray && typeof(ICollection).IsAssignableFrom(t))
+            {
+                var col = t.GetInterfaces().Where(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>));
+                if (col.Count() == 0)
+                    return (DataType.Void, null);
+
+                var elementType = col.First().GetGenericArguments()[0];
                 
+                value = new ArrayList((ICollection)value).ToArray(elementType);
+                t = value.GetType();
+            }
+
             var isArray = t.IsArray;
+
             if (isArray)
                 t = t.GetElementType();
 

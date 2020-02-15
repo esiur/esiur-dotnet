@@ -45,8 +45,8 @@ namespace Esyur.Stores
         {
             
             resources.Add(resource.Instance.Id, resource);//  new WeakReference<IResource>(resource));
-            resource.Instance.Attributes["children"] = new AutoList<IResource, Instance>(resource.Instance);
-            resource.Instance.Attributes["parents"] = new AutoList<IResource, Instance>(resource.Instance);
+            resource.Instance.Variables["children"] = new AutoList<IResource, Instance>(resource.Instance);
+            resource.Instance.Variables["parents"] = new AutoList<IResource, Instance>(resource.Instance);
 
             return true;
         }
@@ -94,7 +94,7 @@ namespace Esyur.Stores
         {
             if (parent.Instance.Store == this)
             {
-                (parent.Instance.Attributes["children"] as AutoList<IResource, Instance>).Add(child);
+                (parent.Instance.Variables["children"] as AutoList<IResource, Instance>).Add(child);
                 return new AsyncReply<bool>(true);
             }
             else
@@ -111,7 +111,7 @@ namespace Esyur.Stores
 
             if (resource.Instance.Store == this)
             {
-                (resource.Instance.Attributes["parents"] as AutoList<IResource, Instance>).Add(parent);
+                (resource.Instance.Variables["parents"] as AutoList<IResource, Instance>).Add(parent);
                 return new AsyncReply<bool>(true);
             }
             else
@@ -125,7 +125,7 @@ namespace Esyur.Stores
 
         public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
         {
-            var children = (resource.Instance.Attributes["children"] as AutoList<IResource, Instance>);
+            var children = (resource.Instance.Variables["children"] as AutoList<IResource, Instance>);
 
             if (name == null)
                 return new AsyncBag<T>(children.Where(x=>x is T).Select(x=>(T)x).ToArray());
@@ -136,7 +136,7 @@ namespace Esyur.Stores
 
         public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
         {
-            var parents = (resource.Instance.Attributes["parents"] as AutoList<IResource, Instance>);
+            var parents = (resource.Instance.Variables["parents"] as AutoList<IResource, Instance>);
 
             if (name == null)
                 return new AsyncBag<T>(parents.Where(x => x is T).Select(x => (T)x).ToArray());

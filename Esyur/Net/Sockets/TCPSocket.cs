@@ -406,8 +406,6 @@ namespace Esyur.Net.Sockets
                             Console.WriteLine("Level 2 {0}", ex2);
                         }
 
-
-
                         Global.Log("TCPSocket", LogType.Error, ex.ToString());
                     }
                 }

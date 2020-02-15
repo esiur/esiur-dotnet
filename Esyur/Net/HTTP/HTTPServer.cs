@@ -259,8 +259,8 @@ namespace Esyur.Net.HTTP
                 foreach (var resource in filters)
                     if (resource.Execute(sender))
                         return;
-                
 
+                sender.Response.Number = HTTPResponsePacket.ResponseCode.HTTP_SERVERERROR;
                 sender.Send("Bad Request");
                 sender.Close();
             }

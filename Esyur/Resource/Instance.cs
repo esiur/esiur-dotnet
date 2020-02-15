@@ -20,22 +20,14 @@ namespace Esyur.Resource
     {
         string name;
 
-        //IQueryable<IResource> children;//
-        //AutoList<IResource, Instance> children;// = new AutoList<IResource, Instance>();
         WeakReference<IResource> resource;
         IStore store;
-        //AutoList<IResource, Instance> parents;// = new AutoList<IResource>();
-        //bool inherit;
         ResourceTemplate template;
-
-        AutoList<IPermissionsManager, Instance> managers;// = new AutoList<IPermissionManager, Instance>();
+        AutoList<IPermissionsManager, Instance> managers;
 
 
         public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue);
-        //public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, string[] users, DistributedConnection[] connections, object[] args);
-
         public delegate void ResourceEventOccurredEvent(IResource resource, object issuer, Session[] receivers, string eventName, object[] args);
-
         public delegate void ResourceDestroyedEvent(IResource resource);
 
         public event ResourceModifiedEvent ResourceModified;
@@ -44,7 +36,7 @@ namespace Esyur.Resource
 
         bool loading = false;
 
-        KeyList<string, object> attributes;
+        //KeyList<string, object> attributes;
 
         List<ulong> ages = new List<ulong>();
         List<DateTime> modificationDates = new List<DateTime>();
@@ -53,17 +45,18 @@ namespace Esyur.Resource
 
         uint id;
 
+        public KeyList<string, object> Variables { get; } = new KeyList<string, object>();
 
         /// <summary>
         /// Instance attributes are custom properties associated with the instance, a place to store information by IStore.
         /// </summary>
-        public KeyList<string, object> Attributes
-        {
-            get
-            {
-                return attributes;
-            }
-        }
+        //public KeyList<string, object> Attributes
+        //{
+        //    get
+        //    {
+        //        return attributes;
+        //    }
+        //}
 
         public override string ToString()
         {
@@ -72,6 +65,19 @@ namespace Esyur.Resource
 
         public bool RemoveAttributes(string[] attributes = null)
         {
+
+            return false;
+
+            /*
+            IResource res;
+
+            if (!resource.TryGetTarget(out res))
+                return false;
+
+            return store.RemoveAttributes(res, attributes);
+            */
+
+            /*
             if (attributes == null)
                 this.attributes.Clear();
             else
@@ -81,10 +87,31 @@ namespace Esyur.Resource
             }
 
             return true;
+            */
         }
 
         public Structure GetAttributes(string[] attributes = null)
         {
+            // @TODO
+            Structure rt = new Structure();
+
+            if (attributes != null)
+            {
+                for (var i = 0; i < attributes.Length; i++)
+                {
+                    var at = template.GetAttributeTemplate(attributes[i]);
+                    if (at != null)
+                    {
+
+                    }
+                }
+            }
+
+            return rt;
+
+            
+
+            /*
             var st = new Structure();
 
             if (attributes == null)
@@ -132,10 +159,31 @@ namespace Esyur.Resource
             }
 
             return st;
+            */
         }
 
         public bool SetAttributes(Structure attributes, bool clearAttributes = false)
         {
+
+            // @ TODO
+            IResource res;
+
+            if (resource.TryGetTarget(out res))
+            {
+                foreach (var kv in attributes)
+                {
+                    var at = template.GetAttributeTemplate(kv.Key);
+
+                    if (at != null)
+                        if (at.Info.CanWrite)
+                            at.Info.SetValue(res, kv.Value);
+                }
+            }
+
+            return true;
+
+
+            /*
             try
             {
 
@@ -183,6 +231,7 @@ namespace Esyur.Resource
             }
 
             return true;
+            */
         }
 
         /*
@@ -758,12 +807,15 @@ namespace Esyur.Resource
             IResource res;
             if (this.resource.TryGetTarget(out res))
             {
+                //return store.Applicable(res, session, action, member, inquirer);
+                
                 foreach (IPermissionsManager manager in managers)
                 {
                     var r = manager.Applicable(res, session, action, member, inquirer);
                     if (r != Ruling.DontCare)
                         return r;
                 }
+                
             }
 
             return Ruling.DontCare;
@@ -790,7 +842,7 @@ namespace Esyur.Resource
             this.name = name;
             this.instanceAge = age;
 
-            this.attributes = new KeyList<string, object>(this);
+            //this.attributes = new KeyList<string, object>(this);
             //children = new AutoList<IResource, Instance>(this);
             //parents = new AutoList<IResource, Instance>(this);
             managers = new AutoList<IPermissionsManager, Instance>(this);

@@ -48,8 +48,8 @@ namespace Esyur.Proxy
 #if NETSTANDARD
             var typeInfo = type.GetTypeInfo();
 
-            if (typeInfo.IsSealed)
-                throw new Exception("Sealed class can't be proxied.");
+            if (typeInfo.IsSealed || typeInfo.IsAbstract)
+                throw new Exception("Sealed/Abastract classes can't be proxied.");
 
             var props = from p in typeInfo.GetProperties()
                         where p.CanWrite && p.GetSetMethod().IsVirtual &&

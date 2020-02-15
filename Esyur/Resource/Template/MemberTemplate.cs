@@ -14,6 +14,7 @@ namespace Esyur.Resource.Template
             Function = 0,
             Property = 1,
             Event = 2,
+            Attribute = 3
         }
 
         public byte Index => index;

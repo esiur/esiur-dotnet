@@ -1,4 +1,28 @@
-﻿using Esyur.Resource;
+﻿/*
+ 
+Copyright (c) 2017 Ahmed Kh. Zamil
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
+using Esyur.Resource;
 using System;
 using Esyur.Core;
 using MongoDB.Driver.Core;
@@ -61,7 +85,7 @@ namespace Esyur.Stores.MongoDB
 
         public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime date)
         {
-            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            var objectId = resource.Instance.Variables["objectId"].ToString();
             //var bsonObjectId = new BsonObjectId(new ObjectId(objectId));
 
             var record = this.database.GetCollection<BsonDocument>("record_" + objectId);
@@ -88,7 +112,7 @@ namespace Esyur.Stores.MongoDB
         [ResourceFunction]
         public bool Remove(IResource resource)
         {
-            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            var objectId = resource.Instance.Variables["objectId"].ToString();
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
 
             this.database.DropCollection("record_" + objectId);
@@ -148,8 +172,8 @@ namespace Esyur.Stores.MongoDB
 
             // var bag = new AsyncBag<object>();
 
-            resource.Instance.Attributes.Add("children", children.Select(x => x.AsString).ToArray());
-            resource.Instance.Attributes.Add("parents", parents.Select(x => x.AsString).ToArray());
+            resource.Instance.Variables.Add("children", children.Select(x => x.AsString).ToArray());
+            resource.Instance.Variables.Add("parents", parents.Select(x => x.AsString).ToArray());
 
             // Apply store managers
             foreach (var m in this.Instance.Managers)
@@ -275,7 +299,7 @@ namespace Esyur.Stores.MongoDB
 
         public string Link(IResource resource)
         {
-            return this.Instance.Name + "/id/" + (string)resource.Instance.Attributes["objectId"];
+            return this.Instance.Name + "/id/" + (string)resource.Instance.Variables["objectId"];
         }
 
         public async AsyncReply<bool> Put(IResource resource)
@@ -285,13 +309,12 @@ namespace Esyur.Stores.MongoDB
                 if (resource == this)
                     return true;
 
-
                 var attrs = resource.Instance.GetAttributes();
 
                 foreach (var kv in resources)
                     if (kv.Value.Target == resource)
                     {
-                        resource.Instance.Attributes.Add("objectId", kv.Key);
+                        resource.Instance.Variables.Add("objectId", kv.Key);
                         return true;
                     }
 
@@ -309,7 +332,7 @@ namespace Esyur.Stores.MongoDB
             };
 
                 resourcesCollection.InsertOne(document);
-                resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+                resource.Instance.Variables["objectId"] = document["_id"].ToString();
 
 
                 // now update the document
@@ -321,8 +344,8 @@ namespace Esyur.Stores.MongoDB
                 var template = resource.Instance.Template;
 
                 // setup attributes
-                resource.Instance.Attributes["children"] = new string[0];
-                resource.Instance.Attributes["parents"] = new string[] { this.Instance.Link };
+                resource.Instance.Variables["children"] = new string[0];
+                resource.Instance.Variables["parents"] = new string[] { this.Instance.Link };
 
                 // copy old children (in case we are moving a resource from a store to another.
                 if (resource.Instance.Store != this)
@@ -376,7 +399,7 @@ namespace Esyur.Stores.MongoDB
 
                 resources.Add(document["_id"].AsObjectId.ToString(), new WeakReference(resource));
 
-                //resource.Instance.Attributes["objectId"] = document["_id"].ToString();
+                //resource.Instance.Variables["objectId"] = document["_id"].ToString();
 
                 ResourceAdded?.Invoke(resource);
 
@@ -389,9 +412,6 @@ namespace Esyur.Stores.MongoDB
                 return false;
             }
         }
-
-
-
 
         public BsonDocument ComposeStructure(Structure value)
         {
@@ -435,9 +455,9 @@ namespace Esyur.Stores.MongoDB
             {
                 rt.Add(new BsonDocument { { "type", 0 }, { "link", r.Instance.Link } });
 
-                //if (r.Instance.Attributes.ContainsKey("objectId"))
+                //if (r.Instance.Variables.ContainsKey("objectId"))
 
-                //rt.Add(new BsonObjectId(new ObjectId((string)r.Instance.Attributes["objectId"])));
+                //rt.Add(new BsonObjectId(new ObjectId((string)r.Instance.Variables["objectId"])));
             }
 
             return rt;
@@ -461,7 +481,7 @@ namespace Esyur.Stores.MongoDB
 
                     return new BsonDocument { { "type", 0 }, { "link", (value as IResource).Instance.Link } };
 
-                //return new BsonObjectId(new ObjectId((string)(value as IResource).Instance.Attributes["objectId"]));
+                //return new BsonObjectId(new ObjectId((string)(value as IResource).Instance.Variables["objectId"]));
 
                 case DataType.Structure:
                     return ComposeStructure((Structure)value);
@@ -490,15 +510,21 @@ namespace Esyur.Stores.MongoDB
             throw new NotImplementedException();
         }
 
+        [ResourceAttribute]
+        public string Connection { get; set; }
+        [ResourceAttribute]
+        public string Collection { get; set; }
+        [ResourceAttribute]
+        public string Database { get; set; }
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
 
             if (trigger == ResourceTrigger.Initialize)
             {
 
-                var collectionName = Instance.Attributes["Collection"] as string ?? "resources";
-                var dbName = Instance.Attributes["Database"] as string ?? "Esyur";
-                client = new MongoClient(Instance.Attributes["Connection"] as string ?? "mongodb://localhost");
+                var collectionName = Collection ?? "resources";
+                var dbName = Database ?? "Esyur";
+                client = new MongoClient(Connection ?? "mongodb://localhost");
                 database = client.GetDatabase(dbName);
 
                 resourcesCollection = this.database.GetCollection<BsonDocument>(collectionName);
@@ -568,7 +594,7 @@ namespace Esyur.Stores.MongoDB
             //foreach (IResource c in resource.Instance.Children)
             //  children.Add(c.Instance.Link);
 
-            var plist = resource.Instance.Attributes["parents"] as string[];
+            var plist = resource.Instance.Variables["parents"] as string[];
 
             foreach (var link in plist)// Parents)
                 parents.Add(link);
@@ -605,7 +631,7 @@ namespace Esyur.Stores.MongoDB
                 { "attributes", attrsDoc },
                 { "classname", type.FullName + "," + type.GetTypeInfo().Assembly.GetName().Name },
                 { "name", resource.Instance.Name },
-                { "_id", new BsonObjectId(new ObjectId(resource.Instance.Attributes["objectId"].ToString())) },
+                { "_id", new BsonObjectId(new ObjectId(resource.Instance.Variables["objectId"].ToString())) },
                 {"values", values }
             };
 
@@ -627,7 +653,7 @@ namespace Esyur.Stores.MongoDB
 
         public AsyncReply<PropertyValue[]> GetPropertyRecordByAge(IResource resource, string propertyName, ulong fromAge, ulong toAge)
         {
-            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            var objectId = resource.Instance.Variables["objectId"].ToString();
 
             var record = this.database.GetCollection<BsonDocument>("record_" + objectId);
             var builder = Builders<BsonDocument>.Filter;
@@ -663,7 +689,7 @@ namespace Esyur.Stores.MongoDB
 
         public AsyncReply<PropertyValue[]> GetPropertyRecordByDate(IResource resource, string propertyName, DateTime fromDate, DateTime toDate)
         {
-            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            var objectId = resource.Instance.Variables["objectId"].ToString();
 
             var record = this.database.GetCollection<BsonDocument>("record_" + objectId);
             var builder = Builders<BsonDocument>.Filter;
@@ -755,7 +781,7 @@ namespace Esyur.Stores.MongoDB
             if (resource == this)
                 return true;
 
-            var objectId = resource.Instance.Attributes["objectId"].ToString();
+            var objectId = resource.Instance.Variables["objectId"].ToString();
 
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
             var update = Builders<BsonDocument>.Update
@@ -802,7 +828,7 @@ namespace Esyur.Stores.MongoDB
             }
             else
             {
-                var children = (string[])resource.Instance.Attributes["children"];
+                var children = (string[])resource.Instance.Variables["children"];
 
                 if (children == null)
                 {
@@ -833,7 +859,7 @@ namespace Esyur.Stores.MongoDB
             }
             else
             {
-                var parents = (string[])resource.Instance.Attributes["parents"];
+                var parents = (string[])resource.Instance.Variables["parents"];
 
                 if (parents == null)
                 {
@@ -862,8 +888,8 @@ namespace Esyur.Stores.MongoDB
 
         public AsyncReply<bool> AddChild(IResource resource, IResource child)
         {
-            var list = (string[])resource.Instance.Attributes["children"];
-            resource.Instance.Attributes["children"] = list.Concat(new string[] { child.Instance.Link }).ToArray();
+            var list = (string[])resource.Instance.Variables["children"];
+            resource.Instance.Variables["children"] = list.Concat(new string[] { child.Instance.Link }).ToArray();
 
             SaveResource(resource);
 
@@ -877,8 +903,8 @@ namespace Esyur.Stores.MongoDB
 
         public AsyncReply<bool> AddParent(IResource resource, IResource parent)
         {
-            var list = (string[])resource.Instance.Attributes["parents"];
-            resource.Instance.Attributes["parents"] = list.Concat(new string[] { parent.Instance.Link }).ToArray();
+            var list = (string[])resource.Instance.Variables["parents"];
+            resource.Instance.Variables["parents"] = list.Concat(new string[] { parent.Instance.Link }).ToArray();
 
             SaveResource(resource);
 

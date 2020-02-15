@@ -30,6 +30,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Esyur.Security.Permissions;
+using Esyur.Security.Authority;
 
 namespace Esyur.Resource
 {
@@ -43,6 +45,13 @@ namespace Esyur.Resource
         bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
         bool Remove(IResource resource);
 
+        //bool RemoveAttributes(IResource resource, string[] attributes = null);
+
+        //Structure GetAttributes(IResource resource, string[] attributes = null);
+
+        //bool SetAttributes(IResource resource, Structure attributes, bool clearAttributes = false);
+
+        
 
         AsyncReply<bool> AddChild(IResource parent, IResource child);
         AsyncReply<bool> RemoveChild(IResource parent, IResource child);
