@@ -35,6 +35,7 @@ using System.Threading.Tasks;
 using Esyur.Net.IIP;
 using System.Text.RegularExpressions;
 using Esyur.Misc;
+using System.Collections.Concurrent;
 
 namespace Esyur.Resource
 {
@@ -43,8 +44,11 @@ namespace Esyur.Resource
     {
         //static byte prefixCounter;
 
-        static AutoList<IStore, Instance> stores = new AutoList<IStore, Instance>(null);
-        static Dictionary<uint, WeakReference<IResource>> resources = new Dictionary<uint, WeakReference<IResource>>();
+        //static AutoList<IStore, Instance> stores = new AutoList<IStore, Instance>(null);
+        static ConcurrentDictionary<uint, WeakReference<IResource>> resources = new ConcurrentDictionary<uint, WeakReference<IResource>>();
+        static ConcurrentDictionary<IStore, List<WeakReference<IResource>>> stores = new ConcurrentDictionary<IStore, List<WeakReference<IResource>>>();
+
+
         static uint resourceCounter = 0;
 
         static KeyList<Guid, ResourceTemplate> templates = new KeyList<Guid, ResourceTemplate>();
@@ -61,7 +65,7 @@ namespace Esyur.Resource
 
         private static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
-        private static object resourcesLock = new object();
+        //private static object resourcesLock = new object();
 
         static KeyList<string, Func<IStore>> getSupportedProtocols()
         {
@@ -78,8 +82,8 @@ namespace Esyur.Resource
         public static IStore GetStore(string name)
         {
             foreach (var s in stores)
-                if (s.Instance.Name == name)
-                    return s as IStore;
+                if (s.Key.Instance.Name == name)
+                    return s.Key;
             return null;
         }
 
@@ -113,22 +117,28 @@ namespace Esyur.Resource
         {
             warehouseIsOpen = true;
 
-            var resSnap = resources.Select(x => {
-                    IResource r;
+            var resSnap = resources.Select(x =>
+            {
+                IResource r;
                 if (x.Value.TryGetTarget(out r))
                     return r;
                 else
                     return null;
-                }).Where(r=>r!=null).ToArray();
+            }).Where(r => r != null).ToArray();
 
             foreach (var r in resSnap)
             {
                 //IResource r;
                 //if (rk.Value.TryGetTarget(out r))
                 //{
-                    var rt = await r.Trigger(ResourceTrigger.Initialize);
-                    if (!rt)
-                        return false;
+                var rt = await r.Trigger(ResourceTrigger.Initialize);
+                //if (!rt)
+                //  return false;
+
+                if (!rt)
+                {
+                    Console.WriteLine($"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Template.ClassName}]");
+                }
                 //}
             }
 
@@ -137,9 +147,12 @@ namespace Esyur.Resource
                 //IResource r;
                 //if (rk.Value.TryGetTarget(out r))
                 //{
-                    var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
-                    if (!rt)
-                        return false;
+                var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
+                if (!rt)
+                {
+                    Console.WriteLine($"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Template.ClassName}]");
+                }
+                //return false;
                 //}
             }
 
@@ -217,7 +230,7 @@ namespace Esyur.Resource
             }
 
             foreach (var store in stores)
-                bag.Add(store.Trigger(ResourceTrigger.Terminate));
+                bag.Add(store.Key.Trigger(ResourceTrigger.Terminate));
 
 
             foreach (var resource in resources.Values)
@@ -232,7 +245,7 @@ namespace Esyur.Resource
 
 
             foreach (var store in stores)
-                bag.Add(store.Trigger(ResourceTrigger.SystemTerminated));
+                bag.Add(store.Key.Trigger(ResourceTrigger.SystemTerminated));
 
             bag.Seal();
 
@@ -318,7 +331,7 @@ namespace Esyur.Resource
             var p = path.Trim().Split('/');
             IResource resource;
 
-            foreach (var store in stores)
+            foreach (var store in stores.Keys)
                 if (p[0] == store.Instance.Name)
                 {
 
@@ -433,19 +446,26 @@ namespace Esyur.Resource
             if (resource.Instance != null)
                 throw new Exception("Resource has a store.");
 
+            var resourceReference = new WeakReference<IResource>(resource);
+
             if (store == null)
             {
                 // assign parent as a store
                 if (parent is IStore)
+                {
                     store = (IStore)parent;
+                    stores[store].Add(resourceReference);
+                }
                 // assign parent's store as a store
                 else if (parent != null)
+                {
                     store = parent.Instance.Store;
+                    stores[store].Add(resourceReference);
+                }
                 // assign self as a store (root store)
                 else if (resource is IStore)
                 {
                     store = (IStore)resource;
-                    stores.Add(resource as IStore);
                 }
                 else
                     throw new Exception("Can't find a store for the resource.");
@@ -475,10 +495,13 @@ namespace Esyur.Resource
 
 
             if (resource is IStore)
+            {
+                stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
                 StoreConnected?.Invoke(resource as IStore, name);
+            }
             //else
 
-            
+
             store.Put(resource);
 
 
@@ -493,15 +516,17 @@ namespace Esyur.Resource
             var t = resource.GetType();
             Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
-            lock (resourcesLock)
-                resources.Add(resource.Instance.Id, new WeakReference<IResource>(resource));
+            //var wr = new WeakReference<IResource>(resource);
+
+            //lock (resourcesLock)
+            resources.TryAdd(resource.Instance.Id, resourceReference);
 
             if (warehouseIsOpen)
                 resource.Trigger(ResourceTrigger.Initialize);
 
         }
 
-        public static IResource New(Type type, string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null, Structure arguments = null, Structure properties = null)
+        public static IResource New(Type type, string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
         {
             type = ResourceProxy.GetProxy(type);
 
@@ -539,9 +564,12 @@ namespace Esyur.Resource
             */
             var res = Activator.CreateInstance(type) as IResource;
 
+
             if (properties != null)
             {
-                foreach (var p in properties)
+                var ps = Structure.FromObject(properties);
+
+                foreach (var p in ps)
                 {
                     var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
                     if (pi != null)
@@ -556,10 +584,10 @@ namespace Esyur.Resource
 
         }
 
-        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, Structure attributes = null, Structure arguments = null, Structure properties = null)
+        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
             where T : IResource
         {
-            return (T)New(typeof(T), name, store, parent, manager, attributes, arguments, properties);
+            return (T)New(typeof(T), name, store, parent, manager, attributes, properties);
         }
 
         /// <summary>
@@ -619,31 +647,45 @@ namespace Esyur.Resource
 
         public static bool Remove(IResource resource)
         {
-            
+
             if (resource.Instance == null)
                 return false;
 
+            //lock (resourcesLock)
+            //{
+
+            WeakReference<IResource> resourceReference;
+
             if (resources.ContainsKey(resource.Instance.Id))
-                lock(resourcesLock)
-                    resources.Remove(resource.Instance.Id);
+                resources.TryRemove(resource.Instance.Id, out resourceReference);
             else
                 return false;
+            //}
+
+            if (resource != resource.Instance.Store)
+                stores[resource.Instance.Store].Remove(resourceReference);
 
             if (resource is IStore)
             {
-                stores.Remove(resource as IStore);
+                var store = resource as IStore;
 
-                WeakReference<IResource>[] toBeRemoved;
+                List<WeakReference<IResource>> toBeRemoved;// = stores[store];
 
-                lock (resourcesLock)
-                {
-                    // remove all objects associated with the store
-                     toBeRemoved = resources.Values.Where(x =>
-                    {
-                        IResource r;
-                        return x.TryGetTarget(out r) && r.Instance.Store == resource;
-                    }).ToArray();
-                }
+                stores.TryRemove(store, out toBeRemoved);
+
+                //lock (resourcesLock)
+                //{
+                //    // remove all objects associated with the store
+                //    toBeRemoved = resources.Values.Where(x =>
+                //   {
+                //       IResource r;
+                //       if (x.TryGetTarget(out r))
+                //           return r.Instance.Store == resource;
+                //       else
+                //           return false;
+                //   }).ToArray();
+                //}
+
 
                 foreach (var o in toBeRemoved)
                 {

@@ -39,48 +39,44 @@ namespace Esyur.Net.IIP
 {
     public class DistributedServer : NetworkServer<DistributedConnection>, IResource
     {
-
-        //[Storable]
-        //[ResourceProperty]
-        public string ip
+        [Attribute]
+        public string IP
         {
             get;
             set;
         }
 
-        //[Storable]
-        //[ResourceProperty]
+        [Attribute]
         public IMembership Membership
         {
             get;
             set;
         }
 
+        [Attribute]
         public EntryPoint EntryPoint
         {
             get;
             set;
         }
 
-        //[Storable]
-        //[ResourceProperty]
-        public ushort port
+        [Attribute]
+        public ushort Port
         {
             get;
             set;
         }
 
-        //[Storable]
-        //[ResourceProperty]
-        public uint timeout
+        [Attribute]
+        public uint Timeout
         {
             get;
             set;
         }
         
-        //[Storable]
-        //[ResourceProperty]
-        public uint clock
+       
+        [Attribute]
+        public uint Clock
         {
             get;
             set;
@@ -99,12 +95,12 @@ namespace Esyur.Net.IIP
             {
                 TCPSocket listener;
 
-                if (ip != null)
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(ip), port));
+                if (IP != null)
+                    listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
                 else
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Any, port));
+                    listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
 
-                Start(listener, timeout, clock);
+                Start(listener, Timeout, Clock);
             }
             else if (trigger == ResourceTrigger.Terminate)
             {

@@ -44,7 +44,7 @@ namespace Esyur.Net.HTTP
     public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     {
         Dictionary<string, HTTPSession> sessions= new Dictionary<string, HTTPSession>();
-        HTTPFilter[] filters = null;
+        HTTPFilter[] filters = new HTTPFilter[0];
 
         public Instance Instance
         {
@@ -52,63 +52,55 @@ namespace Esyur.Net.HTTP
             set;
         }
 
-        [Storable]
-        public virtual string ip
-        {
-            get;
-            set;
-        }
-        [Storable]
-        public virtual ushort port
+        [Attribute]
+        public virtual string IP
         {
             get;
             set;
         }
 
-        [Storable]
-        public virtual uint timeout
+        [Attribute]
+        public virtual ushort Port
         {
             get;
             set;
         }
 
-        [Storable]
-        public virtual uint clock
+        [Attribute]
+        public virtual uint Timeout
         {
             get;
             set;
         }
 
-        [Storable]
-        public virtual uint maxPost
+        [Attribute]
+        public virtual uint Clock
         {
             get;
             set;
         }
 
-        [Storable]
-        public virtual bool ssl
+        [Attribute]
+        public virtual uint MaxPost
         {
             get;
             set;
         }
 
-        [Storable]
-        public virtual string certificate
+        [Attribute]
+        public virtual bool SSL
         {
             get;
             set;
         }
 
-        //public override void ClientConnected(TClient Sender)
-        //{
-        //}
-        /*
-        public DStringDictionary Configurations
+        [Attribute]
+        public virtual string Certificate
         {
-            get { return config; }
+            get;
+            set;
         }
-         */ 
+
 
         public enum ResponseCodes : int
         {
@@ -118,7 +110,7 @@ namespace Esyur.Net.HTTP
             HTTP_MOVED = 301,
             HTTP_NOTMODIFIED = 304,
             HTTP_REDIRECT = 307
-        }
+       }
 
    
        public HTTPSession CreateSession(string id, int timeout)
@@ -132,27 +124,6 @@ namespace Esyur.Net.HTTP
 
             return s;
        }
- 
-
-        /*
-        protected override void SessionModified(NetworkSession session, string key, object oldValue, object newValue)
-        {
-            foreach (var instance in Instance.Children)
-            {
-                var f = (HTTPFilter)instance;
-                f.SessionModified(session as HTTPSession, key, oldValue, newValue);
-            }
-        }
-        */
-
-        //public override object InitializeLifetimeService()
-        //{
-        //  return null;
-        //}
-
-
-
-
 
         public static string MakeCookie(string Item, string Value, DateTime Expires, string Domain, string Path, bool HttpOnly)
         {
@@ -183,7 +154,7 @@ namespace Esyur.Net.HTTP
         protected override void ClientDisconnected(HTTPConnection sender)
         {
             //Console.WriteLine("OUT: " + this.Connections.Count);
-
+            
             foreach (var filter in filters)
                 filter.ClientDisconnected(sender);
         }
@@ -222,11 +193,11 @@ namespace Esyur.Net.HTTP
             }
             else if (BL > 0)
             {
-                if (BL > maxPost)
+                if (BL > MaxPost)
                 {
                     sender.Send(
                         "<html><body>POST method content is larger than "
-                        + maxPost
+                        + MaxPost
                         + " bytes.</body></html>");
 
                     sender.Close();
@@ -326,7 +297,7 @@ namespace Esyur.Net.HTTP
          */ 
 
 
-        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+        public async AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
 
             if (trigger == ResourceTrigger.Initialize)
@@ -341,19 +312,19 @@ namespace Esyur.Net.HTTP
                 ISocket listener;
                 IPAddress ipAdd;
 
-                if (ip == null)
+                if (IP == null)
                     ipAdd = IPAddress.Any;
                 else
-                    ipAdd = IPAddress.Parse(ip);
+                    ipAdd = IPAddress.Parse(IP);
 
                // if (ssl)
                 //    listener = new SSLSocket(new IPEndPoint(ipAdd, port), new X509Certificate2(certificate));
                // else
-                    listener = new TCPSocket(new IPEndPoint(ipAdd, port));
+                    listener = new TCPSocket(new IPEndPoint(ipAdd, Port));
 
                 Start(listener,
-                            timeout,
-                            clock);
+                            Timeout,
+                            Clock);
             }
             else if (trigger == ResourceTrigger.Terminate)
             {
@@ -361,15 +332,15 @@ namespace Esyur.Net.HTTP
             }
             else if (trigger == ResourceTrigger.SystemReload)
             {
-                Trigger(ResourceTrigger.Terminate);
-                Trigger(ResourceTrigger.Initialize);
+                await Trigger(ResourceTrigger.Terminate);
+                await Trigger(ResourceTrigger.Initialize);
             }
             else if (trigger == ResourceTrigger.SystemInitialized)
             {
-                Instance.Children<HTTPFilter>().Then(x => filters = x);
+                filters = await Instance.Children<HTTPFilter>();
             }
 
-            return new AsyncReply<bool>(true);
+            return true;
 
         }
         
@@ -380,7 +351,7 @@ namespace Esyur.Net.HTTP
             sender.SetParent(this);
 
             //Console.WriteLine("IN: " + this.Connections.Count);
-            if (filters == null)
+            if (filters.Length == 0)
             {
                 sender.Close();
                 return;

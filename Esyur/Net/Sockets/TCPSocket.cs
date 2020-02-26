@@ -178,7 +178,9 @@ namespace Esyur.Net.Sockets
                 //lock (receiveNetworkBuffer.SyncLock)
                 // Console.WriteLine(e. + " " + e.BytesTransferred);
 
-                receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)e.BytesTransferred);
+                var recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
+
+                receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
 
                 //Console.WriteLine("TC IN: " + (uint)e.BytesTransferred + " " + DC.ToHex(receiveBuffer, 0, (uint)e.BytesTransferred));
 
@@ -365,7 +367,15 @@ namespace Esyur.Net.Sockets
                 else
                 {
                     asyncSending = true;
-                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, null);
+                    try
+                    {
+                        sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, null);
+                    }
+                    catch {
+                        asyncSending = false;
+                        state = SocketState.Terminated;
+                        Close();
+                    }
                     //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
                 }
             }
@@ -403,7 +413,7 @@ namespace Esyur.Net.Sockets
                         }
                         catch (Exception ex2)
                         {
-                            Console.WriteLine("Level 2 {0}", ex2);
+                            state = SocketState.Terminated;
                         }
 
                         Global.Log("TCPSocket", LogType.Error, ex.ToString());
@@ -427,32 +437,34 @@ namespace Esyur.Net.Sockets
             OnDestroy?.Invoke(this);
         }
 
-        public AsyncReply<ISocket> Accept()
+        public ISocket Accept()
         {
-            var reply = new AsyncReply<ISocket>();
-
             try
             {
-                sock.AcceptAsync().ContinueWith((x) =>
-                {
-                    try
-                    {
-                        reply.Trigger(new TCPSocket(x.Result));
-                    }
-                    catch
-                    {
-                        reply.Trigger(null);
-                    }
-                });
+                var s = sock.Accept();
+                return new TCPSocket(s);
             }
             catch
             {
                 state = SocketState.Terminated;
                 return null;
             }
-
-            return reply;
         }
+
+        public async AsyncReply<ISocket> AcceptAsync()
+        {
+            try
+            {
+                var s = await sock.AcceptAsync();
+                return new TCPSocket(s);
+            }
+            catch
+            {
+                state = SocketState.Terminated;
+                return null;
+            }
+        }
+
 
         public void Hold()
         {
@@ -494,12 +506,23 @@ namespace Esyur.Net.Sockets
                 else
                 {
                     asyncSending = true;
-                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, rt);// null);
+                    try
+                    {
+                        sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, rt);// null);
+                    }
+                    catch
+                    {
+                        asyncSending = false;
+                        state = SocketState.Terminated;
+                        Close();
+                    }
                     //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);
                 }
 
                 return rt;
             }
         }
+
+
     }
 }

@@ -7,7 +7,7 @@
     <PackageLicenseUrl>https://github.com/Esyur/Esyur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>http://www.esyur.com</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.4.9</Version>
+    <Version>1.5.0</Version>
     <RepositoryUrl>https://github.com/esyur/esyur-dotnet</RepositoryUrl>
     <Authors>Ahmed Kh. Zamil</Authors>
     <AssemblyVersion>1.3.1.0</AssemblyVersion>
@@ -29,7 +29,9 @@
   <ItemGroup>
     <Compile Remove="Core\AsyncReplyNon.cs" />
     <Compile Remove="Core\IAsyncReply.cs" />
-    <Compile Remove="Net\UDP\UDPServer.cs" />
+    <Compile Remove="Resource\ResourceEvent.cs" />
+    <Compile Remove="Resource\ResourceFunction.cs" />
+    <Compile Remove="Resource\ResourceProperty.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,7 +42,9 @@
   <ItemGroup>
     <None Include="Core\AsyncReplyNon.cs" />
     <None Include="Core\IAsyncReply.cs" />
-    <None Include="Net\UDP\UDPServer.cs" />
+    <None Include="Resource\ResourceEvent.cs" />
+    <None Include="Resource\ResourceFunction.cs" />
+    <None Include="Resource\ResourceProperty.cs" />
   </ItemGroup>
 
   <ItemGroup>

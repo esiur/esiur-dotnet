@@ -31,18 +31,19 @@ using Esyur.Core;
 using Esyur.Net.Sockets;
 using Esyur.Resource;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace Esyur.Net
 {
 
-    public abstract class NetworkServer<TConnection>: IDestructible where TConnection : NetworkConnection, new()
+    public abstract class NetworkServer<TConnection> : IDestructible where TConnection : NetworkConnection, new()
     {
         //private bool isRunning;
         uint clock;
         private ISocket listener;
         private AutoList<TConnection, NetworkServer<TConnection>> connections;
 
-        //private Thread thread;
+        private Thread thread;
 
         protected abstract void DataReceived(TConnection sender, NetworkBuffer data);
         protected abstract void ClientConnected(TConnection sender);
@@ -102,18 +103,18 @@ namespace Esyur.Net
         }
         */
 
-            /*
-        protected virtual void SessionModified(NetworkSession session, string key, object oldValue, object newValue)
-        {
+        /*
+    protected virtual void SessionModified(NetworkSession session, string key, object oldValue, object newValue)
+    {
 
-        }
+    }
 
-        protected virtual void SessionEnded(NetworkSession session)
-        {
-            Sessions.Remove(session.Id);
-            session.Destroy();
-        }
-        */
+    protected virtual void SessionEnded(NetworkSession session)
+    {
+        Sessions.Remove(session.Id);
+        session.Destroy();
+    }
+    */
 
         private void MinuteThread(object state)
         {
@@ -179,14 +180,21 @@ namespace Esyur.Net
             listener = socket;
 
             // Start accepting
-            var r = listener.Accept();
-            r.Then(NewConnection);
+            //var r = listener.Accept();
+            //r.Then(NewConnection);
             //r.timeout?.Dispose();
 
             //var rt = listener.Accept().Then()
-            //thread = new Thread(new System.Threading.ThreadStart(ListenForConnections));
+            thread = new Thread(new ThreadStart(() =>
+            {
+                while (true)
+                {
+                    var s = listener.Accept();
+                    NewConnection(s);
+                }
+            }));
 
-            //thread.Start();
+            thread.Start();
 
         }
 
@@ -221,7 +229,7 @@ namespace Esyur.Net
                 // wait until the listener stops
                 //while (isRunning)
                 //{
-                  //  Thread.Sleep(100);
+                //  Thread.Sleep(100);
                 //}
 
                 //Console.WriteLine("Listener stopped");
@@ -230,8 +238,8 @@ namespace Esyur.Net
 
                 //lock (connections.SyncRoot)
                 //{
-                    foreach (TConnection con in cons)
-                        con.Close();
+                foreach (TConnection con in cons)
+                    con.Close();
                 //}
 
                 //Console.WriteLine("Sockets Closed");
@@ -268,48 +276,35 @@ namespace Esyur.Net
 
         private void NewConnection(ISocket sock)
         {
-
             try
             {
 
-                /*
-                    if (listener.State == SocketState.Closed || listener.State == SocketState.Terminated)
-                    {
-                           Console.WriteLine("Listen socket break ");
-                           Console.WriteLine(listener.LocalEndPoint.Port);
-                           break;
-                    }
-                    */
-
-                    if (sock == null)
-                    {
-                        //Console.Write("sock == null");
-                        return;
-                    }
-
-                //sock.ReceiveBufferSize = 102400;
-                //sock.SendBufferSize = 102400;
+                
+                if (sock == null)
+                {
+                    Console.Write("sock == null");
+                    return;
+                }
 
 
-                    TConnection c = new TConnection();
-                    AddConnection(c);
+                TConnection c = new TConnection();
+                AddConnection(c);
 
-                    c.Assign(sock);
+                c.Assign(sock);
 
-                    try
-                    {
-                        ClientConnected(c);
-                    }
-                    catch
-                    {
-                       // something wrong with the child.
-                    }
+                try
+                {
+                    ClientConnected(c);
+                }
+                catch
+                {
+                    // something wrong with the child.
+                }
 
+                
                 // Accept more
-                listener.Accept().Then(NewConnection);
-                //l.timeout?.Dispose();
-
-                    sock.Begin();
+                //listener.Accept().Then(NewConnection);
+                sock.Begin();
 
 
             }
@@ -332,7 +327,7 @@ namespace Esyur.Net
                 //isRunning; 
             }
         }
- 
+
         public void OnDataReceived(NetworkConnection sender, NetworkBuffer data)
         {
             DataReceived((TConnection)sender, data);
@@ -372,7 +367,7 @@ namespace Esyur.Net
             GC.Collect();
         }
 
-        
+
         public void Destroy()
         {
             Stop();

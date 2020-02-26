@@ -43,12 +43,8 @@ namespace Esyur.Data
     {
         public static object CastConvert(object value, Type destinationType)
         {
-
             if (value == null)
                 return null;
-
-            //if (destinationType.IsArray && destinationType.GetElementType().IsArray)
-              //  Console.Beep();
 
             var sourceType = value.GetType();
 
@@ -69,22 +65,6 @@ namespace Esyur.Data
                     for (var i = 0; i < rt.Length; i++)
                     {
                         rt.SetValue(CastConvert(v.GetValue(i), destinationType), i);
-
-                        //                        try
-                        //                        {
-                        //#if NETSTANDARD
-                        //                            if (destinationType.GetTypeInfo().IsInstanceOfType(v.GetValue(i)))
-                        //#else
-                        //                            if (destinationType.IsInstanceOfType(v.GetValue(i)))
-                        //#endif
-                        //                                rt.SetValue(v.GetValue(i), i);
-                        //                            else
-                        //                                rt.SetValue(Convert.ChangeType(v.GetValue(i), destinationType), i);
-                        //                        }
-                        //                        catch
-                        //                        {
-                        //                            rt.SetValue(null, i);
-                        //                        }
                     }
 
                     return rt;
@@ -94,8 +74,6 @@ namespace Esyur.Data
                 {
                     try
                     {
-
-
                         var underType = Nullable.GetUnderlyingType(destinationType);
                         if (underType != null)
                         {
@@ -104,7 +82,6 @@ namespace Esyur.Data
                             else
                                 destinationType = underType;
                         }
-
 
                         if (destinationType.IsInstanceOfType(value))
                         {
@@ -132,8 +109,6 @@ namespace Esyur.Data
                 }
             }
         }
-
-
 
 
         public static byte[] ToBytes(sbyte value)
@@ -602,8 +577,6 @@ namespace Esyur.Data
             return rt;
         }
 
-
-
         public static bool TryParse<T>(object Input, out T Results)
         {
             try
@@ -918,20 +891,6 @@ namespace Esyur.Data
             return rt;
         }
 
-        /*
-        public static PhysicalAddress GetPhysicalAddress(this byte[] data, uint offset)
-        {
-            return new PhysicalAddress(Clip(data, offset, 6));
-        }
-
-        public static PhysicalAddress[] GetPhysicalAddressArray(this byte[] data, uint offset, uint length)
-        {
-            var rt = new PhysicalAddress[length / 6];
-            for (var i = 0; i < length; i += 6)
-                rt[i] = GetPhysicalAddress(data, (uint)(offset + i));
-            return rt;
-        }
-        */
         public static IPAddress GetIPv4Address(this byte[] data, uint offset)
         {
             return new IPAddress((long)GetUInt32(data, offset));
@@ -958,83 +917,7 @@ namespace Esyur.Data
             return rt;
         }
 
-        /*
-        public static T FromBytes<T>(byte[] data, uint offset, uint length = 0)
-        {
-            if (typeof(T) == typeof(bool))
-            {
-                return (T)(object)(data[offset] == 1);
-            }
-            else if (typeof(T) == typeof(byte))
-            {
-                return (T)(object)data[offset];
-            }
-            else if (typeof(T) == typeof(char))
-            {
-                return (T)(object)BitConverter.ToChar(ReverseArray(data, offset, 2), 0);
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (T)(object)BitConverter.ToInt16(ReverseArray(data, offset, 2), 0);
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (T)(object)BitConverter.ToUInt16(ReverseArray(data, offset, 2), 0);
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (T)(object)BitConverter.ToInt32(ReverseArray(data, offset, 4), 0);
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (T)(object)BitConverter.ToUInt32(ReverseArray(data, offset, 4), 0);
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (T)(object)BitConverter.ToInt64(ReverseArray(data, offset, 8), 0);
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (T)(object)BitConverter.ToUInt64(ReverseArray(data, offset, 8), 0);
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (T)(object)BitConverter.ToSingle(ReverseArray(data, offset, 4), 0);
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (T)(object)BitConverter.ToDouble(ReverseArray(data, offset, 8), 0);
-            }
-            else if (typeof(T) == typeof(string))
-            {
-                return (T)(object)Encoding.UTF8.GetString(data, (int)offset, (int)length);
-            }
-            else if (typeof(T) == typeof(Guid))
-            {
-                return (T)(object)new Guid(DC.Clip(data, offset, 16));
-            }
-            else if (typeof(T) == typeof(IPAddress))
-            {
-                if (length == 0)
-                    return (T)(object)(new IPAddress((long)GetUInt32(data, offset)));
-                else
-                    return (T)(object)(new IPAddress(Clip(data, offset, length)));
-            }
-            else if (typeof(T) == typeof(PhysicalAddress))
-            {
-                return (T)(object)new PhysicalAddress(Clip(data, offset, 6));
-            }
-            else if (typeof(T) == typeof(DateTime))
-            {
-                long ticks = BitConverter.ToInt64(ReverseArray(data, offset, 8), 0);
-                return (T)(object)new DateTime(ticks, DateTimeKind.Utc);
-            }
-            else
-            {
-                return default(T);
-            }
-        }
-        */
+     
 
         public static byte[] Clip(this byte[] data, uint offset, uint length)
         {

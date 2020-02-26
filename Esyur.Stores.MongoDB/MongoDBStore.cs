@@ -51,15 +51,15 @@ namespace Esyur.Stores.MongoDB
         Dictionary<string, WeakReference> resources = new Dictionary<string, WeakReference>();
 
 
-        [ResourceEvent]
+        [Public]
         public event ResourceEventHanlder ResourceAdded;
 
-        [ResourceEvent]
+        [Public]
         public event ResourceEventHanlder ResourceRemoved;
 
         int count = 0;
 
-        [ResourceProperty]
+        [Public]
         public virtual int Count
         {
             get
@@ -109,7 +109,7 @@ namespace Esyur.Stores.MongoDB
             return true;
         }
 
-        [ResourceFunction]
+        [Public]
         public bool Remove(IResource resource)
         {
             var objectId = resource.Instance.Variables["objectId"].ToString();
@@ -510,11 +510,11 @@ namespace Esyur.Stores.MongoDB
             throw new NotImplementedException();
         }
 
-        [ResourceAttribute]
+        [Attribute]
         public string Connection { get; set; }
-        [ResourceAttribute]
+        [Attribute]
         public string Collection { get; set; }
-        [ResourceAttribute]
+        [Attribute]
         public string Database { get; set; }
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
@@ -725,7 +725,7 @@ namespace Esyur.Stores.MongoDB
 
         AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByAge(IResource resource, ulong fromAge, ulong toAge)
         {
-            var properties = resource.Instance.Template.Properties.Where(x => x.Storage == StorageMode.Recordable).ToList();
+            var properties = resource.Instance.Template.Properties.Where(x => x.Recordable).ToList();
 
             var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
 
@@ -751,7 +751,7 @@ namespace Esyur.Stores.MongoDB
 
         public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
         {
-            var properties = resource.Instance.Template.Properties.Where(x => x.Storage == StorageMode.Recordable).ToList();
+            var properties = resource.Instance.Template.Properties.Where(x => x.Recordable).ToList();
 
             var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
 

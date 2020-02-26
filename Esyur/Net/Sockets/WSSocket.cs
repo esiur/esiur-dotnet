@@ -63,13 +63,13 @@ namespace Esyur.Net.Sockets
             get { return (IPEndPoint)sock.LocalEndPoint; }
         }
 
-  
-        
-    public IPEndPoint RemoteEndPoint
-    {
-        get { return sock.RemoteEndPoint; }
-    }
-    
+
+
+        public IPEndPoint RemoteEndPoint
+        {
+            get { return sock.RemoteEndPoint; }
+        }
+
 
         public SocketState State
         {
@@ -79,7 +79,7 @@ namespace Esyur.Net.Sockets
             }
         }
 
- 
+
         public WSSocket(ISocket socket)
         {
             pkt_send.FIN = true;
@@ -103,7 +103,7 @@ namespace Esyur.Net.Sockets
             if (processing)
                 return;
 
-           
+
             var msg = buffer.Read();
 
             if (msg == null)
@@ -161,7 +161,7 @@ namespace Esyur.Net.Sockets
 
                 if (offset == msg.Length)
                 {
-                //    Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
+                    //    Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
                     OnReceive?.Invoke(receiveNetworkBuffer);
                     return;
                 }
@@ -200,14 +200,14 @@ namespace Esyur.Net.Sockets
 
         public void Send(WebsocketPacket packet)
         {
-            lock(sendLock)
+            lock (sendLock)
                 if (packet.Compose())
                     sock.Send(packet.Data);
         }
 
         public void Send(byte[] message)
         {
-            lock(sendLock)
+            lock (sendLock)
             {
                 if (held)
                 {
@@ -219,13 +219,16 @@ namespace Esyur.Net.Sockets
                     //Console.WriteLine("TX " + message.Length +"/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
 
                     pkt_send.Message = message;
+
+
                     if (pkt_send.Compose())
                         sock.Send(pkt_send.Data);
+
                 }
             }
         }
 
-        
+
         public void Send(byte[] message, int offset, int size)
         {
             lock (sendLock)
@@ -258,7 +261,7 @@ namespace Esyur.Net.Sockets
             throw new NotImplementedException();
         }
 
- 
+
         public bool Begin()
         {
             return sock.Begin();
@@ -275,20 +278,20 @@ namespace Esyur.Net.Sockets
             OnDestroy?.Invoke(this);
         }
 
-        public AsyncReply<ISocket> Accept()
+        public AsyncReply<ISocket> AcceptAsync()
         {
             throw new NotImplementedException();
         }
 
         public void Hold()
         {
-               //Console.WriteLine("WS Hold  ");
+            //Console.WriteLine("WS Hold  ");
             held = true;
         }
 
         public void Unhold()
         {
-            lock(sendLock)
+            lock (sendLock)
             {
                 held = false;
 
@@ -305,12 +308,17 @@ namespace Esyur.Net.Sockets
                 if (pkt_send.Compose())
                     sock.Send(pkt_send.Data);
 
-                
+
 
             }
         }
 
         public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ISocket Accept()
         {
             throw new NotImplementedException();
         }

@@ -176,7 +176,8 @@ namespace Esyur.Resource
 
                     if (at != null)
                         if (at.Info.CanWrite)
-                            at.Info.SetValue(res, kv.Value);
+                            at.Info.SetValue(res, DC.CastConvert(kv.Value, at.Info.PropertyType));
+                        
                 }
             }
 
@@ -442,7 +443,7 @@ namespace Esyur.Resource
                     IResource res;
                     if (resource.TryGetTarget(out res))
                     {
-                         var rt = pt.Serilize ? pt.Info.GetValue(res, null) : null;
+                    var rt = pt.Info.GetValue(res, null);// pt.Serilize ? pt.Info.GetValue(res, null) : null;
                     
                         props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
                     }
@@ -546,13 +547,14 @@ namespace Esyur.Resource
                 ages[pt.Index] = instanceAge;
                 modificationDates[pt.Index] = now;
 
-                if (pt.Storage == StorageMode.NonVolatile)
-                {
-                    store.Modify(res, pt.Name, value, ages[pt.Index], now);
-                }
-                else if (pt.Storage == StorageMode.Recordable)
+                if (pt.Recordable)
                 {
                     store.Record(res, pt.Name, value, ages[pt.Index], now);
+
+                }
+                else //if (pt.Storage == StorageMode.Recordable)
+                {
+                    store.Modify(res, pt.Name, value, ages[pt.Index], now);
                 }
 
                 ResourceModified?.Invoke(res, pt.Name, value);
@@ -839,7 +841,7 @@ namespace Esyur.Resource
             this.store = store;
             this.resource = new WeakReference<IResource>(resource);
             this.id = id;
-            this.name = name;
+            this.name = name ?? "";
             this.instanceAge = age;
 
             //this.attributes = new KeyList<string, object>(this);
@@ -875,30 +877,32 @@ namespace Esyur.Resource
             var events = t.GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
 #endif
 
-            foreach (var evt in events)
+
+            foreach (var evt in template.Events)
             {
                 //if (evt.EventHandlerType != typeof(ResourceEventHanlder))
                 //    continue;
 
-
-                if (evt.EventHandlerType == typeof(ResourceEventHanlder))
+                
+                if (evt.Info.EventHandlerType == typeof(ResourceEventHanlder))
                 {
-                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
-                    if (ca.Length == 0)
-                        continue;
+
+                   // var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                   // if (ca.Length == 0)
+                   //     continue;
 
                     ResourceEventHanlder proxyDelegate = (args) => EmitResourceEvent(null, null, evt.Name, args);
-                    evt.AddEventHandler(resource, proxyDelegate);
+                    evt.Info.AddEventHandler(resource, proxyDelegate);
 
                 }
-                else if (evt.EventHandlerType == typeof(CustomResourceEventHanlder))
+                else if (evt.Info.EventHandlerType == typeof(CustomResourceEventHanlder))
                 {
-                    var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
-                    if (ca.Length == 0)
-                        continue;
+                    //var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    //if (ca.Length == 0)
+                    //    continue;
 
                     CustomResourceEventHanlder proxyDelegate = (issuer, receivers, args) => EmitResourceEvent(issuer, receivers, evt.Name, args);
-                    evt.AddEventHandler(resource, proxyDelegate);
+                    evt.Info.AddEventHandler(resource, proxyDelegate);
                 }
          
 

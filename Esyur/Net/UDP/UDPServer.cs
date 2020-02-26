@@ -30,8 +30,8 @@ using System.Text;
 using System.Collections;
 using Esyur.Data;
 using Esyur.Misc;
-using Esyur.Engine;
 using Esyur.Resource;
+using Esyur.Core;
 
 namespace Esyur.Net.UDP
 {
@@ -43,8 +43,9 @@ namespace Esyur.Net.UDP
     }*/
     public class UDPServer : IResource
     {
-        Thread Receiver;
-        UdpClient Udp;
+        Thread receiver;
+        UdpClient udp;
+        UDPFilter[] filters = new UDPFilter[0];
 
         public event DestroyedEvent OnDestroy;
 
@@ -54,48 +55,30 @@ namespace Esyur.Net.UDP
             set;
         }
 
-        [Storable]
-        string ip
+        [Attribute]
+        string IP
         {
             get;
             set;
         }
 
-        [Storable]
-        ushort port
+        [Attribute]
+        ushort Port
         {
             get;
             set;
         }
 
-        public bool Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)
-            {
-                var address = ip == null ? IPAddress.Any : IPAddress.Parse(ip);
-
-                Udp = new UdpClient(new IPEndPoint(address, (int)port));
-                Receiver = new Thread(Receiving);
-                Receiver.Start();
-            }
-            else if (trigger == ResourceTrigger.Terminate)
-            {
-                if (Receiver != null)
-                    Receiver.Abort();
-            }
-            return true;
-        }
-
-        private void Receiving()
+         private void Receiving()
         {
             IPEndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-            
+
 
             while (true)
             {
-                byte[] b = Udp.Receive(ref ep);
+                byte[] b = udp.Receive(ref ep);
 
-                foreach(var child in Instance.Children)
+                foreach (var child in filters)
                 {
                     var f = child as UDPFilter;
 
@@ -119,7 +102,7 @@ namespace Esyur.Net.UDP
         {
             try
             {
-                Udp.Send(Data, Count, EP);
+                udp.Send(Data, Count, EP);
                 return true;
             }
             catch
@@ -131,7 +114,7 @@ namespace Esyur.Net.UDP
         {
             try
             {
-                Udp.Send(Data, Data.Length, EP);
+                udp.Send(Data, Data.Length, EP);
                 return true;
             }
             catch
@@ -143,7 +126,7 @@ namespace Esyur.Net.UDP
         {
             try
             {
-                Udp.Send(Data, Count, Host, Port);
+                udp.Send(Data, Count, Host, Port);
                 return true;
             }
             catch
@@ -155,7 +138,7 @@ namespace Esyur.Net.UDP
         {
             try
             {
-                Udp.Send(Data, Data.Length, Host, Port);
+                udp.Send(Data, Data.Length, Host, Port);
                 return true;
             }
             catch
@@ -167,7 +150,7 @@ namespace Esyur.Net.UDP
         {
             try
             {
-                Udp.Send(Encoding.Default.GetBytes(Data), Data.Length, EP);
+                udp.Send(Encoding.Default.GetBytes(Data), Data.Length, EP);
                 return true;
             }
             catch
@@ -179,7 +162,7 @@ namespace Esyur.Net.UDP
         {
             try
             {
-                Udp.Send(Encoding.Default.GetBytes(Data), Data.Length, Host, Port);
+                udp.Send(Encoding.Default.GetBytes(Data), Data.Length, Host, Port);
                 return true;
             }
             catch
@@ -190,8 +173,32 @@ namespace Esyur.Net.UDP
 
         public void Destroy()
         {
-            Udp.Close();
+            udp.Close();
             OnDestroy?.Invoke(this);
+        }
+
+        async AsyncReply<bool> IResource.Trigger(ResourceTrigger trigger)
+        {
+            if (trigger == ResourceTrigger.Initialize)
+            {
+                var address = IP == null ? IPAddress.Any : IPAddress.Parse(IP);
+
+                udp = new UdpClient(new IPEndPoint(address, Port));
+
+                receiver = new Thread(Receiving);
+                receiver.Start();
+            }
+            else if (trigger == ResourceTrigger.Terminate)
+            {
+                if (receiver != null)
+                    receiver.Abort();
+            }
+            else if (trigger == ResourceTrigger.SystemInitialized)
+            {
+                filters = await Instance.Children<UDPFilter>();
+            }
+
+            return true;
         }
     }
 }

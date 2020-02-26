@@ -311,24 +311,26 @@ namespace Esyur.Net.Sockets
             OnDestroy?.Invoke(this);
         }
 
-        public AsyncReply<ISocket> Accept()
+        public async AsyncReply<ISocket> AcceptAsync()
         {
-            var reply = new AsyncReply<ISocket>();
+            //var reply = new AsyncReply<ISocket>();
 
             try
             {
-                sock.AcceptAsync().ContinueWith((x) =>
-                {
-                    try
-                    {
-                        reply.Trigger(new SSLSocket(x.Result, cert, true));
-                    }
-                    catch
-                    {
-                        reply.Trigger(null);
-                    }
+                return new SSLSocket(await sock.AcceptAsync(), cert, true);
 
-                }, null);
+                //sock.AcceptAsync().ContinueWith((x) =>
+                //{
+                //    try
+                //    {
+                //        reply.Trigger(new SSLSocket(x.Result, cert, true));
+                //    }
+                //    catch
+                //    {
+                //        reply.Trigger(null);
+                //    }
+
+                //}, null);
 
             }
             catch
@@ -337,7 +339,7 @@ namespace Esyur.Net.Sockets
                 return null;
             }
 
-            return reply;
+            //return reply;
         }
 
         public void Hold()
@@ -353,6 +355,19 @@ namespace Esyur.Net.Sockets
         public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
         {
             throw new NotImplementedException();
+        }
+
+        public ISocket Accept()
+        {
+            try
+            {
+                return new SSLSocket(sock.Accept(), cert, true);
+            }
+            catch
+            {
+                state = SocketState.Terminated;
+                return null;
+            }
         }
     }
 }

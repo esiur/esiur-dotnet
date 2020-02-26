@@ -36,8 +36,8 @@ namespace Esyur.Net.HTTP
 {
     public class IIPoWS: HTTPFilter
     {
-        [ResourceProperty]
-        public DistributedServer DistributedServer
+        [Attribute]
+        public DistributedServer Server
         {
             get;
             set;
@@ -48,7 +48,7 @@ namespace Esyur.Net.HTTP
 
             if (sender.IsWebsocketRequest())
             {
-                if (DistributedServer == null)
+                if (Server == null)
                     return false;
 
                 var tcpSocket = sender.Unassign();
@@ -62,7 +62,7 @@ namespace Esyur.Net.HTTP
 
                 var iipConnection = new DistributedConnection();
 
-                DistributedServer.AddConnection(iipConnection);
+                Server.AddConnection(iipConnection);
                 iipConnection.Assign(wsSocket);
                 wsSocket.Begin();
 

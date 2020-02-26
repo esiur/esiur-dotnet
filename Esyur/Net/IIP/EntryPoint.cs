@@ -35,6 +35,6 @@ namespace Esyur.Net.IIP
     {
 
         public abstract AsyncReply<IResource[]> Query(string path, DistributedConnection sender);
-        public abstract override bool Create();
+        protected abstract override bool Create();
     }
 }

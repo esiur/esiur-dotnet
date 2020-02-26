@@ -51,9 +51,9 @@ namespace Esyur.Proxy
             if (typeInfo.IsSealed || typeInfo.IsAbstract)
                 throw new Exception("Sealed/Abastract classes can't be proxied.");
 
-            var props = from p in typeInfo.GetProperties()
-                        where p.CanWrite && p.GetSetMethod().IsVirtual &&
-                        p.GetCustomAttributes(typeof(ResourceProperty), false).Count() > 0
+            var props = from p in typeInfo.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                        where p.CanWrite && p.SetMethod.IsVirtual &&
+                        p.GetCustomAttribute<PublicAttribute>(false) != null
                         select p;
 
 #else

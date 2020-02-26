@@ -141,6 +141,12 @@ namespace Esyur.Net.HTTP
             }
         }
 
+        public void Send(WebsocketPacket packet)
+        {
+            if (packet.Data != null)
+                base.Send(packet.Data);
+        }
+
         public override void Send(string data)
         {
             Response.Message = Encoding.UTF8.GetBytes(data);

@@ -801,13 +801,13 @@ namespace Esyur.Net.IIP
          }
 
 
-        [ResourceAttribute]
+        [Attribute]
         public string Username { get; set; }
 
-        [ResourceAttribute]
+        [Attribute]
         public string Password { get; set; }
 
-        [ResourceAttribute]
+        [Attribute]
         public string Domain { get; set; }
         /// <summary>
         /// Resource interface

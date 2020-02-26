@@ -39,26 +39,26 @@ namespace Esyur.Net.TCP
     public class TCPServer : NetworkServer<TCPConnection>, IResource
     {
 
-        [Storable]
-        string ip
+        [Attribute]
+        public string IP
+        {
+            get;
+            set;
+        }
+        [Attribute]
+        public ushort Port
         {
             get;
             set;
         }
         [Storable]
-        ushort port
+        public uint Timeout
         {
             get;
             set;
         }
-        [Storable]
-        uint timeout
-        {
-            get;
-            set;
-        }
-        [Storable]
-        uint clock
+        [Attribute]
+        public uint Clock
         {
             get;
             set;
@@ -75,12 +75,12 @@ namespace Esyur.Net.TCP
                 TCPSocket listener;
 
 
-                if (ip != null)
-                    listener =new TCPSocket(new IPEndPoint(IPAddress.Parse(ip), port));
+                if (IP != null)
+                    listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
                 else
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Any, port));
+                    listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
 
-                Start(listener, timeout, clock);
+                Start(listener, Timeout, Clock);
 
 
             }
@@ -108,9 +108,9 @@ namespace Esyur.Net.TCP
             var msg = data.Read();
 
             foreach (var filter in filters)
-            { 
-                    if (filter.Execute(msg, data, sender))
-                        return;
+            {
+                if (filter.Execute(msg, data, sender))
+                    return;
             }
         }
 

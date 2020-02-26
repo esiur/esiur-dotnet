@@ -24,10 +24,12 @@ namespace Esyur.Resource.Template
             set;
         }
 
+        /*
         public bool Serilize
         {
             get;set;
         }
+        */
         //bool ReadOnly;
         //IIPTypes::DataType ReturnType;
         public PropertyPermission Permission {
@@ -35,18 +37,19 @@ namespace Esyur.Resource.Template
             set;
         }
 
-        /*
+        
         public bool Recordable
         {
             get;
             set;
-        }*/
+        }
 
-        public StorageMode Storage
+        /*
+        public PropertyType Mode
         {
             get;
             set;
-        }
+        }*/
 
         public string ReadExpansion
         {
@@ -71,7 +74,7 @@ namespace Esyur.Resource.Template
         public override byte[] Compose()
         {
             var name = base.Compose();
-            var pv = ((byte)(Permission) << 1) | (Storage == StorageMode.Recordable ? 1 : 0);
+            var pv = ((byte)(Permission) << 1) | (Recordable ? 1 : 0);
 
             if (WriteExpansion != null && ReadExpansion != null)
             {
@@ -117,11 +120,11 @@ namespace Esyur.Resource.Template
                     .ToArray();
         }
 
-        public PropertyTemplate(ResourceTemplate template, byte index, string name, string read, string write, StorageMode storage)
+        public PropertyTemplate(ResourceTemplate template, byte index, string name, string read = null, string write = null, bool recordable = false)
             :base(template, MemberType.Property, index, name)
         {
-            //this.Recordable = recordable;
-            this.Storage = storage;
+            this.Recordable = recordable;
+            //this.Storage = storage;
             this.ReadExpansion = read;
             this.WriteExpansion = write;
         }

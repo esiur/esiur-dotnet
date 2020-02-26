@@ -58,7 +58,9 @@ namespace Esyur.Net.Sockets
         AsyncReply<bool> Connect(string hostname, ushort port);
         bool Begin();
         //ISocket Accept();
-        AsyncReply<ISocket> Accept();
+        AsyncReply<ISocket> AcceptAsync();
+        ISocket Accept();
+
         IPEndPoint RemoteEndPoint { get; }
         IPEndPoint LocalEndPoint { get; }
 

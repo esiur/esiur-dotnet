@@ -35,13 +35,15 @@ namespace Esyur.Stores.MongoDB
 {
     public class MongoDBStore<T> : MongoDBStore where T:IResource
     {
-        [ResourceFunction]
-        public T Create(string name, Structure values)
+        [Public]
+        public T New(string name = null, object properties = null)
         {
-            return  Warehouse.New<T>(name, this, null, null, null, null, values);
+            var resource = Warehouse.New<T>(name, this, null, null, null, properties);
+            resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
+            return resource;
         }
 
-        [ResourceFunction]
+        [Public]
         public async AsyncReply<IResource[]> Slice(int index, int limit)
         {
             var list = await this.Instance.Children<IResource>();

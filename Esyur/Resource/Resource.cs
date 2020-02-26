@@ -47,7 +47,7 @@ namespace Esyur.Resource
                 return new AsyncReply<bool>(true);
         }
 
-        public virtual bool Create()
+        protected virtual bool Create()
         {
             return true;
         }

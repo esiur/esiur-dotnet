@@ -45,7 +45,7 @@ namespace Esyur.Resource.Template
         }
 
 
-        public FunctionTemplate(ResourceTemplate template, byte index, string name,bool isVoid, string expansion)
+        public FunctionTemplate(ResourceTemplate template, byte index, string name,bool isVoid, string expansion = null)
             :base(template, MemberType.Property, index, name)
         {
             this.IsVoid = isVoid;

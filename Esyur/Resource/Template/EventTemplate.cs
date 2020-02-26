@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -14,6 +15,8 @@ namespace Esyur.Resource.Template
             get;
             set;
         }
+
+        public EventInfo Info { get; set; }
 
         public override byte[] Compose()
         {
@@ -39,7 +42,7 @@ namespace Esyur.Resource.Template
         }
 
 
-        public EventTemplate(ResourceTemplate template, byte index, string name, string expansion)
+        public EventTemplate(ResourceTemplate template, byte index, string name, string expansion = null)
             :base(template, MemberType.Property, index, name)
         {
             this.Expansion = expansion;

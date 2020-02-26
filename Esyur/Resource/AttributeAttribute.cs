@@ -31,10 +31,10 @@ namespace Esyur.Resource
 {
 
     [AttributeUsage(AttributeTargets.Property)]
-    public class ResourceAttribute : System.Attribute
+    public class AttributeAttribute : System.Attribute
     {
 
-        public ResourceAttribute()
+        public AttributeAttribute()
         {
 
         }

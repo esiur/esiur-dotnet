@@ -1,0 +1,57 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using Esyur.Core;
+using Esyur.Data;
+using Esyur.Resource.Template;
+
+namespace Esyur.Resource
+{
+    public abstract class Store<T> : IStore where T:IResource
+    {
+        public Instance Instance { get; set; }
+
+        public event DestroyedEvent OnDestroy;
+
+        public abstract AsyncReply<bool> AddChild(IResource parent, IResource child);
+
+        public abstract AsyncReply<bool> AddParent(IResource child, IResource parent);
+
+        public abstract AsyncBag<T1> Children<T1>(IResource resource, string name) where T1 : IResource;
+
+        public virtual void Destroy()
+        {
+            OnDestroy?.Invoke(this);
+        }
+
+        public abstract AsyncReply<IResource> Get(string path);
+
+        public abstract AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
+
+
+        public abstract string Link(IResource resource);
+
+        public abstract bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+
+        public abstract AsyncBag<T1> Parents<T1>(IResource resource, string name) where T1 : IResource;
+
+        public abstract AsyncReply<bool> Put(IResource resource);
+
+        public abstract bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+
+        public abstract bool Remove(IResource resource);
+
+        public abstract AsyncReply<bool> RemoveChild(IResource parent, IResource child);
+
+        public abstract AsyncReply<bool> RemoveParent(IResource child, IResource parent);
+
+        public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+
+        public T New(string name = null, object attributes = null, object properties = null)
+        {
+            var resource = Warehouse.New<T>(name, this, null, null, attributes, properties);
+            resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
+            return resource;
+        }
+    }
+}
