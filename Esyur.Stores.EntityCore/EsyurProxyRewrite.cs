@@ -67,7 +67,10 @@ namespace Esyur.Stores.EntityCore
     ILazyLoader loader,
     object[] constructorArguments)
         {
-            var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
+            //var key = entityType.FindPrimaryKey();
+            options.AddType(entityType);
+
+             var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
             return Warehouse.New(entityType.ClrType, "", options.Store, null, manager);
         }
 

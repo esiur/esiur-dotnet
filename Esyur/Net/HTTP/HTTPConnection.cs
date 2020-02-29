@@ -121,7 +121,7 @@ namespace Esyur.Net.HTTP
                     Response.Headers["Sec-WebSocket-Protocol"] = Request.Headers["Sec-WebSocket-Protocol"];
 
 
-                Response.Number = HTTPResponsePacket.ResponseCode.HTTP_SWITCHING;
+                Response.Number = HTTPResponsePacket.ResponseCode.Switching;
                 Response.Text = "Switching Protocols";
                 WSMode = true;
 
@@ -253,7 +253,7 @@ namespace Esyur.Net.HTTP
 
                 if (!File.Exists(filename))
                 {
-                    Response.Number = HTTPResponsePacket.ResponseCode.HTTP_NOTFOUND;
+                    Response.Number = HTTPResponsePacket.ResponseCode.NotFound;
                     Send("File Not Found");
                     return true;
                 }
@@ -267,8 +267,8 @@ namespace Esyur.Net.HTTP
                         var ims = DateTime.Parse(Request.Headers["if-modified-since"]);
                         if (Math.Abs((fileEditTime - ims).TotalSeconds) < 0)
                         {
-                            Response.Number = HTTPResponsePacket.ResponseCode.HTTP_NOTMODIFIED;
-                            Response.Text = "Not Modified";
+                            Response.Number = HTTPResponsePacket.ResponseCode.NotModified;
+                            //Response.Text = "Not Modified";
                             Send((byte[])null);
                         }
                     }
@@ -280,7 +280,7 @@ namespace Esyur.Net.HTTP
 
 
 
-                Response.Number = HTTPResponsePacket.ResponseCode.HTTP_OK;
+                Response.Number = HTTPResponsePacket.ResponseCode.OK;
                 // Fri, 30 Oct 2007 14:19:41 GMT
                 Response.Headers["Last-Modified"] = fileEditTime.ToString("ddd, dd MMM yyyy HH:mm:ss");
                 FileInfo fi = new FileInfo(filename);

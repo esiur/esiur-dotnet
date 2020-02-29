@@ -44,7 +44,7 @@ namespace Esyur.Misc
     public static class Global
     {
         private static KeyList<string, object> variables = new KeyList<string, object>();
-       // private static Hashtable m_Cached = new Hashtable();
+        // private static Hashtable m_Cached = new Hashtable();
         //internal static bool SystemIsWorking = false;
 
         private static Random rand = new Random(System.Environment.TickCount);
@@ -57,7 +57,12 @@ namespace Esyur.Misc
 
         public static event LogEvent SystemLog;
 
-        static Random random = new Random();
+
+
+        public static string Version { get; }= FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion;
+
+        //FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
+        //      string version = fvi.FileVersion;
 
 
         /*
@@ -419,7 +424,7 @@ namespace Esyur.Misc
             //var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*()_-+=\\?/";
             var result = new string(
                 Enumerable.Repeat(chars, length)
-                          .Select(s => s[random.Next(s.Length)])
+                          .Select(s => s[rand.Next(s.Length)])
                           .ToArray());
             //if (result.Length < length)
               //  Console.WriteLine();

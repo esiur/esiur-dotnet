@@ -43,16 +43,29 @@ namespace Esyur.Net.Packets
 
         public enum ResponseCode : int
         {
-            HTTP_SWITCHING = 101,
-            HTTP_OK = 200,
-            HTTP_NOTFOUND = 404,
-            HTTP_SERVERERROR = 500,
-            HTTP_MOVED = 301,
-            HTTP_NOTMODIFIED = 304,
-            HTTP_REDIRECT = 307
+            Switching= 101,
+            OK = 200,
+            Created = 201,
+            Accepted = 202,
+            NoContent = 204,
+            MovedPermanently = 301,
+            Found = 302,
+            SeeOther = 303,
+            NotModified = 304,
+            TemporaryRedirect = 307,
+            BadRequest = 400,
+            Unauthorized = 401,
+            Forbidden = 403,
+            NotFound = 404,
+            MethodNotAllowed = 405,
+            NotAcceptable = 406,
+            PreconditionFailed = 412,
+            UnsupportedMediaType = 415,
+            InternalServerError = 500,
+            NotImplemented = 501,
         }
 
-        public class HTTPCookie
+        public struct HTTPCookie
         {
             public string Name;
             public string Value;
@@ -61,46 +74,45 @@ namespace Esyur.Net.Packets
             public bool HttpOnly;
             public string Domain;
             
-            public HTTPCookie(string Name, string Value)
+            public HTTPCookie(string name, string value)
             {
-                this.Name = Name;
-                this.Value = Value;
+                this.Name = name;
+                this.Value = value;
+                this.Path = null;
+                this.Expires = DateTime.MinValue;
+                this.HttpOnly = false;
+                this.Domain = null;
             }
 
-            public HTTPCookie(string Name, string Value, DateTime Expires)
+            public HTTPCookie(string name, string value, DateTime expires)
             {
-                this.Name = Name;
-                this.Value = Value;
-                this.Expires = Expires;
+                this.Name = name;
+                this.Value = value;
+                this.Expires = expires;
+                this.HttpOnly = false;
+                this.Domain = null;
+                this.Path = null;
             }
 
             public override string ToString()
             {
                 //Set-Cookie: ckGeneric=CookieBody; expires=Sun, 30-Dec-2001 21:00:00 GMT; domain=.com.au; path=/
                 //Set-Cookie: SessionID=another; expires=Fri, 29 Jun 2006 20:47:11 UTC; path=/
-                string Cookie = Name + "=" + Value;
+                var cookie = Name + "=" + Value;
 
                 if (Expires.Ticks != 0)
-                {
-                    Cookie += "; expires=" + Expires.ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
-                }
+                    cookie += "; expires=" + Expires.ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
 
                 if (Domain != null)
-                {
-                    Cookie += "; domain=" + Domain;
-                }
+                    cookie += "; domain=" + Domain;
 
                 if (Path != null)
-                {
-                    Cookie += "; path=" + Path;
-                }
+                    cookie += "; path=" + Path;
 
                 if (HttpOnly)
-                {
-                    Cookie += "; HttpOnly";
-                }
+                    cookie += "; HttpOnly";
 
-                return Cookie;
+                return cookie;
             }
         }
 
@@ -110,15 +122,9 @@ namespace Esyur.Net.Packets
         public byte[] Message;
         public ResponseCode Number;
         public string Text;
-        //public DStringDictionary Cookies;
+
         public List<HTTPCookie> Cookies = new List<HTTPCookie>();
         public bool Handled;
-        //public bool ResponseHandled; //flag this as true if you are handling it yourself
-
-        //private bool createSession;
-
-        //private HTTPServer Server;
-        //public HTTPSession Session;
 
         public override string ToString()
         {
@@ -129,31 +135,22 @@ namespace Esyur.Net.Packets
                 + "\n\tMessage: " + (Message != null ? Message.Length.ToString() : "NULL");
         }
 
-        private string MakeHeader(ComposeOptions Options)
+        private string MakeHeader(ComposeOptions options)
         {
-            string header = Version + " " + (int)Number + " " + Text + "\r\n"
-                              + "Server: Delta Web Server\r\n"
-                //Fri, 30 Oct 2007 14:19:41 GMT"
-                              + "Date: " + DateTime.Now.ToUniversalTime().ToString("r") + "\r\n";
+            string header = $"{Version} {(int)Number} {Text}\r\nServer: Esyur {Global.Version}\r\nDate: {DateTime.Now.ToUniversalTime().ToString("r")}\r\n";
 
-
-            if (Options == ComposeOptions.AllCalculateLength && Message != null) 
-            {
+            if (options == ComposeOptions.AllCalculateLength && Message != null) 
                 Headers["Content-Length"] = Message.Length.ToString();
-            }
 
             foreach (var kv in Headers)
-            {
                 header += kv.Key + ": " + kv.Value + "\r\n";
-            }
+            
 
             // Set-Cookie: ckGeneric=CookieBody; expires=Sun, 30-Dec-2007 21:00:00 GMT; path=/
             // Set-Cookie: ASPSESSIONIDQABBDSQA=IPDPMMMALDGFLMICEJIOCIPM; path=/
             
             foreach (var Cookie in Cookies)
-            {
                 header += "Set-Cookie: " + Cookie.ToString() + "\r\n";
-            }
 
 
             header += "\r\n";

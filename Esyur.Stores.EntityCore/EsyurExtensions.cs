@@ -60,6 +60,7 @@ namespace Esyur.Stores.EntityCore
         }
 
         public static DbContextOptionsBuilder UseEsyur(this DbContextOptionsBuilder optionsBuilder,
+                                                        DbContext context,
                                                         string name = null,
                                             IResource parent = null,
                                             IPermissionsManager manager = null
@@ -67,11 +68,14 @@ namespace Esyur.Stores.EntityCore
             )
         {
             var extension = optionsBuilder.Options.FindExtension<EsyurExtensionOptions>();
-
+           
             if (extension == null)
             {
+
                 var store = Warehouse.New<EntityStore>(name, null, parent, manager);
                 extension = new EsyurExtensionOptions(store);
+                store.Options = extension;
+                store.DbContext = context;
             }
 
             ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
@@ -82,6 +86,7 @@ namespace Esyur.Stores.EntityCore
 
         public static DbContextOptionsBuilder<TContext> UseEsyur<TContext>(
                                              this DbContextOptionsBuilder<TContext> optionsBuilder,
+                                             DbContext context,
                                             string name = null,
                                             IResource parent = null,
                                             IPermissionsManager manager = null)
@@ -95,6 +100,8 @@ namespace Esyur.Stores.EntityCore
             {
                 var store = Warehouse.New<EntityStore>(name, null, parent, manager);
                 extension = new EsyurExtensionOptions(store);
+                store.Options = extension;
+                store.DbContext = context;
             }
 
 

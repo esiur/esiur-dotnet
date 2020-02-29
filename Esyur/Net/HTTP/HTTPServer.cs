@@ -231,7 +231,7 @@ namespace Esyur.Net.HTTP
                     if (resource.Execute(sender))
                         return;
 
-                sender.Response.Number = HTTPResponsePacket.ResponseCode.HTTP_SERVERERROR;
+                sender.Response.Number = HTTPResponsePacket.ResponseCode.InternalServerError;
                 sender.Send("Bad Request");
                 sender.Close();
             }

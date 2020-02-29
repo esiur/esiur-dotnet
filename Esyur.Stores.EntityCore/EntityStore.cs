@@ -32,6 +32,8 @@ using System.Collections.Generic;
 using System.Text;
 using Microsoft.EntityFrameworkCore.Proxies;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Esyur.Proxy;
+using System.Linq;
 
 namespace Esyur.Stores.EntityCore
 {
@@ -69,9 +71,12 @@ namespace Esyur.Stores.EntityCore
         }*/
 
 
-        public AsyncReply<IResource> Get(string path)
+        public async AsyncReply<IResource> Get(string path)
         {
-            throw new NotImplementedException();
+            var p = path.Split('/');
+            var type = Options.Cache.Keys.Where(x => x.Name.ToLower() == p[0].ToLower()).FirstOrDefault();
+            var id = Convert.ToInt32(p[1]);
+            return DbContext.Find(type, id) as IResource;
         }
 
         public async AsyncReply<bool> Put(IResource resource)
@@ -79,13 +84,22 @@ namespace Esyur.Stores.EntityCore
             return true;
         }
 
+        [Attribute]
+        public EsyurExtensionOptions Options { get; set; }
+
+        [Attribute]
+        public DbContext DbContext { get; set; }
+
         public string Link(IResource resource)
         {
-            var p = resource.GetType().GetProperty("Id");
-            if (p != null)
-                return this.Instance.Name + "/" + resource.GetType().Name + "/" + p.GetValue(resource);
+            var type = ResourceProxy.GetBaseType(resource.GetType());
+
+            var id = Options.Cache[type].GetValue(resource);
+
+            if (id != null)
+                return this.Instance.Name + "/" + type.Name + "/" + id.ToString();
             else
-                return this.Instance.Name + "/" + resource.GetType().Name;
+                return this.Instance.Name + "/" + type.Name;
         }
 
         public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)

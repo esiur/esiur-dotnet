@@ -32,11 +32,24 @@ using Microsoft.EntityFrameworkCore.Metadata.Conventions.Internal;
 using Microsoft.EntityFrameworkCore.Utilities;
 using Microsoft.EntityFrameworkCore.Proxies.Internal;
 using System.Linq;
+using Microsoft.EntityFrameworkCore.Metadata;
+using System.Reflection;
+using Esyur.Proxy;
 
 namespace Esyur.Stores.EntityCore
 {
     public class EsyurExtensionOptions : IDbContextOptionsExtension
     {
+
+        public Dictionary<Type, PropertyInfo> Cache { get; } = new Dictionary<Type, PropertyInfo>();
+        public void AddType(IEntityType type)
+        {
+            if (!Cache.ContainsKey(type.ClrType))
+                Cache.Add(type.ClrType, type.FindPrimaryKey().Properties[0].PropertyInfo);
+        }
+
+        
+
         private DbContextOptionsExtensionInfo _info;
         EntityStore _store;
 
@@ -64,7 +77,6 @@ namespace Esyur.Stores.EntityCore
                     throw new InvalidOperationException("");
                 }
             }
-            //throw new NotImplementedException();
         }
 
         public EsyurExtensionOptions(EntityStore store)
@@ -76,7 +88,6 @@ namespace Esyur.Stores.EntityCore
 
         private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
         {
-            private string _logFragment;
 
             public ExtensionInfo(IDbContextOptionsExtension extension)
                 : base(extension)
@@ -90,23 +101,11 @@ namespace Esyur.Stores.EntityCore
 
             public override string LogFragment => "Esyur";
 
-            //    => _logFragment ??= Extension.UseLazyLoadingProxies && Extension.UseChangeDetectionProxies
-            //      ? "using lazy-loading and change detection proxies "
-            //    : Extension.UseLazyLoadingProxies
-            //  ? "using lazy-loading proxies "
-            //: Extension.UseChangeDetectionProxies
-            //? "using change detection proxies "
-            //: "";
-
-            public override long GetServiceProviderHashCode() => 2312;//541;//2922;// Extension.UseProxies ?  : 0;
+            public override long GetServiceProviderHashCode() => 2312;
 
             public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
             {
-                //debugInfo["Proxies:" + nameof(ProxiesExtensions.UseLazyLoadingProxies)]
-                  //  = (Extension._useLazyLoadingProxies ? 541 : 0).ToString(CultureInfo.InvariantCulture);
 
-                //debugInfo["Proxies:" + nameof(ProxiesExtensions.UseChangeDetectionProxies)]
-                  //  = (Extension._useChangeDetectionProxies ? 541 : 0).ToString(CultureInfo.InvariantCulture);
             }
         }
 
