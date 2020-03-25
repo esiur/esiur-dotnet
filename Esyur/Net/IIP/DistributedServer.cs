@@ -67,21 +67,7 @@ namespace Esyur.Net.IIP
             set;
         }
 
-        [Attribute]
-        public uint Timeout
-        {
-            get;
-            set;
-        }
-        
        
-        [Attribute]
-        public uint Clock
-        {
-            get;
-            set;
-        }
-
 
         public Instance Instance
         {
@@ -100,7 +86,7 @@ namespace Esyur.Net.IIP
                 else
                     listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
 
-                Start(listener, Timeout, Clock);
+                Start(listener);
             }
             else if (trigger == ResourceTrigger.Terminate)
             {

@@ -80,7 +80,7 @@ namespace Esyur.Net.TCP
                 else
                     listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
 
-                Start(listener, Timeout, Clock);
+                Start(listener);
 
 
             }

@@ -167,7 +167,76 @@ namespace Esyur.Resource.Template
 
             if (classIsPublic)
             {
+                foreach (var pi in propsInfo)
+                {
+                    var privateAttr = pi.GetCustomAttribute<PrivateAttribute>(true);
 
+                    if (privateAttr == null)
+                    {
+                        var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
+                        var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+
+                        var pt = new PropertyTemplate(this, i++, pi.Name);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
+                        if (storageAttr != null)
+                            pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
+
+                        if (annotationAttr != null)
+                            pt.ReadExpansion = annotationAttr.Annotation;
+                        else
+                            pt.ReadExpansion = pi.PropertyType.Name;
+
+                        pt.Info = pi;
+                        //pt.Serilize = publicAttr.Serialize;
+                        properties.Add(pt);
+                    }
+                    else
+                    {
+                        var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
+                        if (attributeAttr != null)
+                        {
+                            var at = new AttributeTemplate(this, 0, pi.Name);
+                            at.Info = pi;
+                            attributes.Add(at);
+                        }
+                    }
+                }
+
+                i = 0;
+
+                foreach (var ei in eventsInfo)
+                {
+                    var privateAttr = ei.GetCustomAttribute<PrivateAttribute>(true);
+                    if (privateAttr == null)
+                    {
+                        var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+
+                        var et = new EventTemplate(this, i++, ei.Name);
+                        et.Info = ei;
+
+                        if (annotationAttr != null)
+                            et.Expansion = annotationAttr.Annotation;
+
+                        events.Add(et);
+                    }
+                }
+
+                i = 0;
+                foreach (MethodInfo mi in methodsInfo)
+                {
+                    var privateAttr = mi.GetCustomAttribute<PrivateAttribute>(true);
+                    if (privateAttr == null)
+                    {
+                        var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
+
+                        var ft = new FunctionTemplate(this, i++, mi.Name, mi.ReturnType == typeof(void));
+
+                        if (annotationAttr != null)
+                            ft.Expansion = annotationAttr.Annotation;
+                        else
+                            ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+                        functions.Add(ft);
+                    }
+                }
             }
             else
             {

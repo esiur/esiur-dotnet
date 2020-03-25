@@ -58,9 +58,9 @@ namespace Esyur.Net.IIP
         DistributedConnection connection;
 
 
-        bool isAttached = false;
-        bool isReady = false;
-
+        bool attached = false;
+        bool destroyed = false;
+        bool suspended = false;
 
         //Structure properties = new Structure();
 
@@ -73,23 +73,7 @@ namespace Esyur.Net.IIP
 
         DistributedResourceEvent[] events;
 
-        //ResourceTemplate template;
-
- 
-        //DistributedResourceStack stack;
-
- 
-        bool destroyed;
-
-        /*
-        Dictionary<AsyncReply, object> afterAttachmentTriggers = new Dictionary<AsyncReply, object>();
-
-        internal void AddAfterAttachement(AsyncReply trigger, object value)
-        {
-            afterAttachmentTriggers.Add(trigger, value);
-        }
-        */
-
+        
 
         /// <summary>
         /// Resource template for the remotely located resource.
@@ -130,31 +114,28 @@ namespace Esyur.Net.IIP
         public void Destroy()
         {
             destroyed = true;
+            attached = false;
+            connection.SendDetachRequest(instanceId);
             OnDestroy?.Invoke(this);
         }
-         
+
         /// <summary>
-        /// Resource is ready when all its properties are attached.
+        /// Suspend resource
         /// </summary>
-        internal bool IsReady
+
+        internal void Suspend()
         {
-            get
-            {
-                return isReady;
-            }
+            suspended = true;
+            attached = false;
         }
+
 
         /// <summary>
         /// Resource is attached when all its properties are received.
         /// </summary>
-        internal bool IsAttached
-        {
-            get
-            {
-                return isAttached;
-            }
-        }
- 
+        internal bool Attached => attached;
+
+        internal bool Suspended => suspended;
     
 
        // public DistributedResourceStack Stack
@@ -182,11 +163,6 @@ namespace Esyur.Net.IIP
 
         }
 
-        internal void _Ready()
-        {
-            isReady = true;
-        }
-
         /// <summary>
         /// Export all properties with ResourceProperty attributed as bytes array.
         /// </summary>
@@ -203,12 +179,14 @@ namespace Esyur.Net.IIP
             return props;
         }
 
-        internal bool _Attached(PropertyValue[] properties)
+        internal bool _Attach(PropertyValue[] properties)
         {
-            if (isAttached)
+            if (attached)
                 return false;
             else
             {
+                suspended = false;
+
                 this.properties = new object[properties.Length];
 
                 this.events = new DistributedResourceEvent[Instance.Template.Events.Length];
@@ -226,7 +204,7 @@ namespace Esyur.Net.IIP
 
                 //afterAttachmentTriggers.Clear();
 
-                isAttached = true;
+                attached = true;
 
             }
            return true;
@@ -244,6 +222,9 @@ namespace Esyur.Net.IIP
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
 
+            if (suspended)
+                throw new Exception("Trying to access suspended object");
+
             if (index >= Instance.Template.Functions.Length)
                 throw new Exception("Function index is incorrect");
 
@@ -255,6 +236,9 @@ namespace Esyur.Net.IIP
         {
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
+
+            if (suspended)
+                throw new Exception("Trying to access suspended object");
 
             if (index >= Instance.Template.Functions.Length)
                 throw new Exception("Function index is incorrect");
@@ -270,7 +254,7 @@ namespace Esyur.Net.IIP
 
             var reply = new AsyncReply<object>();
 
-            if (isAttached && ft!=null)
+            if (attached && ft!=null)
             {
                 if (args.Length == 1)
                 {
@@ -321,9 +305,10 @@ namespace Esyur.Net.IIP
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
 
+
             result = null;
 
-            if (!isAttached)
+            if (!attached)
                 return false;
 
             var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);
@@ -388,7 +373,10 @@ namespace Esyur.Net.IIP
             if (destroyed)
                 throw new Exception("Trying to access destroyed object");
 
-            if (!isAttached)
+            if (suspended)
+                throw new Exception("Trying to access suspended object");
+
+            if (!attached)
                 return false;
 
             var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);

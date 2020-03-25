@@ -79,6 +79,12 @@ namespace Esyur.Core
         {
             return (T)base.Wait();
         }
+
+        public new T Wait(int millisecondsTimeout)
+        {
+            return (T)base.Wait(millisecondsTimeout);
+        }
+
         /*
         protected new List<Action> callbacks = new List<Action>();
         protected new object result;

@@ -34,6 +34,8 @@ using Microsoft.EntityFrameworkCore.Proxies;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Esyur.Proxy;
 using System.Linq;
+using Microsoft.EntityFrameworkCore.Metadata;
+using System.Reflection;
 
 namespace Esyur.Stores.EntityCore
 {
@@ -42,6 +44,16 @@ namespace Esyur.Stores.EntityCore
         public Instance Instance { get; set; }
 
         public event DestroyedEvent OnDestroy;
+
+        struct TypeInfo
+        {
+            public string Name;
+            public IEntityType Type;
+            public PropertyInfo PrimaryKey;
+        }
+
+        Dictionary<string, TypeInfo> TypesByName = new Dictionary<string, TypeInfo>();
+        Dictionary<Type, TypeInfo> TypesByType = new Dictionary<Type, TypeInfo>();
 
         /*
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -56,27 +68,27 @@ namespace Esyur.Stores.EntityCore
         }
         */
 
-            /*
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            //modelBuilder.Entity<Series>().ToTable("Series");
-            //modelBuilder.Entity<Episode>().ToTable("Episodes").;
-            //modelBuilder.Ignore<Entit>
-            // modelBuilder.Entity<Series>(x=>x.Property(p=>p.Instance).HasConversion(v=>v.Managers.)
-            Console.WriteLine("OnModelCreating");
-            //modelBuilder.Entity()
+        /*
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        //modelBuilder.Entity<Series>().ToTable("Series");
+        //modelBuilder.Entity<Episode>().ToTable("Episodes").;
+        //modelBuilder.Ignore<Entit>
+        // modelBuilder.Entity<Series>(x=>x.Property(p=>p.Instance).HasConversion(v=>v.Managers.)
+        Console.WriteLine("OnModelCreating");
+        //modelBuilder.Entity()
 
 
-            base.OnModelCreating(modelBuilder);
-        }*/
+        base.OnModelCreating(modelBuilder);
+    }*/
 
 
         public async AsyncReply<IResource> Get(string path)
         {
             var p = path.Split('/');
-            var type = Options.Cache.Keys.Where(x => x.Name.ToLower() == p[0].ToLower()).FirstOrDefault();
+            var ti = TypesByName[p[0]];
             var id = Convert.ToInt32(p[1]);
-            return DbContext.Find(type, id) as IResource;
+            return DbContext.Find(ti.Type.ClrType, id) as IResource;
         }
 
         public async AsyncReply<bool> Put(IResource resource)
@@ -87,6 +99,7 @@ namespace Esyur.Stores.EntityCore
         [Attribute]
         public EsyurExtensionOptions Options { get; set; }
 
+        //DbContext dbContext;
         [Attribute]
         public DbContext DbContext { get; set; }
 
@@ -94,7 +107,16 @@ namespace Esyur.Stores.EntityCore
         {
             var type = ResourceProxy.GetBaseType(resource.GetType());
 
-            var id = Options.Cache[type].GetValue(resource);
+            var id = TypesByType[type].PrimaryKey.GetValue(resource);
+            //DbContext.Model.FindEntityType(type).DisplayName();
+
+            
+            //            DbContext.Model.FindEntityType(type).DisplayName
+            //var entityType = DbContext.Model.FindEntityType(type);
+            //var id = entityType.FindPrimaryKey().Properties
+            //            .FirstOrDefault()?.PropertyInfo
+            //            .GetValue(resource);
+            //        var id = Types
 
             if (id != null)
                 return this.Instance.Name + "/" + type.Name + "/" + id.ToString();
@@ -156,6 +178,24 @@ namespace Esyur.Stores.EntityCore
 
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
+            if (trigger == ResourceTrigger.SystemInitialized && DbContext != null)
+            {
+                var types = DbContext.Model.GetEntityTypes();
+                foreach (var t in types)
+                {
+                    var ti = new TypeInfo()
+                    {
+                        Name = t.ClrType.Name,
+                        PrimaryKey = t.FindPrimaryKey().Properties.FirstOrDefault()?.PropertyInfo,
+                        Type = t
+                    };
+
+                    TypesByName.Add(t.ClrType.Name, ti);
+                    TypesByType.Add(t.ClrType, ti);
+                }
+
+            }
+
             return new AsyncReply<bool>(true);
         }
 

@@ -101,7 +101,13 @@ namespace Esyur.Net
 
         private void Socket_OnClose()
         {
+            ConnectionClosed();
             OnClose?.Invoke(this);
+        }
+
+        protected virtual void ConnectionClosed()
+        {
+
         }
 
         private void Socket_OnReceive(NetworkBuffer buffer)
@@ -264,6 +270,7 @@ namespace Esyur.Net
         {
             try
             {
+                lastAction = DateTime.Now;
                 return sock.SendAsync(message, offset, length);
             }
             catch
@@ -275,8 +282,8 @@ namespace Esyur.Net
         public virtual void Send(byte[] msg)
         {
             try
-            {
-                sock.Send(msg);
+            {                
+                sock.Send(msg);       
                 lastAction = DateTime.Now;
             }
             catch

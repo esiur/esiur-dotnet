@@ -91,18 +91,18 @@ namespace Esyur.Data
 
             if (obj is Structure)
                 return obj as Structure;
-            else if (Codec.IsAnonymous(type))
+            else //if (Codec.IsAnonymous(type))
             {
                 var st = new Structure();
 
-                var pi = type.GetTypeInfo().GetProperties();
+                var pi = type.GetTypeInfo().GetProperties().Where(x=>x.CanRead);
                 foreach (var p in pi)
                     st[p.Name] = p.GetValue(obj);
 
                 return st;
             }
-            else
-                return null;
+            //else
+              //  return null;
         }
         public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {

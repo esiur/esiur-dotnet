@@ -74,7 +74,7 @@ namespace Esyur.Net.Sockets
 
             socketArgs.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
             socketArgs.Completed += SocketArgs_Completed;
-
+            
             if (!sock.ReceiveAsync(socketArgs))
                 SocketArgs_Completed(null, socketArgs);
 
@@ -160,43 +160,50 @@ namespace Esyur.Net.Sockets
         {
             try
             {
-                // SocketError err;
-
-                if (state == SocketState.Closed || state == SocketState.Terminated)
+                if (state != SocketState.Established)
                     return;
 
-                if (e.BytesTransferred == 0)
+                if (e.BytesTransferred <= 0)
                 {
                     Close();
                     return;
                 }
 
-                //if (receiveNetworkBuffer.Protected)
-                //    Console.WriteLine();
-
-
-                //lock (receiveNetworkBuffer.SyncLock)
-                // Console.WriteLine(e. + " " + e.BytesTransferred);
-
                 var recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
-
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
-
-                //Console.WriteLine("TC IN: " + (uint)e.BytesTransferred + " " + DC.ToHex(receiveBuffer, 0, (uint)e.BytesTransferred));
-
-
-
 
                 OnReceive?.Invoke(receiveNetworkBuffer);
 
                 if (state == SocketState.Established)
-                {
-                    if (!sock.ReceiveAsync(socketArgs))
+                    while(!sock.ReceiveAsync(e))
                     {
-                        //Console.WriteLine("Sync");
-                        SocketArgs_Completed(sender, e);
+                        if (e.SocketError != SocketError.Success)
+                        {
+                            Close();
+                            return;
+                        }
+
+                        if (State != SocketState.Established)
+                            return;
+
+                        if (e.BytesTransferred < 0)
+                            Console.WriteLine("BytesTransferred is less than zero");
+
+                        if (e.BytesTransferred <= 0)
+                        {
+                            Close();
+                            return;
+                        }
+
+                        if (e.BytesTransferred > 100000)
+                            Console.WriteLine("BytesTransferred is large " + e.BytesTransferred);
+
+                        recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
+
+                        receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
+
+                        OnReceive?.Invoke(receiveNetworkBuffer);
                     }
-                }
 
             }
             catch (Exception ex)
@@ -510,8 +517,9 @@ namespace Esyur.Net.Sockets
                     {
                         sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, rt);// null);
                     }
-                    catch
+                    catch(Exception ex)
                     {
+                        rt.TriggerError(ex);
                         asyncSending = false;
                         state = SocketState.Terminated;
                         Close();

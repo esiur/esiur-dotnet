@@ -343,6 +343,9 @@ namespace Esyur.Net.Packets
                     var cl = data.GetUInt32(offset);
                     offset += 4;
 
+                    if (NotEnough(offset, ends, cl))
+                        return -dataLengthNeeded;
+
                     Content = data.Clip(offset, cl);
                     offset += cl;
 

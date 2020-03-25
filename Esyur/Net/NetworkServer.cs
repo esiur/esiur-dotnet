@@ -39,7 +39,6 @@ namespace Esyur.Net
     public abstract class NetworkServer<TConnection> : IDestructible where TConnection : NetworkConnection, new()
     {
         //private bool isRunning;
-        uint clock;
         private ISocket listener;
         private AutoList<TConnection, NetworkServer<TConnection>> connections;
 
@@ -50,7 +49,6 @@ namespace Esyur.Net
         protected abstract void ClientDisconnected(TConnection sender);
 
 
-        private uint timeout;
         private Timer timer;
         //public KeyList<string, TSession> Sessions = new KeyList<string, TSession>();
 
@@ -125,7 +123,7 @@ namespace Esyur.Net
             {
                 foreach (TConnection c in connections)
                 {
-                    if (DateTime.Now.Subtract(c.LastAction).TotalSeconds >= timeout)
+                    if (DateTime.Now.Subtract(c.LastAction).TotalSeconds >= Timeout)
                     {
                         if (ToBeClosed == null)
                             ToBeClosed = new List<TConnection>();
@@ -147,7 +145,7 @@ namespace Esyur.Net
             }
         }
 
-        public void Start(ISocket socket, uint timeout, uint clock)
+        public void Start(ISocket socket)//, uint timeout, uint clock)
         {
             if (listener != null)
                 return;
@@ -161,15 +159,10 @@ namespace Esyur.Net
             connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
 
 
-            if (timeout > 0 & clock > 0)
+            if (Timeout > 0 & Clock > 0)
             {
-                timer = new Timer(MinuteThread, null, TimeSpan.FromMinutes(0), TimeSpan.FromSeconds(clock));
-                this.timeout = timeout;
+                timer = new Timer(MinuteThread, null, TimeSpan.FromMinutes(0), TimeSpan.FromSeconds(Clock));
             }
-
-            //this.ip = ip;
-            //this.port = port;
-            this.clock = clock;
 
 
             // start a new thread for the server to live on
@@ -208,11 +201,21 @@ namespace Esyur.Net
         }
         */
 
+        [Attribute]
+        public uint Timeout
+        {
+            get;
+            set;
+        }
 
+
+        [Attribute]
         public uint Clock
         {
-            get { return clock; }
+            get;
+            set;
         }
+
 
         public void Stop()
         {

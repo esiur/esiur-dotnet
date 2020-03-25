@@ -265,7 +265,7 @@ namespace Esyur.Net.HTTP
                     try
                     {
                         var ims = DateTime.Parse(Request.Headers["if-modified-since"]);
-                        if (Math.Abs((fileEditTime - ims).TotalSeconds) < 0)
+                        if ((fileEditTime - ims).TotalSeconds < 2)
                         {
                             Response.Number = HTTPResponsePacket.ResponseCode.NotModified;
                             //Response.Text = "Not Modified";
@@ -274,7 +274,7 @@ namespace Esyur.Net.HTTP
                     }
                     catch
                     {
-
+                        return false;
                     }
                 }
 

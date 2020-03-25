@@ -571,9 +571,19 @@ namespace Esyur.Resource
 
                 foreach (var p in ps)
                 {
-                    var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
-                    if (pi != null)
-                        pi.SetValue(res, p.Value);
+                   
+                    var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (pi != null && pi.CanWrite)
+                    {
+                        try
+                        {
+                            pi.SetValue(res, p.Value);
+                        }
+                        catch(Exception ex)
+                        {
+                            Global.Log(ex);
+                        }
+                    }
                 }
             }
 

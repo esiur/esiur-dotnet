@@ -134,7 +134,7 @@ namespace Esyur.Net.Packets
                 sMethod[1] = WebUtility.UrlDecode(sMethod[1]);
                 if (sMethod[1].Length >= 7)
                 {
-                    if (sMethod[1].Substring(0, 7) == "http://")
+                    if (sMethod[1].StartsWith("http://"))
                     {
                         sMethod[1] = sMethod[1].Substring(sMethod[1].IndexOf("/", 7));
                     }

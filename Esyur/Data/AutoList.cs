@@ -49,9 +49,10 @@ namespace Esyur.Data
         public event Cleared OnCleared;
         public event Added OnAdd;
 
-        ST state;
         bool removableList;
 
+
+        public ST State { get; set; }
         /*
         IOrderedEnumerable<T> OrderBy<T, TK>(Func<T, TK> keySelector)
         {
@@ -95,7 +96,7 @@ namespace Esyur.Data
         /// <param name="state">State object to be included when an event is raised.</param>
         public AutoList(ST state)
         {
-            this.state = state;
+            State = state;
 #if NETSTANDARD
             removableList = (typeof(IDestructible).GetTypeInfo().IsAssignableFrom(typeof(T).GetTypeInfo()));
 #else
@@ -110,7 +111,7 @@ namespace Esyur.Data
         /// <returns></returns>
         public AutoList(ST state, T[] values)
         {
-            this.state = state;
+            State = state;
                 #if NETSTANDARD
                             removableList = (typeof(IDestructible).GetTypeInfo().IsAssignableFrom(typeof(T).GetTypeInfo()));
                 #else
@@ -163,7 +164,7 @@ namespace Esyur.Data
                 lock (syncRoot)
                     list[index] = value;
 
-                OnModified?.Invoke(state, index, oldValue, value);
+                OnModified?.Invoke(State, index, oldValue, value);
             }
         }
 
@@ -179,7 +180,7 @@ namespace Esyur.Data
             lock (syncRoot)
                 list.Add(value);
 
-            OnAdd?.Invoke(state, value);
+            OnAdd?.Invoke(State, value);
         }
 
         /// <summary>
@@ -209,7 +210,7 @@ namespace Esyur.Data
             lock (syncRoot)
                 list.Clear();
 
-            OnCleared?.Invoke(state);
+            OnCleared?.Invoke(State);
         }
 
         /// <summary>
@@ -228,7 +229,7 @@ namespace Esyur.Data
             lock (syncRoot)
                 list.Remove(value);
 
-            OnRemoved?.Invoke(state, value);
+            OnRemoved?.Invoke(State, value);
         }
 
         /// <summary>

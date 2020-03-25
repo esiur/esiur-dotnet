@@ -68,7 +68,7 @@ namespace Esyur.Stores.EntityCore
     object[] constructorArguments)
         {
             //var key = entityType.FindPrimaryKey();
-            options.AddType(entityType);
+            //options.AddType(entityType);
 
              var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
             return Warehouse.New(entityType.ClrType, "", options.Store, null, manager);

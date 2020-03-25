@@ -72,6 +72,9 @@ namespace Esyur.Net.IIP
 
         bool ready, readyToEstablish;
 
+        string _hostname;
+        ushort _port;
+
         DateTime loginDate;
 
         /// <summary>
@@ -194,15 +197,15 @@ namespace Esyur.Net.IIP
         {
             base.Assign(socket);
 
-            session.RemoteAuthentication.Source.Attributes.Add(SourceAttributeType.IPv4, socket.RemoteEndPoint.Address);
-            session.RemoteAuthentication.Source.Attributes.Add(SourceAttributeType.Port, socket.RemoteEndPoint.Port);
-            session.LocalAuthentication.Source.Attributes.Add(SourceAttributeType.IPv4, socket.LocalEndPoint.Address);
-            session.LocalAuthentication.Source.Attributes.Add(SourceAttributeType.Port, socket.LocalEndPoint.Port);
+            session.RemoteAuthentication.Source.Attributes[SourceAttributeType.IPv4] = socket.RemoteEndPoint.Address;
+            session.RemoteAuthentication.Source.Attributes[SourceAttributeType.Port] = socket.RemoteEndPoint.Port;
+            session.LocalAuthentication.Source.Attributes[SourceAttributeType.IPv4] = socket.LocalEndPoint.Address;
+            session.LocalAuthentication.Source.Attributes[SourceAttributeType.Port] = socket.LocalEndPoint.Port;
 
             if (session.LocalAuthentication.Type == AuthenticationType.Client)
             {
                 // declare (Credentials -> No Auth, No Enctypt)
- 
+
                 var un = DC.ToBytes(session.LocalAuthentication.Username);
                 var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
 
@@ -245,7 +248,7 @@ namespace Esyur.Net.IIP
         /// <param name="password">Password.</param>
         public DistributedConnection(ISocket socket, string domain, string username, string password)
         {
-            this.session = new Session(   new ClientAuthentication()
+            this.session = new Session(new ClientAuthentication()
                                         , new HostAuthentication());
             //Instance.Name = Global.GenerateCode(12);
             //this.hostType = AuthenticationType.Client;
@@ -309,7 +312,7 @@ namespace Esyur.Net.IIP
         {
             //var packet = new IIPPacket();
 
-            
+
 
             // packets++;
 
@@ -430,7 +433,7 @@ namespace Esyur.Net.IIP
                             case IIPPacketAction.ResourceParents:
                                 IIPRequestResourceParents(packet.CallbackId, packet.ResourceId);
                                 break;
-                            
+
                             case IIPPacket.IIPPacketAction.ResourceHistory:
                                 IIPRequestInquireResourceHistory(packet.CallbackId, packet.ResourceId, packet.FromDate, packet.ToDate);
                                 break;
@@ -503,7 +506,7 @@ namespace Esyur.Net.IIP
                                 IIPReply(packet.CallbackId);
                                 break;
 
-                           // Inquire
+                            // Inquire
 
                             case IIPPacket.IIPPacketAction.TemplateFromClassName:
                             case IIPPacket.IIPPacketAction.TemplateFromClassId:
@@ -634,7 +637,7 @@ namespace Esyur.Net.IIP
                                                                       //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
                                                                       var hash = hashFunc.ComputeHash((new BinaryList())
                                                                                                         .AddUInt8Array(pw)
-                                                                                                        .AddUInt8Array( remoteNonce)
+                                                                                                        .AddUInt8Array(remoteNonce)
                                                                                                         .AddUInt8Array(localNonce)
                                                                                                         .ToArray());
                                                                       if (hash.SequenceEqual(remoteHash))
@@ -719,7 +722,7 @@ namespace Esyur.Net.IIP
                                                                         .AddUInt8Array(localPassword)
                                                                         .ToArray());
 
-                                
+
                                 if (remoteHash.SequenceEqual(authPacket.Hash))
                                 {
                                     // send establish request
@@ -764,7 +767,7 @@ namespace Esyur.Net.IIP
             return offset;
 
             //if (offset < ends)
-              //  processPacket(msg, offset, ends, data, chunkId);
+            //  processPacket(msg, offset, ends, data, chunkId);
         }
 
         protected override void DataReceived(NetworkBuffer data)
@@ -773,14 +776,14 @@ namespace Esyur.Net.IIP
             var msg = data.Read();
             uint offset = 0;
             uint ends = (uint)msg.Length;
- 
+
             var packs = new List<string>();
 
             var chunkId = (new Random()).Next(1000, 1000000);
 
             var list = new List<Structure>();// double, IIPPacketCommand>();
 
- 
+
             this.Socket.Hold();
 
             try
@@ -798,7 +801,7 @@ namespace Esyur.Net.IIP
             {
                 this.Socket.Unhold();
             }
-         }
+        }
 
 
         [Attribute]
@@ -831,30 +834,114 @@ namespace Esyur.Net.IIP
 
                     var domain = Domain != null ? Domain : address;// Instance.Attributes.ContainsKey("domain") ? Instance.Attributes["domain"].ToString() : address;
 
-                    session = new Session(new ClientAuthentication()
-                                                , new HostAuthentication());
 
-                    session.LocalAuthentication.Domain = domain;
-                    session.LocalAuthentication.Username = username;
-                    localPassword = DC.ToBytes(Password);// Instance.Attributes["password"].ToString());
+                    return Connect(null, address, port, username, DC.ToBytes(Password), domain);
 
-                    openReply = new AsyncReply<bool>();
-                    var sock = new TCPSocket();
-
-
-                    sock.Connect(address, port).Then((x)=> {
-                        Assign(sock);
-                        //rt.trigger(true);
-                    }).Error((x) => 
-                        openReply.TriggerError(x)
-                        );
-
-                    return openReply;
                 }
             }
 
             return new AsyncReply<bool>();
         }
+
+
+        protected override void ConnectionClosed()
+        {
+            // clean up
+            ready = false;
+            readyToEstablish = false;
+
+            foreach (var x in requests.Values)
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+
+            foreach (var x in resourceRequests.Values)
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+
+            foreach (var x in templateRequests.Values)
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+
+            requests.Clear();
+            resourceRequests.Clear();
+            templateRequests.Clear();
+
+            foreach (var x in resources.Values)
+                x.Suspend();
+        }
+
+        public AsyncReply<bool> Connect(ISocket socket = null, string hostname = null, ushort port = 0, string username = null, byte[] password = null, string domain = null)
+        {
+            if (openReply != null)
+                throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
+
+            openReply = new AsyncReply<bool>();
+
+            if (hostname != null)
+            {
+                session = new Session(new ClientAuthentication()
+                                          , new HostAuthentication());
+
+                session.LocalAuthentication.Domain = domain;
+                session.LocalAuthentication.Username = username;
+                localPassword = password;
+            }
+
+            if (session == null)
+                throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
+
+            if (socket == null)
+                socket = new TCPSocket();
+
+            if (port > 0)
+                this._port = port;
+            if (hostname != null)
+                this._hostname = hostname;
+
+            socket.Connect(this._hostname, this._port).Then(x =>
+            {
+                Assign(socket);
+            }).Error((x) =>
+            {
+                openReply.TriggerError(x);
+                openReply = null;
+            });
+
+            return openReply;
+        }
+
+        public async AsyncReply<bool> Reconnect()
+        {
+            try
+            {
+                if (await Connect())
+                {
+                    try
+                    {
+                        var bag = new AsyncBag();
+
+                        for (var i = 0; i < resources.Keys.Count; i++)
+                        {
+                            var index = resources.Keys.ElementAt(i);
+                            bag.Add(Fetch(index));
+                        }
+
+                        bag.Seal();
+                        await bag;
+                    }
+                    catch (Exception ex)
+                    {
+                        Global.Log(ex);
+                        //print(ex.toString());
+                    }
+                }
+            }
+            catch 
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        //    AsyncReply<bool> connect({ISocket socket, String hostname, int port, String username, DC password, String domain})
 
         /// <summary>
         /// Store interface.
@@ -908,7 +995,7 @@ namespace Esyur.Net.IIP
             throw new Exception("SS");
 
             //if (Codec.IsLocalResource(resource, this))
-              //  return new AsyncBag<T>((resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x));
+            //  return new AsyncBag<T>((resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x));
 
             return null;
         }
@@ -917,7 +1004,7 @@ namespace Esyur.Net.IIP
         {
             throw new Exception("SS");
             //if (Codec.IsLocalResource(resource, this))
-              //  return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
+            //  return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
 
             return null;
         }

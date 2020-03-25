@@ -100,18 +100,7 @@ namespace Esyur.Net.HTTP
             get;
             set;
         }
-
-
-        public enum ResponseCodes : int
-        {
-            HTTP_OK = 200,
-            HTTP_NOTFOUND = 404,
-            HTTP_SERVERERROR = 500,
-            HTTP_MOVED = 301,
-            HTTP_NOTMODIFIED = 304,
-            HTTP_REDIRECT = 307
-       }
-
+         
    
        public HTTPSession CreateSession(string id, int timeout)
        {
@@ -322,9 +311,7 @@ namespace Esyur.Net.HTTP
                // else
                     listener = new TCPSocket(new IPEndPoint(ipAdd, Port));
 
-                Start(listener,
-                            Timeout,
-                            Clock);
+                Start(listener);
             }
             else if (trigger == ResourceTrigger.Terminate)
             {

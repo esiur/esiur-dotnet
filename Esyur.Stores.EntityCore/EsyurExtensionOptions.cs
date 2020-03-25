@@ -41,12 +41,12 @@ namespace Esyur.Stores.EntityCore
     public class EsyurExtensionOptions : IDbContextOptionsExtension
     {
 
-        public Dictionary<Type, PropertyInfo> Cache { get; } = new Dictionary<Type, PropertyInfo>();
-        public void AddType(IEntityType type)
-        {
-            if (!Cache.ContainsKey(type.ClrType))
-                Cache.Add(type.ClrType, type.FindPrimaryKey().Properties[0].PropertyInfo);
-        }
+        //public Dictionary<Type, PropertyInfo> Cache { get; } = new Dictionary<Type, PropertyInfo>();
+        //public void AddType(IEntityType type)
+        //{
+        //    if (!Cache.ContainsKey(type.ClrType))
+        //        Cache.Add(type.ClrType, type.FindPrimaryKey().Properties[0].PropertyInfo);
+        //}
 
         
 

@@ -134,6 +134,18 @@ namespace Esyur.Net.IIP
             return reply;
         }
 
+        internal AsyncReply<object[]> SendDetachRequest(uint instanceId)
+        {
+            try
+            {
+                return SendRequest(IIPPacket.IIPPacketAction.DetachResource).AddUInt32(instanceId).Done();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         internal AsyncReply<object> SendInvokeByNamedArguments(uint instanceId, byte index, Structure parameters)
         {
             var pb = Codec.ComposeStructure(parameters, this, true, true, true);
@@ -433,6 +445,7 @@ namespace Esyur.Net.IIP
 
         void IIPRequestAttachResource(uint callback, uint resourceId)
         {
+            
             Warehouse.GetById(resourceId).Then((res) =>
             {
                 if (res != null)
@@ -449,19 +462,12 @@ namespace Esyur.Net.IIP
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-                   // r.Instance.Children.OnAdd -= Children_OnAdd;
-                   // r.Instance.Children.OnRemoved -= Children_OnRemoved;
-                    
+                    // r.Instance.Children.OnAdd -= Children_OnAdd;
+                    // r.Instance.Children.OnRemoved -= Children_OnRemoved;
+
                     //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
-                    // subscribe
-                    r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                    r.Instance.ResourceModified += Instance_PropertyModified;
-                    r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
-                    //r.Instance.Children.OnAdd += Children_OnAdd;
-                    //r.Instance.Children.OnRemoved += Children_OnRemoved;
-                    
-                    //r.Instance.Attributes.OnModified += Attributes_OnModified;
+                    // Console.WriteLine("Attach {0} {1}", r.Instance.Link, r.Instance.Id);
 
                     // add it to attached resources so GC won't remove it from memory
                     attachedResources.Add(r);
@@ -490,6 +496,19 @@ namespace Esyur.Net.IIP
                                 .AddUInt8Array(Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true))
                                 .Done();
                     }
+
+
+
+                    // subscribe
+                    r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                    r.Instance.ResourceModified += Instance_PropertyModified;
+                    r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+                    //r.Instance.Children.OnAdd += Children_OnAdd;
+                    //r.Instance.Children.OnRemoved += Children_OnRemoved;
+
+                    //r.Instance.Attributes.OnModified += Attributes_OnModified;
+
+
                 }
                 else
                 {
@@ -1886,19 +1905,23 @@ namespace Esyur.Net.IIP
         /// <returns>DistributedResource</returns>
         public AsyncReply<DistributedResource> Fetch(uint id)
         {
-            if (resourceRequests.ContainsKey(id) && resources.ContainsKey(id))
+            var resource = resources[id];
+            var request = resourceRequests[id];
+
+            if (request != null)
             {
-                Console.WriteLine("DEAD LOCK " + id);
-
-                return new AsyncReply<DistributedResource>(resources[id]);
-                // dig for dead locks
-                return resourceRequests[id];
+                if (resource != null)
+                    // dig for dead locks            // or not
+                    return new AsyncReply<DistributedResource>(resource);
+                else
+                    return request;
             }
-            else if (resourceRequests.ContainsKey(id))
-                return resourceRequests[id];
-            else if (resources.ContainsKey(id))
-                return new AsyncReply<DistributedResource>(resources[id]);
+            else if (resource != null && !resource.Suspended)
+            {
+                return new AsyncReply<DistributedResource>(resource);
+            }
 
+            
             var reply = new AsyncReply<DistributedResource>();
             resourceRequests.Add(id, reply);
 
@@ -1907,16 +1930,18 @@ namespace Esyur.Net.IIP
                         .Done()
                         .Then((rt) =>
                         {
-                            var dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
+
+                            var dr = resource ?? new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
 
                             GetTemplate((Guid)rt[0]).Then((tmp) =>
                             {
                                 // ClassId, ResourceAge, ResourceLink, Content
-                                Warehouse.Put(dr, id.ToString(), this, null, tmp);
+                                if (resource == null)
+                                    Warehouse.Put(dr, id.ToString(), this, null, tmp);
 
                                 Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
                                 {
-                                    dr._Attached(ar);
+                                    dr._Attach(ar);
                                     resourceRequests.Remove(id);
                                     reply.Trigger(dr);
                                 });

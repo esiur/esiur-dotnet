@@ -28,13 +28,18 @@ using System.Text;
 
 namespace Esyur.Core
 {
-    public class AsyncException: Exception
+    public class AsyncException : Exception
     {
-
-
         public readonly ErrorType Type;
         public readonly ExceptionCode Code;
 
+        public AsyncException(Exception exception) :base(exception.Message, exception)
+        {
+            Type = ErrorType.Exception;
+            Code = 0;
+        }
+
+        public override string StackTrace => InnerException != null && Type == ErrorType.Exception ? InnerException.StackTrace : base.StackTrace;
 
         public AsyncException(ErrorType type, ushort code, string message)
             : base(type == ErrorType.Management ? ((ExceptionCode)code).ToString() : message)

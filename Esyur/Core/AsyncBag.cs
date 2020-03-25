@@ -56,6 +56,10 @@ namespace Esyur.Core
             return (object[])base.Wait();
         }
 
+        public new object[] Wait(int timeout)
+        {
+            return (object[])base.Wait(timeout);
+        }
 
         public void Seal()
         {

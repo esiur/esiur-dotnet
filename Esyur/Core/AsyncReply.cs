@@ -89,6 +89,27 @@ namespace Esyur.Core
         }
 
 
+        public object Wait(int millisecondsTimeout)
+        {
+            if (resultReady)
+                return result;
+
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {Id} Wait");
+
+            if (!mutex.WaitOne(millisecondsTimeout))
+            {
+                var e = new Exception("AsyncReply timeout");
+                TriggerError(e);
+                throw e;
+            }
+
+            if (Debug)
+                Console.WriteLine($"AsyncReply: {Id} Wait ended");
+
+            return result;
+        }
+
         public object Result
         {
             get { return result; }
@@ -210,9 +231,9 @@ namespace Esyur.Core
             if (exception is AsyncException)
                 this.exception = exception as AsyncException;
             else
-                this.exception = new AsyncException(ErrorType.Management, 0, exception.Message);
+                this.exception = new AsyncException(exception);
 
-
+            
             // lock (callbacksLock)
             // {
             foreach (var cb in errorCallbacks)
