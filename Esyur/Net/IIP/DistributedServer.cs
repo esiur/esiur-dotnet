@@ -140,11 +140,7 @@ namespace Esyur.Net.IIP
 
         protected override void ClientDisconnected(DistributedConnection sender)
         {
-            sender.Destroy();
-
             Warehouse.Remove(sender);
-
-            //Console.WriteLine("DistributedConnection Client Disconnected");
         }
     }
 }

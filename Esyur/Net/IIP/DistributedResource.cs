@@ -214,7 +214,7 @@ namespace Esyur.Net.IIP
         {
             var et = Instance.Template.GetEventTemplateByIndex(index);
             events[index]?.Invoke(this, args);
-            Instance.EmitResourceEvent(null, null, et.Name, args);
+            Instance.EmitResourceEvent(et.Name, args);
         }
 
         public AsyncReply<object> _InvokeByNamedArguments(byte index, Structure namedArgs)

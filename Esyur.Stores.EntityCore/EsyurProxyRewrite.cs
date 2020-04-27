@@ -24,10 +24,12 @@ SOFTWARE.
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using Esyur.Proxy;
 using Esyur.Resource;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -48,33 +50,31 @@ namespace Esyur.Stores.EntityCore
         public static object CreateInstance(
     IDbContextOptions dbContextOptions,
     IEntityType entityType,
-    ILazyLoader loader,
-    object[] constructorArguments)
+   // ILazyLoader loader,
+    object[] constructorArguments,
+        DbContext context,
+        int id = 0
+)
         {
             var options = dbContextOptions.FindExtension<EsyurExtensionOptions>();
+            var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
 
-            return CreateInstance2(
-                options,
-                entityType,
-                loader,
-                constructorArguments);
+            var cache = options.Store.GetById(entityType.ClrType, id);
+
+            if (cache != null)
+                return cache;
+
+            // check if the object exists
+            var obj = Warehouse.New(entityType.ClrType) as EntityResource;//, "", options.Store, null, manager);
+            obj._PrimaryId = id;
+            options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
+            Warehouse.Put(obj, id.ToString(), options.Store, null, null, 0, manager);
+
+//            obj.Instance.IntVal = id;//.Variables.Add("eid", id);
+
+            return obj;
         }
 
-
-        public static object CreateInstance2(
-    EsyurExtensionOptions options,
-    IEntityType entityType,
-    ILazyLoader loader,
-    object[] constructorArguments)
-        {
-            //var key = entityType.FindPrimaryKey();
-            //options.AddType(entityType);
-
-             var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
-            return Warehouse.New(entityType.ClrType, "", options.Store, null, manager);
-        }
-
- 
 
         public EsyurProxyRewrite(EsyurExtensionOptions ext, ProviderConventionSetBuilderDependencies conventionSetBuilderDependencies)
         {
@@ -82,6 +82,7 @@ namespace Esyur.Stores.EntityCore
 
         }
 
+       
         public void ProcessModelFinalized(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
         {
             foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
@@ -108,8 +109,10 @@ namespace Esyur.Stores.EntityCore
                                 {
                                 new DependencyInjectionParameterBinding(typeof(IDbContextOptions), typeof(IDbContextOptions)),
                                 new EntityTypeParameterBinding(),
-                                new DependencyInjectionParameterBinding(typeof(ILazyLoader), typeof(ILazyLoader)),
-                                 new ObjectArrayParameterBinding(binding.ParameterBindings)
+                                //new DependencyInjectionParameterBinding(typeof(ILazyLoader), typeof(ILazyLoader)),
+                                 new ObjectArrayParameterBinding(binding.ParameterBindings),
+                                 new ContextParameterBinding(typeof(DbContext)),
+                                 new PropertyParameterBinding(entityType.FindPrimaryKey().Properties.FirstOrDefault())
                                 },
                             proxyType));
                 }

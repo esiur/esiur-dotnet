@@ -34,11 +34,11 @@ using System.Threading.Tasks;
 namespace Esyur.Resource
 {
     public delegate void ResourceEventHanlder(params object[] args);
-   // public delegate void CustomUsersEventHanlder(string[] usernames, params object[] args);
+    // public delegate void CustomUsersEventHanlder(string[] usernames, params object[] args);
     //public delegate void CustomReceiversEventHanlder(DistributedConnection[] connections, params object[] args);
     //public delegate void CustomInquirerEventHanlder(object inquirer, params object[] args);
 
-    public delegate void CustomResourceEventHanlder(object issuer, Session[] receivers, params object[] args);
+    public delegate void CustomResourceEventHanlder(object issuer, Func<Session, bool> receivers, params object[] args);// object issuer, Session[] receivers, params object[] args);
 
     // public delegate void CustomReceiversEventHanlder(string[] usernames, DistributedConnection[] connections, params object[] args);
 

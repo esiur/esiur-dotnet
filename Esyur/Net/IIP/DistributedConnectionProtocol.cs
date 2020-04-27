@@ -416,7 +416,7 @@ namespace Esyur.Net.IIP
                     parent.children.Remove(child);
                     child.parents.Remove(parent);
 
-//                    parent.Instance.Children.Remove(child);
+                    //                    parent.Instance.Children.Remove(child);
                 });
             });
         }
@@ -445,7 +445,7 @@ namespace Esyur.Net.IIP
 
         void IIPRequestAttachResource(uint callback, uint resourceId)
         {
-            
+
             Warehouse.GetById(resourceId).Then((res) =>
             {
                 if (res != null)
@@ -460,6 +460,7 @@ namespace Esyur.Net.IIP
 
                     // unsubscribe
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
                     // r.Instance.Children.OnAdd -= Children_OnAdd;
@@ -501,6 +502,7 @@ namespace Esyur.Net.IIP
 
                     // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                    r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
                     r.Instance.ResourceModified += Instance_PropertyModified;
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
                     //r.Instance.Children.OnAdd += Children_OnAdd;
@@ -581,20 +583,22 @@ namespace Esyur.Net.IIP
                     var r = res as IResource;
                     // unsubscribe
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
                     //r.Instance.Children.OnAdd -= Children_OnAdd;
                     //r.Instance.Children.OnRemoved -= Children_OnRemoved;
-                    
+
                     //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
                     // subscribe
                     r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                    r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
                     r.Instance.ResourceModified += Instance_PropertyModified;
                     r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
-                    
+
                     //r.Instance.Attributes.OnModified += Attributes_OnModified;
 
                     // reply ok
@@ -619,6 +623,7 @@ namespace Esyur.Net.IIP
                 {
                     var r = res as IResource;
                     r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
                     r.Instance.ResourceModified -= Instance_PropertyModified;
                     r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
 
@@ -1190,7 +1195,7 @@ namespace Esyur.Net.IIP
                                     }
                                     catch (Exception ex)
                                     {
-                                        SendError(ErrorType.Exception, callback, 0, 
+                                        SendError(ErrorType.Exception, callback, 0,
                                             ex.InnerException != null ? ex.InnerException.ToString() : ex.ToString());
                                         return;
                                     }
@@ -1207,7 +1212,7 @@ namespace Esyur.Net.IIP
                                             .AddUInt8((byte)DataType.Void)
                                             .Done();
                                         }
-                                        catch(Exception ex)
+                                        catch (Exception ex)
                                         {
                                             SendError(ErrorType.Exception, callback, 0, ex.ToString());
                                         }
@@ -1231,7 +1236,7 @@ namespace Esyur.Net.IIP
                                         //SendParams((byte)0x90, callback, Codec.Compose(res, this));
                                     }
                                     else if (rt is AsyncReply)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
-                                          //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
+                                                              //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
                                     {
                                         (rt as AsyncReply).Then(res =>
                                         {
@@ -1306,18 +1311,18 @@ namespace Esyur.Net.IIP
                                  else
                                  {
 
-                                    // function not found on a distributed object
-                                }
+                                     // function not found on a distributed object
+                                 }
                              }
                              else
                              {
 #if NETSTANDARD
-                                var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
+                                 var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
 #else
                                 var fi = r.GetType().GetMethod(ft.Name);
 #endif
 
-                                if (fi != null)
+                                 if (fi != null)
                                  {
                                      if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
                                      {
@@ -1326,8 +1331,8 @@ namespace Esyur.Net.IIP
                                          return;
                                      }
 
-                                    // cast arguments
-                                    ParameterInfo[] pi = fi.GetParameters();
+                                     // cast arguments
+                                     ParameterInfo[] pi = fi.GetParameters();
 
                                      object[] args = new object[pi.Length];
 
@@ -1379,34 +1384,34 @@ namespace Esyur.Net.IIP
                                          (rt as Task).ContinueWith(t =>
                                          {
 #if NETSTANDARD
-                                            var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
+                                             var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                                 .AddUInt8Array(Codec.Compose(res, this))
-                                                 .Done();
+                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                  .AddUInt8Array(Codec.Compose(res, this))
+                                                  .Done();
                                          });
 
                                      }
-                                    else if (rt is AsyncReply)
+                                     else if (rt is AsyncReply)
                                      {
                                          (rt as AsyncReply).Then(res =>
                                 {
-                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                                         .AddUInt8Array(Codec.Compose(res, this))
-                                                         .Done();
+                                    SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                                .AddUInt8Array(Codec.Compose(res, this))
+                                                .Done();
 
-                                         }).Error(ex =>
-                                         {
-                                             SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
-                                         }).Progress((pt, pv, pm) =>
-                                         {
-                                             SendProgress(callback, pv, pm);
-                                         }).Chunk(v =>
-                                         {
-                                             SendChunk(callback, v);
-                                         });
+                                }).Error(ex =>
+                                {
+                                    SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                }).Progress((pt, pv, pm) =>
+                                {
+                                    SendProgress(callback, pv, pm);
+                                }).Chunk(v =>
+                                {
+                                    SendChunk(callback, v);
+                                });
                                      }
                                      else
                                      {
@@ -1417,14 +1422,14 @@ namespace Esyur.Net.IIP
                                  }
                                  else
                                  {
-                                    // ft found, fi not found, this should never happen
-                                }
+                                     // ft found, fi not found, this should never happen
+                                 }
                              }
                          }
                          else
                          {
-                            // no function at this index
-                        }
+                             // no function at this index
+                         }
                      });
                 }
                 else
@@ -1843,7 +1848,7 @@ namespace Esyur.Net.IIP
             {
 
                 //if (filter != null)
-                  //  ar = ar?.Where(filter).ToArray();
+                //  ar = ar?.Where(filter).ToArray();
 
                 // MISSING: should dispatch the unused resources. 
                 if (ar?.Length > 0)
@@ -1852,7 +1857,7 @@ namespace Esyur.Net.IIP
                     rt.Trigger(null);
             }).Error(ex => rt.TriggerError(ex));
 
-            
+
             return rt;
 
             /*
@@ -1921,7 +1926,7 @@ namespace Esyur.Net.IIP
                 return new AsyncReply<DistributedResource>(resource);
             }
 
-            
+
             var reply = new AsyncReply<DistributedResource>();
             resourceRequests.Add(id, reply);
 
@@ -2139,7 +2144,7 @@ namespace Esyur.Net.IIP
                             Codec.ParseResourceArray(content, 0, (uint)content.Length, this)
                                                     .Then(resources => reply.Trigger(resources));
 
-                        }).Error(ex=>reply.TriggerError(ex));
+                        }).Error(ex => reply.TriggerError(ex));
 
             return reply;
         }
@@ -2210,28 +2215,36 @@ namespace Esyur.Net.IIP
 
         //        private void Instance_EventOccurred(IResource resource, string name, string[] users, DistributedConnection[] connections, object[] args)
 
-        private void Instance_EventOccurred(IResource resource, object issuer, Session[] receivers, string name, object[] args)
+        private void Instance_CustomEventOccurred(IResource resource, object issuer, Func<Session, bool> receivers, string name, object[] args)
         {
             var et = resource.Instance.Template.GetEventTemplateByName(name);
 
             if (et == null)
                 return;
 
-            /*
-            if (users != null)
-                if (!users.Contains(RemoteUsername))
-                    return;
-
-            if (connections != null)
-                if (!connections.Contains(this))
-                    return;
-            */
-
-            if (receivers != null)
-                if (!receivers.Contains(this.session))
-                    return;
+            if (!receivers(this.session))
+                return;
 
             if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, issuer) == Ruling.Denied)
+                return;
+
+            // compose the packet
+            SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
+                        .AddUInt32(resource.Instance.Id)
+                        .AddUInt8((byte)et.Index)
+                        .AddUInt8Array(Codec.ComposeVarArray(args, this, true))
+                        .Done();
+        }
+
+        private void Instance_EventOccurred(IResource resource, string name, object[] args)
+        {
+            var et = resource.Instance.Template.GetEventTemplateByName(name);
+
+            if (et == null)
+                return;
+
+
+            if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, null) == Ruling.Denied)
                 return;
 
             // compose the packet

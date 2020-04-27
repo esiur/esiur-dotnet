@@ -20,6 +20,8 @@ namespace Esyur.Resource
     {
         string name;
 
+       // public int IntVal { get; set; }
+
         WeakReference<IResource> resource;
         IStore store;
         ResourceTemplate template;
@@ -27,11 +29,15 @@ namespace Esyur.Resource
 
 
         public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue);
-        public delegate void ResourceEventOccurredEvent(IResource resource, object issuer, Session[] receivers, string eventName, object[] args);
+        public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, object[] args);
+
+        public delegate void CustomResourceEventOccurredEvent(IResource resource, object issuer, Func<Session, bool> receivers, string eventName, object[] args);
+
         public delegate void ResourceDestroyedEvent(IResource resource);
 
         public event ResourceModifiedEvent ResourceModified;
         public event ResourceEventOccurredEvent ResourceEventOccurred;
+        public event CustomResourceEventOccurredEvent CustomResourceEventOccurred;
         public event ResourceDestroyedEvent ResourceDestroyed;
 
         bool loading = false;
@@ -582,13 +588,21 @@ namespace Esyur.Resource
 
         //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
 
-        internal void EmitResourceEvent(object issuer, Session[] receivers, string name, object[] args)
+        internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, string name, object[] args)
         {
             IResource res;
             if (this.resource.TryGetTarget(out res))
             {
+                CustomResourceEventOccurred?.Invoke(res, issuer, receivers, name, args);
+            }
+        }
 
-                ResourceEventOccurred?.Invoke(res, issuer, receivers, name, args);
+        internal void EmitResourceEvent(string name, object[] args)
+        {
+            IResource res;
+            if (this.resource.TryGetTarget(out res))
+            {
+                ResourceEventOccurred?.Invoke(res, name, args);
             }
         }
 
@@ -891,7 +905,7 @@ namespace Esyur.Resource
                    // if (ca.Length == 0)
                    //     continue;
 
-                    ResourceEventHanlder proxyDelegate = (args) => EmitResourceEvent(null, null, evt.Name, args);
+                    ResourceEventHanlder proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
                     evt.Info.AddEventHandler(resource, proxyDelegate);
 
                 }
@@ -901,7 +915,7 @@ namespace Esyur.Resource
                     //if (ca.Length == 0)
                     //    continue;
 
-                    CustomResourceEventHanlder proxyDelegate = (issuer, receivers, args) => EmitResourceEvent(issuer, receivers, evt.Name, args);
+                    CustomResourceEventHanlder proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
                     evt.Info.AddEventHandler(resource, proxyDelegate);
                 }
          

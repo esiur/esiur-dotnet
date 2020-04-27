@@ -115,6 +115,9 @@ namespace Esyur.Resource
         /// <returns>True, if no problem occurred.</returns>
         public static async AsyncReply<bool> Open()
         {
+            if (warehouseIsOpen)
+                return false;
+
             warehouseIsOpen = true;
 
             var resSnap = resources.Select(x =>
@@ -526,7 +529,7 @@ namespace Esyur.Resource
 
         }
 
-        public static IResource New(Type type, string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
+        public static IResource New(Type type, string name = null, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
         {
             type = ResourceProxy.GetProxy(type);
 
@@ -618,12 +621,15 @@ namespace Esyur.Resource
         /// <returns>Resource template.</returns>
         public static ResourceTemplate GetTemplate(Type type)
         {
+
+            var baseType = ResourceProxy.GetBaseType(type);
+
             // loaded ?
             foreach (var t in templates.Values)
-                if (t.ClassName == type.FullName)
+                if (t.ClassName == baseType.FullName)
                     return t;
 
-            var template = new ResourceTemplate(type);
+            var template = new ResourceTemplate(baseType);
             templates.Add(template.ClassId, template);
 
             return template;

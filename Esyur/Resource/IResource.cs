@@ -44,5 +44,7 @@ namespace Esyur.Resource
             get;
             set;
         }
+
+
     }
 }

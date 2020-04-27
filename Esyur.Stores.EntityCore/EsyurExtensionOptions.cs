@@ -57,6 +57,7 @@ namespace Esyur.Stores.EntityCore
 
         public EntityStore Store => _store;
 
+
         public void ApplyServices(IServiceCollection services)
         {
             services.AddEntityFrameworkProxies();

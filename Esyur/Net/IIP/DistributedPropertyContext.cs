@@ -20,5 +20,8 @@ namespace Esyur.Net.IIP
         {
             this.Method = method;
         }
+
+        public static implicit operator DistributedPropertyContext(Func<DistributedConnection, object> method)
+                                        => new DistributedPropertyContext(method);
     }
 }

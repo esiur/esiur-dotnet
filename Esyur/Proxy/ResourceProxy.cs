@@ -29,6 +29,11 @@ namespace Esyur.Proxy
 
         public static Type GetBaseType(Type type)
         {
+            if (type.Assembly.IsDynamic)
+                return type.GetTypeInfo().BaseType;
+            else
+                return type;
+
             if (type.FullName.Contains("Esyur.Proxy.T"))
 #if NETSTANDARD
                 return type.GetTypeInfo().BaseType;

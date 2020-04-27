@@ -60,11 +60,11 @@ namespace Esyur.Stores.EntityCore
         }
 
         public static DbContextOptionsBuilder UseEsyur(this DbContextOptionsBuilder optionsBuilder,
-                                                        DbContext context,
+                                                        //DbContext context,
                                                         string name = null,
-                                            IResource parent = null,
-                                            IPermissionsManager manager = null
-
+                                                        IResource parent = null,
+                                                        IPermissionsManager manager = null,
+                                                        Func<DbContext> dbContextProvider = null
             )
         {
             var extension = optionsBuilder.Options.FindExtension<EsyurExtensionOptions>();
@@ -72,10 +72,10 @@ namespace Esyur.Stores.EntityCore
             if (extension == null)
             {
 
-                var store = Warehouse.New<EntityStore>(name, null, parent, manager);
+                var store = Warehouse.New<EntityStore>(name, null, parent, manager, new { Options = optionsBuilder, DbContextProvider = dbContextProvider });
                 extension = new EsyurExtensionOptions(store);
-                store.Options = extension;
-                store.DbContext = context;
+                //store.Options = optionsBuilder;
+                //store.DbContext = context;
             }
 
             ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
@@ -86,22 +86,24 @@ namespace Esyur.Stores.EntityCore
 
         public static DbContextOptionsBuilder<TContext> UseEsyur<TContext>(
                                              this DbContextOptionsBuilder<TContext> optionsBuilder,
-                                             DbContext context,
+                                             //DbContext context,
                                             string name = null,
                                             IResource parent = null,
-                                            IPermissionsManager manager = null)
+                                            IPermissionsManager manager = null,
+                                            Func<DbContext> dbContextProvider = null)
                                             where TContext : DbContext
         {
 
 
             var extension = optionsBuilder.Options.FindExtension<EsyurExtensionOptions>();
-
+            
             if (extension == null)
             {
-                var store = Warehouse.New<EntityStore>(name, null, parent, manager);
+                var store = Warehouse.New<EntityStore>(name, null, parent, manager, new { Options = optionsBuilder, DbContextProvider = dbContextProvider });
                 extension = new EsyurExtensionOptions(store);
-                store.Options = extension;
-                store.DbContext = context;
+                //store.Options = optionsBuilder;
+                //store.Options = extension;
+                //store.DbContext = context;
             }
 
 

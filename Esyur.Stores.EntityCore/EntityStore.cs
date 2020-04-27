@@ -45,7 +45,9 @@ namespace Esyur.Stores.EntityCore
 
         public event DestroyedEvent OnDestroy;
 
-        struct TypeInfo
+        Dictionary<Type, Dictionary<int, WeakReference>> DB = new Dictionary<Type, Dictionary<int, WeakReference>>();
+
+        internal struct TypeInfo
         {
             public string Name;
             public IEntityType Type;
@@ -53,55 +55,57 @@ namespace Esyur.Stores.EntityCore
         }
 
         Dictionary<string, TypeInfo> TypesByName = new Dictionary<string, TypeInfo>();
-        Dictionary<Type, TypeInfo> TypesByType = new Dictionary<Type, TypeInfo>();
-
-        /*
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            var extension = optionsBuilder.Options.FindExtension<EsyurExtension>()
-                ?? new EsyurExtension();
-
-            
-            ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-            //optionsBuilder.UseLazyLoadingProxies();
-            base.OnConfiguring(optionsBuilder);
-        }
-        */
-
-        /*
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        //modelBuilder.Entity<Series>().ToTable("Series");
-        //modelBuilder.Entity<Episode>().ToTable("Episodes").;
-        //modelBuilder.Ignore<Entit>
-        // modelBuilder.Entity<Series>(x=>x.Property(p=>p.Instance).HasConversion(v=>v.Managers.)
-        Console.WriteLine("OnModelCreating");
-        //modelBuilder.Entity()
+        internal Dictionary<Type, TypeInfo> TypesByType = new Dictionary<Type, TypeInfo>();
 
 
-        base.OnModelCreating(modelBuilder);
-    }*/
 
+        bool Loaded;
 
         public async AsyncReply<IResource> Get(string path)
         {
             var p = path.Split('/');
             var ti = TypesByName[p[0]];
             var id = Convert.ToInt32(p[1]);
-            return DbContext.Find(ti.Type.ClrType, id) as IResource;
+            return DbContextProvider().Find(ti.Type.ClrType, id) as IResource;
         }
 
         public async AsyncReply<bool> Put(IResource resource)
         {
+            if (resource is EntityStore)
+                return false;
+
+            var type = ResourceProxy.GetBaseType(resource);//.GetType().;
+
+            var eid = (resource as EntityResource)._PrimaryId;// (int)resource.Instance.Variables["eid"];
+
+            if (DB[type].ContainsKey(eid))
+                DB[type].Remove(eid);
+
+            DB[type].Add(eid, new WeakReference(resource));
+
             return true;
         }
 
+        public IResource GetById(Type type, int id)
+        {
+            if (!DB[type].ContainsKey(id))
+                return null;
+
+            if (!DB[type][id].IsAlive)
+                return null;
+
+            return DB[type][id].Target as IResource;
+        }
+
         [Attribute]
-        public EsyurExtensionOptions Options { get; set; }
+        public Func<DbContext> DbContextProvider { get; set; }
+
+        [Attribute]
+        public DbContextOptionsBuilder Options { get; set; }
 
         //DbContext dbContext;
-        [Attribute]
-        public DbContext DbContext { get; set; }
+        //[Attribute]
+        //public DbContext DbContext { get; set; }
 
         public string Link(IResource resource)
         {
@@ -178,9 +182,15 @@ namespace Esyur.Stores.EntityCore
 
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
-            if (trigger == ResourceTrigger.SystemInitialized && DbContext != null)
+            if (trigger == ResourceTrigger.Initialize)// SystemInitialized && DbContext != null)
             {
-                var types = DbContext.Model.GetEntityTypes();
+
+                if (DbContextProvider == null)
+                    DbContextProvider = () => Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+
+                var context = Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+
+                var types = context.Model.GetEntityTypes();
                 foreach (var t in types)
                 {
                     var ti = new TypeInfo()
@@ -192,6 +202,8 @@ namespace Esyur.Stores.EntityCore
 
                     TypesByName.Add(t.ClrType.Name, ti);
                     TypesByType.Add(t.ClrType, ti);
+
+                    DB.Add(t.ClrType, new Dictionary<int, WeakReference>());
                 }
 
             }
