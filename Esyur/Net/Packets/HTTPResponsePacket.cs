@@ -139,8 +139,8 @@ namespace Esyur.Net.Packets
         {
             string header = $"{Version} {(int)Number} {Text}\r\nServer: Esyur {Global.Version}\r\nDate: {DateTime.Now.ToUniversalTime().ToString("r")}\r\n";
 
-            if (options == ComposeOptions.AllCalculateLength && Message != null) 
-                Headers["Content-Length"] = Message.Length.ToString();
+            if (options == ComposeOptions.AllCalculateLength) 
+                Headers["Content-Length"] = Message?.Length.ToString() ?? "0";
 
             foreach (var kv in Headers)
                 header += kv.Key + ": " + kv.Value + "\r\n";

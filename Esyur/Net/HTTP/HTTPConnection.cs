@@ -268,8 +268,10 @@ namespace Esyur.Net.HTTP
                         if ((fileEditTime - ims).TotalSeconds < 2)
                         {
                             Response.Number = HTTPResponsePacket.ResponseCode.NotModified;
+                            Response.Headers.Clear();
                             //Response.Text = "Not Modified";
-                            Send((byte[])null);
+                            Send(HTTPResponsePacket.ComposeOptions.SpecifiedHeadersOnly);
+                            return true;
                         }
                     }
                     catch

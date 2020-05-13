@@ -1172,20 +1172,30 @@ namespace Esyur.Data
             if (value is IUserType)
                 value = (value as IUserType).Get();
 
-          
+
             //  value = (List<>)value.ToArray();
 
             if (value is Func<DistributedConnection, object>)
                 //if (connection != null)
-                    value = (value as Func<DistributedConnection, object>)(connection);
-                //else
-                //    return (DataType.Void, null);
+                value = (value as Func<DistributedConnection, object>)(connection);
+            //else
+            //    return (DataType.Void, null);
             else if (value is DistributedPropertyContext)
-                //if (connection != null)
+            {
+                try
+                {
+                    //if (connection != null)
                     value = (value as DistributedPropertyContext).Method(connection);
-                //else
+                    //else
+                }
+                catch(Exception ex)
+                {
+                    Global.Log(ex);
+                    return (DataType.Void, null);
+                }
                 //    return (DataType.Void, null);
-                
+            }
+            
             if (value == null)
                 return (DataType.Void, null);
 
@@ -1208,10 +1218,27 @@ namespace Esyur.Data
             var isArray = t.IsArray;
 
             if (isArray)
+            {
                 t = t.GetElementType();
+                if (t.IsEnum)
+                {
+                    var src = value as Array;
+                    t = t.GetEnumUnderlyingType();
+                    var dst = Array.CreateInstance(t, src.Length);
+                    src.CopyTo(dst, 0);
+                    value = dst;
+                }
+            }
+            else if (t.IsEnum)
+            {
+                t = t.GetEnumUnderlyingType();
+                value = Convert.ChangeType(value, t);
+            }
 
             DataType type;
 
+
+            
             if (t == typeof(bool))
                 type = DataType.Bool;
             else if (t == typeof(char))
