@@ -306,9 +306,9 @@ namespace Esyur.Net.HTTP
                 else
                     ipAdd = IPAddress.Parse(IP);
 
-               // if (ssl)
-                //    listener = new SSLSocket(new IPEndPoint(ipAdd, port), new X509Certificate2(certificate));
-               // else
+                if (SSL)
+                   listener = new SSLSocket(new IPEndPoint(ipAdd, Port), new X509Certificate2(Certificate));
+                else
                     listener = new TCPSocket(new IPEndPoint(ipAdd, Port));
 
                 Start(listener);

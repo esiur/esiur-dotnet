@@ -43,15 +43,19 @@ namespace Esyur.Net.Sockets
     {
         Socket sock;
         byte[] receiveBuffer;
- 
+
+        bool held;
+
+        //ArraySegment<byte> receiveBufferSegment;
+
         NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
 
-        object sendLock = new object();
+        readonly object sendLock = new object();
 
-        Queue<byte[]> sendBufferQueue = new Queue<byte[]>();
+        Queue<KeyValuePair<AsyncReply<bool>, byte[]>> sendBufferQueue = new Queue<KeyValuePair<AsyncReply<bool>, byte[]>>();// Queue<byte[]>();
 
         bool asyncSending;
-
+        bool began = false;
 
         SocketState state = SocketState.Initial;
 
@@ -60,80 +64,119 @@ namespace Esyur.Net.Sockets
         public event ISocketCloseEvent OnClose;
         public event DestroyedEvent OnDestroy;
 
+        SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
+
         SslStream ssl;
         X509Certificate2 cert;
         bool server;
         string hostname;
 
-        private void Connected(Task t)
-        {
-            if (server)
-            {
-                ssl.AuthenticateAsServerAsync(cert).ContinueWith(Authenticated);
-            }
-            else
-            {
-                ssl.AuthenticateAsClientAsync(hostname).ContinueWith(Authenticated);
-            }
-        }
 
-        public AsyncReply<bool> Connect(string hostname, ushort port)
+        public async AsyncReply<bool> Connect(string hostname, ushort port)
         {
             var rt = new AsyncReply<bool>();
 
+            state = SocketState.Connecting;
+            await sock.ConnectAsync(hostname, port);
+
+            if (server)
+                await ssl.AuthenticateAsServerAsync(cert);
+            else
+                await ssl.AuthenticateAsClientAsync(hostname);
+
             try
             {
-                state = SocketState.Connecting;
-                sock.ConnectAsync(hostname, port).ContinueWith((x) =>
-                {
-                    if (x.IsFaulted)
-                        rt.TriggerError(x.Exception);
-                    else
-                        rt.Trigger(true);
+                state = SocketState.Established;
+                OnConnect?.Invoke();
 
-                    Connected(x);
-                });
+                if (!server)
+                    Begin();
             }
             catch (Exception ex)
             {
-                rt.TriggerError(ex);
+                state = SocketState.Terminated;
+                Close();
+                Global.Log(ex);
             }
 
-            return rt;
+            return true;
         }
 
-        private void DataSent(Task task)
-        {
-            try
-            {
+        //private void DataSent(Task task)
+        //{
+        //    try
+        //    {
 
+        //        if (sendBufferQueue.Count > 0)
+        //        {
+        //            byte[] data = sendBufferQueue.Dequeue();
+        //            lock (sendLock)
+        //                ssl.WriteAsync(data, 0, data.Length).ContinueWith(DataSent);
+        //        }
+        //        else
+        //        {
+        //            asyncSending = false;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        if (state != SocketState.Closed && !sock.Connected)
+        //        {
+        //            state = SocketState.Terminated;
+        //            Close();
+        //        }
+
+        //        asyncSending = false;
+
+        //        Global.Log("SSLSocket", LogType.Error, ex.ToString());
+        //    }
+        //}
+
+
+        private void SendCallback(IAsyncResult ar)
+        {
+            if (ar != null && ar.AsyncState != null)
+                ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
+
+            lock (sendLock)
+            {
                 if (sendBufferQueue.Count > 0)
                 {
-                    byte[] data = sendBufferQueue.Dequeue();
-                    lock (sendLock)
-                        ssl.WriteAsync(data, 0, data.Length).ContinueWith(DataSent);
+                    var kv = sendBufferQueue.Dequeue();
+
+                    try
+                    {
+                        ssl.BeginWrite(kv.Value, 0, kv.Value.Length, SendCallback, kv.Key);
+                    }
+                    catch (Exception ex)
+                    {
+                        asyncSending = false;
+
+                        try
+                        {
+                            kv.Key.Trigger(false);
+
+                            if (state != SocketState.Closed && !sock.Connected)
+                            {
+                                state = SocketState.Terminated;
+                                Close();
+                            }
+                        }
+                        catch (Exception ex2)
+                        {
+                            state = SocketState.Terminated;
+                        }
+
+                        Global.Log("TCPSocket", LogType.Error, ex.ToString());
+                    }
                 }
                 else
                 {
                     asyncSending = false;
                 }
             }
-            catch (Exception ex)
-            {
-                if (state != SocketState.Closed && !sock.Connected)
-                {
-                    state = SocketState.Terminated;
-                    Close();
-                }
-
-                asyncSending = false;
-            
-                Global.Log("SSLSocket", LogType.Error, ex.ToString());
-            }
         }
 
-
- 
         public IPEndPoint LocalEndPoint
         {
             get { return (IPEndPoint)sock.LocalEndPoint; }
@@ -185,14 +228,14 @@ namespace Esyur.Net.Sockets
             cert = certificate;
             sock = Socket;
             receiveBuffer = new byte[sock.ReceiveBufferSize];
- 
+
             ssl = new SslStream(new NetworkStream(sock));
 
             server = authenticateAsServer;
 
         }
 
- 
+
         public void Close()
         {
             if (state != SocketState.Closed && state != SocketState.Terminated)
@@ -215,65 +258,137 @@ namespace Esyur.Net.Sockets
             OnClose?.Invoke();
         }
 
+
         public void Send(byte[] message)
         {
             Send(message, 0, message.Length);
         }
 
+
         public void Send(byte[] message, int offset, int size)
         {
+
+
+            var msg = message.Clip((uint)offset, (uint)size);
+
             lock (sendLock)
             {
-                if (asyncSending)
+
+                if (!sock.Connected)
+                    return;
+
+                if (asyncSending || held)
                 {
-                    sendBufferQueue.Enqueue(message.Clip((uint)offset, (uint)size));
+                    sendBufferQueue.Enqueue(new KeyValuePair<AsyncReply<bool>, byte[]>(null, msg));// message.Clip((uint)offset, (uint)size));
                 }
                 else
                 {
                     asyncSending = true;
-                    ssl.WriteAsync(message, offset, size).ContinueWith(DataSent);
+                    try
+                    {
+                        ssl.BeginWrite(msg, 0, msg.Length, SendCallback, null);
+                    }
+                    catch
+                    {
+                        asyncSending = false;
+                        state = SocketState.Terminated;
+                        Close();
+                    }
                 }
             }
         }
 
-        void Authenticated(Task task)
-        {
-            try
-            {
-                state = SocketState.Established;
-                OnConnect?.Invoke();
+        //public void Send(byte[] message)
+        //{
+        //    Send(message, 0, message.Length);
+        //}
 
-                if (!server)
-                    Begin();
-            }
-            catch (Exception ex)
+        //public void Send(byte[] message, int offset, int size)
+        //{
+        //    lock (sendLock)
+        //    {
+        //        if (asyncSending)
+        //        {
+        //            sendBufferQueue.Enqueue(message.Clip((uint)offset, (uint)size));
+        //        }
+        //        else
+        //        {
+        //            asyncSending = true;
+        //            ssl.WriteAsync(message, offset, size).ContinueWith(DataSent);
+        //        }
+        //    }
+        //}
+
+
+
+        //private void DataReceived(Task<int> task)
+        //{
+        //    try
+        //    {
+        //        if (state == SocketState.Closed || state == SocketState.Terminated)
+        //            return;
+
+        //        if (task.Result <= 0)
+        //        {
+        //            Close();
+        //            return;
+        //        }
+
+        //        receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
+        //        OnReceive?.Invoke(receiveNetworkBuffer);
+        //        if (state == SocketState.Established)
+        //            ssl.ReadAsync(receiveBuffer, 0, receiveBuffer.Length).ContinueWith(DataReceived);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        if (state != SocketState.Closed && !sock.Connected)
+        //        {
+        //            state = SocketState.Terminated;
+        //            Close();
+        //        }
+
+        //        Global.Log("SSLSocket", LogType.Error, ex.ToString());
+        //    }
+        //}
+
+        public bool Begin()
+        {
+            if (began)
+                return false;
+
+            began = true;
+
+            if (state == SocketState.Established)
             {
-                state = SocketState.Terminated;
-                Close();
-                Global.Log(ex);
+                ssl.BeginRead(receiveBuffer, 0, receiveBuffer.Length, ReceiveCallback, this);
+                return true;
             }
+            else
+                return false;
         }
 
-        private void DataReceived(Task<int> task)
+
+        private void ReceiveCallback(IAsyncResult results)
         {
             try
             {
-                // SocketError err;
-
-                if (state == SocketState.Closed || state == SocketState.Terminated)
+                if (state != SocketState.Established)
                     return;
 
-                if (task.Result <= 0)
+                var bytesReceived = ssl.EndRead(results);
+
+                if (bytesReceived <= 0)
                 {
                     Close();
                     return;
                 }
 
+                receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)bytesReceived);
 
-                receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
                 OnReceive?.Invoke(receiveNetworkBuffer);
-                if (state == SocketState.Established)
-                    ssl.ReadAsync(receiveBuffer, 0, receiveBuffer.Length).ContinueWith(DataReceived);
+
+                ssl.BeginRead(receiveBuffer, 0, receiveBuffer.Length, ReceiveCallback, this);
+
             }
             catch (Exception ex)
             {
@@ -286,19 +401,6 @@ namespace Esyur.Net.Sockets
                 Global.Log("SSLSocket", LogType.Error, ex.ToString());
             }
         }
-
-        public bool Begin()
-        {
-            if (state == SocketState.Established)
-            {
-                ssl.ReadAsync(receiveBuffer, 0, receiveBuffer.Length).ContinueWith(DataReceived);
-                return true;
-            }
-            else
-                return false;
-        }
-
-
 
         public bool Trigger(ResourceTrigger trigger)
         {
@@ -313,49 +415,77 @@ namespace Esyur.Net.Sockets
 
         public async AsyncReply<ISocket> AcceptAsync()
         {
-            //var reply = new AsyncReply<ISocket>();
-
             try
             {
-                return new SSLSocket(await sock.AcceptAsync(), cert, true);
-
-                //sock.AcceptAsync().ContinueWith((x) =>
-                //{
-                //    try
-                //    {
-                //        reply.Trigger(new SSLSocket(x.Result, cert, true));
-                //    }
-                //    catch
-                //    {
-                //        reply.Trigger(null);
-                //    }
-
-                //}, null);
-
+                var s = await sock.AcceptAsync();
+                return new SSLSocket(s, cert, true);
             }
             catch
             {
                 state = SocketState.Terminated;
                 return null;
             }
-
-            //return reply;
         }
+        
 
         public void Hold()
         {
-            throw new NotImplementedException();
+            held = true;
         }
 
         public void Unhold()
         {
-            throw new NotImplementedException();
+            try
+            {
+                SendCallback(null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+            finally
+            {
+                held = false;
+            }
         }
+
 
         public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
         {
-            throw new NotImplementedException();
+
+            var msg = message.Clip((uint)offset, (uint)length);
+
+            lock (sendLock)
+            {
+                if (!sock.Connected)
+                    return new AsyncReply<bool>(false);
+
+                var rt = new AsyncReply<bool>();
+
+                if (asyncSending || held)
+                {
+                    sendBufferQueue.Enqueue(new KeyValuePair<AsyncReply<bool>, byte[]>(rt, msg));
+                }
+                else
+                {
+                    asyncSending = true;
+                    try
+                    {
+                        ssl.BeginWrite(msg, 0, msg.Length, SendCallback, rt);// null);
+                    }
+                    catch (Exception ex)
+                    {
+                        rt.TriggerError(ex);
+                        asyncSending = false;
+                        state = SocketState.Terminated;
+                        Close();
+                    }
+                }
+
+                return rt;
+            }
         }
+
 
         public ISocket Accept()
         {

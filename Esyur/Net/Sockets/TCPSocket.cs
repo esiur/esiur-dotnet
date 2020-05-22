@@ -128,20 +128,10 @@ namespace Esyur.Net.Sockets
                     return;
                 }
 
-                //if (receiveNetworkBuffer.Protected)
-                //  Console.WriteLine();
-
-                //lock (receiveNetworkBuffer.SyncLock)
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
-
-                //Console.WriteLine("TC IN: " + (uint)task.Result + " " + DC.ToHex(receiveBuffer, 0, (uint)task.Result));
-
                 OnReceive?.Invoke(receiveNetworkBuffer);
                 if (state == SocketState.Established)
-                {
                     sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
-
-                }
 
             }
             catch (Exception ex)
@@ -175,7 +165,7 @@ namespace Esyur.Net.Sockets
                 OnReceive?.Invoke(receiveNetworkBuffer);
 
                 if (state == SocketState.Established)
-                    while(!sock.ReceiveAsync(e))
+                    while (!sock.ReceiveAsync(e))
                     {
                         if (e.SocketError != SocketError.Success)
                         {
@@ -376,9 +366,10 @@ namespace Esyur.Net.Sockets
                     asyncSending = true;
                     try
                     {
-                        sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, null);
+                        sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, SendCallback, null);
                     }
-                    catch {
+                    catch
+                    {
                         asyncSending = false;
                         state = SocketState.Terminated;
                         Close();
@@ -389,7 +380,7 @@ namespace Esyur.Net.Sockets
 
         }
 
-        private void PacketSent(IAsyncResult ar)
+        private void SendCallback(IAsyncResult ar)
         {
             if (ar != null && ar.AsyncState != null)
                 ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
@@ -402,7 +393,7 @@ namespace Esyur.Net.Sockets
 
                     try
                     {
-                        sock.BeginSend(kv.Value, 0, kv.Value.Length, SocketFlags.None, PacketSent, kv.Key);
+                        sock.BeginSend(kv.Value, 0, kv.Value.Length, SocketFlags.None, SendCallback, kv.Key);
                     }
                     catch (Exception ex)
                     {
@@ -482,7 +473,7 @@ namespace Esyur.Net.Sockets
         {
             try
             {
-                PacketSent(null);
+                SendCallback(null);
             }
             catch (Exception ex)
             {
@@ -515,9 +506,9 @@ namespace Esyur.Net.Sockets
                     asyncSending = true;
                     try
                     {
-                        sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, PacketSent, rt);// null);
+                        sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, SendCallback, rt);// null);
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         rt.TriggerError(ex);
                         asyncSending = false;
