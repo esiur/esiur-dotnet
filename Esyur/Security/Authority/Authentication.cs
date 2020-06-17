@@ -27,16 +27,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static Esyur.Net.Packets.IIPAuthPacket;
 
 namespace Esyur.Security.Authority
 {
     public class Authentication
     {
-         AuthenticationType type;
-         
+        AuthenticationType type;
+
+        public AuthenticationMethod Method { get; set; }
+
+        public ulong TokenIndex { get; set; }
 
         public string Username { get; set; }
-        public Certificate Certificate { get; set; } 
+        public Certificate Certificate { get; set; }
         public string Domain { get; set; }
 
         public string FullName => Username + "@" + Domain;

@@ -42,7 +42,7 @@ namespace Esyur.Net.Sockets
     public delegate void ISocketConnectEvent();
     public delegate void ISocketCloseEvent();
 
-    public interface ISocket: IDestructible
+    public interface ISocket : IDestructible
     {
         SocketState State { get; }
 
@@ -57,6 +57,7 @@ namespace Esyur.Net.Sockets
         void Close();
         AsyncReply<bool> Connect(string hostname, ushort port);
         bool Begin();
+        AsyncReply<bool> BeginAsync();
         //ISocket Accept();
         AsyncReply<ISocket> AcceptAsync();
         ISocket Accept();

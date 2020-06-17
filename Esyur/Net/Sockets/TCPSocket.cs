@@ -65,6 +65,11 @@ namespace Esyur.Net.Sockets
 
         SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
 
+        public async AsyncReply<bool> BeginAsync()
+        {
+            return Begin();
+        }
+
         public bool Begin()
         {
             if (began)
@@ -74,7 +79,7 @@ namespace Esyur.Net.Sockets
 
             socketArgs.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
             socketArgs.Completed += SocketArgs_Completed;
-            
+
             if (!sock.ReceiveAsync(socketArgs))
                 SocketArgs_Completed(null, socketArgs);
 
@@ -176,8 +181,8 @@ namespace Esyur.Net.Sockets
                         if (State != SocketState.Established)
                             return;
 
-                        if (e.BytesTransferred < 0)
-                            Console.WriteLine("BytesTransferred is less than zero");
+                        //if (e.BytesTransferred < 0)
+                        //    Console.WriteLine("BytesTransferred is less than zero");
 
                         if (e.BytesTransferred <= 0)
                         {
@@ -185,8 +190,8 @@ namespace Esyur.Net.Sockets
                             return;
                         }
 
-                        if (e.BytesTransferred > 100000)
-                            Console.WriteLine("BytesTransferred is large " + e.BytesTransferred);
+                        //if (e.BytesTransferred > 100000)
+                        //    Console.WriteLine("BytesTransferred is large " + e.BytesTransferred);
 
                         recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
 
@@ -382,8 +387,24 @@ namespace Esyur.Net.Sockets
 
         private void SendCallback(IAsyncResult ar)
         {
-            if (ar != null && ar.AsyncState != null)
-                ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
+            if (ar != null)
+            {
+                try
+                {
+                    sock.EndSend(ar);
+
+                    if (ar.AsyncState != null)
+                        ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
+                }
+                catch
+                {
+                    if (state != SocketState.Closed && !sock.Connected)
+                    {
+                        state = SocketState.Terminated;
+                        Close();
+                    }
+                }
+            }
 
             lock (sendLock)
             {
@@ -401,7 +422,8 @@ namespace Esyur.Net.Sockets
 
                         try
                         {
-                            kv.Key.Trigger(false);
+                            if (kv.Key != null)
+                                kv.Key.Trigger(false);
 
                             if (state != SocketState.Closed && !sock.Connected)
                             {

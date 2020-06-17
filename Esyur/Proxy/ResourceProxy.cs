@@ -71,10 +71,14 @@ namespace Esyur.Proxy
                 select p;
 
 #endif
-            var assemblyName = new AssemblyName("Esyur.Proxy.T." + type.Namespace);
+            var assemblyName = new AssemblyName("Esyur.Proxy.T." + type.Assembly.GetName().Name);// type.Namespace);
+            assemblyName.Version = type.Assembly.GetName().Version;
+            assemblyName.CultureInfo = type.Assembly.GetName().CultureInfo;
+            //assemblyName.SetPublicKeyToken(null);
+
             var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
             var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name);
-            var typeName = Assembly.CreateQualifiedName(assemblyName.FullName, type.Name);
+            var typeName = "Esyur.Proxy.T." + type.FullName;// Assembly.CreateQualifiedName(assemblyName.FullName, "Esyur.Proxy.T." + type.FullName);
 
             var typeBuilder = moduleBuilder.DefineType(typeName,
                 TypeAttributes.Public | TypeAttributes.Class, type);

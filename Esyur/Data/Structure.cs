@@ -134,6 +134,16 @@ namespace Esyur.Data
           //  return dic.Keys.ToArray();
         //}
         
+        public Structure Add(string key, object value)
+        {
+            if (dic.ContainsKey(key))
+                dic[key] = value;
+            else
+                dic.Add(key, value);
+
+            return this;
+        }
+
         public object this[string index]
         {
             get

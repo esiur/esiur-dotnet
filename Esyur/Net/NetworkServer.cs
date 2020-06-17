@@ -282,7 +282,7 @@ namespace Esyur.Net
             try
             {
 
-                
+
                 if (sock == null)
                 {
                     Console.Write("sock == null");
@@ -295,6 +295,7 @@ namespace Esyur.Net
 
                 c.Assign(sock);
 
+
                 try
                 {
                     ClientConnected(c);
@@ -304,10 +305,10 @@ namespace Esyur.Net
                     // something wrong with the child.
                 }
 
-                
+                sock.Begin();
+
                 // Accept more
                 //listener.Accept().Then(NewConnection);
-                sock.Begin();
 
 
             }

@@ -35,15 +35,19 @@ namespace Esyur.Stores.EntityCore
 {
     public static class EsyurExtensions
     {
-        public static T CreateResource<T>(this DbContext dbContext, object properties = null) where T:class,IResource
-        {
-            return dbContext.GetInfrastructure().CreateResource<T>(properties);
+        //public static T CreateResource<T>(this DbContext dbContext, object properties = null) where T:class,IResource
+        //{
+        //    return dbContext.GetInfrastructure().CreateResource<T>(properties);
 
-        }
+        //}
         
-        public static T CreateResource<T>(this DbSet<T> dbSet, object properties = null) where T:class,IResource
+        public static T AddResource<T>(this DbSet<T> dbSet, object properties = null) where T:class,IResource
         {
-            var resource = dbSet.GetInfrastructure().CreateResource<T>(properties);
+            var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsyurExtensionOptions>().Store;
+
+            //var resource = dbSet.GetInfrastructure().CreateResource<T>(properties);
+            //var resource = Warehouse.New<T>("", options.Store, null, null, null, properties);
+            var resource = Warehouse.New<T>("", null, null, null, null, properties);
             dbSet.Add(resource);
             return resource;
         }

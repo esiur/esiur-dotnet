@@ -37,7 +37,7 @@ namespace Esyur.Stores.EntityCore
     public class EntityResource : IResource
     {
         [NotMapped]
-        internal int _PrimaryId;
+        internal object _PrimaryId;
 
         public event DestroyedEvent OnDestroy;
         public event PropertyChangedEventHandler PropertyChanged;

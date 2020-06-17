@@ -45,7 +45,7 @@ namespace Esyur.Stores.EntityCore
 
         public event DestroyedEvent OnDestroy;
 
-        Dictionary<Type, Dictionary<int, WeakReference>> DB = new Dictionary<Type, Dictionary<int, WeakReference>>();
+        Dictionary<Type, Dictionary<object, WeakReference>> DB = new Dictionary<Type, Dictionary<object, WeakReference>>();
 
         internal struct TypeInfo
         {
@@ -203,7 +203,7 @@ namespace Esyur.Stores.EntityCore
                     TypesByName.Add(t.ClrType.Name, ti);
                     TypesByType.Add(t.ClrType, ti);
 
-                    DB.Add(t.ClrType, new Dictionary<int, WeakReference>());
+                    DB.Add(t.ClrType, new Dictionary<object, WeakReference>());
                 }
 
             }

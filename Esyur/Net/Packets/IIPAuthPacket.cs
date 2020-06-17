@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 using Esyur.Data;
+using Esyur.Security.Authority;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -34,7 +35,7 @@ namespace Esyur.Net.Packets
 {
     class IIPAuthPacket : Packet
     {
-        public enum IIPAuthPacketCommand: byte
+        public enum IIPAuthPacketCommand : byte
         {
             Action = 0,
             Declare,
@@ -42,7 +43,7 @@ namespace Esyur.Net.Packets
             Error,
         }
 
-        public enum IIPAuthPacketAction: byte
+        public enum IIPAuthPacketAction : byte
         {
             // Authenticate
             AuthenticateHash,
@@ -61,13 +62,6 @@ namespace Esyur.Net.Packets
         }
 
 
-        public enum IIPAuthPacketMethod: byte
-        {
-            None,
-            Certificate,
-            Credentials,
-            Token
-        }
 
 
         public IIPAuthPacketCommand Command
@@ -84,7 +78,7 @@ namespace Esyur.Net.Packets
         public byte ErrorCode { get; set; }
         public string ErrorMessage { get; set; }
 
-        public IIPAuthPacketMethod LocalMethod
+        public AuthenticationMethod LocalMethod
         {
             get;
             set;
@@ -108,7 +102,7 @@ namespace Esyur.Net.Packets
             set;
         }
 
-        public IIPAuthPacketMethod RemoteMethod
+        public AuthenticationMethod RemoteMethod
         {
             get;
             set;
@@ -122,7 +116,7 @@ namespace Esyur.Net.Packets
 
         public long CertificateId
         {
-            get;set;
+            get; set;
         }
 
         public string LocalUsername
@@ -178,6 +172,8 @@ namespace Esyur.Net.Packets
             set;
         }
 
+        public ulong RemoteTokenIndex { get; set; }
+
         private uint dataLengthNeeded;
 
         bool NotEnough(uint offset, uint ends, uint needed)
@@ -193,7 +189,7 @@ namespace Esyur.Net.Packets
 
         public override string ToString()
         {
-            return Command.ToString() + " " + Action.ToString(); 
+            return Command.ToString() + " " + Action.ToString();
         }
 
         public override long Parse(byte[] data, uint offset, uint ends)
@@ -260,8 +256,8 @@ namespace Esyur.Net.Packets
             }
             else if (Command == IIPAuthPacketCommand.Declare)
             {
-                RemoteMethod = (IIPAuthPacketMethod)((data[offset] >> 4) & 0x3);
-                LocalMethod = (IIPAuthPacketMethod)((data[offset] >> 2) & 0x3);
+                RemoteMethod = (AuthenticationMethod)((data[offset] >> 4) & 0x3);
+                LocalMethod = (AuthenticationMethod)((data[offset] >> 2) & 0x3);
                 var encrypt = ((data[offset++] & 0x2) == 0x2);
 
 
@@ -277,11 +273,11 @@ namespace Esyur.Net.Packets
                 Domain = domain;
 
                 offset += domainLength;
-           
 
-                if (RemoteMethod == IIPAuthPacketMethod.Credentials)
+
+                if (RemoteMethod == AuthenticationMethod.Credentials)
                 {
-                    if (LocalMethod == IIPAuthPacketMethod.None)
+                    if (LocalMethod == AuthenticationMethod.None)
                     {
                         if (NotEnough(offset, ends, 33))
                             return -dataLengthNeeded;
@@ -293,16 +289,31 @@ namespace Esyur.Net.Packets
                         RemoteNonce = data.Clip(offset, 32);
 
                         offset += 32;
-                        
+
                         var length = data[offset++];
 
                         if (NotEnough(offset, ends, length))
                             return -dataLengthNeeded;
 
-                         RemoteUsername = data.GetString(offset, length);
+                        RemoteUsername = data.GetString(offset, length);
 
-                         
+
                         offset += length;
+                    }
+                }
+                else if (RemoteMethod == AuthenticationMethod.Token)
+                {
+                    if (LocalMethod == AuthenticationMethod.None)
+                    {
+                        if (NotEnough(offset, ends, 37))
+                            return -dataLengthNeeded;
+
+                        RemoteNonce = data.Clip(offset, 32);
+
+                        offset += 32;
+
+                        RemoteTokenIndex = data.GetUInt64(offset);
+                        offset += 8;
                     }
                 }
 
@@ -329,31 +340,26 @@ namespace Esyur.Net.Packets
             }
             else if (Command == IIPAuthPacketCommand.Acknowledge)
             {
-                RemoteMethod  = (IIPAuthPacketMethod)((data[offset] >> 4) & 0x3);
-                LocalMethod = (IIPAuthPacketMethod)((data[offset] >> 2) & 0x3);
+                RemoteMethod = (AuthenticationMethod)((data[offset] >> 4) & 0x3);
+                LocalMethod = (AuthenticationMethod)((data[offset] >> 2) & 0x3);
                 var encrypt = ((data[offset++] & 0x2) == 0x2);
 
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
- 
-    
-                if (RemoteMethod == IIPAuthPacketMethod.Credentials)
+
+
+                if (RemoteMethod == AuthenticationMethod.Credentials
+                    || RemoteMethod == AuthenticationMethod.Token)
                 {
-                    if (LocalMethod == IIPAuthPacketMethod.None)
+                    if (LocalMethod == AuthenticationMethod.None)
                     {
                         if (NotEnough(offset, ends, 32))
                             return -dataLengthNeeded;
 
-                        /*
-                        var remoteNonce = new byte[32];
-                        Buffer.BlockCopy(data, (int)offset, remoteNonce, 0, 32);
-                        RemoteNonce = remoteNonce;
-                        */
-
                         RemoteNonce = data.Clip(offset, 32);
                         offset += 32;
 
-                     }
+                    }
                 }
 
                 if (encrypt)
@@ -385,7 +391,7 @@ namespace Esyur.Net.Packets
                 offset++;
                 ErrorCode = data[offset++];
 
- 
+
                 var cl = data.GetUInt16(offset);
                 offset += 2;
 
@@ -403,4 +409,4 @@ namespace Esyur.Net.Packets
         }
 
     }
- }
+}

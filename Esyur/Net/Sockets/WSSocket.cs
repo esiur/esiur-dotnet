@@ -322,5 +322,10 @@ namespace Esyur.Net.Sockets
         {
             throw new NotImplementedException();
         }
+
+        public AsyncReply<bool> BeginAsync()
+        {
+            return sock.BeginAsync();
+        }
     }
 }

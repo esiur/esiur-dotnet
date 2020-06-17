@@ -97,6 +97,10 @@ namespace Esyur.Data
                         {
                             return Structure.FromStructure((Structure)value, destinationType);
                         }
+                        else if (destinationType.IsEnum)
+                        {
+                            return Enum.ToObject(destinationType, value);
+                        }
                         else
                         {
                             return Convert.ChangeType(value, destinationType);

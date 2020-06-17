@@ -76,21 +76,19 @@ namespace Esyur.Net.Sockets
         {
             var rt = new AsyncReply<bool>();
 
+            this.hostname = hostname;
+            this.server = false;
+
             state = SocketState.Connecting;
             await sock.ConnectAsync(hostname, port);
 
-            if (server)
-                await ssl.AuthenticateAsServerAsync(cert);
-            else
-                await ssl.AuthenticateAsClientAsync(hostname);
 
             try
             {
+                await BeginAsync();
                 state = SocketState.Established;
                 OnConnect?.Invoke();
 
-                if (!server)
-                    Begin();
             }
             catch (Exception ex)
             {
@@ -135,11 +133,28 @@ namespace Esyur.Net.Sockets
 
         private void SendCallback(IAsyncResult ar)
         {
-            if (ar != null && ar.AsyncState != null)
-                ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
+            if (ar != null)
+            {
+                try
+                {
+                    ssl.EndWrite(ar);
+
+                    if (ar.AsyncState != null)
+                        ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
+                }
+                catch
+                {
+                    if (state != SocketState.Closed && !sock.Connected)
+                    {
+                        state = SocketState.Terminated;
+                        Close();
+                    }
+                }
+            }
 
             lock (sendLock)
             {
+
                 if (sendBufferQueue.Count > 0)
                 {
                     var kv = sendBufferQueue.Dequeue();
@@ -151,10 +166,10 @@ namespace Esyur.Net.Sockets
                     catch (Exception ex)
                     {
                         asyncSending = false;
-
                         try
                         {
-                            kv.Key.Trigger(false);
+                            if (kv.Key != null)
+                                kv.Key.Trigger(false);
 
                             if (state != SocketState.Closed && !sock.Connected)
                             {
@@ -167,7 +182,7 @@ namespace Esyur.Net.Sockets
                             state = SocketState.Terminated;
                         }
 
-                        Global.Log("TCPSocket", LogType.Error, ex.ToString());
+                        //Global.Log("TCPSocket", LogType.Error, ex.ToString());
                     }
                 }
                 else
@@ -223,39 +238,41 @@ namespace Esyur.Net.Sockets
 
 
 
-        public SSLSocket(Socket Socket, X509Certificate2 certificate, bool authenticateAsServer)
+        public SSLSocket(Socket socket, X509Certificate2 certificate, bool authenticateAsServer)
         {
             cert = certificate;
-            sock = Socket;
+            sock = socket;
             receiveBuffer = new byte[sock.ReceiveBufferSize];
 
             ssl = new SslStream(new NetworkStream(sock));
 
             server = authenticateAsServer;
 
+            if (socket.Connected)
+                state = SocketState.Established;
         }
 
 
         public void Close()
         {
             if (state != SocketState.Closed && state != SocketState.Terminated)
+            {
                 state = SocketState.Closed;
 
-            if (sock.Connected)
-            {
-                try
+                if (sock.Connected)
                 {
-                    sock.Shutdown(SocketShutdown.Both);
+                    try
+                    {
+                        sock.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    {
+                        state = SocketState.Terminated;
+                    }
                 }
-                catch
-                {
-                    state = SocketState.Terminated;
-                }
+
+                OnClose?.Invoke();
             }
-
-            sock.Shutdown(SocketShutdown.Both);
-
-            OnClose?.Invoke();
         }
 
 
@@ -351,12 +368,18 @@ namespace Esyur.Net.Sockets
         //    }
         //}
 
+
         public bool Begin()
         {
             if (began)
                 return false;
 
             began = true;
+
+            if (server)
+                ssl.AuthenticateAsServer(cert);
+            else
+                ssl.AuthenticateAsClient(hostname);
 
             if (state == SocketState.Established)
             {
@@ -367,6 +390,26 @@ namespace Esyur.Net.Sockets
                 return false;
         }
 
+        public async AsyncReply<bool> BeginAsync()
+        {
+            if (began)
+                return false;
+
+            began = true;
+
+            if (server)
+                await ssl.AuthenticateAsServerAsync(cert);
+            else
+                await ssl.AuthenticateAsClientAsync(hostname);
+
+            if (state == SocketState.Established)
+            {
+                ssl.BeginRead(receiveBuffer, 0, receiveBuffer.Length, ReceiveCallback, this);
+                return true;
+            }
+            else
+                return false;
+        }
 
         private void ReceiveCallback(IAsyncResult results)
         {
@@ -398,7 +441,7 @@ namespace Esyur.Net.Sockets
                     Close();
                 }
 
-                Global.Log("SSLSocket", LogType.Error, ex.ToString());
+                //Global.Log("SSLSocket", LogType.Error, ex.ToString());
             }
         }
 
@@ -426,7 +469,7 @@ namespace Esyur.Net.Sockets
                 return null;
             }
         }
-        
+
 
         public void Hold()
         {
@@ -441,7 +484,7 @@ namespace Esyur.Net.Sockets
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
+                Global.Log(ex);
             }
             finally
             {

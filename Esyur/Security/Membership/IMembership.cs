@@ -35,40 +35,14 @@ using Esyur.Resource;
 
 namespace Esyur.Security.Membership
 {
-    public interface IMembership:IResource
+    public interface IMembership : IResource
     {
-        //IUser[] GetUsers(QueryFilter<string> user);
-
-        //bool AddCertificate(Certificate certificate);
-
-        //CACertificate[] GetCACertificates(string authority);
-        //UserCertificate[] GetUserCertificate(string user, string domain);
-        //DomainCertificate[] GetDomainCertificates(string domain);
-
-
         AsyncReply<bool> UserExists(string username, string domain);
         AsyncReply<byte[]> GetPassword(string username, string domain);
+        AsyncReply<byte[]> GetToken(ulong TokenIndex, string domain);
         AsyncReply<bool> Login(Session session);
         AsyncReply<bool> Logout(Session session);
 
-        //ClientAuthentication Authenticate(string username, byte[] credentials, int flag);
-        //HostAuthentication Authenticate(DomainCertificate domainCertificate);
-        //CoHostAuthentication Authenticate(DomainCertificate hostCertificate, int hostId);
-
-        /*
-        object GetUserInfo(User user, string field);
-        object[] GetUserInfo(User user, string[] fields);
-
-        bool SetUserInfo(User user, string field, object value);
-        bool SetUserInfo(User user, KeyList<string, object> info);
-        */
-
-        //bool AddUser(User user, KeyList<string, object> info);
-        //bool RemoveUser(string username);
-
-
-
-
-
+        AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
     }
 }
