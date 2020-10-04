@@ -103,44 +103,67 @@ namespace Esyur.Net.IIP
 
 
 
-        protected override void DataReceived(DistributedConnection sender, NetworkBuffer data)
-        {
-            //throw new NotImplementedException();
+        //protected override void DataReceived(DistributedConnection sender, NetworkBuffer data)
+        //{
+        //    //throw new NotImplementedException();
  
+        //}
+
+ 
+
+        //protected override void ClientConnected(DistributedConnection sender)
+        //{
+        //    //Console.WriteLine("DistributedConnection Client Connected");
+        //}
+
+        //private void ConnectionReadyEventReceiver(DistributedConnection sender)
+        //{
+        //    sender.OnReady -= ConnectionReadyEventReceiver;
+        //    Warehouse.Put(sender, sender.LocalUsername, null, this);
+        //}
+
+        
+        //public override void RemoveConnection(DistributedConnection connection)
+        //{
+        //    connection.OnReady -= Sender_OnReady;
+        //    //connection.Server = null;
+        //    base.RemoveConnection(connection);
+        //}
+
+        //public override void AddConnection(DistributedConnection connection)
+        //{
+        //    connection.OnReady += Sender_OnReady;
+        //    connection.Server = this;
+        //    base.AddConnection(connection);
+        //}
+
+
+
+        protected override void ClientConnected(DistributedConnection connection)
+        {
+            //connection.OnReady += ConnectionReadyEventReceiver;
         }
 
-        private void SessionModified(DistributedConnection session, string key, object newValue)
+        public override void Add(DistributedConnection connection)
         {
-
-        }
-
-        protected override void ClientConnected(DistributedConnection sender)
-        {
-            //Console.WriteLine("DistributedConnection Client Connected");
-        }
-
-        private void Sender_OnReady(DistributedConnection sender)
-        {
-            Warehouse.Put(sender, sender.LocalUsername, null, this);
-        }
-
-        public override void RemoveConnection(DistributedConnection connection)
-        {
-            connection.OnReady -= Sender_OnReady;
-            //connection.Server = null;
-            base.RemoveConnection(connection);
-        }
-
-        public override void AddConnection(DistributedConnection connection)
-        {
-            connection.OnReady += Sender_OnReady;
             connection.Server = this;
-            base.AddConnection(connection);
+            base.Add(connection);
         }
 
-        protected override void ClientDisconnected(DistributedConnection sender)
+        public override void Remove(DistributedConnection connection)
         {
-            Warehouse.Remove(sender);
+            connection.Server = null;
+            base.Remove(connection);
         }
+
+        protected override void ClientDisconnected(DistributedConnection connection)
+        {
+            //connection.OnReady -= ConnectionReadyEventReceiver;
+            //Warehouse.Remove(connection);
+
+
+        }
+
+        
     }
 }

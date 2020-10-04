@@ -101,11 +101,7 @@ namespace Esyur.Net.IIP
         /// <summary>
         /// Distributed server responsible for this connection, usually for incoming connections.
         /// </summary>
-        public DistributedServer Server
-        {
-            get;
-            set;
-        }
+        public DistributedServer Server { get; internal set; }
 
         public bool Remove(IResource resource)
         {
@@ -193,7 +189,7 @@ namespace Esyur.Net.IIP
         /// Assign a socket to the connection.
         /// </summary>
         /// <param name="socket">Any socket that implements ISocket.</param>
-        public override void Assign(ISocket socket)
+        public override void Assign(Sockets.ISocket socket)
         {
             base.Assign(socket);
 
@@ -202,39 +198,22 @@ namespace Esyur.Net.IIP
             session.LocalAuthentication.Source.Attributes[SourceAttributeType.IPv4] = socket.LocalEndPoint.Address;
             session.LocalAuthentication.Source.Attributes[SourceAttributeType.Port] = socket.LocalEndPoint.Port;
 
-            if (session.LocalAuthentication.Type == AuthenticationType.Client)
+            if (socket.State == SocketState.Established &&
+                session.LocalAuthentication.Type == AuthenticationType.Client)
             {
                 // declare (Credentials -> No Auth, No Enctypt)
 
                 var un = DC.ToBytes(session.LocalAuthentication.Username);
                 var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
 
-                if (socket.State == SocketState.Established)
-                {
-                    SendParams()
-                        .AddUInt8(0x60)
-                        .AddUInt8((byte)dmn.Length)
-                        .AddUInt8Array(dmn)
-                        .AddUInt8Array(localNonce)
-                        .AddUInt8((byte)un.Length)
-                        .AddUInt8Array(un)
-                        .Done();//, dmn, localNonce, (byte)un.Length, un);
-                }
-                else
-                {
-                    socket.OnConnect += () =>
-                    {   // declare (Credentials -> No Auth, No Enctypt)
-                        //SendParams((byte)0x60, (byte)dmn.Length, dmn, localNonce, (byte)un.Length, un);
-                        SendParams()
-                       .AddUInt8(0x60)
-                       .AddUInt8((byte)dmn.Length)
-                       .AddUInt8Array(dmn)
-                       .AddUInt8Array(localNonce)
-                       .AddUInt8((byte)un.Length)
-                       .AddUInt8Array(un)
-                       .Done();
-                    };
-                }
+                SendParams()
+                    .AddUInt8(0x60)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt8((byte)un.Length)
+                    .AddUInt8Array(un)
+                    .Done();//, dmn, localNonce, (byte)un.Length, un);
             }
         }
 
@@ -246,7 +225,7 @@ namespace Esyur.Net.IIP
         /// <param name="domain">Working domain.</param>
         /// <param name="username">Username.</param>
         /// <param name="password">Password.</param>
-        public DistributedConnection(ISocket socket, string domain, string username, string password)
+        public DistributedConnection(Sockets.ISocket socket, string domain, string username, string password)
         {
             this.session = new Session(new ClientAuthentication()
                                         , new HostAuthentication());
@@ -264,7 +243,7 @@ namespace Esyur.Net.IIP
             Assign(socket);
         }
 
-        public DistributedConnection(ISocket socket, string domain, ulong tokenIndex, string token)
+        public DistributedConnection(Sockets.ISocket socket, string domain, ulong tokenIndex, string token)
         {
             this.session = new Session(new ClientAuthentication()
                                         , new HostAuthentication());
@@ -327,6 +306,12 @@ namespace Esyur.Net.IIP
             r.NextBytes(localNonce);
         }
 
+        public override void Destroy()
+        {
+            this.OnReady = null;
+            this.OnError = null;
+            base.Destroy();
+        }
 
 
         private uint processPacket(byte[] msg, uint offset, uint ends, NetworkBuffer data, int chunkId)
@@ -620,55 +605,78 @@ namespace Esyur.Net.IIP
 
                             if (authPacket.RemoteMethod == AuthenticationMethod.Credentials && authPacket.LocalMethod == AuthenticationMethod.None)
                             {
-                                Server.Membership.UserExists(authPacket.RemoteUsername, authPacket.Domain).Then(x =>
+                                try
                                 {
-                                    if (x)
+                                    Server.Membership.UserExists(authPacket.RemoteUsername, authPacket.Domain).Then(x =>
                                     {
-                                        session.RemoteAuthentication.Username = authPacket.RemoteUsername;
-                                        remoteNonce = authPacket.RemoteNonce;
-                                        session.RemoteAuthentication.Domain = authPacket.Domain;
-                                        SendParams()
-                                                    .AddUInt8(0xa0)
-                                                    .AddUInt8Array(localNonce)
-                                                    .Done();
-                                        //SendParams((byte)0xa0, localNonce);
-                                    }
-                                    else
-                                    {
-                                        //Console.WriteLine("User not found");
-                                        SendParams().AddUInt8(0xc0)
-                                                    .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                    .AddUInt16(14)
-                                                    .AddString("User not found").Done();
-                                    }
-                                });
+                                        if (x)
+                                        {
+                                            session.RemoteAuthentication.Username = authPacket.RemoteUsername;
+                                            remoteNonce = authPacket.RemoteNonce;
+                                            session.RemoteAuthentication.Domain = authPacket.Domain;
+                                            SendParams()
+                                                        .AddUInt8(0xa0)
+                                                        .AddUInt8Array(localNonce)
+                                                        .Done();
+                                            //SendParams((byte)0xa0, localNonce);
+                                        }
+                                        else
+                                        {
+                                            //Console.WriteLine("User not found");
+                                            SendParams().AddUInt8(0xc0)
+                                                            .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                                            .AddUInt16(14)
+                                                            .AddString("User not found").Done();
+                                        }
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    var errMsg = DC.ToBytes(ex.Message);
 
+                                    SendParams().AddUInt8(0xc0)
+                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                                        .AddUInt16((ushort)errMsg.Length)
+                                        .AddUInt8Array(errMsg).Done();
+                                }
                             }
                             else if (authPacket.RemoteMethod == AuthenticationMethod.Token && authPacket.LocalMethod == AuthenticationMethod.None)
                             {
-                                // Check if user and token exists
-                                Server.Membership.TokenExists(authPacket.RemoteTokenIndex, authPacket.Domain).Then(x =>
+                                try
                                 {
-                                    if (x != null)
+                                    // Check if user and token exists
+                                    Server.Membership.TokenExists(authPacket.RemoteTokenIndex, authPacket.Domain).Then(x =>
                                     {
-                                        session.RemoteAuthentication.Username = x;
-                                        session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
-                                        remoteNonce = authPacket.RemoteNonce;
-                                        session.RemoteAuthentication.Domain = authPacket.Domain;
-                                        SendParams()
-                                                    .AddUInt8(0xa0)
-                                                    .AddUInt8Array(localNonce)
-                                                    .Done();
-                                    }
-                                    else
-                                    {
-                                        //Console.WriteLine("User not found");
-                                        SendParams().AddUInt8(0xc0)
-                                                    .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                    .AddUInt16(15)
-                                                    .AddString("Token not found").Done();
-                                    }
-                                });
+                                        if (x != null)
+                                        {
+                                            session.RemoteAuthentication.Username = x;
+                                            session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
+                                            remoteNonce = authPacket.RemoteNonce;
+                                            session.RemoteAuthentication.Domain = authPacket.Domain;
+                                            SendParams()
+                                                        .AddUInt8(0xa0)
+                                                        .AddUInt8Array(localNonce)
+                                                        .Done();
+                                        }
+                                        else
+                                        {
+                                            //Console.WriteLine("User not found");
+                                            SendParams().AddUInt8(0xc0)
+                                                            .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                                            .AddUInt16(15)
+                                                            .AddString("Token not found").Done();
+                                        }
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    var errMsg = DC.ToBytes(ex.Message);
+
+                                    SendParams().AddUInt8(0xc0)
+                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                                        .AddUInt16((ushort)errMsg.Length)
+                                        .AddUInt8Array(errMsg).Done();
+                                }
                             }
                         }
                         else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
@@ -678,54 +686,66 @@ namespace Esyur.Net.IIP
                                 var remoteHash = authPacket.Hash;
                                 AsyncReply<byte[]> reply = null;
 
-                                if (session.RemoteAuthentication.Method == AuthenticationMethod.Credentials)
+                                try
                                 {
-                                    reply = Server.Membership.GetPassword(session.RemoteAuthentication.Username,
-                                                                  session.RemoteAuthentication.Domain);
-                                }
-                                else if (session.RemoteAuthentication.Method == AuthenticationMethod.Token)
-                                {
-                                    reply = Server.Membership.GetToken(session.RemoteAuthentication.TokenIndex,
-                                                                  session.RemoteAuthentication.Domain);
-                                }
-                                else
-                                {
-                                    // Error
-                                }
-
-                                reply.Then((pw) =>
-                                {
-                                    if (pw != null)
+                                    if (session.RemoteAuthentication.Method == AuthenticationMethod.Credentials)
                                     {
-                                        var hashFunc = SHA256.Create();
-                                        //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
-                                        var hash = hashFunc.ComputeHash((new BinaryList())
-                                                                            .AddUInt8Array(pw)
-                                                                            .AddUInt8Array(remoteNonce)
-                                                                            .AddUInt8Array(localNonce)
-                                                                            .ToArray());
-                                        if (hash.SequenceEqual(remoteHash))
-                                        {
-                                            // send our hash
-                                            //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
-                                            //SendParams((byte)0, localHash);
-
-                                            var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
-                                            SendParams().AddUInt8(0).AddUInt8Array(localHash).Done();
-
-                                            readyToEstablish = true;
-                                        }
-                                        else
-                                        {
-                                            //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
-                                            SendParams().AddUInt8(0xc0)
-                                                            .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                                            .AddUInt16(13)
-                                                            .AddString("Access Denied")
-                                                            .Done();
-                                        }
+                                        reply = Server.Membership.GetPassword(session.RemoteAuthentication.Username,
+                                                                      session.RemoteAuthentication.Domain);
                                     }
-                                });
+                                    else if (session.RemoteAuthentication.Method == AuthenticationMethod.Token)
+                                    {
+                                        reply = Server.Membership.GetToken(session.RemoteAuthentication.TokenIndex,
+                                                                      session.RemoteAuthentication.Domain);
+                                    }
+                                    else
+                                    {
+                                        // Error
+                                    }
+
+                                    reply.Then((pw) =>
+                                    {
+                                        if (pw != null)
+                                        {
+                                            var hashFunc = SHA256.Create();
+                                            //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
+                                            var hash = hashFunc.ComputeHash((new BinaryList())
+                                                                                    .AddUInt8Array(pw)
+                                                                                    .AddUInt8Array(remoteNonce)
+                                                                                    .AddUInt8Array(localNonce)
+                                                                                    .ToArray());
+                                            if (hash.SequenceEqual(remoteHash))
+                                            {
+                                                // send our hash
+                                                //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
+                                                //SendParams((byte)0, localHash);
+
+                                                var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
+                                                SendParams().AddUInt8(0).AddUInt8Array(localHash).Done();
+
+                                                readyToEstablish = true;
+                                            }
+                                            else
+                                            {
+                                                //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
+                                                SendParams().AddUInt8(0xc0)
+                                                                    .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                                                    .AddUInt16(13)
+                                                                    .AddString("Access Denied")
+                                                                    .Done();
+                                            }
+                                        }
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    var errMsg = DC.ToBytes(ex.Message);
+
+                                    SendParams().AddUInt8(0xc0)
+                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                                        .AddUInt16((ushort)errMsg.Length)
+                                        .AddUInt8Array(errMsg).Done();
+                                }
                             }
                             else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.NewConnection)
                             {
@@ -741,9 +761,12 @@ namespace Esyur.Net.IIP
                                         .Done();
 
                                     ready = true;
+                                    Warehouse.Put(this, this.LocalUsername, null, Server);
+
                                     openReply?.Trigger(true);
                                     OnReady?.Invoke(this);
-                                    Server.Membership.Login(session);
+
+                                    Server?.Membership.Login(session);
 
                                     //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
 
@@ -813,6 +836,9 @@ namespace Esyur.Net.IIP
                                 session.Id = authPacket.SessionId;
 
                                 ready = true;
+                                // put it in the warehouse
+                                Warehouse.Put(this, this.LocalUsername, null, Server);
+
                                 openReply?.Trigger(true);
                                 OnReady?.Invoke(this);
 
@@ -925,7 +951,7 @@ namespace Esyur.Net.IIP
         }
 
 
-        protected override void ConnectionClosed()
+        protected void NetworkClose()
         {
             // clean up
             ready = false;
@@ -948,7 +974,7 @@ namespace Esyur.Net.IIP
                 x.Suspend();
         }
 
-        public AsyncReply<bool> Connect(AuthenticationMethod method = AuthenticationMethod.Certificate, ISocket socket = null, string hostname = null, ushort port = 0, string username = null, ulong tokenIndex = 0, byte[] passwordOrToken = null, string domain = null)
+        public AsyncReply<bool> Connect(AuthenticationMethod method = AuthenticationMethod.Certificate, Sockets.ISocket socket = null, string hostname = null, ushort port = 0, string username = null, ulong tokenIndex = 0, byte[] passwordOrToken = null, string domain = null)
         {
             if (openReply != null)
                 throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
@@ -1091,6 +1117,37 @@ namespace Esyur.Net.IIP
             //  return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
 
             return null;
+        }
+
+
+        protected override void Connected()
+        {
+            if (session.LocalAuthentication.Type == AuthenticationType.Client)
+            {
+                // declare (Credentials -> No Auth, No Enctypt)
+
+                var un = DC.ToBytes(session.LocalAuthentication.Username);
+                var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
+
+                SendParams()
+                    .AddUInt8(0x60)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt8((byte)un.Length)
+                    .AddUInt8Array(un)
+                    .Done();
+            }
+        }
+
+        protected override void Disconencted()
+        {
+            if (ready)
+            {
+                Server?.Membership.Logout(session);
+                Warehouse.Remove(this);
+                ready = false;
+            }
         }
 
         /*

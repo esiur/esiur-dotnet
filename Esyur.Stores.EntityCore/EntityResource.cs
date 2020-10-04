@@ -36,8 +36,8 @@ namespace Esyur.Stores.EntityCore
 {
     public class EntityResource : IResource
     {
-        [NotMapped]
-        internal object _PrimaryId;
+        //[NotMapped]
+        //internal object _PrimaryId;
 
         public event DestroyedEvent OnDestroy;
         public event PropertyChangedEventHandler PropertyChanged;
@@ -49,7 +49,7 @@ namespace Esyur.Stores.EntityCore
         {
 
         }
- 
+
 
         protected virtual void Create()
         {
@@ -69,6 +69,6 @@ namespace Esyur.Stores.EntityCore
             //throw new NotImplementedException();
         }
 
-    
+
     }
 }

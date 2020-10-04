@@ -897,7 +897,9 @@ namespace Esyur.Resource
                 //if (evt.EventHandlerType != typeof(ResourceEventHanlder))
                 //    continue;
 
-                
+                if (evt.Info == null)
+                    continue;
+
                 if (evt.Info.EventHandlerType == typeof(ResourceEventHanlder))
                 {
 

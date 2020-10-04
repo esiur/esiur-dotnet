@@ -25,7 +25,7 @@ SOFTWARE.
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
-using Microsoft.EntityFrameworkCore.Proxies.Internal;
+//using Microsoft.EntityFrameworkCore.Proxies.Internal;
 using System;
 using System.Collections.Generic;
 using System.Text;

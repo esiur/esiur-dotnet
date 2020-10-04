@@ -30,7 +30,6 @@ using System.Text;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Internal;
 using Microsoft.EntityFrameworkCore.Utilities;
-using Microsoft.EntityFrameworkCore.Proxies.Internal;
 using System.Linq;
 using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
@@ -60,7 +59,7 @@ namespace Esyur.Stores.EntityCore
 
         public void ApplyServices(IServiceCollection services)
         {
-            services.AddEntityFrameworkProxies();
+           // services.AddEntityFrameworkProxies();
 
             new EntityFrameworkServicesBuilder(services)
                 .TryAdd<IConventionSetPlugin, EsyurPlugin>();

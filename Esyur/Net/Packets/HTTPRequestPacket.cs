@@ -240,7 +240,7 @@ namespace Esyur.Net.Packets
 
                     // check limit
                     if (postSize > data.Length - headerSize)
-                        return postSize - (data.Length - headerSize);
+                        return -(postSize - (data.Length - headerSize));
                     
 
                     if (Headers["content-type"].StartsWith("application/x-www-form-urlencoded")

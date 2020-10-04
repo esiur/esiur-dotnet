@@ -103,15 +103,19 @@ namespace Esyur.Net.TCP
 
 
 
-        protected override void DataReceived(TCPConnection sender, NetworkBuffer data)
+
+
+        internal bool Execute(TCPConnection sender, NetworkBuffer data)
         {
             var msg = data.Read();
 
             foreach (var filter in filters)
             {
                 if (filter.Execute(msg, data, sender))
-                    return;
+                    return true;
             }
+
+            return false;
         }
 
         private void SessionModified(TCPConnection session, string key, object newValue)
@@ -119,22 +123,34 @@ namespace Esyur.Net.TCP
 
         }
 
-        protected override void ClientConnected(TCPConnection sender)
+        protected override void ClientDisconnected(TCPConnection connection)
         {
+            
             foreach (var filter in filters)
             {
-                filter.Connected(sender);
+                filter.Connected(connection);
             }
         }
 
-        protected override void ClientDisconnected(TCPConnection sender)
+        public override void Add(TCPConnection connection)
+        {
+            connection.Server = this;
+            base.Add(connection);
+        }
+
+        public override void Remove(TCPConnection connection)
+        {
+            connection.Server = null;
+            base.Remove(connection);
+        }
+
+        protected override void ClientConnected(TCPConnection connection)
         {
             foreach (var filter in filters)
             {
-                filter.Disconnected(sender);
+                filter.Disconnected(connection);
             }
         }
 
-
-    }
+     }
 }

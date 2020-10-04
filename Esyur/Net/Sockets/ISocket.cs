@@ -38,17 +38,19 @@ using Esyur.Core;
 
 namespace Esyur.Net.Sockets
 {
-    public delegate void ISocketReceiveEvent(NetworkBuffer buffer);
-    public delegate void ISocketConnectEvent();
-    public delegate void ISocketCloseEvent();
+    //public delegate void ISocketReceiveEvent(NetworkBuffer buffer);
+    //public delegate void ISocketConnectEvent();
+    //public delegate void ISocketCloseEvent();
 
     public interface ISocket : IDestructible
     {
         SocketState State { get; }
 
-        event ISocketReceiveEvent OnReceive;
-        event ISocketConnectEvent OnConnect;
-        event ISocketCloseEvent OnClose;
+        //event ISocketReceiveEvent OnReceive;
+        //event ISocketConnectEvent OnConnect;
+        //event ISocketCloseEvent OnClose;
+
+        INetworkReceiver<ISocket> Receiver { get; set; }
 
         AsyncReply<bool> SendAsync(byte[] message, int offset, int length);
 

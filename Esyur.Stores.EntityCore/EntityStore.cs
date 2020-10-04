@@ -29,9 +29,6 @@ using Esyur.Resource.Template;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
-using System.Text;
-using Microsoft.EntityFrameworkCore.Proxies;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Esyur.Proxy;
 using System.Linq;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -65,7 +62,8 @@ namespace Esyur.Stores.EntityCore
         {
             var p = path.Split('/');
             var ti = TypesByName[p[0]];
-            var id = Convert.ToInt32(p[1]);
+            var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);// Convert.ToInt32();
+            //Type.cas ti.PrimaryKey.PropertyType.
             return DbContextProvider().Find(ti.Type.ClrType, id) as IResource;
         }
 
@@ -76,7 +74,9 @@ namespace Esyur.Stores.EntityCore
 
             var type = ResourceProxy.GetBaseType(resource);//.GetType().;
 
-            var eid = (resource as EntityResource)._PrimaryId;// (int)resource.Instance.Variables["eid"];
+            //var eid = (resource as EntityResource)._PrimaryId;// (int)resource.Instance.Variables["eid"];
+
+            var eid = TypesByType[type].PrimaryKey.GetValue(resource);
 
             if (DB[type].ContainsKey(eid))
                 DB[type].Remove(eid);
@@ -86,7 +86,7 @@ namespace Esyur.Stores.EntityCore
             return true;
         }
 
-        public IResource GetById(Type type, int id)
+        public IResource GetById(Type type, object id)
         {
             if (!DB[type].ContainsKey(id))
                 return null;
@@ -114,7 +114,7 @@ namespace Esyur.Stores.EntityCore
             var id = TypesByType[type].PrimaryKey.GetValue(resource);
             //DbContext.Model.FindEntityType(type).DisplayName();
 
-            
+
             //            DbContext.Model.FindEntityType(type).DisplayName
             //var entityType = DbContext.Model.FindEntityType(type);
             //var id = entityType.FindPrimaryKey().Properties
@@ -188,27 +188,35 @@ namespace Esyur.Stores.EntityCore
                 if (DbContextProvider == null)
                     DbContextProvider = () => Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
 
-                var context = Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
-
-                var types = context.Model.GetEntityTypes();
-                foreach (var t in types)
-                {
-                    var ti = new TypeInfo()
-                    {
-                        Name = t.ClrType.Name,
-                        PrimaryKey = t.FindPrimaryKey().Properties.FirstOrDefault()?.PropertyInfo,
-                        Type = t
-                    };
-
-                    TypesByName.Add(t.ClrType.Name, ti);
-                    TypesByType.Add(t.ClrType, ti);
-
-                    DB.Add(t.ClrType, new Dictionary<object, WeakReference>());
-                }
-
+                ReloadModel();
             }
 
             return new AsyncReply<bool>(true);
+        }
+
+        public void ReloadModel()
+        {
+            TypesByName.Clear();
+            TypesByType.Clear();
+
+            var context = DbContextProvider();// Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+
+            var types = context.Model.GetEntityTypes();
+            foreach (var t in types)
+            {
+                var ti = new TypeInfo()
+                {
+                    Name = t.ClrType.Name,
+                    PrimaryKey = t.FindPrimaryKey().Properties.FirstOrDefault()?.PropertyInfo,
+                    Type = t
+                };
+
+                TypesByName.Add(t.ClrType.Name, ti);
+                TypesByType.Add(t.ClrType, ti);
+
+                if (!DB.ContainsKey(t.ClrType))
+                    DB.Add(t.ClrType, new Dictionary<object, WeakReference>());
+            }
         }
 
         public void Destroy()

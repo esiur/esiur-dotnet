@@ -34,6 +34,7 @@ namespace Esyur.Core
         MethodNotFound,
         PropertyNotFound,
         SetPropertyDenied,
-        ReadOnlyProperty
+        ReadOnlyProperty,
+        GeneralFailure,
     }
 }

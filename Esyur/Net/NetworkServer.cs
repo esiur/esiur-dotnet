@@ -39,14 +39,14 @@ namespace Esyur.Net
     public abstract class NetworkServer<TConnection> : IDestructible where TConnection : NetworkConnection, new()
     {
         //private bool isRunning;
-        private ISocket listener;
-        private AutoList<TConnection, NetworkServer<TConnection>> connections;
+        private Sockets.ISocket listener;
+        public AutoList<TConnection, NetworkServer<TConnection>> Connections { get; private set; }
 
         private Thread thread;
 
-        protected abstract void DataReceived(TConnection sender, NetworkBuffer data);
-        protected abstract void ClientConnected(TConnection sender);
-        protected abstract void ClientDisconnected(TConnection sender);
+        //protected abstract void DataReceived(TConnection sender, NetworkBuffer data);
+        //protected abstract void ClientConnected(TConnection sender);
+        //protected abstract void ClientDisconnected(TConnection sender);
 
 
         private Timer timer;
@@ -54,74 +54,16 @@ namespace Esyur.Net
 
         public event DestroyedEvent OnDestroy;
 
-        public AutoList<TConnection, NetworkServer<TConnection>> Connections
-        {
-            get
-            {
-                return connections;
-            }
-        }
-
-        /*
-        public void RemoveSession(string ID)
-        {
-            Sessions.Remove(ID);
-        }
-
-        public void RemoveSession(TSession Session)
-        {
-            if (Session != null)
-                Sessions.Remove(Session.Id);
-        }
-        */
-
-        /*
-        public TSession CreateSession(string ID, int Timeout)
-        {
-            TSession s = new TSession();
-
-            s.SetSession(ID, Timeout, new NetworkSession.SessionModifiedEvent(SessionModified)
-                            , new NetworkSession.SessionEndedEvent(SessionEnded));
-
-
-            Sessions.Add(ID, s);
-            return s;
-        }
-        */
-
-        /*
-        private void pSessionModified(TSession session, string key, object oldValue, object newValue)
-        {
-            SessionModified((TSession)session, key, oldValue, newValue);
-        }
-
-        private void pSessionEnded(NetworkSession session)
-        {
-            SessionEnded((TSession)session);
-        }
-        */
-
-        /*
-    protected virtual void SessionModified(NetworkSession session, string key, object oldValue, object newValue)
-    {
-
-    }
-
-    protected virtual void SessionEnded(NetworkSession session)
-    {
-        Sessions.Remove(session.Id);
-        session.Destroy();
-    }
-    */
+        //public AutoList<TConnection, NetworkServer<TConnection>> Connections => connections;
 
         private void MinuteThread(object state)
         {
             List<TConnection> ToBeClosed = null;
 
 
-            lock (connections.SyncRoot)
+            lock (Connections.SyncRoot)
             {
-                foreach (TConnection c in connections)
+                foreach (TConnection c in Connections)
                 {
                     if (DateTime.Now.Subtract(c.LastAction).TotalSeconds >= Timeout)
                     {
@@ -131,8 +73,6 @@ namespace Esyur.Net
                     }
                 }
             }
-
-            //Console.WriteLine("UnLock MinuteThread");
 
             if (ToBeClosed != null)
             {
@@ -145,29 +85,19 @@ namespace Esyur.Net
             }
         }
 
-        public void Start(ISocket socket)//, uint timeout, uint clock)
+        public void Start(Sockets.ISocket socket)//, uint timeout, uint clock)
         {
             if (listener != null)
                 return;
 
-            //if (socket.State == SocketState.Listening)
-            //  return;
 
-            //if (isRunning)
-            //  return;
-
-            connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
+            Connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
 
 
             if (Timeout > 0 & Clock > 0)
             {
                 timer = new Timer(MinuteThread, null, TimeSpan.FromMinutes(0), TimeSpan.FromSeconds(Clock));
             }
-
-
-            // start a new thread for the server to live on
-            //isRunning = true;
-
 
 
             listener = socket;
@@ -182,8 +112,43 @@ namespace Esyur.Net
             {
                 while (true)
                 {
-                    var s = listener.Accept();
-                    NewConnection(s);
+                    try
+                    {
+                        var s = listener.Accept();
+
+                        if (s == null)
+                        {
+                            Console.Write("sock == null");
+                            return;
+                        }
+
+                        var c = new TConnection();
+                        //c.OnClose += ClientDisconnectedEventReceiver;
+                        c.Assign(s);
+                        Add(c);
+                        //Connections.Add(c);
+                        
+                        try
+                        {
+                            //ClientConnected(c);
+                            ClientConnected(c);
+                            //NetworkConnect(c);
+                        }
+                        catch
+                        {
+                            // something wrong with the child.
+                        }
+
+                        s.Begin();
+
+                        // Accept more
+                        //listener.Accept().Then(NewConnection);
+
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex);
+                    }
                 }
             }));
 
@@ -191,15 +156,6 @@ namespace Esyur.Net
 
         }
 
-        /*
-        public int LocalPort
-        {
-            get
-            {
-                return port;
-            }
-        }
-        */
 
         [Attribute]
         public uint Timeout
@@ -237,7 +193,7 @@ namespace Esyur.Net
 
                 //Console.WriteLine("Listener stopped");
 
-                var cons = connections.ToArray();
+                var cons = Connections.ToArray();
 
                 //lock (connections.SyncRoot)
                 //{
@@ -261,67 +217,22 @@ namespace Esyur.Net
         }
 
 
-        public virtual void RemoveConnection(TConnection connection)
+        public virtual void Remove(TConnection connection)
         {
-            connection.OnDataReceived -= OnDataReceived;
-            connection.OnConnect -= OnClientConnect;
-            connection.OnClose -= OnClientClose;
-            connections.Remove(connection);
+            //connection.OnDataReceived -= OnDataReceived;
+            //connection.OnConnect -= OnClientConnect;
+            connection.OnClose -= ClientDisconnectedEventReceiver;
+            Connections.Remove(connection);
         }
 
-        public virtual void AddConnection(TConnection connection)
+        public virtual void Add(TConnection connection)
         {
-            connection.OnDataReceived += OnDataReceived;
-            connection.OnConnect += OnClientConnect;
-            connection.OnClose += OnClientClose;
-            connections.Add(connection);
+            //connection.OnDataReceived += OnDataReceived;
+            //connection.OnConnect += OnClientConnect;
+            connection.OnClose += ClientDisconnectedEventReceiver;// OnClientClose;
+            Connections.Add(connection);
         }
 
-        private void NewConnection(ISocket sock)
-        {
-            try
-            {
-
-
-                if (sock == null)
-                {
-                    Console.Write("sock == null");
-                    return;
-                }
-
-
-                TConnection c = new TConnection();
-                AddConnection(c);
-
-                c.Assign(sock);
-
-
-                try
-                {
-                    ClientConnected(c);
-                }
-                catch
-                {
-                    // something wrong with the child.
-                }
-
-                sock.Begin();
-
-                // Accept more
-                //listener.Accept().Then(NewConnection);
-
-
-            }
-            catch (Exception ex)
-            {
-                //Console.WriteLine("TSERVER " + ex.ToString());
-                Global.Log("NetworkServer", LogType.Error, ex.ToString());
-            }
-
-            //isRunning = false;
-
-
-        }
 
         public bool IsRunning
         {
@@ -332,44 +243,31 @@ namespace Esyur.Net
             }
         }
 
-        public void OnDataReceived(NetworkConnection sender, NetworkBuffer data)
-        {
-            DataReceived((TConnection)sender, data);
-        }
+        //public void OnDataReceived(ISocket sender, NetworkBuffer data)
+        //{
+        //    DataReceived((TConnection)sender, data);
+        //}
 
-        public void OnClientConnect(NetworkConnection sender)
-        {
-            if (sender == null)
-                return;
+        //public void OnClientConnect(ISocket sender)
+        //{
+        //    if (sender == null)
+        //        return;
 
-            if (sender.RemoteEndPoint == null || sender.LocalEndPoint == null)
-            { }
-            //Console.WriteLine("NULL");
-            else
-                Global.Log("Connections", LogType.Debug, sender.RemoteEndPoint.Address.ToString()
-                    + "->" + sender.LocalEndPoint.Port + " at " + DateTime.UtcNow.ToString("d")
-                    + " " + DateTime.UtcNow.ToString("d"), false);
+        //    if (sender.RemoteEndPoint == null || sender.LocalEndPoint == null)
+        //    { }
+        //    //Console.WriteLine("NULL");
+        //    else
+        //        Global.Log("Connections", LogType.Debug, sender.RemoteEndPoint.Address.ToString()
+        //            + "->" + sender.LocalEndPoint.Port + " at " + DateTime.UtcNow.ToString("d")
+        //            + " " + DateTime.UtcNow.ToString("d"), false);
 
-            // Console.WriteLine("Connected " + sender.RemoteEndPoint.ToString());
-            ClientConnected((TConnection)sender);
-        }
+        //    // Console.WriteLine("Connected " + sender.RemoteEndPoint.ToString());
+        //    ClientConnected((TConnection)sender);
+        //}
 
-        public void OnClientClose(NetworkConnection sender)
-        {
-            try
-            {
-                sender.Destroy();
-                RemoveConnection((TConnection)sender);
-                ClientDisconnected((TConnection)sender);
-            }
-            catch (Exception ex)
-            {
-                Global.Log("NetworkServer:OnClientDisconnect", LogType.Error, ex.ToString());
-            }
-
-            sender = null;
-            GC.Collect();
-        }
+        //public void OnClientClose(ISocket sender)
+        //{
+        //}
 
 
         public void Destroy()
@@ -378,10 +276,34 @@ namespace Esyur.Net
             OnDestroy?.Invoke(this);
         }
 
+        private void ClientDisconnectedEventReceiver(NetworkConnection connection)
+        {
+            try
+            {
+                var con = connection as TConnection;
+                con.Destroy();
+                //                con.OnClose -= ClientDisconnectedEventReceiver;
+
+                Remove(con);
+
+                //Connections.Remove(con);
+                ClientDisconnected(con);
+                //RemoveConnection((TConnection)sender);
+                //connections.Remove(sender)
+                //ClientDisconnected((TConnection)sender);
+            }
+            catch (Exception ex)
+            {
+                Global.Log("NetworkServer:OnClientDisconnect", LogType.Error, ex.ToString());
+            }
+        }
+
+        protected abstract void ClientDisconnected(TConnection connection);
+        protected abstract void ClientConnected(TConnection connection);
+
         ~NetworkServer()
         {
             Stop();
-            //Connections = null;
             listener = null;
         }
     }

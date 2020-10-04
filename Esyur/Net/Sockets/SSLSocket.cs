@@ -41,6 +41,9 @@ namespace Esyur.Net.Sockets
 {
     public class SSLSocket : ISocket
     {
+
+        public INetworkReceiver<ISocket> Receiver { get; set; }
+
         Socket sock;
         byte[] receiveBuffer;
 
@@ -59,12 +62,11 @@ namespace Esyur.Net.Sockets
 
         SocketState state = SocketState.Initial;
 
-        public event ISocketReceiveEvent OnReceive;
-        public event ISocketConnectEvent OnConnect;
-        public event ISocketCloseEvent OnClose;
+        //public event ISocketReceiveEvent OnReceive;
+        //public event ISocketConnectEvent OnConnect;
+        //public event ISocketCloseEvent OnClose;
         public event DestroyedEvent OnDestroy;
 
-        SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
 
         SslStream ssl;
         X509Certificate2 cert;
@@ -87,8 +89,8 @@ namespace Esyur.Net.Sockets
             {
                 await BeginAsync();
                 state = SocketState.Established;
-                OnConnect?.Invoke();
-
+                //OnConnect?.Invoke();
+                Receiver?.NetworkConnect(this);
             }
             catch (Exception ex)
             {
@@ -271,7 +273,8 @@ namespace Esyur.Net.Sockets
                     }
                 }
 
-                OnClose?.Invoke();
+                Receiver?.NetworkClose(this);
+                //OnClose?.Invoke();
             }
         }
 
@@ -428,7 +431,9 @@ namespace Esyur.Net.Sockets
 
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)bytesReceived);
 
-                OnReceive?.Invoke(receiveNetworkBuffer);
+                //OnReceive?.Invoke(receiveNetworkBuffer);
+
+                Receiver?.NetworkReceive(this, receiveNetworkBuffer);
 
                 ssl.BeginRead(receiveBuffer, 0, receiveBuffer.Length, ReceiveCallback, this);
 
@@ -453,7 +458,10 @@ namespace Esyur.Net.Sockets
         public void Destroy()
         {
             Close();
+            Receiver = null;
+            receiveNetworkBuffer = null;
             OnDestroy?.Invoke(this);
+            OnDestroy = null;
         }
 
         public async AsyncReply<ISocket> AcceptAsync()

@@ -29,6 +29,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Esyur.Stores.EntityCore
@@ -40,19 +41,28 @@ namespace Esyur.Stores.EntityCore
         //    return dbContext.GetInfrastructure().CreateResource<T>(properties);
 
         //}
-        
-        public static T AddResource<T>(this DbSet<T> dbSet, object properties = null) where T:class,IResource
+
+        public static T AddResource<T>(this DbSet<T> dbSet, object properties = null) where T : class, IResource
         {
             var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsyurExtensionOptions>().Store;
+            var manager = store.Instance.Managers.FirstOrDefault();// > 0 ? store.Instance.Managers.First() : null;
+
+            //var db = dbSet.GetService<ICurrentDbContext>().Context;
 
             //var resource = dbSet.GetInfrastructure().CreateResource<T>(properties);
             //var resource = Warehouse.New<T>("", options.Store, null, null, null, properties);
             var resource = Warehouse.New<T>("", null, null, null, null, properties);
-            dbSet.Add(resource);
+            var entity = dbSet.Add(resource);
+            entity.Context.SaveChanges();
+            
+            var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(resource);
+
+            Warehouse.Put(resource, id.ToString(), store, null, null, 0, manager);
+
             return resource;
         }
 
-        public static T CreateResource<T>(this IServiceProvider serviceProvider, object properties = null) where T:class,IResource
+        public static T CreateResource<T>(this IServiceProvider serviceProvider, object properties = null) where T : class, IResource
         {
             var options = serviceProvider.GetService<IDbContextOptions>().FindExtension<EsyurExtensionOptions>();
 
@@ -72,7 +82,7 @@ namespace Esyur.Stores.EntityCore
             )
         {
             var extension = optionsBuilder.Options.FindExtension<EsyurExtensionOptions>();
-           
+
             if (extension == null)
             {
 
@@ -90,7 +100,7 @@ namespace Esyur.Stores.EntityCore
 
         public static DbContextOptionsBuilder<TContext> UseEsyur<TContext>(
                                              this DbContextOptionsBuilder<TContext> optionsBuilder,
-                                             //DbContext context,
+                                            //DbContext context,
                                             string name = null,
                                             IResource parent = null,
                                             IPermissionsManager manager = null,
@@ -100,7 +110,7 @@ namespace Esyur.Stores.EntityCore
 
 
             var extension = optionsBuilder.Options.FindExtension<EsyurExtensionOptions>();
-            
+
             if (extension == null)
             {
                 var store = Warehouse.New<EntityStore>(name, null, parent, manager, new { Options = optionsBuilder, DbContextProvider = dbContextProvider });

@@ -36,6 +36,7 @@ using Esyur.Net.IIP;
 using System.Text.RegularExpressions;
 using Esyur.Misc;
 using System.Collections.Concurrent;
+using System.Collections;
 
 namespace Esyur.Resource
 {
@@ -61,16 +62,18 @@ namespace Esyur.Resource
         public static event StoreConnectedEvent StoreConnected;
         public static event StoreDisconnectedEvent StoreDisconnected;
 
-        public static KeyList<string, Func<IStore>> Protocols { get; } = getSupportedProtocols();
+        public delegate IStore ProtocolInstance(string name, object properties);
+
+        public static KeyList<string, ProtocolInstance> Protocols { get; } = GetSupportedProtocols();
 
         private static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
         //private static object resourcesLock = new object();
 
-        static KeyList<string, Func<IStore>> getSupportedProtocols()
+        static KeyList<string, ProtocolInstance> GetSupportedProtocols()
         {
-            var rt = new KeyList<string, Func<IStore>>();
-            rt.Add("iip", () => new DistributedConnection());
+            var rt = new KeyList<string, ProtocolInstance>();
+            rt.Add("iip", (name, props) => Warehouse.New<DistributedConnection>(name, null, null, null, props));
             return rt;
         }
 
@@ -396,26 +399,29 @@ namespace Esyur.Resource
                 {
                     var handler = Protocols[url[1]];
 
-                    var store = handler();
-                    Put(store, url[2], null, parent, null, 0, manager, attributes);
-
+                    var store = handler(url[2], attributes);
 
                     store.Trigger(ResourceTrigger.Open).Then(x =>
                     {
 
                         warehouseIsOpen = true;
+                        Put(store, url[2], null, parent, null, 0, manager, attributes);
 
                         if (url[3].Length > 0 && url[3] != "")
                             store.Get(url[3]).Then(r =>
                             {
                                 rt.Trigger(r);
-                            }).Error(e => rt.TriggerError(e));
+                            }).Error(e =>
+                            {
+                                Warehouse.Remove(store);
+                                rt.TriggerError(e);
+                            });
                         else
                             rt.Trigger(store);
                     }).Error(e =>
                     {
                         rt.TriggerError(e);
-                        Warehouse.Remove(store);
+                        //Warehouse.Remove(store);
                     });
 
                     return rt;
@@ -457,13 +463,23 @@ namespace Esyur.Resource
                 if (parent is IStore)
                 {
                     store = (IStore)parent;
-                    stores[store].Add(resourceReference);
+                    List<WeakReference<IResource>> list;
+                    if (stores.TryGetValue(store, out list))
+                        lock (((ICollection)list).SyncRoot)
+                            list.Add(resourceReference);
+                    //stores[store].Add(resourceReference);
                 }
                 // assign parent's store as a store
                 else if (parent != null)
                 {
                     store = parent.Instance.Store;
-                    stores[store].Add(resourceReference);
+
+                    List<WeakReference<IResource>> list;
+                    if (stores.TryGetValue(store, out list))
+                        lock (((ICollection)list).SyncRoot)
+                            list.Add(resourceReference);
+
+                    //stores[store].Add(resourceReference);
                 }
                 // assign self as a store (root store)
                 else if (resource is IStore)
@@ -499,6 +515,7 @@ namespace Esyur.Resource
 
             if (resource is IStore)
             {
+
                 stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
                 StoreConnected?.Invoke(resource as IStore, name);
             }
@@ -574,7 +591,7 @@ namespace Esyur.Resource
 
                 foreach (var p in ps)
                 {
-                   
+
                     var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                     if (pi != null && pi.CanWrite)
                     {
@@ -582,7 +599,7 @@ namespace Esyur.Resource
                         {
                             pi.SetValue(res, p.Value);
                         }
-                        catch(Exception ex)
+                        catch (Exception ex)
                         {
                             Global.Log(ex);
                         }
@@ -679,8 +696,17 @@ namespace Esyur.Resource
             //}
 
             if (resource != resource.Instance.Store)
-                stores[resource.Instance.Store].Remove(resourceReference);
+            {
+                List<WeakReference<IResource>> list;
+                if (stores.TryGetValue(resource.Instance.Store, out list))
+                {
 
+                    lock (((ICollection)list).SyncRoot)
+                        list.Remove(resourceReference);
+
+                    //list.TryTake(resourceReference);
+                }//.Remove(resourceReference);
+            }
             if (resource is IStore)
             {
                 var store = resource as IStore;

@@ -39,6 +39,8 @@ namespace Esyur.Net.Sockets
 {
     public class TCPSocket : ISocket
     {
+        public INetworkReceiver<ISocket> Receiver { get; set; }
+
         Socket sock;
         byte[] receiveBuffer;
 
@@ -58,9 +60,9 @@ namespace Esyur.Net.Sockets
 
         SocketState state = SocketState.Initial;
 
-        public event ISocketReceiveEvent OnReceive;
-        public event ISocketConnectEvent OnConnect;
-        public event ISocketCloseEvent OnClose;
+        //public event ISocketReceiveEvent OnReceive;
+        //public event ISocketConnectEvent OnConnect;
+        //public event ISocketCloseEvent OnClose;
         public event DestroyedEvent OnDestroy;
 
         SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
@@ -103,7 +105,8 @@ namespace Esyur.Net.Sockets
                     {
 
                         state = SocketState.Established;
-                        OnConnect?.Invoke();
+                        //OnConnect?.Invoke();
+                        Receiver?.NetworkConnect(this);
                         Begin();
                         rt.Trigger(true);
                     }
@@ -134,7 +137,8 @@ namespace Esyur.Net.Sockets
                 }
 
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
-                OnReceive?.Invoke(receiveNetworkBuffer);
+                //OnReceive?.Invoke(receiveNetworkBuffer);
+                Receiver?.NetworkReceive(this, receiveNetworkBuffer);
                 if (state == SocketState.Established)
                     sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
 
@@ -163,11 +167,18 @@ namespace Esyur.Net.Sockets
                     Close();
                     return;
                 }
+                else if (e.SocketError != SocketError.Success)
+                {
+                    Close();
+                    return;
+
+                }
 
                 var recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
                 receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
 
-                OnReceive?.Invoke(receiveNetworkBuffer);
+                //OnReceive?.Invoke(receiveNetworkBuffer);
+                Receiver?.NetworkReceive(this, receiveNetworkBuffer);
 
                 if (state == SocketState.Established)
                     while (!sock.ReceiveAsync(e))
@@ -189,6 +200,12 @@ namespace Esyur.Net.Sockets
                             Close();
                             return;
                         }
+                        else if (e.SocketError != SocketError.Success)
+                        {
+                            Close();
+                            return;
+                        }
+
 
                         //if (e.BytesTransferred > 100000)
                         //    Console.WriteLine("BytesTransferred is large " + e.BytesTransferred);
@@ -197,7 +214,8 @@ namespace Esyur.Net.Sockets
 
                         receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
 
-                        OnReceive?.Invoke(receiveNetworkBuffer);
+                        //OnReceive?.Invoke(receiveNetworkBuffer);
+                        Receiver?.NetworkReceive(this, receiveNetworkBuffer);
                     }
 
             }
@@ -341,7 +359,8 @@ namespace Esyur.Net.Sockets
                     }
                 }
 
-                OnClose?.Invoke();
+                //OnClose?.Invoke();
+                Receiver?.NetworkClose(this);
             }
         }
 
@@ -454,7 +473,15 @@ namespace Esyur.Net.Sockets
         public void Destroy()
         {
             Close();
+            //OnClose = null;
+            //OnConnect = null;
+            //OnReceive = null;
+            Receiver = null;
+            receiveNetworkBuffer = null;
+            socketArgs.Completed -= SocketArgs_Completed;
+            socketArgs = null;
             OnDestroy?.Invoke(this);
+            OnDestroy = null;
         }
 
         public ISocket Accept()

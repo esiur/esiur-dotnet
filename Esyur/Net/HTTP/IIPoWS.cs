@@ -43,7 +43,7 @@ namespace Esyur.Net.HTTP
             set;
         }
 
-        public override bool Execute(HTTPConnection sender)
+        public async override AsyncReply<bool> Execute(HTTPConnection sender)
         {
 
             if (sender.IsWebsocketRequest())
@@ -58,11 +58,11 @@ namespace Esyur.Net.HTTP
 
                 var httpServer = sender.Parent;
                 var wsSocket = new WSSocket(tcpSocket);
-                httpServer.RemoveConnection(sender);
+                httpServer.Remove(sender);
 
                 var iipConnection = new DistributedConnection();
 
-                Server.AddConnection(iipConnection);
+                Server.Add(iipConnection);
                 iipConnection.Assign(wsSocket);
                 wsSocket.Begin();
 

@@ -62,7 +62,7 @@ namespace Esyur.Net.HTTP
         }
         */
 
-        public abstract bool Execute(HTTPConnection sender);
+        public abstract AsyncReply<bool> Execute(HTTPConnection sender);
 
         public virtual void ClientConnected(HTTPConnection HTTP)
         {

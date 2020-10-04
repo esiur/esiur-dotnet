@@ -140,113 +140,23 @@ namespace Esyur.Net.HTTP
             return Cookie;
         }
 
-        protected override void ClientDisconnected(HTTPConnection sender)
+        protected override void ClientDisconnected(HTTPConnection connection)
         {
-            //Console.WriteLine("OUT: " + this.Connections.Count);
-            
             foreach (var filter in filters)
-                filter.ClientDisconnected(sender);
+                filter.ClientDisconnected(connection);
         }
 
+        
 
-
-        protected override void DataReceived(HTTPConnection sender, NetworkBuffer data)
+        internal bool Execute(HTTPConnection sender)
         {
- 
-            byte[] msg = data.Read();
- 
-            var BL = sender.Parse(msg);
-
-            if (BL == 0)
-            {
-                if (sender.Request.Method == HTTPRequestPacket.HTTPMethod.UNKNOWN)
-                {
-                    sender.Close();
-                    return;
-                }
-                if (sender.Request.URL == "")
-                {
-                    sender.Close();
-                    return;
-                }
-            }
-            else if (BL == -1)
-            {
-                data.HoldForNextWrite(msg);
-                return;
-            }
-            else if (BL < 0)
-            {
-                data.HoldFor(msg, (uint) (msg.Length - BL));
-                return;
-            }
-            else if (BL > 0)
-            {
-                if (BL > MaxPost)
-                {
-                    sender.Send(
-                        "<html><body>POST method content is larger than "
-                        + MaxPost
-                        + " bytes.</body></html>");
-
-                    sender.Close();
-                }
-                else
-                {
-                    data.HoldFor(msg, (uint)(msg.Length + BL));
-                }
-                return;
-            }
-            else if (BL < 0) // for security
-            {
-                sender.Close();
-                return;
-            }
-
-
-
-            if (sender.IsWebsocketRequest() & !sender.WSMode)
-            {
-                sender.Upgrade();
-                //return;
-            }
-
-
-            //return;
-
-            try
-            {
-                foreach (var resource in filters)
-                    if (resource.Execute(sender))
-                        return;
-
-                sender.Response.Number = HTTPResponsePacket.ResponseCode.InternalServerError;
-                sender.Send("Bad Request");
-                sender.Close();
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message != "Thread was being aborted.")
-                {
-
-                    Global.Log("HTTPServer", LogType.Error, ex.ToString());
-
-                    //Console.WriteLine(ex.ToString());
-                    //EventLog.WriteEntry("HttpServer", ex.ToString(), EventLogEntryType.Error);
-                    sender.Send(Error500(ex.Message));
-                }
-
-            }
+            foreach (var resource in filters)
+                if (resource.Execute(sender).Wait(30000))
+                    return true;
+            return false;
         }
 
-        private string Error500(string msg)
-        {
-            return "<html><head><title>500 Internal Server Error</title></head><br>\r\n"
-                     + "<body><br>\r\n"
-                     + "<b>500</b> Internal Server Error<br>" + msg + "\r\n"
-                     + "</body><br>\r\n"
-                     + "</html><br>\r\n";
-        }
+
 
 
         /*
@@ -283,7 +193,7 @@ namespace Esyur.Net.HTTP
                 return Timeout;// mTimeout;
             }
         }
-         */ 
+         */
 
 
         public async AsyncReply<bool> Trigger(ResourceTrigger trigger)
@@ -298,7 +208,7 @@ namespace Esyur.Net.HTTP
 
                 //if (ip == null) ip = IPAddress.Any;
 
-                ISocket listener;
+                Sockets.ISocket listener;
                 IPAddress ipAdd;
 
                 if (IP == null)
@@ -330,30 +240,34 @@ namespace Esyur.Net.HTTP
             return true;
 
         }
-        
-        protected override void ClientConnected(HTTPConnection sender)
-        {
-            //sender.SessionModified += SessionModified;
-            //sender.SessionEnded += SessionExpired;
-            sender.SetParent(this);
 
-            //Console.WriteLine("IN: " + this.Connections.Count);
+
+        public override void Add(HTTPConnection connection)
+        {
+            connection.Server = this;
+            base.Add(connection);
+        }
+
+        public override void Remove(HTTPConnection connection)
+        {
+            connection.Server = null;
+            base.Remove(connection);
+        }
+
+        protected override void ClientConnected(HTTPConnection connection)
+        {
             if (filters.Length == 0)
             {
-                sender.Close();
+                connection.Close();
                 return;
             }
 
             foreach (var resource in filters)
             {
-                resource.ClientConnected(sender);
+                resource.ClientConnected(connection);
             }
         }
 
-        public void Destroy()
-        {
-
-        }
 
         /*
 		public int LocalPort

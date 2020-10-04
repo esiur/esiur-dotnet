@@ -13,7 +13,7 @@ namespace Esyur.Net.HTTP
         [Attribute]
         EntryPoint EntryPoint { get; set; }
 
-        public override bool Execute(HTTPConnection sender)
+        public async override AsyncReply<bool> Execute(HTTPConnection sender)
         {
             if (sender.Request.URL != "iip")
                 return false;

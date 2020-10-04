@@ -38,20 +38,22 @@ using Esyur.Resource;
 
 namespace Esyur.Net
 {
-    public class NetworkConnection : IDestructible// <TS>: IResource where TS : NetworkSession
+    public abstract class NetworkConnection: IDestructible, INetworkReceiver<ISocket>// <TS>: IResource where TS : NetworkSession
     {
-        private ISocket sock;
+        private Sockets.ISocket sock;
         //        private bool connected;
 
         private DateTime lastAction;
 
-        public delegate void DataReceivedEvent(NetworkConnection sender, NetworkBuffer data);
-        public delegate void ConnectionClosedEvent(NetworkConnection sender);
-        public delegate void ConnectionEstablishedEvent(NetworkConnection sender);
+        //public delegate void DataReceivedEvent(NetworkConnection sender, NetworkBuffer data);
+        //public delegate void ConnectionClosedEvent(NetworkConnection sender);
+        public delegate void NetworkConnectionEvent(NetworkConnection connection);
 
-        public event ConnectionEstablishedEvent OnConnect;
-        public event DataReceivedEvent OnDataReceived;
-        public event ConnectionClosedEvent OnClose;
+        public event NetworkConnectionEvent OnConnect;
+        //public event DataReceivedEvent OnDataReceived;
+        public event NetworkConnectionEvent OnClose;
+
+            
         public event DestroyedEvent OnDestroy;
         //object receivingLock = new object();
 
@@ -59,22 +61,31 @@ namespace Esyur.Net
 
         bool processing = false;
 
+       // public INetworkReceiver<NetworkConnection> Receiver { get; set; }
 
-        public void Destroy()
+        public virtual void Destroy()
         {
-            // if (connected)
+            // remove references
+            //sock.OnClose -= Socket_OnClose;
+            //sock.OnConnect -= Socket_OnConnect;
+            //sock.OnReceive -= Socket_OnReceive;
+            sock.Destroy();
+            //Receiver = null;
             Close();
+            sock = null;
+
+            OnClose = null;
+            OnConnect = null;
+            //OnDataReceived = null;
             OnDestroy?.Invoke(this);
+            OnDestroy = null;
         }
 
-        public NetworkConnection()
-        {
-
-        }
+ 
 
 
 
-        public ISocket Socket
+        public Sockets.ISocket Socket
         {
             get
             {
@@ -82,81 +93,46 @@ namespace Esyur.Net
             }
         }
 
-        public virtual void Assign(ISocket socket)
+        public virtual void Assign(Sockets.ISocket socket)
         {
             lastAction = DateTime.Now;
             sock = socket;
-            //connected = true;
-            socket.OnReceive += Socket_OnReceive;
-            socket.OnClose += Socket_OnClose;
-            socket.OnConnect += Socket_OnConnect;
-            //if (socket.State == SocketState.Established)
-            //    socket.Begin();
+            sock.Receiver = this;
+
+            //socket.OnReceive += Socket_OnReceive;
+            //socket.OnClose += Socket_OnClose;
+            //socket.OnConnect += Socket_OnConnect;
         }
 
-        private void Socket_OnConnect()
-        {
-            OnConnect?.Invoke(this);
-        }
+        //private void Socket_OnConnect()
+        //{
+        //    OnConnect?.Invoke(this);
+        //}
 
-        private void Socket_OnClose()
-        {
-            ConnectionClosed();
-            OnClose?.Invoke(this);
-        }
+        //private void Socket_OnClose()
+        //{
+        //    ConnectionClosed();
+        //    OnClose?.Invoke(this);
+        //}
 
-        protected virtual void ConnectionClosed()
-        {
+        //protected virtual void ConnectionClosed()
+        //{
 
-        }
+        //}
 
-        private void Socket_OnReceive(NetworkBuffer buffer)
-        {
-            try
-            {
-                // Unassigned ?
-                if (sock == null)
-                    return;
+        //private void Socket_OnReceive(NetworkBuffer buffer)
+        //{
+        //}
 
-                // Closed ?
-                if (sock.State == SocketState.Closed || sock.State == SocketState.Terminated) // || !connected)
-                    return;
-
-                lastAction = DateTime.Now;
-
-                if (!processing)
-                {
-                    processing = true;
-
-                    try
-                    {
-                        //lock(buffer.SyncLock)
-                        while (buffer.Available > 0 && !buffer.Protected)
-                            DataReceived(buffer);
-                    }
-                    catch
-                    {
-
-                    }
-
-                    processing = false;
-                }
-
-            }
-            catch (Exception ex)
-            {
-                Global.Log("NetworkConnection", LogType.Warning, ex.ToString());
-            }
-        }
-
-        public ISocket Unassign()
+        public Sockets.ISocket Unassign()
         {
             if (sock != null)
             {
                 // connected = false;
-                sock.OnClose -= Socket_OnClose;
-                sock.OnConnect -= Socket_OnConnect;
-                sock.OnReceive -= Socket_OnReceive;
+                //sock.OnClose -= Socket_OnClose;
+                //sock.OnConnect -= Socket_OnConnect;
+                //sock.OnReceive -= Socket_OnReceive;
+                sock.Receiver = null;
 
                 var rt = sock;
                 sock = null;
@@ -167,20 +143,20 @@ namespace Esyur.Net
                 return null;
         }
 
-        protected virtual void DataReceived(NetworkBuffer data)
-        {
-            if (OnDataReceived != null)
-            {
-                try
-                {
-                    OnDataReceived?.Invoke(this, data);
-                }
-                catch (Exception ex)
-                {
-                    Global.Log("NetworkConenction:DataReceived", LogType.Error, ex.ToString());
-                }
-            }
-        }
+        //protected virtual void DataReceived(NetworkBuffer data)
+        //{
+        //    if (OnDataReceived != null)
+        //    {
+        //        try
+        //        {
+        //            OnDataReceived?.Invoke(this, data);
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            Global.Log("NetworkConenction:DataReceived", LogType.Error, ex.ToString());
+        //        }
+        //    }
+        //}
 
         public void Close()
         {
@@ -234,11 +210,11 @@ namespace Esyur.Net
         }
 
 
-        public bool Connected
+        public bool IsConnected
         {
             get
             {
-                return sock.State == SocketState.Established;// connected;
+                return sock.State == SocketState.Established;
             }
         }
 
@@ -283,7 +259,7 @@ namespace Esyur.Net
         {
             try
             {                
-                sock.Send(msg);       
+                sock?.Send(msg);       
                 lastAction = DateTime.Now;
             }
             catch
@@ -309,5 +285,87 @@ namespace Esyur.Net
         {
             Send(Encoding.UTF8.GetBytes(data));
         }
+
+        public  void NetworkClose(ISocket socket)
+        {
+            Disconencted();
+            OnClose?.Invoke(this);
+        }
+
+        public void NetworkConnect(ISocket socket)
+        {
+            Connected();
+            OnConnect?.Invoke(this);
+        }
+
+        //{
+        //ConnectionClosed();
+        //OnClose?.Invoke(this);
+
+        //Receiver?.NetworkClose(this);
+        //}
+
+        //public void NetworkConenct(ISocket sender)
+        //{
+        //    OnConnect?.Invoke(this);
+        //}
+
+        protected abstract void DataReceived(NetworkBuffer buffer);
+        protected abstract void Connected();
+        protected abstract void Disconencted();
+
+        public void NetworkReceive(ISocket sender, NetworkBuffer buffer)
+        {
+            try
+            {
+                // Unassigned ?
+                if (sock == null)
+                    return;
+
+                // Closed ?
+                if (sock.State == SocketState.Closed || sock.State == SocketState.Terminated) // || !connected)
+                    return;
+
+                lastAction = DateTime.Now;
+
+                if (!processing)
+                {
+                    processing = true;
+
+                    try
+                    {
+                        //lock(buffer.SyncLock)
+                        while (buffer.Available > 0 && !buffer.Protected)
+                        {
+                            //Receiver?.NetworkReceive(this, buffer);
+                            DataReceived(buffer);
+                        }
+                    }
+                    catch
+                    {
+
+                    }
+
+                    processing = false;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Global.Log("NetworkConnection", LogType.Warning, ex.ToString());
+            }
+        }
+
+
+        //{
+          //  Receiver?.NetworkError(this);
+            //throw new NotImplementedException();
+        //}
+
+        //public void NetworkConnect(ISocket sender)
+        //{
+          //  Receiver?.NetworkConnect(this);
+            //throw new NotImplementedException();
+        //}
     }
 }

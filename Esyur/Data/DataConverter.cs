@@ -659,9 +659,11 @@ namespace Esyur.Data
 
         public static Int16[] GetInt16Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
+
             var rt = new Int16[length / 2];
-            for (var i = 0; i < length; i += 2)
-                rt[i] = GetInt16(data, (uint)(offset + i));
+            for (var i = offset; i < end; i += 2)
+                rt[j++] = GetInt16(data, i);
 
             return rt;
         }
@@ -673,10 +675,14 @@ namespace Esyur.Data
 
         public static UInt16[] GetUInt16Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new UInt16[length / 2];
-            for (var i = 0; i < length; i += 2)
-                rt[i] = GetUInt16(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 2)
+                rt[j++] = GetUInt16(data, i);
+
             return rt;
+
         }
 
         public static Int32 GetInt32(this byte[] data, uint offset)
@@ -686,9 +692,11 @@ namespace Esyur.Data
 
         public static Int32[] GetInt32Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
+
             var rt = new Int32[length / 4];
-            for (var i = 0; i < length; i += 4)
-                rt[i] = GetInt32(data, (uint)(offset + i));
+            for (var i = offset; i < end; i += 4)
+                rt[j++] = GetInt32(data, i);
 
             return rt;
         }
@@ -700,9 +708,11 @@ namespace Esyur.Data
 
         public static UInt32[] GetUInt32Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new UInt32[length / 4];
-            for (var i = 0; i < length; i += 4)
-                rt[i] = GetUInt32(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 4)
+                rt[j++] = GetUInt16(data, i);
 
             return rt;
         }
@@ -728,9 +738,11 @@ namespace Esyur.Data
 
         public static Int64[] GetInt64Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new Int64[length / 8];
-            for (var i = 0; i < length; i += 8)
-                rt[i] = GetInt64(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 8)
+                rt[j++] = GetInt64(data, i);
 
             return rt;
         }
@@ -767,9 +779,11 @@ namespace Esyur.Data
 
         public static UInt64[] GetUInt64Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new UInt64[length / 8];
-            for (var i = 0; i < length; i += 8)
-                rt[i] = GetUInt64(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 8)
+                rt[j++] = GetUInt64(data, i);
 
             return rt;
         }
@@ -787,9 +801,11 @@ namespace Esyur.Data
 
         public static float[] GetFloat32Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new float[length / 4];
-            for (var i = 0; i < length; i += 4)
-                rt[i] = GetFloat32(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 4)
+                rt[j++] = GetFloat32(data, i);
 
             return rt;
         }
@@ -813,9 +829,11 @@ namespace Esyur.Data
 
         public static double[] GetFloat64Array(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new double[length / 8];
-            for (var i = 0; i < length; i += 8)
-                rt[i] = GetFloat64(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 8)
+                rt[j++] = GetFloat64(data, i);
 
             return rt;
         }
@@ -840,9 +858,13 @@ namespace Esyur.Data
 
         public static char[] GetCharArray(this byte[] data, uint offset, uint length)
         {
+
+            var j = 0; var end = offset + length;
             var rt = new char[length / 2];
-            for (var i = 0; i < length; i += 2)
-                rt[i] = GetChar(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 2)
+                rt[j++] = GetChar(data, i);
+
             return rt;
         }
 
@@ -875,9 +897,12 @@ namespace Esyur.Data
 
         public static Guid[] GetGuidArray(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new Guid[length / 16];
-            for (var i = 0; i < length; i += 16)
-                rt[i] = GetGuid(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 16)
+                rt[j++] = GetGuid(data, i);
+
             return rt;
         }
 
@@ -889,9 +914,12 @@ namespace Esyur.Data
 
         public static DateTime[] GetDateTimeArray(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new DateTime[length / 8];
-            for (var i = 0; i < length; i += 8)
-                rt[i] = GetDateTime(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 8)
+                rt[j++] = GetDateTime(data, i);
+
             return rt;
         }
 
@@ -902,9 +930,12 @@ namespace Esyur.Data
 
         public static IPAddress[] GetIPv4AddressArray(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new IPAddress[length / 4];
-            for (var i = 0; i < length; i += 4)
-                rt[i] = GetIPv4Address(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 4)
+                rt[j++] = GetIPv6Address(data, i);
+
             return rt;
         }
 
@@ -915,10 +946,14 @@ namespace Esyur.Data
 
         public static IPAddress[] GetIPv6AddressArray(this byte[] data, uint offset, uint length)
         {
+            var j = 0; var end = offset + length;
             var rt = new IPAddress[length / 16];
-            for (var i = 0; i < length; i += 16)
-                rt[i] = GetIPv6Address(data, (uint)(offset + i));
+
+            for (var i = offset; i < end; i += 16)
+                rt[j++] = GetIPv6Address(data, i);
+
             return rt;
+ 
         }
 
      

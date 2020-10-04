@@ -43,13 +43,11 @@ namespace Esyur.Net.HTTP
     public class HTTPConnection : NetworkConnection
     {
 
-        public void SetParent(HTTPServer Parent)
-        {
-            Server = Parent;
-        }
+    
 
         public bool WSMode { get; internal set; }
-        private HTTPServer Server;
+        public HTTPServer Server { get; internal set; }
+
         public WebsocketPacket WSRequest { get; set; }
         public HTTPRequestPacket Request { get; set; }
         public HTTPResponsePacket Response { get; } = new HTTPResponsePacket();
@@ -100,7 +98,7 @@ namespace Esyur.Net.HTTP
         public void Flush()
         {
             // close the connection
-            if (Request.Headers["connection"].ToLower() != "keep-alive" & Connected)
+            if (Request.Headers["connection"].ToLower() != "keep-alive" & IsConnected)
                 Close();
         }
 
@@ -232,6 +230,102 @@ namespace Esyur.Net.HTTP
             }
         }
 
+        protected override void DataReceived(NetworkBuffer data)
+        {
+
+            byte[] msg = data.Read();
+
+            var BL = Parse(msg);
+
+            if (BL == 0)
+            {
+                if (Request.Method == HTTPRequestPacket.HTTPMethod.UNKNOWN)
+                {
+                    Close();
+                    return;
+                }
+                if (Request.URL == "")
+                {
+                    Close();
+                    return;
+                }
+            }
+            else if (BL == -1)
+            {
+                data.HoldForNextWrite(msg);
+                return;
+            }
+            else if (BL < 0)
+            {
+                data.HoldFor(msg, (uint)(msg.Length - BL));
+                return;
+            }
+            else if (BL > 0)
+            {
+                if (BL > Server.MaxPost)
+                {
+                    Send(
+                        "<html><body>POST method content is larger than "
+                        + Server.MaxPost
+                        + " bytes.</body></html>");
+
+                    Close();
+                }
+                else
+                {
+                    data.HoldFor(msg, (uint)(msg.Length + BL));
+                }
+                return;
+            }
+            else if (BL < 0) // for security
+            {
+                Close();
+                return;
+            }
+
+
+
+            if (IsWebsocketRequest() & !WSMode)
+            {
+                Upgrade();
+                //return;
+            }
+
+
+            //return;
+
+            try
+            {
+                if (!Server.Execute(this))
+                {
+                    Response.Number = HTTPResponsePacket.ResponseCode.InternalServerError;
+                    Send("Bad Request");
+                    Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message != "Thread was being aborted.")
+                {
+
+                    Global.Log("HTTPServer", LogType.Error, ex.ToString());
+
+                    //Console.WriteLine(ex.ToString());
+                    //EventLog.WriteEntry("HttpServer", ex.ToString(), EventLogEntryType.Error);
+                    Send(Error500(ex.Message));
+                }
+
+            }
+        }
+
+        private string Error500(string msg)
+        {
+            return "<html><head><title>500 Internal Server Error</title></head><br>\r\n"
+                     + "<body><br>\r\n"
+                     + "<b>500</b> Internal Server Error<br>" + msg + "\r\n"
+                     + "</body><br>\r\n"
+                     + "</html><br>\r\n";
+        }
 
         public async AsyncReply<bool> SendFile(string filename)
         {
@@ -328,6 +422,16 @@ namespace Esyur.Net.HTTP
 
                 return false;
             }
+        }
+
+        protected override void Connected()
+        {
+            // do nothing
+        }
+
+        protected override void Disconencted()
+        {
+            // do nothing
         }
     }
 }

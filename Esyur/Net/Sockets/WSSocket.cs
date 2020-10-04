@@ -34,10 +34,11 @@ using System.IO;
 using Esyur.Core;
 using Esyur.Resource;
 using Esyur.Data;
+using System.Globalization;
 
 namespace Esyur.Net.Sockets
 {
-    public class WSSocket : ISocket
+    public class WSSocket : ISocket, INetworkReceiver<ISocket>
     {
         WebsocketPacket pkt_receive = new WebsocketPacket();
         WebsocketPacket pkt_send = new WebsocketPacket();
@@ -49,9 +50,9 @@ namespace Esyur.Net.Sockets
         object sendLock = new object();
         bool held;
 
-        public event ISocketReceiveEvent OnReceive;
-        public event ISocketConnectEvent OnConnect;
-        public event ISocketCloseEvent OnClose;
+        //public event ISocketReceiveEvent OnReceive;
+        //public event ISocketConnectEvent OnConnect;
+        //public event ISocketCloseEvent OnClose;
         public event DestroyedEvent OnDestroy;
 
         long totalSent, totalReceived;
@@ -62,8 +63,6 @@ namespace Esyur.Net.Sockets
         {
             get { return (IPEndPoint)sock.LocalEndPoint; }
         }
-
-
 
         public IPEndPoint RemoteEndPoint
         {
@@ -79,6 +78,7 @@ namespace Esyur.Net.Sockets
             }
         }
 
+        public INetworkReceiver<ISocket> Receiver { get; set; }
 
         public WSSocket(ISocket socket)
         {
@@ -86,12 +86,175 @@ namespace Esyur.Net.Sockets
             pkt_send.Mask = false;
             pkt_send.Opcode = WebsocketPacket.WSOpcode.BinaryFrame;
             sock = socket;
-            sock.OnClose += Sock_OnClose;
-            sock.OnConnect += Sock_OnConnect;
-            sock.OnReceive += Sock_OnReceive;
+
+            sock.Receiver = this;
+
+            //sock.OnClose += Sock_OnClose;
+            //sock.OnConnect += Sock_OnConnect;
+            //sock.OnReceive += Sock_OnReceive;
         }
 
-        private void Sock_OnReceive(NetworkBuffer buffer)
+        //private void Sock_OnReceive(NetworkBuffer buffer)
+        //{
+
+        //}
+
+        //private void Sock_OnConnect()
+        //{
+        //    OnConnect?.Invoke();
+        //}
+
+        //private void Sock_OnClose()
+        //{
+        //    OnClose?.Invoke();
+        //}
+
+        public void Send(WebsocketPacket packet)
+        {
+            lock (sendLock)
+                if (packet.Compose())
+                    sock.Send(packet.Data);
+        }
+
+        public void Send(byte[] message)
+        {
+            lock (sendLock)
+            {
+                if (held)
+                {
+                    sendNetworkBuffer.Write(message);
+                }
+                else
+                {
+                    totalSent += message.Length;
+                    //Console.WriteLine("TX " + message.Length +"/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
+
+                    pkt_send.Message = message;
+
+
+                    if (pkt_send.Compose())
+                        sock.Send(pkt_send.Data);
+
+                }
+            }
+        }
+
+
+        public void Send(byte[] message, int offset, int size)
+        {
+            lock (sendLock)
+            {
+                if (held)
+                {
+                    sendNetworkBuffer.Write(message, (uint)offset, (uint)size);
+                }
+                else
+                {
+                    totalSent += size;
+                    //Console.WriteLine("TX " + size + "/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
+
+                    pkt_send.Message = new byte[size];
+                    Buffer.BlockCopy(message, offset, pkt_send.Message, 0, size);
+                    if (pkt_send.Compose())
+                        sock.Send(pkt_send.Data);
+                }
+            }
+        }
+
+
+        public void Close()
+        {
+            sock?.Close();
+        }
+
+        public AsyncReply<bool> Connect(string hostname, ushort port)
+        {
+            throw new NotImplementedException();
+        }
+
+
+        public bool Begin()
+        {
+            return sock.Begin();
+        }
+
+        public bool Trigger(ResourceTrigger trigger)
+        {
+            return true;
+        }
+
+        public void Destroy()
+        {
+            Close();
+            //OnClose = null;
+            //OnConnect = null;
+            //OnReceive = null;
+            receiveNetworkBuffer = null;
+            //sock.OnReceive -= Sock_OnReceive;
+            //sock.OnClose -= Sock_OnClose;
+            //sock.OnConnect -= Sock_OnConnect;
+            sock.Receiver = null;
+            sock = null;
+            OnDestroy?.Invoke(this);
+            OnDestroy = null;
+        }
+
+        public AsyncReply<ISocket> AcceptAsync()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Hold()
+        {
+            //Console.WriteLine("WS Hold  ");
+            held = true;
+        }
+
+        public void Unhold()
+        {
+            lock (sendLock)
+            {
+                held = false;
+
+                var message = sendNetworkBuffer.Read();
+
+                //Console.WriteLine("WS Unhold {0}", message == null ? 0 : message.Length);
+
+                if (message == null)
+                    return;
+
+                totalSent += message.Length;
+
+                pkt_send.Message = message;
+                if (pkt_send.Compose())
+                    sock.Send(pkt_send.Data);
+
+
+
+            }
+        }
+
+        public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ISocket Accept()
+        {
+            throw new NotImplementedException();
+        }
+
+        public AsyncReply<bool> BeginAsync()
+        {
+            return sock.BeginAsync();
+        }
+
+        public void NetworkClose(ISocket sender)
+        {
+            Receiver?.NetworkClose(sender);
+        }
+
+        public void NetworkReceive(ISocket sender, NetworkBuffer buffer)
         {
 
             if (sock.State == SocketState.Closed || sock.State == SocketState.Terminated)
@@ -161,8 +324,9 @@ namespace Esyur.Net.Sockets
 
                 if (offset == msg.Length)
                 {
-                    //    Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
-                    OnReceive?.Invoke(receiveNetworkBuffer);
+
+                    //OnReceive?.Invoke(receiveNetworkBuffer);
+                    Receiver?.NetworkReceive(this, receiveNetworkBuffer);
                     return;
                 }
 
@@ -180,152 +344,20 @@ namespace Esyur.Net.Sockets
 
             //Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
 
-            OnReceive?.Invoke(receiveNetworkBuffer);
+            //OnReceive?.Invoke(receiveNetworkBuffer);
+            Receiver?.NetworkReceive(this, receiveNetworkBuffer);
 
             processing = false;
 
             if (buffer.Available > 0 && !buffer.Protected)
-                Sock_OnReceive(buffer);
+                Receiver?.NetworkReceive(this, buffer);
+                //Sock_OnReceive(buffer);
         }
 
-        private void Sock_OnConnect()
+ 
+        public void NetworkConnect(ISocket sender)
         {
-            OnConnect?.Invoke();
-        }
-
-        private void Sock_OnClose()
-        {
-            OnClose?.Invoke();
-        }
-
-        public void Send(WebsocketPacket packet)
-        {
-            lock (sendLock)
-                if (packet.Compose())
-                    sock.Send(packet.Data);
-        }
-
-        public void Send(byte[] message)
-        {
-            lock (sendLock)
-            {
-                if (held)
-                {
-                    sendNetworkBuffer.Write(message);
-                }
-                else
-                {
-                    totalSent += message.Length;
-                    //Console.WriteLine("TX " + message.Length +"/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
-
-                    pkt_send.Message = message;
-
-
-                    if (pkt_send.Compose())
-                        sock.Send(pkt_send.Data);
-
-                }
-            }
-        }
-
-
-        public void Send(byte[] message, int offset, int size)
-        {
-            lock (sendLock)
-            {
-                if (held)
-                {
-                    sendNetworkBuffer.Write(message, (uint)offset, (uint)size);
-                }
-                else
-                {
-                    totalSent += size;
-                    //Console.WriteLine("TX " + size + "/"+totalSent);// + " " + DC.ToHex(message, 0, (uint)size));
-
-                    pkt_send.Message = new byte[size];
-                    Buffer.BlockCopy(message, offset, pkt_send.Message, 0, size);
-                    if (pkt_send.Compose())
-                        sock.Send(pkt_send.Data);
-                }
-            }
-        }
-
-
-        public void Close()
-        {
-            sock.Close();
-        }
-
-        public AsyncReply<bool> Connect(string hostname, ushort port)
-        {
-            throw new NotImplementedException();
-        }
-
-
-        public bool Begin()
-        {
-            return sock.Begin();
-        }
-
-        public bool Trigger(ResourceTrigger trigger)
-        {
-            return true;
-        }
-
-        public void Destroy()
-        {
-            Close();
-            OnDestroy?.Invoke(this);
-        }
-
-        public AsyncReply<ISocket> AcceptAsync()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Hold()
-        {
-            //Console.WriteLine("WS Hold  ");
-            held = true;
-        }
-
-        public void Unhold()
-        {
-            lock (sendLock)
-            {
-                held = false;
-
-                var message = sendNetworkBuffer.Read();
-
-                //Console.WriteLine("WS Unhold {0}", message == null ? 0 : message.Length);
-
-                if (message == null)
-                    return;
-
-                totalSent += message.Length;
-
-                pkt_send.Message = message;
-                if (pkt_send.Compose())
-                    sock.Send(pkt_send.Data);
-
-
-
-            }
-        }
-
-        public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
-        {
-            throw new NotImplementedException();
-        }
-
-        public ISocket Accept()
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<bool> BeginAsync()
-        {
-            return sock.BeginAsync();
+            Receiver?.NetworkConnect(this);
         }
     }
 }
