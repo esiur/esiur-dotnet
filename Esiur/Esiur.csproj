@@ -1,0 +1,63 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Description>Distributed Resources Platform</Description>
+    <Copyright>Ahmed Kh. Zamil</Copyright>
+    <PackageLicenseUrl>https://github.com/Esiur/Esiur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.5.0</Version>
+    <RepositoryUrl>https://github.com/esiur/esiur-dotnet</RepositoryUrl>
+    <Authors>Ahmed Kh. Zamil</Authors>
+    <AssemblyVersion>1.3.1.0</AssemblyVersion>
+    <Company>Esiur Foundation</Company>
+    <FileVersion>1.3.1.0</FileVersion>
+    <AssemblyName>Esiur</AssemblyName>
+    <RootNamespace>Esiur</RootNamespace>
+    <PackageId>Esiur</PackageId>
+    <Product>Esiur</Product>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <DefineConstants>TRACE;DEBUG;NETSTANDARD</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Core\AsyncReplyNon.cs" />
+    <Compile Remove="Core\IAsyncReply.cs" />
+    <Compile Remove="Resource\ResourceEvent.cs" />
+    <Compile Remove="Resource\ResourceFunction.cs" />
+    <Compile Remove="Resource\ResourceProperty.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Net\DataLink\Sources\" />
+    <Folder Include="obj\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Core\AsyncReplyNon.cs" />
+    <None Include="Core\IAsyncReply.cs" />
+    <None Include="Resource\ResourceEvent.cs" />
+    <None Include="Resource\ResourceFunction.cs" />
+    <None Include="Resource\ResourceProperty.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.StackTrace" Version="4.3.0" />
+    <PackageReference Include="System.Dynamic.Runtime" Version="4.3.0" />
+    <PackageReference Include="System.Interactive.Async" Version="4.1.1" />
+    <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
+    <PackageReference Include="System.Net.NetworkInformation" Version="4.3.0" />
+    <PackageReference Include="System.Net.Security" Version="4.3.2" />
+    <PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
+    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
+  </ItemGroup>
+
+</Project>

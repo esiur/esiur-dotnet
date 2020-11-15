@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>Esiur.Stores.EntityCore</AssemblyName>
+    <Authors>Ahmed Kh. Zamil</Authors>
+    <Company>Esiur Foundation</Company>
+    <Description>Esiur for Entity Framework Core</Description>
+    <Product>Esiur Entity Framework Extension</Product>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Esiur.Stores.EntityCore</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.1.4" />
+    <PackageReference Include="System.Collections" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Esiur\Esiur.csproj" />
+  </ItemGroup>
+
+</Project>
