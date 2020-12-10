@@ -40,7 +40,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Esiur.Stores.EntityCore
 {
-    public class EsiurProxyRewrite : IModelFinalizedConvention
+    public class EsiurProxyRewrite : IModelFinalizingConvention
     {
         private static readonly MethodInfo _createInstance
     = typeof(EsiurProxyRewrite).GetTypeInfo().GetDeclaredMethod(nameof(EsiurProxyRewrite.CreateInstance));
@@ -94,7 +94,7 @@ namespace Esiur.Stores.EntityCore
         }
 
 
-        public void ProcessModelFinalized(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
+        public void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
         {
             foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
             {
@@ -106,7 +106,7 @@ namespace Esiur.Stores.EntityCore
                 var binding = (InstantiationBinding)entityType[CoreAnnotationNames.ConstructorBinding];
 #pragma warning restore EF1001 // Internal EF Core API usage.
                 if (binding == null)
-                    _directBindingConvention.ProcessModelFinalized(modelBuilder, context);
+                    _directBindingConvention.ProcessModelFinalizing(modelBuilder, context);
 
 #pragma warning disable EF1001 // Internal EF Core API usage.
                 binding = (InstantiationBinding)entityType[CoreAnnotationNames.ConstructorBinding];
@@ -145,5 +145,7 @@ namespace Esiur.Stores.EntityCore
 
             }
         }
+
+ 
     }
 }

@@ -49,7 +49,7 @@ namespace Esiur.Stores.EntityCore
         public ConventionSet ModifyConventions(ConventionSet conventionSet)
         {
             var extension = _options.FindExtension<EsiurExtensionOptions>();
-            conventionSet.ModelFinalizedConventions.Add(new EsiurProxyRewrite(
+            conventionSet.ModelFinalizingConventions.Add(new EsiurProxyRewrite(
                     extension,
                     _conventionSetBuilderDependencies));
             return conventionSet;

@@ -54,6 +54,9 @@ namespace Esiur.Net.IIP
 
         volatile uint callbackCounter = 0;
 
+        List<IResource> subscriptions = new List<IResource>();
+        object subscriptionsLock = new object();
+
         AsyncQueue<DistributedResourceQueueItem> queue = new AsyncQueue<DistributedResourceQueueItem>();
 
         /// <summary>
@@ -459,10 +462,14 @@ namespace Esiur.Net.IIP
                     var r = res as IResource;
 
                     // unsubscribe
-                    r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                    r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                    r.Instance.ResourceModified -= Instance_PropertyModified;
-                    r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                    Unsubscribe(r);
+
+                    //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                    //r.Instance.ResourceModified -= Instance_PropertyModified;
+                    //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                    
+                    
                     // r.Instance.Children.OnAdd -= Children_OnAdd;
                     // r.Instance.Children.OnRemoved -= Children_OnRemoved;
 
@@ -471,7 +478,7 @@ namespace Esiur.Net.IIP
                     // Console.WriteLine("Attach {0} {1}", r.Instance.Link, r.Instance.Id);
 
                     // add it to attached resources so GC won't remove it from memory
-                    attachedResources.Add(r);
+                    ///attachedResources.Add(r);
 
                     var link = DC.ToBytes(r.Instance.Link);
 
@@ -501,10 +508,13 @@ namespace Esiur.Net.IIP
 
 
                     // subscribe
-                    r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                    r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-                    r.Instance.ResourceModified += Instance_PropertyModified;
-                    r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+                    //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                    //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
+                    //r.Instance.ResourceModified += Instance_PropertyModified;
+                    //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+
+                    Subscribe(r);
+
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
 
@@ -582,20 +592,25 @@ namespace Esiur.Net.IIP
                 {
                     var r = res as IResource;
                     // unsubscribe
-                    r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                    r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                    r.Instance.ResourceModified -= Instance_PropertyModified;
-                    r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                    Unsubscribe(r);
+
+                    //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                    //r.Instance.ResourceModified -= Instance_PropertyModified;
+                    //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+
                     //r.Instance.Children.OnAdd -= Children_OnAdd;
                     //r.Instance.Children.OnRemoved -= Children_OnRemoved;
 
                     //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
                     // subscribe
-                    r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                    r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-                    r.Instance.ResourceModified += Instance_PropertyModified;
-                    r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+                    //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                    //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
+                    //r.Instance.ResourceModified += Instance_PropertyModified;
+                    //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+
+                    Subscribe(r);
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
 
@@ -621,14 +636,16 @@ namespace Esiur.Net.IIP
             {
                 if (res != null)
                 {
-                    var r = res as IResource;
-                    r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                    r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                    r.Instance.ResourceModified -= Instance_PropertyModified;
-                    r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                    //var r = res as IResource;
+                    //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                    //r.Instance.ResourceModified -= Instance_PropertyModified;
+                    //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+
+                    Unsubscribe(res);
 
                     // remove from attached resources
-                    attachedResources.Remove(res);
+                    //attachedResources.Remove(res);
 
                     // reply ok
                     SendReply(IIPPacket.IIPPacketAction.DetachResource, callback).Done();
@@ -2190,12 +2207,60 @@ namespace Esiur.Net.IIP
             return reply;
         }
 
+        private void Subscribe(IResource resource)
+        {
+            lock (subscriptionsLock)
+            {
+                resource.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                resource.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
+                resource.Instance.ResourceModified += Instance_PropertyModified;
+                resource.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+
+                subscriptions.Add(resource);
+            }
+        }
+
+        private void Unsubscribe(IResource resource)
+        {
+            lock (subscriptionsLock)
+            {
+                // do something with the list...
+                resource.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                resource.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                resource.Instance.ResourceModified -= Instance_PropertyModified;
+                resource.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+
+                subscriptions.Remove(resource);
+            }
+
+        }
+
+        private void UnsubscribeAll()
+        {
+            lock(subscriptionsLock)
+            {
+                foreach(var resource in subscriptions)
+                {
+                    resource.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                    resource.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                    resource.Instance.ResourceModified -= Instance_PropertyModified;
+                    resource.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                }
+
+                subscriptions.Clear();
+            }
+        }
+
         private void Instance_ResourceDestroyed(IResource resource)
         {
+
+            Unsubscribe(resource);
             // compose the packet
             SendEvent(IIPPacket.IIPPacketEvent.ResourceDestroyed)
                         .AddUInt32(resource.Instance.Id)
                         .Done();
+
+
         }
 
         private void Instance_PropertyModified(IResource resource, string name, object newValue)

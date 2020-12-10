@@ -62,17 +62,20 @@ namespace Esiur.Data
 
         public void Sort()
         {
+            lock(syncRoot)
             list.Sort();
         }
 
         public void Sort(IComparer<T> comparer)
         {
-            list.Sort(comparer);
+            lock (syncRoot)
+                list.Sort(comparer);
         }
 
         public void Sort(Comparison<T> comparison)
         {
-            list.Sort(comparison);
+            lock (syncRoot)
+                list.Sort(comparison);
         }
 
         public IEnumerable<T> Where(Func<T, bool> predicate)

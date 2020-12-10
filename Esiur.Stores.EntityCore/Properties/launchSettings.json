@@ -1,8 +1,7 @@
 {
   "profiles": {
     "Esiur.Stores.EntityCore": {
-      "commandName": "Project",
-      "commandLineArgs": "--migrate"
+      "commandName": "Project"
     }
   }
 }

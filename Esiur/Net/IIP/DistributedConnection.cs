@@ -62,9 +62,6 @@ namespace Esiur.Net.IIP
 
         Session session;
 
-
-        List<IResource> attachedResources = new List<IResource>();
-
         AsyncReply<bool> openReply;
 
         byte[] localPasswordOrToken;
@@ -291,8 +288,8 @@ namespace Esiur.Net.IIP
 
         void init()
         {
-            var q = queue;
-            q.Then((x) =>
+            //var q = queue;
+            queue.Then((x) =>
             {
                 if (x.Type == DistributedResourceQueueItem.DistributedResourceQueueItemType.Event)
                     x.Resource._EmitEventByIndex(x.Index, (object[])x.Value);
@@ -308,6 +305,7 @@ namespace Esiur.Net.IIP
 
         public override void Destroy()
         {
+            UnsubscribeAll();
             this.OnReady = null;
             this.OnError = null;
             base.Destroy();
@@ -1146,13 +1144,14 @@ namespace Esiur.Net.IIP
                 Server?.Membership.Logout(session);
                 Warehouse.Remove(this);
                 ready = false;
+                UnsubscribeAll();
             }
         }
 
         /*
         public AsyncBag<T> Children<T>(IResource resource)
         {
-            if (Codec.IsLocalResource(resource, this))
+            if (Codec.IsLocalReso turce(resource, this))
                 return (resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
 
             return null;
