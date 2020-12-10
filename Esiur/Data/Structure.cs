@@ -32,6 +32,7 @@ using Esiur.Data;
 using Esiur.Misc;
 using Esiur.Core;
 using System.Reflection;
+using System.Dynamic;
 
 namespace Esiur.Data
 {
@@ -82,6 +83,14 @@ namespace Esiur.Data
         {
             var rt = Activator.CreateInstance<T>();
             rt.dic = source.dic;
+            return rt;
+        }
+
+        public static Structure FromDynamic(ExpandoObject obj)
+        {
+            var rt = new Structure();
+            foreach (var kv in obj)
+                rt[kv.Key] = kv.Value;
             return rt;
         }
 
