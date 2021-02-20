@@ -533,16 +533,22 @@ namespace Esiur.Data
 
         public static string ToHex(this byte[] ba, uint offset, uint length, string separator = " ")
         {
-            StringBuilder hex = new StringBuilder((int)length * 2);
 
-            for (var i = offset; i < offset + length; i++)
-            {
-                hex.AppendFormat("{0:x2}", ba[i]);
-                if (separator != null)
-                    hex.Append(separator);
-            }
+            if (separator == null)
+                separator = "";
 
-            return hex.ToString();
+            return string.Join(separator, ba.Skip((int)offset).Take((int)length).Select(x => x.ToString("x2")).ToArray());
+
+            //StringBuilder hex = new StringBuilder((int)length * 2);
+
+            //for (var i = offset; i < offset + length; i++)
+            //{
+            //    hex.AppendFormat("{0:x2}", ba[i]);
+            //    if (separator != null)
+            //        hex.Append(separator);
+            //}
+
+            //return hex.ToString();
         }
 
         public static byte[] FromHex(string hexString, string separator = " ")

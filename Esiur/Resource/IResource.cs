@@ -29,10 +29,13 @@ using System.Text;
 using Esiur.Data;
 using Esiur.Core;
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace Esiur.Resource
 {
     public delegate bool QueryFilter<T>(T value);
+
+    //[JsonConverter(typeof(ResourceJsonConverter))]
 
     public interface IResource : IDestructible///, INotifyPropertyChanged
     {

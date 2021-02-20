@@ -38,6 +38,9 @@ using System.Linq;
 using Esiur.Core;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using Esiur.Resource;
+using System.Text.Json.Serialization;
 
 namespace Esiur.Misc
 {
@@ -56,6 +59,30 @@ namespace Esiur.Misc
         public delegate void LogEvent(string service, LogType type, string message);
 
         public static event LogEvent SystemLog;
+
+
+        public static string ToJson(this IResource resource)
+        {
+            try
+            {
+                return JsonSerializer.Serialize(resource, Global.SerializeOptions);
+            }catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return "";
+            }
+        }
+
+        public static JsonSerializerOptions SerializeOptions = new JsonSerializerOptions
+        {
+            ReferenceHandler = ReferenceHandler.Preserve,
+            WriteIndented = true,
+            Converters =
+            {
+                new ResourceJsonConverter(),
+                new DoubleJsonConverter()
+            }
+        };
 
 
 

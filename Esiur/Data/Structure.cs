@@ -85,6 +85,8 @@ namespace Esiur.Data
             rt.dic = source.dic;
             return rt;
         }
+        
+        public static explicit operator Structure(ExpandoObject obj) => FromDynamic(obj);
 
         public static Structure FromDynamic(ExpandoObject obj)
         {

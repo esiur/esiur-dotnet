@@ -36,6 +36,7 @@ using System.Reflection;
 using Esiur.Resource.Template;
 using System.Runtime.CompilerServices;
 using System.Collections;
+using System.Dynamic;
 
 namespace Esiur.Data
 {
@@ -239,7 +240,8 @@ namespace Esiur.Data
         /// <param name="includeTypes">Whether to include each item DataType</param>
         /// <param name="prependLength">If true, prepend the length as UInt32 at the beginning of the returned bytes array</param>
         /// <returns>Array of bytes in the network byte order</returns>
-        public static byte[] ComposeStructure(Structure value, DistributedConnection connection, bool includeKeys = true, bool includeTypes = true, bool prependLength = false)
+        public static byte[] ComposeStructure(Structure value, DistributedConnection connection, 
+            bool includeKeys = true, bool includeTypes = true, bool prependLength = false)
         {
             var rt = new BinaryList();
 
@@ -1269,7 +1271,7 @@ namespace Esiur.Data
                 type = DataType.String;
             else if (t == typeof(DateTime))
                 type = DataType.DateTime;
-            else if (typeof(Structure).IsAssignableFrom(t))
+            else if (typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject))
                 type = DataType.Structure;
             //else if (t == typeof(DistributedResource))
             //  type = DataType.DistributedResource;

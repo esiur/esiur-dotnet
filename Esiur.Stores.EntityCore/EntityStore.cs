@@ -79,7 +79,7 @@ namespace Esiur.Stores.EntityCore
         public AsyncReply<bool> Put(IResource resource)
         {
             if (resource is EntityStore)
-                return new AsyncReply<bool>(false);
+                return new AsyncReply<bool>(true);
 
             var type = ResourceProxy.GetBaseType(resource);//.GetType().;
 

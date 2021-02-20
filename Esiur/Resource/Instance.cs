@@ -13,6 +13,7 @@ using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Proxy;
 using Esiur.Core;
+using System.Text.Json;
 
 namespace Esiur.Resource
 {
@@ -20,7 +21,8 @@ namespace Esiur.Resource
     {
         string name;
 
-       // public int IntVal { get; set; }
+        // public int IntVal { get; set; }
+
 
         WeakReference<IResource> resource;
         IStore store;
@@ -115,7 +117,7 @@ namespace Esiur.Resource
 
             return rt;
 
-            
+
 
             /*
             var st = new Structure();
@@ -183,7 +185,7 @@ namespace Esiur.Resource
                     if (at != null)
                         if (at.Info.CanWrite)
                             at.Info.SetValue(res, DC.CastConvert(kv.Value, at.Info.PropertyType));
-                        
+
                 }
             }
 
@@ -426,6 +428,15 @@ namespace Esiur.Resource
             return true;
         }
 
+        public string ToJson()
+        {
+            IResource res;
+            if (resource.TryGetTarget(out res))
+                return JsonSerializer.Serialize(res, Global.SerializeOptions);
+            else
+                return null;
+        }
+
         /// <summary>
         /// Export all properties with ResourceProperty attributed as bytes array.
         /// </summary>
@@ -436,28 +447,18 @@ namespace Esiur.Resource
 
             foreach (var pt in template.Properties)
             {
-                /*
-#if NETSTANDARD
-                var pi = resource.GetType().GetTypeInfo().GetProperty(pt.Name);
-#else
-                var pi = resource.GetType().GetProperty(pt.Name);
-#endif
-*/
+                IResource res;
 
-                //if (pt.Serilize)
-                //{
-                    IResource res;
-                    if (resource.TryGetTarget(out res))
-                    {
-                    var rt = pt.Info.GetValue(res, null);// pt.Serilize ? pt.Info.GetValue(res, null) : null;
-                    
-                        props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
-                    }
-                //}
+                if (resource.TryGetTarget(out res))
+                {
+                    var rt = pt.Info.GetValue(res, null);
+                    props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
+                }
             }
 
             return props.ToArray();
         }
+
         /*
         public bool Deserialize(byte[] data, uint offset, uint length)
         {
@@ -712,7 +713,7 @@ namespace Esiur.Resource
             if (this.resource.TryGetTarget(out res))
             {
                 //if (!(store is null))
-                    return store.Children<T>(res, name);
+                return store.Children<T>(res, name);
                 //else
                 //    return (res as IStore).Children<T>(res, name);
             }
@@ -824,14 +825,14 @@ namespace Esiur.Resource
             if (this.resource.TryGetTarget(out res))
             {
                 //return store.Applicable(res, session, action, member, inquirer);
-                
+
                 foreach (IPermissionsManager manager in managers)
                 {
                     var r = manager.Applicable(res, session, action, member, inquirer);
                     if (r != Ruling.DontCare)
                         return r;
                 }
-                
+
             }
 
             return Ruling.DontCare;
@@ -873,14 +874,14 @@ namespace Esiur.Resource
                 this.template = customTemplate;
             else
                 this.template = Warehouse.GetTemplate(resource.GetType());
-            
-              // set ages
+
+            // set ages
             for (byte i = 0; i < template.Properties.Length; i++)
             {
                 ages.Add(0);
                 modificationDates.Add(DateTime.MinValue);
             }
- 
+
             // connect events
             Type t = ResourceProxy.GetBaseType(resource);
 
@@ -903,9 +904,9 @@ namespace Esiur.Resource
                 if (evt.Info.EventHandlerType == typeof(ResourceEventHanlder))
                 {
 
-                   // var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
-                   // if (ca.Length == 0)
-                   //     continue;
+                    // var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
+                    // if (ca.Length == 0)
+                    //     continue;
 
                     ResourceEventHanlder proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
                     evt.Info.AddEventHandler(resource, proxyDelegate);
@@ -920,7 +921,7 @@ namespace Esiur.Resource
                     CustomResourceEventHanlder proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
                     evt.Info.AddEventHandler(resource, proxyDelegate);
                 }
-         
+
 
                 /*
                 else if (evt.EventHandlerType == typeof(CustomUsersEventHanlder))
@@ -959,7 +960,7 @@ namespace Esiur.Resource
 
         //IQueryable<IResource> Children => store.GetChildren(this);
 
-        
+
         /*
          *         private void Children_OnRemoved(Instance parent, IResource value)
         {

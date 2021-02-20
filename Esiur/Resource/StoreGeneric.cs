@@ -47,9 +47,9 @@ namespace Esiur.Resource
 
         public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-        public T New(string name = null, object attributes = null, object properties = null)
+        public async AsyncReply<T> New(string name = null, object attributes = null, object properties = null)
         {
-            var resource = Warehouse.New<T>(name, this, null, null, attributes, properties);
+            var resource = await Warehouse.New<T>(name, this, null, null, attributes, properties);
             resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
             return resource;
         }

@@ -37,6 +37,7 @@ using System.Text.RegularExpressions;
 using Esiur.Misc;
 using System.Collections.Concurrent;
 using System.Collections;
+using System.Data;
 
 namespace Esiur.Resource
 {
@@ -62,7 +63,7 @@ namespace Esiur.Resource
         public static event StoreConnectedEvent StoreConnected;
         public static event StoreDisconnectedEvent StoreDisconnected;
 
-        public delegate IStore ProtocolInstance(string name, object properties);
+        public delegate AsyncReply<IStore> ProtocolInstance(string name, object properties);
 
         public static KeyList<string, ProtocolInstance> Protocols { get; } = GetSupportedProtocols();
 
@@ -73,7 +74,7 @@ namespace Esiur.Resource
         static KeyList<string, ProtocolInstance> GetSupportedProtocols()
         {
             var rt = new KeyList<string, ProtocolInstance>();
-            rt.Add("iip", (name, props) => Warehouse.New<DistributedConnection>(name, null, null, null, props));
+            rt.Add("iip", async (name, attributes) => await Warehouse.New<DistributedConnection>(name, null, null, null, attributes));
             return rt;
         }
 
@@ -378,68 +379,100 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <returns>Resource instance.</returns>
-        public static AsyncReply<IResource> Get(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
+        public static async AsyncReply<IResource> Get(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
         {
-            var rt = new AsyncReply<IResource>();
+            //var rt = new AsyncReply<IResource>();
 
             // Should we create a new store ?
 
             if (urlRegex.IsMatch(path))
             {
 
-                //if (path.Contains("://"))
-                //{
                 var url = urlRegex.Split(path);
-                //var url = path.Split(new string[] { "://" }, 2, StringSplitOptions.None);
-                //var hostname = url[1].Split(new char[] { '/' }, 2)[0];
-                //var pathname = string.Join("/", url[1].Split(new char[] { '/' }).Skip(1));
-
 
                 if (Protocols.ContainsKey(url[1]))
                 {
+                    if (!warehouseIsOpen)
+                        await Open();
+
                     var handler = Protocols[url[1]];
+                    var store = await handler(url[2], attributes);
 
-                    var store = handler(url[2], attributes);
-
-                    store.Trigger(ResourceTrigger.Open).Then(x =>
+                    try
                     {
-
-                        warehouseIsOpen = true;
-                        Put(store, url[2], null, parent, null, 0, manager, attributes);
+                        //await Put(store, url[2], null, parent, null, 0, manager, attributes);
 
                         if (url[3].Length > 0 && url[3] != "")
-                            store.Get(url[3]).Then(r =>
-                            {
-                                rt.Trigger(r);
-                            }).Error(e =>
-                            {
-                                Warehouse.Remove(store);
-                                rt.TriggerError(e);
-                            });
+                            return await store.Get(url[3]);
                         else
-                            rt.Trigger(store);
-                    }).Error(e =>
-                    {
-                        rt.TriggerError(e);
-                        //Warehouse.Remove(store);
-                    });
+                            return store;
 
-                    return rt;
+                    }
+                    catch (Exception ex)
+                    {
+                        Warehouse.Remove(store);
+                        throw ex;
+                    }
+
                 }
+
+
+                //    store.Get(url[3]).Then(r =>
+                //        {
+                //            rt.Trigger(r);
+                //        }).Error(e =>
+                //        {
+                //            Warehouse.Remove(store);
+                //            rt.TriggerError(e);
+                //        });
+                //    else
+                //        rt.Trigger(store);
+
+                //    store.Trigger(ResourceTrigger.Open).Then(x =>
+                //    {
+
+                //        warehouseIsOpen = true;
+                //        await Put(store, url[2], null, parent, null, 0, manager, attributes);
+
+                //        if (url[3].Length > 0 && url[3] != "")
+                //            store.Get(url[3]).Then(r =>
+                //            {
+                //                rt.Trigger(r);
+                //            }).Error(e =>
+                //            {
+                //                Warehouse.Remove(store);
+                //                rt.TriggerError(e);
+                //            });
+                //        else
+                //            rt.Trigger(store);
+                //    }).Error(e =>
+                //    {
+                //        rt.TriggerError(e);
+                //        //Warehouse.Remove(store);
+                //    });
+
+                //    return rt;
+                //}
             }
 
 
-            Query(path).Then(rs =>
-            {
-                //                rt.TriggerError(new Exception());
-                if (rs != null && rs.Length > 0)
-                    rt.Trigger(rs.First());
-                else
-                    rt.Trigger(null);
-            });
+            //await Query(path).Then(rs =>
+            //{
+            //    //                rt.TriggerError(new Exception());
+            //    if (rs != null && rs.Length > 0)
+            //        rt.Trigger(rs.First());
+            //    else
+            //        rt.Trigger(null);
+            //});
 
-            return rt;
+            //return rt;
 
+            var res = await Query(path);
+
+            if (res.Length == 0)
+                return null;
+            else
+                return res.First();
 
         }
 
@@ -450,7 +483,7 @@ namespace Esiur.Resource
         /// <param name="name">Resource name.</param>
         /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-        public static void Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null)
+        public static async AsyncReply<bool> Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null)
         {
             if (resource.Instance != null)
                 throw new Exception("Resource has a store.");
@@ -522,13 +555,14 @@ namespace Esiur.Resource
             //else
 
 
-            store.Put(resource);
+            if (!await store.Put(resource))
+                return false;
 
 
             if (parent != null)
             {
-                parent.Instance.Store.AddChild(parent, resource);
-                store.AddParent(resource, parent);
+                await parent.Instance.Store.AddChild(parent, resource);
+                await store.AddParent(resource, parent);
                 //store.AddChild(parent, resource);
 
             }
@@ -542,11 +576,19 @@ namespace Esiur.Resource
             resources.TryAdd(resource.Instance.Id, resourceReference);
 
             if (warehouseIsOpen)
-                resource.Trigger(ResourceTrigger.Initialize);
+            {
+                await resource.Trigger(ResourceTrigger.Initialize);
+                if (resource is IStore)
+                    await resource.Trigger(ResourceTrigger.Open);
+
+                return true;
+            }
+            else
+                return true;
 
         }
 
-        public static IResource New(Type type, string name = null, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
+        public static async AsyncReply<IResource> New(Type type, string name = null, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
         {
             type = ResourceProxy.GetProxy(type);
 
@@ -608,16 +650,19 @@ namespace Esiur.Resource
             }
 
             if (store != null || parent != null || res is IStore)
-                Put(res, name, store, parent, null, 0, manager, attributes);
+            {
+                if (!await Put(res, name, store, parent, null, 0, manager, attributes))
+                    return null;
+            }
 
             return res;
 
         }
 
-        public static T New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
+        public static async AsyncReply<T> New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
             where T : IResource
         {
-            return (T)New(typeof(T), name, store, parent, manager, attributes, properties);
+            return (T)(await New(typeof(T), name, store, parent, manager, attributes, properties));
         }
 
         /// <summary>
