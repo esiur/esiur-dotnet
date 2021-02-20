@@ -770,11 +770,16 @@ namespace Esiur.Net.IIP
                                 // create the resource
                                 var resource = Activator.CreateInstance(type, args) as IResource;
 
-                                Warehouse.Put(resource, name, store as IStore, parent);
+                                Warehouse.Put(resource, name, store as IStore, parent).Then(ok =>
+                                {
+                                    SendReply(IIPPacket.IIPPacketAction.CreateResource, callback)
+                                   .AddUInt32(resource.Instance.Id)
+                                   .Done();
 
-                                SendReply(IIPPacket.IIPPacketAction.CreateResource, callback)
-                                           .AddUInt32(resource.Instance.Id)
-                                           .Done();
+                                }).Error(x =>
+                                {
+                                    SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.AddToStoreFailed);
+                                });
 
                             });
                         });
@@ -1959,14 +1964,27 @@ namespace Esiur.Net.IIP
                             {
                                 // ClassId, ResourceAge, ResourceLink, Content
                                 if (resource == null)
-                                    Warehouse.Put(dr, id.ToString(), this, null, tmp);
-
-                                Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
                                 {
-                                    dr._Attach(ar);
-                                    resourceRequests.Remove(id);
-                                    reply.Trigger(dr);
-                                });
+                                    Warehouse.Put(dr, id.ToString(), this, null, tmp).Then((ok) =>
+                                    {
+                                        Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
+                                        {
+                                            dr._Attach(ar);
+                                            resourceRequests.Remove(id);
+                                            reply.Trigger(dr);
+                                        });
+                                    }).Error(ex=>reply.TriggerError(ex));
+                                }
+                                else
+                                {
+                                    Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
+                                    {
+                                        dr._Attach(ar);
+                                        resourceRequests.Remove(id);
+                                        reply.Trigger(dr);
+                                    }).Error(ex=>reply.TriggerError(ex));
+                                }
+
                             }).Error((ex) =>
                             {
                                 reply.TriggerError(ex);

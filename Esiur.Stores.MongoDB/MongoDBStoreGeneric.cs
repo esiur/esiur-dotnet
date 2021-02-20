@@ -36,9 +36,9 @@ namespace Esiur.Stores.MongoDB
     public class MongoDBStore<T> : MongoDBStore where T:IResource
     {
         [Public]
-        public T New(string name = null, object properties = null)
+        public async AsyncReply<T> New(string name = null, object properties = null)
         {
-            var resource = Warehouse.New<T>(name, this, null, null, null, properties);
+            var resource = await Warehouse.New<T>(name, this, null, null, null, properties);
             resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
             return resource;
         }

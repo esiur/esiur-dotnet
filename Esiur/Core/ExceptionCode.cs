@@ -36,5 +36,6 @@ namespace Esiur.Core
         SetPropertyDenied,
         ReadOnlyProperty,
         GeneralFailure,
+        AddToStoreFailed
     }
 }

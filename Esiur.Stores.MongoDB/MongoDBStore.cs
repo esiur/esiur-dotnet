@@ -48,7 +48,7 @@ namespace Esiur.Stores.MongoDB
         IMongoDatabase database;
         IMongoCollection<BsonDocument> resourcesCollection;
 
-        Dictionary<string, WeakReference> resources = new Dictionary<string, WeakReference>();
+        KeyList<string, WeakReference> resources = new KeyList<string, WeakReference>();
 
 
         [Public]
@@ -158,7 +158,8 @@ namespace Esiur.Stores.MongoDB
             else
                 resources.Add(id, new WeakReference(resource));
 
-            Warehouse.Put(resource, document["name"].AsString, this);
+            //@TODO this causes store.put to be invoked, need fix 
+            await Warehouse.Put(resource, document["name"].AsString, this);
 
 
             var parents = document["parents"].AsBsonArray;

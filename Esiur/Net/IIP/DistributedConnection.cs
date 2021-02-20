@@ -759,12 +759,18 @@ namespace Esiur.Net.IIP
                                         .Done();
 
                                     ready = true;
-                                    Warehouse.Put(this, this.LocalUsername, null, Server);
+                                    Warehouse.Put(this, this.LocalUsername, null, Server).Then(x =>
+                                    {
+                                        openReply?.Trigger(true);
+                                        OnReady?.Invoke(this);
 
-                                    openReply?.Trigger(true);
-                                    OnReady?.Invoke(this);
+                                        Server?.Membership.Login(session);
 
-                                    Server?.Membership.Login(session);
+                                    }).Error(x=>
+                                    {
+                                        openReply?.TriggerError(x);
+                                    });
+
 
                                     //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
 
@@ -835,10 +841,12 @@ namespace Esiur.Net.IIP
 
                                 ready = true;
                                 // put it in the warehouse
-                                Warehouse.Put(this, this.LocalUsername, null, Server);
+                                Warehouse.Put(this, this.LocalUsername, null, Server).Then(x =>
+                                {
+                                    openReply?.Trigger(true);
+                                    OnReady?.Invoke(this);
 
-                                openReply?.Trigger(true);
-                                OnReady?.Invoke(this);
+                                }).Error(x=> openReply?.TriggerError(x));
 
                             }
                         }
@@ -945,7 +953,7 @@ namespace Esiur.Net.IIP
                 }
             }
 
-            return new AsyncReply<bool>();
+            return new AsyncReply<bool>(true);
         }
 
 

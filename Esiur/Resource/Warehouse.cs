@@ -535,25 +535,11 @@ namespace Esiur.Resource
                 parent = null;
 
 
-            /*
-            if (parent == null)
-            {
-                if (!(resource is IStore))
-                    store.Instance.Children.Add(resource);
-            }
-            else
-                parent.Instance.Children.Add(resource);
-               */
-
+            
 
             if (resource is IStore)
-            {
-
                 stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
-                StoreConnected?.Invoke(resource as IStore, name);
-            }
-            //else
-
+            
 
             if (!await store.Put(resource))
                 return false;
@@ -563,16 +549,12 @@ namespace Esiur.Resource
             {
                 await parent.Instance.Store.AddChild(parent, resource);
                 await store.AddParent(resource, parent);
-                //store.AddChild(parent, resource);
-
             }
 
             var t = resource.GetType();
             Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
-            //var wr = new WeakReference<IResource>(resource);
 
-            //lock (resourcesLock)
             resources.TryAdd(resource.Instance.Id, resourceReference);
 
             if (warehouseIsOpen)
@@ -580,11 +562,12 @@ namespace Esiur.Resource
                 await resource.Trigger(ResourceTrigger.Initialize);
                 if (resource is IStore)
                     await resource.Trigger(ResourceTrigger.Open);
-
-                return true;
             }
-            else
-                return true;
+            
+            if (resource is IStore)
+                StoreConnected?.Invoke(resource as IStore, name);
+
+            return true;
 
         }
 
