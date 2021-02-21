@@ -292,7 +292,7 @@ namespace Esiur.Net.IIP
             queue.Then((x) =>
             {
                 if (x.Type == DistributedResourceQueueItem.DistributedResourceQueueItemType.Event)
-                    x.Resource._EmitEventByIndex(x.Index, (object[])x.Value);
+                    x.Resource._EmitEventByIndex(x.Index, x.Value);
                 else
                     x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
             });
@@ -895,7 +895,7 @@ namespace Esiur.Net.IIP
             }
             finally
             {
-                this.Socket.Unhold();
+                this.Socket?.Unhold();
             }
         }
 

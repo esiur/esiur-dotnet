@@ -210,7 +210,7 @@ namespace Esiur.Net.IIP
            return true;
         }
 
-        internal void _EmitEventByIndex(byte index, object[] args)
+        internal void _EmitEventByIndex(byte index, object args)
         {
             var et = Instance.Template.GetEventTemplateByIndex(index);
             events[index]?.Invoke(this, args);

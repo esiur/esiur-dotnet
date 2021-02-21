@@ -31,9 +31,9 @@ namespace Esiur.Resource
 
 
         public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue);
-        public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, object[] args);
+        public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, object args);
 
-        public delegate void CustomResourceEventOccurredEvent(IResource resource, object issuer, Func<Session, bool> receivers, string eventName, object[] args);
+        public delegate void CustomResourceEventOccurredEvent(IResource resource, object issuer, Func<Session, bool> receivers, string eventName, object args);
 
         public delegate void ResourceDestroyedEvent(IResource resource);
 
@@ -589,7 +589,7 @@ namespace Esiur.Resource
 
         //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
 
-        internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, string name, object[] args)
+        internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, string name, object args)
         {
             IResource res;
             if (this.resource.TryGetTarget(out res))
@@ -598,7 +598,7 @@ namespace Esiur.Resource
             }
         }
 
-        internal void EmitResourceEvent(string name, object[] args)
+        internal void EmitResourceEvent(string name, object args)
         {
             IResource res;
             if (this.resource.TryGetTarget(out res))

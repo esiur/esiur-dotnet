@@ -344,7 +344,7 @@ namespace Esiur.Net.IIP
                 var item = new AsyncReply<DistributedResourceQueueItem>();
                 queue.Add(item);
 
-                Codec.ParseVarArray(content, this).Then((arguments) =>
+                Codec.Parse(content, 0, this).Then((arguments) =>
                 {
                     var et = r.Instance.Template.GetEventTemplateByIndex(index);
                     if (et != null)
@@ -1286,18 +1286,21 @@ namespace Esiur.Net.IIP
                                 else
                                 {
                                     // ft found, fi not found, this should never happen
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                                 }
                             }
                         }
                         else
                         {
                             // no function at this index
+                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                         }
                     });
                 }
                 else
                 {
                     // no resource with this id
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
         }
@@ -1424,16 +1427,16 @@ namespace Esiur.Net.IIP
                                                 .AddUInt8Array(Codec.Compose(res, this))
                                                 .Done();
 
-                                }).Error(ex =>
-                                {
-                                    SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
-                                }).Progress((pt, pv, pm) =>
-                                {
-                                    SendProgress(callback, pv, pm);
-                                }).Chunk(v =>
-                                {
-                                    SendChunk(callback, v);
-                                });
+                                            }).Error(ex =>
+                                            {
+                                                SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                            }).Progress((pt, pv, pm) =>
+                                            {
+                                                SendProgress(callback, pv, pm);
+                                            }).Chunk(v =>
+                                            {
+                                                SendChunk(callback, v);
+                                            });
                                      }
                                      else
                                      {
@@ -1445,18 +1448,23 @@ namespace Esiur.Net.IIP
                                  else
                                  {
                                      // ft found, fi not found, this should never happen
+                                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+
                                  }
                              }
                          }
                          else
                          {
                              // no function at this index
+                             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+
                          }
                      });
                 }
                 else
                 {
                     // no resource with this id
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
         }
@@ -2298,7 +2306,7 @@ namespace Esiur.Net.IIP
 
         //        private void Instance_EventOccurred(IResource resource, string name, string[] users, DistributedConnection[] connections, object[] args)
 
-        private void Instance_CustomEventOccurred(IResource resource, object issuer, Func<Session, bool> receivers, string name, object[] args)
+        private void Instance_CustomEventOccurred(IResource resource, object issuer, Func<Session, bool> receivers, string name, object args)
         {
             var et = resource.Instance.Template.GetEventTemplateByName(name);
 
@@ -2315,11 +2323,11 @@ namespace Esiur.Net.IIP
             SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
                         .AddUInt32(resource.Instance.Id)
                         .AddUInt8((byte)et.Index)
-                        .AddUInt8Array(Codec.ComposeVarArray(args, this, true))
+                        .AddUInt8Array(Codec.Compose(args, this, true))
                         .Done();
         }
 
-        private void Instance_EventOccurred(IResource resource, string name, object[] args)
+        private void Instance_EventOccurred(IResource resource, string name, object args)
         {
             var et = resource.Instance.Template.GetEventTemplateByName(name);
 
@@ -2334,7 +2342,7 @@ namespace Esiur.Net.IIP
             SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
                         .AddUInt32(resource.Instance.Id)
                         .AddUInt8((byte)et.Index)
-                        .AddUInt8Array(Codec.ComposeVarArray(args, this, true))
+                        .AddUInt8Array(Codec.Compose(args, this, true))
                         .Done();
         }
     }

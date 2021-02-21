@@ -27,10 +27,10 @@ namespace Esiur.Resource.Template
                 var exp = DC.ToBytes(Expansion);
                 return new BinaryList()
                         .AddUInt8(0x50)
-                        .AddInt32(exp.Length)
-                        .AddUInt8Array(exp)
                         .AddUInt8((byte)name.Length)
                         .AddUInt8Array(name)
+                        .AddInt32(exp.Length)
+                        .AddUInt8Array(exp)
                         .ToArray();
             }
             else

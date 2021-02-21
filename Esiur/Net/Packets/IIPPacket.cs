@@ -300,7 +300,8 @@ namespace Esiur.Net.Packets
 
                     offset += cl;
                 }
-                else if (Event == IIPPacketEvent.PropertyUpdated)
+                else if (Event == IIPPacketEvent.PropertyUpdated
+                      || Event == IIPPacketEvent.EventOccurred)
                 {
                     if (NotEnough(offset, ends, 2))
                         return -dataLengthNeeded;
@@ -333,23 +334,23 @@ namespace Esiur.Net.Packets
                         offset += (uint)size;
                     }
                 }
-                else if (Event == IIPPacketEvent.EventOccurred)
-                {
-                    if (NotEnough(offset, ends, 5))
-                        return -dataLengthNeeded;
+                //else if (Event == IIPPacketEvent.EventOccurred)
+                //{
+                //    if (NotEnough(offset, ends, 5))
+                //        return -dataLengthNeeded;
 
-                    MethodIndex = data[offset++];
+                //    MethodIndex = data[offset++];
 
-                    var cl = data.GetUInt32(offset);
-                    offset += 4;
+                //    var cl = data.GetUInt32(offset);
+                //    offset += 4;
 
-                    if (NotEnough(offset, ends, cl))
-                        return -dataLengthNeeded;
+                //    if (NotEnough(offset, ends, cl))
+                //        return -dataLengthNeeded;
 
-                    Content = data.Clip(offset, cl);
-                    offset += cl;
+                //    Content = data.Clip(offset, cl);
+                //    offset += cl;
 
-                }
+                //}
                 // Attribute
                 else if (Event == IIPPacketEvent.AttributesUpdated)
                 {
