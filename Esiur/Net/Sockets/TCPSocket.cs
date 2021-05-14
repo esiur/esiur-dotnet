@@ -126,7 +126,7 @@ namespace Esiur.Net.Sockets
                     return;
                 }
             }
-            catch (Exception ex)
+            catch //(Exception ex)
             {
                 if (socket.state != SocketState.Closed && !socket.sock.Connected)
                 {
@@ -500,7 +500,7 @@ namespace Esiur.Net.Sockets
                                 socket.Close();
                             }
                         }
-                        catch (Exception ex2)
+                        catch //(Exception ex2)
                         {
                             socket.Close();
                             //socket.state = SocketState.Closed;// .Terminated;

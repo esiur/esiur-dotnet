@@ -44,7 +44,7 @@ using Esiur.Resource.Template;
 
 namespace Esiur.Net.IIP
 {
-    
+
     //[System.Runtime.InteropServices.ComVisible(true)]
     public class DistributedResource : DynamicObject, IResource
     {
@@ -73,7 +73,7 @@ namespace Esiur.Net.IIP
 
         DistributedResourceEvent[] events;
 
-        
+
 
         /// <summary>
         /// Resource template for the remotely located resource.
@@ -105,7 +105,7 @@ namespace Esiur.Net.IIP
         /// </summary>
         public uint Id
         {
-            get {  return instanceId; }
+            get { return instanceId; }
         }
 
         /// <summary>
@@ -136,20 +136,20 @@ namespace Esiur.Net.IIP
         internal bool Attached => attached;
 
         internal bool Suspended => suspended;
-    
 
-       // public DistributedResourceStack Stack
+
+        // public DistributedResourceStack Stack
         //{
-       //     get { return stack; }
+        //     get { return stack; }
         //}
 
-            /// <summary>
-            /// Create a new distributed resource.
-            /// </summary>
-            /// <param name="connection">Connection responsible for the distributed resource.</param>
-            /// <param name="template">Resource template.</param>
-            /// <param name="instanceId">Instance Id given by the other end.</param>
-            /// <param name="age">Resource age.</param>
+        /// <summary>
+        /// Create a new distributed resource.
+        /// </summary>
+        /// <param name="connection">Connection responsible for the distributed resource.</param>
+        /// <param name="template">Resource template.</param>
+        /// <param name="instanceId">Instance Id given by the other end.</param>
+        /// <param name="age">Resource age.</param>
         public DistributedResource(DistributedConnection connection, uint instanceId, ulong age, string link)
         {
             this.link = link;
@@ -207,7 +207,7 @@ namespace Esiur.Net.IIP
                 attached = true;
 
             }
-           return true;
+            return true;
         }
 
         internal void _EmitEventByIndex(byte index, object args)
@@ -232,6 +232,7 @@ namespace Esiur.Net.IIP
             return connection.SendInvokeByNamedArguments(instanceId, index, namedArgs);
         }
 
+
         public AsyncReply<object> _InvokeByArrayArguments(byte index, object[] args)
         {
             if (destroyed)
@@ -247,14 +248,52 @@ namespace Esiur.Net.IIP
             return connection.SendInvokeByArrayArguments(instanceId, index, args);
         }
 
- 
+
+        public AsyncReply Listen(EventTemplate et)
+        {
+            if (et == null)
+                return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+
+            if (!et.Listenable)
+                return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotListenable, ""));
+
+            return connection.SendListenRequest(instanceId, et.Index);
+        }
+
+        public AsyncReply Listen(string eventName)
+        {
+            var et = Instance.Template.GetEventTemplateByName(eventName);
+
+            return Listen(et);
+        }
+
+
+        public AsyncReply Unlisten(EventTemplate et)
+        {
+            if (et == null)
+                return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+
+            if (!et.Listenable)
+                return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotListenable, ""));
+
+            return connection.SendUnlistenRequest(instanceId, et.Index);
+        }
+
+        public AsyncReply Unlisten(string eventName)
+        {
+            var et = Instance.Template.GetEventTemplateByName(eventName);
+
+            return Unlisten(et);
+        }
+
+
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
             var ft = Instance.Template.GetFunctionTemplateByName(binder.Name);
 
             var reply = new AsyncReply<object>();
 
-            if (attached && ft!=null)
+            if (attached && ft != null)
             {
                 if (args.Length == 1)
                 {
@@ -273,7 +312,7 @@ namespace Esiur.Net.IIP
                     {
                         result = _InvokeByArrayArguments(ft.Index, args);
                     }
-                    
+
                 }
                 else
                 {
@@ -380,7 +419,7 @@ namespace Esiur.Net.IIP
                 return false;
 
             var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);
- 
+
             if (pt != null)
             {
                 _Set(pt.Index, value);
@@ -397,7 +436,7 @@ namespace Esiur.Net.IIP
                 return true;
             }
 
-         }
+        }
 
         /*
               public async void InvokeMethod(byte index, object[] arguments, DistributedConnection sender)
@@ -426,10 +465,10 @@ namespace Esiur.Net.IIP
               */
 
 
-   
-            /// <summary>
-            /// Resource interface.
-            /// </summary>
+
+        /// <summary>
+        /// Resource interface.
+        /// </summary>
         public Instance Instance
         {
             get;

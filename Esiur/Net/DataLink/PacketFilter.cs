@@ -50,7 +50,7 @@ namespace Esiur.Net.DataLink
 
         public void Destroy()
         {
-
+            OnDestroy?.Invoke(this);
         }
     }
 }

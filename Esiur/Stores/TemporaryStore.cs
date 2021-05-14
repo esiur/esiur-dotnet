@@ -20,6 +20,7 @@ namespace Esiur.Stores
 
         public void Destroy()
         {
+            OnDestroy?.Invoke(this);
 
         }
 
@@ -31,19 +32,19 @@ namespace Esiur.Stores
             return null;
         }
 
-        public async AsyncReply<IResource> Get(string path)
+        public AsyncReply<IResource> Get(string path)
         {
             foreach (var r in resources)
                 if (r.Value.IsAlive && (r.Value.Target as IResource).Instance.Name == path)
-                    return r.Value.Target as IResource;
+                    return new AsyncReply<IResource>(r.Value.Target as IResource);
 
-            return null;
+            return new AsyncReply<IResource>(null);
         }
 
-        public async AsyncReply<bool> Put(IResource resource)
+        public AsyncReply<bool> Put(IResource resource)
         {
             resources.Add(resource.Instance.Id, new WeakReference( resource));//  new WeakReference<IResource>(resource));
-            return true;
+            return new AsyncReply<bool>(true);
         }
 
         public AsyncReply<IResource> Retrieve(uint iid)

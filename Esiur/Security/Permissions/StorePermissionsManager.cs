@@ -46,6 +46,7 @@ namespace Esiur.Security.Permissions
 
         public bool Initialize(Structure settings, IResource resource)
         {
+            this.settings = settings;
             return true;
         }
     }

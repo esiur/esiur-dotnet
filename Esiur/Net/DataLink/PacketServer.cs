@@ -65,7 +65,7 @@ namespace Esiur.Net.DataLink
 
         public void Destroy()
         {
-            throw new NotImplementedException();
+            OnDestroy?.Invoke(this);
         }
 
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)

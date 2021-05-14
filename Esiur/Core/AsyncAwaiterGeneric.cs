@@ -32,7 +32,7 @@ namespace Esiur.Core
         public T GetResult()
         {
             if (exception != null)
-                throw exception;
+               throw exception;
             return result;
         }
 

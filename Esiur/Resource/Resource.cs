@@ -47,6 +47,7 @@ namespace Esiur.Resource
                 return new AsyncReply<bool>(true);
         }
 
+        
         protected virtual bool Create()
         {
             return true;

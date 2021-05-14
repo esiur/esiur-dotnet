@@ -51,7 +51,7 @@ namespace Esiur.Net.UDP
 
         public void Destroy()
         {
-            throw new NotImplementedException();
+            OnDestroy?.Invoke(this);
         }
     }
 }

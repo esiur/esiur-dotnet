@@ -1,4 +1,5 @@
-﻿using Esiur.Resource;
+﻿using Esiur.Net.IIP;
+using Esiur.Resource;
 /*
  
 Copyright (c) 2017-2021 Ahmed Kh. Zamil
@@ -53,8 +54,15 @@ namespace Esiur.Data
             foreach (var pt in resource.Instance.Template.Properties)
             {
                 var rt = pt.Info.GetValue(resource, null);
+                if (rt is DistributedPropertyContext)
+                    continue;
+
                 writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(pt.Name) ?? pt.Name);
-                JsonSerializer.Serialize(writer, rt, options);
+
+                if (rt is IResource)
+                    JsonSerializer.Serialize(writer, (IResource) rt, options);
+                else
+                    JsonSerializer.Serialize(writer, rt, options);
             }
 
             writer.WriteEndObject();

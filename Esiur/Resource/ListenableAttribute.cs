@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2021 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -21,46 +21,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 */
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Collections;
-using Esiur.Data;
-using Esiur.Net.Sockets;
-using Esiur.Core;
-using Esiur.Resource;
+using System.Threading.Tasks;
 
-namespace Esiur.Net.TCP
+namespace Esiur.Resource
 {
-    public abstract class TCPFilter: IResource
+
+    [AttributeUsage(AttributeTargets.Event)]
+    public class ListenableAttribute : System.Attribute
     {
-        public Instance Instance
+
+        public ListenableAttribute()
         {
-            get;
-            set;
-        }
 
-        public event DestroyedEvent OnDestroy;
-
-        public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
-
-        public virtual bool Connected(TCPConnection sender)
-        {
-            return false;
-        }
-
-        public virtual bool Disconnected(TCPConnection sender)
-        {
-            return false;
-        }
-
-        public abstract bool Execute(byte[] msg, NetworkBuffer data, TCPConnection sender);
-
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
         }
     }
 }

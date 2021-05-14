@@ -40,7 +40,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Esiur.Stores.EntityCore
 {
-    public class EsiurProxyRewrite : IModelFinalizingConvention
+    public class EsiurProxyRewrite : IModelFinalizingConvention 
     {
         private static readonly MethodInfo _createInstance
     = typeof(EsiurProxyRewrite).GetTypeInfo().GetDeclaredMethod(nameof(EsiurProxyRewrite.CreateInstance));
@@ -79,7 +79,7 @@ namespace Esiur.Stores.EntityCore
             var obj = Warehouse.New(entityType.ClrType).Wait() as EntityResource;//, "", options.Store, null, manager);
             //obj._PrimaryId = id;
             options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
-            Warehouse.Put(obj, id.ToString(), options.Store, null, null, 0, manager).Wait();
+            Warehouse.Put(id.ToString(), obj, options.Store, null, null, 0, manager).Wait();
 
             //            obj.Instance.IntVal = id;//.Variables.Add("eid", id);
 

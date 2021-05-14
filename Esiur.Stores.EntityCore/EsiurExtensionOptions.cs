@@ -34,10 +34,11 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
 using Esiur.Proxy;
+using Microsoft.EntityFrameworkCore;
 
 namespace Esiur.Stores.EntityCore
 {
-    public class EsiurExtensionOptions : IDbContextOptionsExtension
+    public class EsiurExtensionOptions : IDbContextOptionsExtension 
     {
 
         //public Dictionary<Type, PropertyInfo> Cache { get; } = new Dictionary<Type, PropertyInfo>();

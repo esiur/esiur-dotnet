@@ -69,7 +69,7 @@ namespace Esiur.Net.DataLink
 
         public void Destroy()
         {
-            throw new NotImplementedException();
+            OnDestroy?.Invoke(this);
         }
 
         /*

@@ -40,7 +40,7 @@ namespace Esiur.Stores.EntityCore
         //internal object _PrimaryId;
 
         public event DestroyedEvent OnDestroy;
-        public event PropertyChangedEventHandler PropertyChanged;
+        //public event PropertyChangedEventHandler PropertyChanged;
 
         [NotMapped]
         public Instance Instance { get; set; }
@@ -66,7 +66,7 @@ namespace Esiur.Stores.EntityCore
 
         public void Destroy()
         {
-            //throw new NotImplementedException();
+            OnDestroy?.Invoke(this);
         }
 
 

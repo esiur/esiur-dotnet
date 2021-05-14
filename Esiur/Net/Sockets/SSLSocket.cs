@@ -165,7 +165,7 @@ namespace Esiur.Net.Sockets
                     {
                         ssl.BeginWrite(kv.Value, 0, kv.Value.Length, SendCallback, kv.Key);
                     }
-                    catch (Exception ex)
+                    catch //(Exception ex)
                     {
                         asyncSending = false;
                         try
@@ -179,7 +179,7 @@ namespace Esiur.Net.Sockets
                                 Close();
                             }
                         }
-                        catch (Exception ex2)
+                        catch //(Exception ex2)
                         {
                             //state = SocketState.Closed;// .Terminated;
                             Close();
@@ -439,7 +439,7 @@ namespace Esiur.Net.Sockets
                 ssl.BeginRead(receiveBuffer, 0, receiveBuffer.Length, ReceiveCallback, this);
 
             }
-            catch (Exception ex)
+            catch //(Exception ex)
             {
                 if (state != SocketState.Closed && !sock.Connected)
                 {

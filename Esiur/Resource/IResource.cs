@@ -41,7 +41,6 @@ namespace Esiur.Resource
     {
 
         AsyncReply<bool> Trigger(ResourceTrigger trigger);
-        
         Instance Instance
         {
             get;

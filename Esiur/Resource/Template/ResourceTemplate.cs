@@ -176,7 +176,7 @@ namespace Esiur.Resource.Template
                         var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
                         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
 
-                        var pt = new PropertyTemplate(this, i++, pi.Name);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
+                        var pt = new PropertyTemplate(this, i++, pi.Name);
                         if (storageAttr != null)
                             pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
 
@@ -184,7 +184,7 @@ namespace Esiur.Resource.Template
                             pt.ReadExpansion = annotationAttr.Annotation;
                         else
                             pt.ReadExpansion = pi.PropertyType.Name;
-
+ 
                         pt.Info = pi;
                         //pt.Serilize = publicAttr.Serialize;
                         properties.Add(pt);
@@ -209,12 +209,16 @@ namespace Esiur.Resource.Template
                     if (privateAttr == null)
                     {
                         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+                        var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
 
                         var et = new EventTemplate(this, i++, ei.Name);
                         et.Info = ei;
 
                         if (annotationAttr != null)
                             et.Expansion = annotationAttr.Annotation;
+
+                        if (listenableAttr != null)
+                            et.Listenable = true;
 
                         events.Add(et);
                     }
@@ -283,12 +287,16 @@ namespace Esiur.Resource.Template
                     if (publicAttr != null)
                     {
                         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+                        var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
 
                         var et = new EventTemplate(this, i++, ei.Name);
                         et.Info = ei;
 
                         if (annotationAttr != null)
                             et.Expansion = annotationAttr.Annotation;
+
+                        if (listenableAttr != null)
+                            et.Listenable = true;
 
                         events.Add(et);
                     }
@@ -340,6 +348,7 @@ namespace Esiur.Resource.Template
                 b.AddUInt8Array(et.Compose());
 
             content = b.ToArray();
+
         }
 
         public static ResourceTemplate Parse(byte[] data)
@@ -436,7 +445,8 @@ namespace Esiur.Resource.Template
                 {
 
                     string expansion = null;
-                    var hasExpansion = ((data[offset++] & 0x10) == 0x10);
+                    var hasExpansion = ((data[offset] & 0x10) == 0x10);
+                    var listenable = ((data[offset++] & 0x8) == 0x8);
 
                     var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
                     offset += (uint)data[offset] + 1;
@@ -449,7 +459,7 @@ namespace Esiur.Resource.Template
                         offset += cs;
                     }
 
-                    var et = new EventTemplate(od, eventIndex++, name, expansion);
+                    var et = new EventTemplate(od, eventIndex++, name, expansion, listenable);
 
                     od.events.Add(et);
 

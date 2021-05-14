@@ -69,7 +69,7 @@ namespace Esiur.Misc
             }catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
-                return "";
+                return "{}";
             }
         }
 
@@ -433,9 +433,9 @@ namespace Esiur.Misc
 
 
 
-        public static byte[] GenerateBytes(int Length)
+        public static byte[] GenerateBytes(int length)
         {
-            var b  = new byte[Length];
+            var b  = new byte[length];
             rand.NextBytes(b);
             return b;
         }

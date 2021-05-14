@@ -192,7 +192,7 @@ namespace Esiur.Core
             // }
         }
 
-        public void Trigger(object result)
+        public AsyncReply Trigger(object result)
         {
             lock (asyncLock)
             {
@@ -202,7 +202,7 @@ namespace Esiur.Core
                     Console.WriteLine($"AsyncReply: {Id} Trigger");
 
                 if (resultReady)
-                    return;
+                    return this;
 
                 this.result = result;
 
@@ -219,14 +219,16 @@ namespace Esiur.Core
                     Console.WriteLine($"AsyncReply: {Id} Trigger ended");
 
             }
+
+            return this;
         }
 
-        public void TriggerError(Exception exception)
+        public AsyncReply TriggerError(Exception exception)
         {
             //timeout?.Dispose();
 
             if (resultReady)
-                return;
+                return this;
 
             if (exception is AsyncException)
                 this.exception = exception as AsyncException;
@@ -242,9 +244,10 @@ namespace Esiur.Core
 
             mutex?.Set();
 
+            return this;
         }
 
-        public void TriggerProgress(ProgressType type, int value, int max)
+        public AsyncReply TriggerProgress(ProgressType type, int value, int max)
         {
             //timeout?.Dispose();
 
@@ -254,10 +257,12 @@ namespace Esiur.Core
                 cb(type, value, max);
 
             //}
+
+            return this;
         }
 
 
-        public void TriggerChunk(object value)
+        public AsyncReply TriggerChunk(object value)
         {
 
             //timeout?.Dispose();
@@ -269,6 +274,8 @@ namespace Esiur.Core
                 cb(value);
 
             //}
+
+            return this;
         }
 
         public AsyncAwaiter GetAwaiter()

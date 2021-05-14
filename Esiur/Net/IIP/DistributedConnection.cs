@@ -198,10 +198,19 @@ namespace Esiur.Net.IIP
             if (socket.State == SocketState.Established &&
                 session.LocalAuthentication.Type == AuthenticationType.Client)
             {
+                Declare();
+            }
+        }
+
+        private void Declare()
+        {
+            var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
+
+            if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
+            {
                 // declare (Credentials -> No Auth, No Enctypt)
 
                 var un = DC.ToBytes(session.LocalAuthentication.Username);
-                var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
 
                 SendParams()
                     .AddUInt8(0x60)
@@ -212,8 +221,27 @@ namespace Esiur.Net.IIP
                     .AddUInt8Array(un)
                     .Done();//, dmn, localNonce, (byte)un.Length, un);
             }
-        }
+            else if (session.LocalAuthentication.Method == AuthenticationMethod.Token)
+            {
 
+                SendParams()
+                    .AddUInt8(0x70)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt64(session.LocalAuthentication.TokenIndex)
+                    .Done();//, dmn, localNonce, token
+
+            }
+            else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
+            {
+                SendParams()
+                    .AddUInt8(0x40)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .Done();//, dmn, localNonce, token
+            }
+        }
 
         /// <summary>
         /// Create a new distributed connection. 
@@ -451,12 +479,21 @@ namespace Esiur.Net.IIP
                                 IIPRequestInvokeFunctionNamedArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
                                 break;
 
-                            case IIPPacket.IIPPacketAction.GetProperty:
-                                IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
+                            //case IIPPacket.IIPPacketAction.GetProperty:
+                            //    IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
+                            //    break;
+                            //case IIPPacket.IIPPacketAction.GetPropertyIfModified:
+                            //    IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
+                            //    break;
+
+                            case IIPPacket.IIPPacketAction.Listen:
+                                IIPRequestListen(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                                 break;
-                            case IIPPacket.IIPPacketAction.GetPropertyIfModified:
-                                IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
+
+                            case IIPPacket.IIPPacketAction.Unlisten:
+                                IIPRequestUnlisten(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                                 break;
+
                             case IIPPacket.IIPPacketAction.SetProperty:
                                 IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
                                 break;
@@ -531,14 +568,17 @@ namespace Esiur.Net.IIP
                                 IIPReplyInvoke(packet.CallbackId, packet.Content);
                                 break;
 
-                            case IIPPacket.IIPPacketAction.GetProperty:
-                                IIPReply(packet.CallbackId, packet.Content);
-                                break;
+                            //case IIPPacket.IIPPacketAction.GetProperty:
+                            //    IIPReply(packet.CallbackId, packet.Content);
+                            //    break;
 
-                            case IIPPacket.IIPPacketAction.GetPropertyIfModified:
-                                IIPReply(packet.CallbackId, packet.Content);
-                                break;
-                            case IIPPacket.IIPPacketAction.SetProperty:
+                            //case IIPPacket.IIPPacketAction.GetPropertyIfModified:
+                            //    IIPReply(packet.CallbackId, packet.Content);
+                            //    break;
+
+                            case IIPPacketAction.Listen:
+                            case IIPPacketAction.Unlisten:
+                            case IIPPacketAction.SetProperty:
                                 IIPReply(packet.CallbackId);
                                 break;
 
@@ -753,24 +793,34 @@ namespace Esiur.Net.IIP
                                     session.Id = new byte[32];
                                     r.NextBytes(session.Id);
                                     //SendParams((byte)0x28, session.Id);
-                                    SendParams()
-                                        .AddUInt8(0x28)
-                                        .AddUInt8Array(session.Id)
-                                        .Done();
+                                    SendParams().AddUInt8(0x28)
+                                                .AddUInt8Array(session.Id)
+                                                .Done();
 
-                                    ready = true;
-                                    Warehouse.Put(this, this.LocalUsername, null, Server).Then(x =>
+                                    if (this.Instance == null)
                                     {
+                                        Warehouse.Put(this.RemoteUsername, this, null, Server).Then(x =>
+                                        {
+
+                                            ready = true;
+                                            openReply?.Trigger(true);
+                                            OnReady?.Invoke(this);
+
+                                            Server?.Membership.Login(session);
+                                            loginDate = DateTime.Now;
+                                            
+                                        }).Error(x =>
+                                        {
+                                            openReply?.TriggerError(x);
+                                        });
+                                    }
+                                    else
+                                    {
+                                        ready = true;
                                         openReply?.Trigger(true);
                                         OnReady?.Invoke(this);
-
                                         Server?.Membership.Login(session);
-
-                                    }).Error(x=>
-                                    {
-                                        openReply?.TriggerError(x);
-                                    });
-
+                                    }
 
                                     //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
 
@@ -841,13 +891,21 @@ namespace Esiur.Net.IIP
 
                                 ready = true;
                                 // put it in the warehouse
-                                Warehouse.Put(this, this.LocalUsername, null, Server).Then(x =>
+
+                                if (this.Instance == null)
+                                {
+                                    Warehouse.Put(this.LocalUsername, this, null, Server).Then(x =>
+                                    {
+                                        openReply?.Trigger(true);
+                                        OnReady?.Invoke(this);
+
+                                    }).Error(x => openReply?.TriggerError(x));
+                                }
+                                else
                                 {
                                     openReply?.Trigger(true);
                                     OnReady?.Invoke(this);
-
-                                }).Error(x=> openReply?.TriggerError(x));
-
+                                }
                             }
                         }
                         else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
@@ -957,28 +1015,7 @@ namespace Esiur.Net.IIP
         }
 
 
-        protected void NetworkClose()
-        {
-            // clean up
-            ready = false;
-            readyToEstablish = false;
 
-            foreach (var x in requests.Values)
-                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
-
-            foreach (var x in resourceRequests.Values)
-                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
-
-            foreach (var x in templateRequests.Values)
-                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
-
-            requests.Clear();
-            resourceRequests.Clear();
-            templateRequests.Clear();
-
-            foreach (var x in resources.Values)
-                x.Suspend();
-        }
 
         public AsyncReply<bool> Connect(AuthenticationMethod method = AuthenticationMethod.Certificate, Sockets.ISocket socket = null, string hostname = null, ushort port = 0, string username = null, ulong tokenIndex = 0, byte[] passwordOrToken = null, string domain = null)
         {
@@ -1128,32 +1165,38 @@ namespace Esiur.Net.IIP
         protected override void Connected()
         {
             if (session.LocalAuthentication.Type == AuthenticationType.Client)
-            {
-                // declare (Credentials -> No Auth, No Enctypt)
-
-                var un = DC.ToBytes(session.LocalAuthentication.Username);
-                var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
-
-                SendParams()
-                    .AddUInt8(0x60)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .AddUInt8Array(localNonce)
-                    .AddUInt8((byte)un.Length)
-                    .AddUInt8Array(un)
-                    .Done();
-            }
+                Declare();
         }
 
         protected override void Disconencted()
         {
+            // clean up
+            readyToEstablish = false;
+
+            foreach (var x in requests.Values)
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+
+            foreach (var x in resourceRequests.Values)
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+
+            foreach (var x in templateRequests.Values)
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+
+            requests.Clear();
+            resourceRequests.Clear();
+            templateRequests.Clear();
+
+            foreach (var x in resources.Values)
+                x.Suspend();
+
+            UnsubscribeAll();
+
+            Warehouse.Remove(this);
+
             if (ready)
-            {
                 Server?.Membership.Logout(session);
-                Warehouse.Remove(this);
-                ready = false;
-                UnsubscribeAll();
-            }
+
+            ready = false;
         }
 
         /*

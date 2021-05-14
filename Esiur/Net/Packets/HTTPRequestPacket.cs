@@ -30,6 +30,7 @@ using System.Text;
 using Esiur.Misc;
 using Esiur.Data;
 using System.Net;
+using System.Text.Json.Serialization;
 
 namespace Esiur.Net.Packets
 {
@@ -241,12 +242,12 @@ namespace Esiur.Net.Packets
                     // check limit
                     if (postSize > data.Length - headerSize)
                         return -(postSize - (data.Length - headerSize));
-                    
+
 
                     if (
                         Headers["content-type"] == null
                         || Headers["content-type"] == ""
-                        ||  Headers["content-type"].StartsWith("application/x-www-form-urlencoded"))
+                        || Headers["content-type"].StartsWith("application/x-www-form-urlencoded"))
                     {
                         string[] PostVars = null;
                         PostVars = Encoding.UTF8.GetString(data, (int)headerSize, (int)postSize).Split('&');
@@ -265,10 +266,10 @@ namespace Esiur.Net.Packets
                             }
                             else
                                 if (PostForms.Contains("unknown"))
-                                    PostForms["unknown"] = PostForms["unknown"]
-                                        + "&" + WebUtility.HtmlDecode(WebUtility.UrlDecode(PostVars[J]));
-                                else
-                                    PostForms.Add("unknown", WebUtility.HtmlDecode(WebUtility.UrlDecode(PostVars[J])));
+                                PostForms["unknown"] = PostForms["unknown"]
+                                    + "&" + WebUtility.HtmlDecode(WebUtility.UrlDecode(PostVars[J]));
+                            else
+                                PostForms.Add("unknown", WebUtility.HtmlDecode(WebUtility.UrlDecode(PostVars[J])));
                         }
                     }
                     else if (Headers["content-type"].StartsWith("multipart/form-data"))
@@ -291,6 +292,10 @@ namespace Esiur.Net.Packets
                             PostForms.Add(ps[0].Substring(st, ed - st), ps[1]);
                         }
                     }
+                    //else if (Headers["content-type"] == "application/json")
+                    //{
+                    //    var json = DC.Clip(data, headerSize, postSize);
+                    //}
                     else
                     {
                         //PostForms.Add(Headers["content-type"], Encoding.Default.GetString( ));

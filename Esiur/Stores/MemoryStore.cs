@@ -20,7 +20,7 @@ namespace Esiur.Stores
 
         public void Destroy()
         {
-
+            OnDestroy?.Invoke(this);
         }
 
         public string Link(IResource resource)
@@ -41,14 +41,14 @@ namespace Esiur.Stores
             return new AsyncReply<IResource>(null);
         }
 
-        public async AsyncReply<bool> Put(IResource resource)
+        public AsyncReply<bool> Put(IResource resource)
         {
             
             resources.Add(resource.Instance.Id, resource);//  new WeakReference<IResource>(resource));
             resource.Instance.Variables["children"] = new AutoList<IResource, Instance>(resource.Instance);
             resource.Instance.Variables["parents"] = new AutoList<IResource, Instance>(resource.Instance);
 
-            return true;
+            return new AsyncReply<bool>(true);
         }
 
         public AsyncReply<IResource> Retrieve(uint iid)

@@ -11,7 +11,6 @@ namespace Esiur.Proxy
     public static class ResourceProxy
     {
         static Dictionary<Type, Type> cache = new Dictionary<Type, Type>();
-
         
 #if NETSTANDARD
         static MethodInfo modifyMethod = typeof(Instance).GetTypeInfo().GetMethod("Modified");
@@ -34,14 +33,14 @@ namespace Esiur.Proxy
             else
                 return type;
 
-            if (type.FullName.Contains("Esiur.Proxy.T"))
-#if NETSTANDARD
-                return type.GetTypeInfo().BaseType;
-#else
-            return type.BaseType;
-#endif
-            else
-                return type;
+//            if (type.FullName.Contains("Esiur.Proxy.T"))
+//#if NETSTANDARD
+//                return type.GetTypeInfo().BaseType;
+//#else
+//            return type.BaseType;
+//#endif
+//            else
+//                return type;
         }
 
         public static Type GetProxy(Type type)
@@ -49,6 +48,13 @@ namespace Esiur.Proxy
 
             if (cache.ContainsKey(type))
                 return cache[type];
+
+            // check if the type was made with code generation
+            if (type.GetCustomAttribute<ResourceAttribute>(false) != null)
+            {
+                cache.Add(type, type);
+                return type;
+            }
 
 #if NETSTANDARD
             var typeInfo = type.GetTypeInfo();

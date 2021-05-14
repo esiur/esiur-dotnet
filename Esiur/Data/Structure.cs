@@ -110,6 +110,10 @@ namespace Esiur.Data
                 foreach (var p in pi)
                     st[p.Name] = p.GetValue(obj);
 
+                var fi = type.GetTypeInfo().GetFields().Where(x => x.IsPublic);
+                foreach (var f in fi)
+                    st[f.Name] = f.GetValue(obj);
+
                 return st;
             }
             //else

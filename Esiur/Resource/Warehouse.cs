@@ -57,11 +57,12 @@ namespace Esiur.Resource
 
         static bool warehouseIsOpen = false;
 
-        public delegate void StoreConnectedEvent(IStore store, string name);
-        public delegate void StoreDisconnectedEvent(IStore store);
+        public delegate void StoreEvent(IStore store);//, string name);
+                                                      // public delegate void StoreDisconnectedEvent(IStore store);
 
-        public static event StoreConnectedEvent StoreConnected;
-        public static event StoreDisconnectedEvent StoreDisconnected;
+        public static event StoreEvent StoreConnected;
+        //public static event StoreEvent StoreOpen;
+        public static event StoreEvent StoreDisconnected;
 
         public delegate AsyncReply<IStore> ProtocolInstance(string name, object properties);
 
@@ -476,17 +477,42 @@ namespace Esiur.Resource
 
         }
 
+
+        //public static async AsyncReply<T> Push<T>(string path, T resource) where T : IResource
+        //{
+        //    await Put(path, resource);
+        //    return resource;
+        //}
+
         /// <summary>
         /// Put a resource in the warehouse.
         /// </summary>
-        /// <param name="resource">Resource instance.</param>
         /// <param name="name">Resource name.</param>
+        /// <param name="resource">Resource instance.</param>
         /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-        public static async AsyncReply<bool> Put(IResource resource, string name, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null)
+        public static async AsyncReply<T> Put<T>(string name, T resource, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T:IResource
         {
             if (resource.Instance != null)
                 throw new Exception("Resource has a store.");
+
+            var path = name.TrimStart('/').Split('/');
+
+            if (path.Length > 1)
+            {
+                if (parent != null)
+                    throw new Exception("Parent can't be set when using path in instance name");
+
+                parent = await Warehouse.Get(string.Join("/", path.Take(path.Length - 1)));
+
+                if (parent == null)
+                    throw new Exception("Can't find parent");
+
+                store = store ?? parent.Instance.Store;
+            }
+
+            var instanceName = path.Last();
+
 
             var resourceReference = new WeakReference<IResource>(resource);
 
@@ -523,7 +549,7 @@ namespace Esiur.Resource
                     throw new Exception("Can't find a store for the resource.");
             }
 
-            resource.Instance = new Instance(resourceCounter++, name, resource, store, customTemplate, age);
+            resource.Instance = new Instance(resourceCounter++, instanceName, resource, store, customTemplate, age);
 
             if (attributes != null)
                 resource.Instance.SetAttributes(Structure.FromObject(attributes));
@@ -535,44 +561,54 @@ namespace Esiur.Resource
                 parent = null;
 
 
-            
-
-            if (resource is IStore)
-                stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
-            
-
-            if (!await store.Put(resource))
-                return false;
 
 
-            if (parent != null)
+            try
             {
-                await parent.Instance.Store.AddChild(parent, resource);
-                await store.AddParent(resource, parent);
-            }
-
-            var t = resource.GetType();
-            Global.Counters["T-" + t.Namespace + "." + t.Name]++;
-
-
-            resources.TryAdd(resource.Instance.Id, resourceReference);
-
-            if (warehouseIsOpen)
-            {
-                await resource.Trigger(ResourceTrigger.Initialize);
                 if (resource is IStore)
-                    await resource.Trigger(ResourceTrigger.Open);
-            }
-            
-            if (resource is IStore)
-                StoreConnected?.Invoke(resource as IStore, name);
+                    stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
 
-            return true;
+
+                if (!await store.Put(resource))
+                    throw new Exception("Store failed to put the resource");
+                    //return default(T);
+
+
+                if (parent != null)
+                {
+                    await parent.Instance.Store.AddChild(parent, resource);
+                    await store.AddParent(resource, parent);
+                }
+
+                var t = resource.GetType();
+                Global.Counters["T-" + t.Namespace + "." + t.Name]++;
+
+
+                resources.TryAdd(resource.Instance.Id, resourceReference);
+
+                if (warehouseIsOpen)
+                {
+                    await resource.Trigger(ResourceTrigger.Initialize);
+                    if (resource is IStore)
+                        await resource.Trigger(ResourceTrigger.Open);
+                }
+
+                if (resource is IStore)
+                    StoreConnected?.Invoke(resource as IStore);
+            }
+            catch (Exception ex)
+            {
+                Warehouse.Remove(resource);
+                throw ex;
+            }
+
+            return resource;
 
         }
 
         public static async AsyncReply<IResource> New(Type type, string name = null, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
         {
+
             type = ResourceProxy.GetProxy(type);
 
 
@@ -618,15 +654,33 @@ namespace Esiur.Resource
                 {
 
                     var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    if (pi != null && pi.CanWrite)
+                    if (pi != null)
                     {
-                        try
+                        if (pi.CanWrite)
                         {
-                            pi.SetValue(res, p.Value);
+                            try
+                            {
+                                pi.SetValue(res, p.Value);
+                            }
+                            catch (Exception ex)
+                            {
+                                Global.Log(ex);
+                            }
                         }
-                        catch (Exception ex)
+                    }
+                    else
+                    {
+                        var fi = type.GetField(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (fi != null)
                         {
-                            Global.Log(ex);
+                            try
+                            {
+                                fi.SetValue(res, p.Value);
+                            }
+                            catch (Exception ex)
+                            {
+                                Global.Log(ex);
+                            }
                         }
                     }
                 }
@@ -634,8 +688,10 @@ namespace Esiur.Resource
 
             if (store != null || parent != null || res is IStore)
             {
-                if (!await Put(res, name, store, parent, null, 0, manager, attributes))
-                    return null;
+                //if (!await Put(name, res, store, parent, null, 0, manager, attributes))
+                //    return null;
+
+                await Put(name, res, store, parent, null, 0, manager, attributes);
             }
 
             return res;

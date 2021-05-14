@@ -32,7 +32,7 @@ namespace Esiur.Net.IIP
 {
     public class DistributedSession : NetworkSession
     {
-        Source Source { get; }
-        Authentication Authentication;
+        public Source Source { get; set; }
+        public Authentication Authentication { get; set; }
     }
 }

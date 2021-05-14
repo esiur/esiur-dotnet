@@ -76,7 +76,7 @@ namespace Esiur.Net.HTTP
 
         public void Destroy()
         {
-            throw new NotImplementedException();
+            OnDestroy?.Invoke(this);
         }
     }
 }

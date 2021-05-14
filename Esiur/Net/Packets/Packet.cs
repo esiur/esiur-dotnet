@@ -329,7 +329,7 @@ namespace Esiur.Net.Packets
         }
         */
 
-        PosixTime Timeval;
+        //PosixTime Timeval;
         public byte[] Header;
         public byte[] Preamble;
         //public byte[] Payload;

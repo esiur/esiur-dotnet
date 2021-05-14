@@ -36,6 +36,10 @@ namespace Esiur.Core
         SetPropertyDenied,
         ReadOnlyProperty,
         GeneralFailure,
-        AddToStoreFailed
+        AddToStoreFailed,
+        NotAttached,
+        AlreadyListened,
+        AlreadyUnlistened,
+        NotListenable
     }
 }

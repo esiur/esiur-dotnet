@@ -36,6 +36,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Esiur.Net.IIP
 {
@@ -54,7 +55,9 @@ namespace Esiur.Net.IIP
 
         volatile uint callbackCounter = 0;
 
-        List<IResource> subscriptions = new List<IResource>();
+        //List<IResource> subscriptions = new List<IResource>();
+        Dictionary<IResource, List<byte>> subscriptions = new Dictionary<IResource, List<byte>>();// new List<IResource>();
+
         object subscriptionsLock = new object();
 
         AsyncQueue<DistributedResourceQueueItem> queue = new AsyncQueue<DistributedResourceQueueItem>();
@@ -108,12 +111,39 @@ namespace Esiur.Net.IIP
 
         internal SendList SendEvent(IIPPacket.IIPPacketEvent evt)
         {
-            //var bl = new BinaryList((byte)(evt));
-            //bl.AddRange(args);
-            //Send(bl.ToArray());
-
             return (SendList)SendParams().AddUInt8((byte)(evt));
         }
+
+        internal AsyncReply SendListenRequest(uint instanceId, byte index)
+        {
+            var reply = new AsyncReply<object>();
+            var c = callbackCounter++;
+            requests.Add(c, reply);
+
+            SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.Listen))
+                        .AddUInt32(c)
+                        .AddUInt32(instanceId)
+                        .AddUInt8(index)
+                        .Done();
+
+            return reply;
+        }
+
+        internal AsyncReply SendUnlistenRequest(uint instanceId, byte index)
+        {
+            var reply = new AsyncReply<object>();
+            var c = callbackCounter++;
+            requests.Add(c, reply);
+
+            SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.Unlisten))
+                        .AddUInt32(c)
+                        .AddUInt32(instanceId)
+                        .AddUInt8(index)
+                        .Done();
+
+            return reply;
+        }
+
 
         internal AsyncReply<object> SendInvokeByArrayArguments(uint instanceId, byte index, object[] parameters)
         {
@@ -593,6 +623,7 @@ namespace Esiur.Net.IIP
                     var r = res as IResource;
                     // unsubscribe
                     Unsubscribe(r);
+                    Subscribe(r);
 
                     //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
@@ -610,7 +641,6 @@ namespace Esiur.Net.IIP
                     //r.Instance.ResourceModified += Instance_PropertyModified;
                     //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
 
-                    Subscribe(r);
                     //r.Instance.Children.OnAdd += Children_OnAdd;
                     //r.Instance.Children.OnRemoved += Children_OnRemoved;
 
@@ -770,7 +800,7 @@ namespace Esiur.Net.IIP
                                 // create the resource
                                 var resource = Activator.CreateInstance(type, args) as IResource;
 
-                                Warehouse.Put(resource, name, store as IStore, parent).Then(ok =>
+                                Warehouse.Put( name, resource, store as IStore, parent).Then(ok =>
                                 {
                                     SendReply(IIPPacket.IIPPacketAction.CreateResource, callback)
                                    .AddUInt32(resource.Instance.Id)
@@ -1126,7 +1156,7 @@ namespace Esiur.Net.IIP
             if (Server?.EntryPoint != null)
                 Server.EntryPoint.Query(resourceLink, this).Then(queryCallback);
             else
-                Warehouse.Query(resourceLink).Then(x => queryCallback(x));
+                Warehouse.Query(resourceLink).Then(queryCallback);
         }
 
         void IIPRequestResourceAttribute(uint callback, uint resourceId)
@@ -1469,52 +1499,160 @@ namespace Esiur.Net.IIP
             });
         }
 
-        void IIPRequestGetProperty(uint callback, uint resourceId, byte index)
+        void IIPRequestListen(uint callback, uint resourceId, byte index)
         {
             Warehouse.GetById(resourceId).Then((r) =>
             {
                 if (r != null)
                 {
-                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
-                    if (pt != null)
+                    var et = r.Instance.Template.GetEventTemplateByIndex(index);
+
+                    if (et != null)
                     {
                         if (r is DistributedResource)
                         {
-                            SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
-                                        .AddUInt8Array(Codec.Compose((r as DistributedResource)._Get(pt.Index), this))
-                                        .Done();
+                            (r as DistributedResource).Listen(et).Then(x =>
+                           {
+                               SendReply(IIPPacket.IIPPacketAction.Listen, callback).Done();
+                           }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
                         }
                         else
                         {
-#if NETSTANDARD
-                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
-#else
-                            var pi = r.GetType().GetProperty(pt.Name);
-#endif
+                            lock(subscriptionsLock)
+                            {
+                                if (!subscriptions.ContainsKey(r))
+                                {
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
+                                    return;
+                                }
 
-                            if (pi != null)
-                            {
-                                SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
-                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
-                                            .Done();
-                            }
-                            else
-                            {
-                                // pt found, pi not found, this should never happen
+                                if (subscriptions[r].Contains(index))
+                                {
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyListened);
+                                    return;
+                                }
+
+                                subscriptions[r].Add(index);
+
+                                SendReply(IIPPacket.IIPPacketAction.Listen, callback).Done();
                             }
                         }
                     }
                     else
                     {
                         // pt not found
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                     }
                 }
                 else
                 {
                     // resource not found
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 }
             });
+
         }
+
+        void IIPRequestUnlisten(uint callback, uint resourceId, byte index)
+        {
+            Warehouse.GetById(resourceId).Then((r) =>
+            {
+                if (r != null)
+                {
+                    var et = r.Instance.Template.GetEventTemplateByIndex(index);
+
+                    if (et != null)
+                    {
+                        if (r is DistributedResource)
+                        {
+                            (r as DistributedResource).Unlisten(et).Then(x =>
+                            {
+                                SendReply(IIPPacket.IIPPacketAction.Unlisten, callback).Done();
+                            }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
+                        }
+                        else
+                        {
+                            lock (subscriptionsLock)
+                            {
+                                if (!subscriptions.ContainsKey(r))
+                                {
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
+                                    return;
+                                }
+
+                                if (!subscriptions[r].Contains(index))
+                                {
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyUnlistened);
+                                    return;
+                                }
+
+                                subscriptions[r].Remove(index);
+
+                                SendReply(IIPPacket.IIPPacketAction.Unlisten, callback).Done();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // pt not found
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                    }
+                }
+                else
+                {
+                    // resource not found
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                }
+            });
+
+        }
+
+        //        void IIPRequestGetProperty(uint callback, uint resourceId, byte index)
+        //        {
+        //            Warehouse.GetById(resourceId).Then((r) =>
+        //            {
+        //                if (r != null)
+        //                {
+        //                    var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
+        //                    if (pt != null)
+        //                    {
+        //                        if (r is DistributedResource)
+        //                        {
+        //                            SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
+        //                                        .AddUInt8Array(Codec.Compose((r as DistributedResource)._Get(pt.Index), this))
+        //                                        .Done();
+        //                        }
+        //                        else
+        //                        {
+        //#if NETSTANDARD
+        //                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
+        //#else
+        //                            var pi = r.GetType().GetProperty(pt.Name);
+        //#endif
+
+        //                            if (pi != null)
+        //                            {
+        //                                SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
+        //                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
+        //                                            .Done();
+        //                            }
+        //                            else
+        //                            {
+        //                                // pt found, pi not found, this should never happen
+        //                            }
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        // pt not found
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    // resource not found
+        //                }
+        //            });
+        //        }
 
         void IIPRequestInquireResourceHistory(uint callback, uint resourceId, DateTime fromDate, DateTime toDate)
         {
@@ -1552,51 +1690,51 @@ namespace Esiur.Net.IIP
             });
         }
 
-        void IIPRequestGetPropertyIfModifiedSince(uint callback, uint resourceId, byte index, ulong age)
-        {
-            Warehouse.GetById(resourceId).Then((r) =>
-            {
-                if (r != null)
-                {
-                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
-                    if (pt != null)
-                    {
-                        if (r.Instance.GetAge(index) > age)
-                        {
-#if NETSTANDARD
-                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
-#else
-                            var pi = r.GetType().GetProperty(pt.Name);
-#endif
-                            if (pi != null)
-                            {
-                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
-                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
-                                            .Done();
-                            }
-                            else
-                            {
-                                // pt found, pi not found, this should never happen
-                            }
-                        }
-                        else
-                        {
-                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
-                                    .AddUInt8((byte)DataType.NotModified)
-                                    .Done();
-                        }
-                    }
-                    else
-                    {
-                        // pt not found
-                    }
-                }
-                else
-                {
-                    // resource not found
-                }
-            });
-        }
+//        void IIPRequestGetPropertyIfModifiedSince(uint callback, uint resourceId, byte index, ulong age)
+//        {
+//            Warehouse.GetById(resourceId).Then((r) =>
+//            {
+//                if (r != null)
+//                {
+//                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
+//                    if (pt != null)
+//                    {
+//                        if (r.Instance.GetAge(index) > age)
+//                        {
+//#if NETSTANDARD
+//                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
+//#else
+//                            var pi = r.GetType().GetProperty(pt.Name);
+//#endif
+//                            if (pi != null)
+//                            {
+//                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
+//                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
+//                                            .Done();
+//                            }
+//                            else
+//                            {
+//                                // pt found, pi not found, this should never happen
+//                            }
+//                        }
+//                        else
+//                        {
+//                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
+//                                    .AddUInt8((byte)DataType.NotModified)
+//                                    .Done();
+//                        }
+//                    }
+//                    else
+//                    {
+//                        // pt not found
+//                    }
+//                }
+//                else
+//                {
+//                    // resource not found
+//                }
+//            });
+//        }
 
         void IIPRequestSetProperty(uint callback, uint resourceId, byte index, byte[] content)
         {
@@ -1973,7 +2111,7 @@ namespace Esiur.Net.IIP
                                 // ClassId, ResourceAge, ResourceLink, Content
                                 if (resource == null)
                                 {
-                                    Warehouse.Put(dr, id.ToString(), this, null, tmp).Then((ok) =>
+                                    Warehouse.Put(id.ToString(), dr, this, null, tmp).Then((ok) =>
                                     {
                                         Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
                                         {
@@ -2242,7 +2380,7 @@ namespace Esiur.Net.IIP
                 resource.Instance.ResourceModified += Instance_PropertyModified;
                 resource.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
 
-                subscriptions.Add(resource);
+                subscriptions.Add(resource, new List<byte>());
             }
         }
 
@@ -2265,7 +2403,7 @@ namespace Esiur.Net.IIP
         {
             lock(subscriptionsLock)
             {
-                foreach(var resource in subscriptions)
+                foreach(var resource in subscriptions.Keys)
                 {
                     resource.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     resource.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
@@ -2313,12 +2451,26 @@ namespace Esiur.Net.IIP
             if (et == null)
                 return;
 
+            if (et.Listenable)
+            {
+                lock (subscriptionsLock)
+                {
+                    // check the client requested listen
+                    if (!subscriptions.ContainsKey(resource))
+                        return;
+
+                    if (!subscriptions[resource].Contains(et.Index))
+                        return;
+                }
+            }
+
             if (!receivers(this.session))
                 return;
 
             if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, issuer) == Ruling.Denied)
                 return;
 
+            
             // compose the packet
             SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
                         .AddUInt32(resource.Instance.Id)
@@ -2334,6 +2486,18 @@ namespace Esiur.Net.IIP
             if (et == null)
                 return;
 
+            if (et.Listenable)
+            {
+                lock (subscriptionsLock)
+                {
+                    // check the client requested listen
+                    if (!subscriptions.ContainsKey(resource))
+                        return;
+
+                    if (!subscriptions[resource].Contains(et.Index))
+                        return;
+                }
+            }
 
             if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, null) == Ruling.Denied)
                 return;

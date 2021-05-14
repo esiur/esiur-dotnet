@@ -118,6 +118,7 @@ namespace Esiur.Net.Sockets
 
         public void Send(byte[] message)
         {
+
             lock (sendLock)
             {
                 if (held)
@@ -131,9 +132,8 @@ namespace Esiur.Net.Sockets
 
                     pkt_send.Message = message;
 
-
                     if (pkt_send.Compose())
-                        sock.Send(pkt_send.Data);
+                        sock?.Send(pkt_send.Data);
 
                 }
             }
@@ -228,8 +228,6 @@ namespace Esiur.Net.Sockets
                 pkt_send.Message = message;
                 if (pkt_send.Compose())
                     sock.Send(pkt_send.Data);
-
-
 
             }
         }

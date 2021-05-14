@@ -45,31 +45,25 @@ namespace Esiur.Stores.EntityCore
         Dictionary<Type, Dictionary<object, WeakReference>> DB = new Dictionary<Type, Dictionary<object, WeakReference>>();
         object DBLock = new object();
 
-        internal struct TypeInfo
-        {
-            public string Name;
-            public IEntityType Type;
-            public PropertyInfo PrimaryKey;
-        }
+        Dictionary<string, EntityTypeInfo> TypesByName = new Dictionary<string, EntityTypeInfo>();
+        internal Dictionary<Type, EntityTypeInfo> TypesByType = new Dictionary<Type, EntityTypeInfo>();
 
-        Dictionary<string, TypeInfo> TypesByName = new Dictionary<string, TypeInfo>();
-        internal Dictionary<Type, TypeInfo> TypesByType = new Dictionary<Type, TypeInfo>();
+        [Attribute]
+        public Func<DbContext> Getter { get; set; }
 
-
-
-        bool Loaded;
 
         public AsyncReply<IResource> Get(string path)
         {
             var p = path.Split('/');
             var ti = TypesByName[p[0]];
-            var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);// Convert.ToInt32();
+            var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);
 
-
-            var db = DbContextProvider();
+            // Get db
+            var db = Getter();
             var res = db.Find(ti.Type.ClrType, id);
-            var ent = db.Entry(res);
 
+            // load navigation properties
+            var ent = db.Entry(res);
             foreach (var rf in ent.References)
                 rf.Load();
 
@@ -78,12 +72,11 @@ namespace Esiur.Stores.EntityCore
 
         public AsyncReply<bool> Put(IResource resource)
         {
-            if (resource is EntityStore)
+            if (resource == this)
                 return new AsyncReply<bool>(true);
 
-            var type = ResourceProxy.GetBaseType(resource);//.GetType().;
+            var type = ResourceProxy.GetBaseType(resource);
 
-            //var eid = (resource as EntityResource)._PrimaryId;// (int)resource.Instance.Variables["eid"];
 
             var eid = TypesByType[type].PrimaryKey.GetValue(resource);
 
@@ -112,11 +105,12 @@ namespace Esiur.Stores.EntityCore
             }
         }
 
-        [Attribute]
-        public Func<DbContext> DbContextProvider { get; set; }
 
-        [Attribute]
-        public DbContextOptionsBuilder Options { get; set; }
+
+        //public T CreateDB()
+        //{
+
+        //}
 
         //DbContext dbContext;
         //[Attribute]
@@ -195,13 +189,17 @@ namespace Esiur.Stores.EntityCore
             throw new NotImplementedException();
         }
 
+        internal DbContextOptions Options { get; set; }
+
         public AsyncReply<bool> Trigger(ResourceTrigger trigger)
         {
             if (trigger == ResourceTrigger.Initialize)// SystemInitialized && DbContext != null)
             {
 
-                if (DbContextProvider == null)
-                    DbContextProvider = () => Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+                if (Getter == null)
+                    throw new Exception("Getter is not set for the store.");
+                  //  DbContextProvider = () => Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+
 
                 ReloadModel();
             }
@@ -209,21 +207,23 @@ namespace Esiur.Stores.EntityCore
             return new AsyncReply<bool>(true);
         }
 
-        public void ReloadModel()
+        void ReloadModel()
         {
+
             TypesByName.Clear();
             TypesByType.Clear();
 
-            var context = DbContextProvider();// Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+            var context = Getter();
 
             var types = context.Model.GetEntityTypes();
             foreach (var t in types)
             {
-                var ti = new TypeInfo()
+                var ti = new EntityTypeInfo()
                 {
                     Name = t.ClrType.Name,
                     PrimaryKey = t.FindPrimaryKey().Properties.FirstOrDefault()?.PropertyInfo,
-                    Type = t
+                    Type = t,
+                    //Getter = getter
                 };
 
                 TypesByName.Add(t.ClrType.Name, ti);
@@ -236,7 +236,7 @@ namespace Esiur.Stores.EntityCore
 
         public void Destroy()
         {
-            //throw new NotImplementedException();
+            OnDestroy?.Invoke(this);
         }
     }
 }

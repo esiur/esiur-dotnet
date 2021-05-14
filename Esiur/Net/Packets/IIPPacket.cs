@@ -110,11 +110,11 @@ namespace Esiur.Net.Packets
 
             // Request Invoke
             InvokeFunctionArrayArguments = 0x10,
-            GetProperty,
-            GetPropertyIfModified,
-            SetProperty,
             InvokeFunctionNamedArguments,
-
+            Listen,
+            Unlisten,
+            SetProperty,
+            
             // Request Attribute
             GetAllAttributes = 0x18,
             UpdateAllAttributes,
@@ -543,7 +543,8 @@ namespace Esiur.Net.Packets
                     offset += cl;
 
                 }
-                else if (Action == IIPPacketAction.GetProperty)
+                else if (Action == IIPPacketAction.Listen 
+                    || Action == IIPPacketAction.Unlisten)// .GetProperty)
                 {
                     if (NotEnough(offset, ends, 5))
                         return -dataLengthNeeded;
@@ -554,20 +555,20 @@ namespace Esiur.Net.Packets
                     MethodIndex = data[offset++];
 
                 }
-                else if (Action == IIPPacketAction.GetPropertyIfModified)
-                {
-                    if (NotEnough(offset, ends, 9))
-                        return -dataLengthNeeded;
+                //else if (Action == IIPPacketAction.GetPropertyIfModified)
+                //{
+                //    if (NotEnough(offset, ends, 9))
+                //        return -dataLengthNeeded;
 
-                    ResourceId = data.GetUInt32(offset);
-                    offset += 4;
+                //    ResourceId = data.GetUInt32(offset);
+                //    offset += 4;
 
-                    MethodIndex = data[offset++];
+                //    MethodIndex = data[offset++];
 
-                    ResourceAge = data.GetUInt64(offset);
-                    offset += 8;
+                //    ResourceAge = data.GetUInt64(offset);
+                //    offset += 8;
 
-                }
+                //}
                 else if (Action == IIPPacketAction.SetProperty)
                 {
                     if (NotEnough(offset, ends, 6))
@@ -707,9 +708,9 @@ namespace Esiur.Net.Packets
                     offset += cl;
                 }
                 else if (Action == IIPPacketAction.InvokeFunctionArrayArguments
-                    || Action == IIPPacketAction.InvokeFunctionNamedArguments
-                    || Action == IIPPacketAction.GetProperty
-                    || Action == IIPPacketAction.GetPropertyIfModified)
+                    || Action == IIPPacketAction.InvokeFunctionNamedArguments)
+                    //|| Action == IIPPacketAction.GetProperty
+                    //|| Action == IIPPacketAction.GetPropertyIfModified)
                 {
                     if (NotEnough(offset, ends, 1))
                         return -dataLengthNeeded;
@@ -740,7 +741,9 @@ namespace Esiur.Net.Packets
                         offset += (uint)size;
                     }
                 }
-                else if (Action == IIPPacketAction.SetProperty)
+                else if (Action == IIPPacketAction.SetProperty 
+                    || Action == IIPPacketAction.Listen 
+                    || Action == IIPPacketAction.Unlisten)
                 {
                     // nothing to do
                 }

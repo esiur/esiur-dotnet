@@ -35,11 +35,11 @@ using Esiur.Resource;
 
 namespace Esiur.Security.Membership
 {
-    public interface IMembership : IResource
+    public interface IMembership
     {
         AsyncReply<bool> UserExists(string username, string domain);
         AsyncReply<byte[]> GetPassword(string username, string domain);
-        AsyncReply<byte[]> GetToken(ulong TokenIndex, string domain);
+        AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
         AsyncReply<bool> Login(Session session);
         AsyncReply<bool> Logout(Session session);
 

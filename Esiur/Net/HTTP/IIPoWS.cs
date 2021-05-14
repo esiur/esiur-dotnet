@@ -112,7 +112,7 @@ namespace Esiur.Net.HTTP
 
         private void IipConnection_OnReady(DistributedConnection sender)
         {
-            Warehouse.Put(sender, sender.RemoteUsername, null, sender.Server);
+            Warehouse.Put(sender.RemoteUsername, sender, null, sender.Server).Wait();
         }
 
         public override AsyncReply<bool> Trigger(ResourceTrigger trigger)

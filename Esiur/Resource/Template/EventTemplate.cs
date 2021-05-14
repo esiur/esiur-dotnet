@@ -16,6 +16,8 @@ namespace Esiur.Resource.Template
             set;
         }
 
+        public bool Listenable { get; set; }
+
         public EventInfo Info { get; set; }
 
         public override byte[] Compose()
@@ -24,9 +26,10 @@ namespace Esiur.Resource.Template
 
             if (Expansion != null)
             {
+
                 var exp = DC.ToBytes(Expansion);
                 return new BinaryList()
-                        .AddUInt8(0x50)
+                        .AddUInt8(Listenable ? (byte) 0x58 : (byte) 0x50)
                         .AddUInt8((byte)name.Length)
                         .AddUInt8Array(name)
                         .AddInt32(exp.Length)
@@ -35,17 +38,18 @@ namespace Esiur.Resource.Template
             }
             else
                 return new BinaryList()
-                        .AddUInt8(0x40)
+                        .AddUInt8(Listenable ? (byte) 0x48 : (byte) 0x40)
                         .AddUInt8((byte)name.Length)
                         .AddUInt8Array(name)
                         .ToArray();
         }
 
 
-        public EventTemplate(ResourceTemplate template, byte index, string name, string expansion = null)
+        public EventTemplate(ResourceTemplate template, byte index, string name, string expansion = null, bool listenable=false)
             :base(template, MemberType.Property, index, name)
         {
             this.Expansion = expansion;
+            this.Listenable = listenable;
         }
     }
 }
