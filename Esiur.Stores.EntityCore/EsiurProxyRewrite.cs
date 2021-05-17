@@ -76,7 +76,7 @@ namespace Esiur.Stores.EntityCore
                 return cache;
 
             // check if the object exists
-            var obj = Warehouse.New(entityType.ClrType).Wait() as EntityResource;//, "", options.Store, null, manager);
+            var obj = Warehouse.New(entityType.ClrType).Wait() as IResource;//, "", options.Store, null, manager);
             //obj._PrimaryId = id;
             options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
             Warehouse.Put(id.ToString(), obj, options.Store, null, null, 0, manager).Wait();

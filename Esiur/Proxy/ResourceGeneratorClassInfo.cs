@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Esiur.Proxy
 {
-    public struct GenerationInfo
+    public struct ResourceGeneratorClassInfo
     {
         public string Name { get; set; }
         public bool ImplementInterface { get; set; }
@@ -16,5 +16,6 @@ namespace Esiur.Proxy
         public ITypeSymbol ClassSymbol { get; set; }
 
         public ClassDeclarationSyntax ClassDeclaration { get; set; }
+
     }
 }

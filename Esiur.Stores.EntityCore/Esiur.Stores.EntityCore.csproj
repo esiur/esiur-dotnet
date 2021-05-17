@@ -9,8 +9,16 @@
     <Product>Esiur Entity Framework Extension</Product>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Esiur.Stores.EntityCore</PackageId>
-    <Version>1.0.2</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="EntityResource.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="EntityResource.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="5.0.6" />

@@ -11,13 +11,13 @@
     <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
     <RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Version>1.4.1</Version>
+    <Version>1.5.0</Version>
     <PackageId>Esiur.Stores.MongoDB</PackageId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MongoDB.Bson" Version="2.9.1" />
-    <PackageReference Include="MongoDB.Driver" Version="2.9.1" />
+    <PackageReference Include="MongoDB.Bson" Version="2.12.3" />
+    <PackageReference Include="MongoDB.Driver" Version="2.12.3" />
   </ItemGroup>
 
   <ItemGroup>

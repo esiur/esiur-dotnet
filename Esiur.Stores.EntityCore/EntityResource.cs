@@ -34,6 +34,7 @@ using System.Runtime.CompilerServices;
 
 namespace Esiur.Stores.EntityCore
 {
+    
     public class EntityResource : IResource
     {
         //[NotMapped]

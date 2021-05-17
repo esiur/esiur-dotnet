@@ -67,7 +67,14 @@ namespace Esiur.Net.IIP
             set;
         }
 
-       
+
+        [Attribute]
+        public ExceptionLevel ExceptionLevel { get; set; }
+            = ExceptionLevel.Code
+            | ExceptionLevel.Source
+            | ExceptionLevel.Message
+            | ExceptionLevel.Trace;
+
 
         public Instance Instance
         {
@@ -147,6 +154,7 @@ namespace Esiur.Net.IIP
         public override void Add(DistributedConnection connection)
         {
             connection.Server = this;
+            connection.ExceptionLevel = ExceptionLevel;
             base.Add(connection);
         }
 

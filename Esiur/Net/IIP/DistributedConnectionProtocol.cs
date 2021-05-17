@@ -1164,6 +1164,22 @@ namespace Esiur.Net.IIP
 
         }
 
+        [Attribute]
+        public ExceptionLevel ExceptionLevel { get; set; } 
+            = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
+
+        private Tuple<ushort, string> SummerizeException(Exception ex)
+        {
+            ex = ex.InnerException != null ? ex.InnerException : ex;
+
+            var code = (ExceptionLevel & ExceptionLevel.Code) == 0 ? 0 : ex is AsyncException ae ? ae.Code : 0;
+            var msg = (ExceptionLevel & ExceptionLevel.Message) == 0 ? "" : ex.Message;
+            var source = (ExceptionLevel & ExceptionLevel.Source) == 0 ? "" : ex.Source;
+            var trace = (ExceptionLevel & ExceptionLevel.Trace) == 0 ? "" : ex.StackTrace;
+
+            return new Tuple<ushort, string>((ushort)code, $"{source}: {msg}\n{trace}");
+        }
+
         void IIPRequestInvokeFunctionArrayArguments(uint callback, uint resourceId, byte index, byte[] content)
         {
             //Console.WriteLine("IIPRequestInvokeFunction " + callback + " " + resourceId + "  " + index);
@@ -1247,8 +1263,8 @@ namespace Esiur.Net.IIP
                                     }
                                     catch (Exception ex)
                                     {
-                                        SendError(ErrorType.Exception, callback, 0,
-                                            ex.InnerException != null ? ex.InnerException.ToString() : ex.ToString());
+                                        var (code, msg) = SummerizeException(ex);
+                                        SendError(ErrorType.Exception, callback, code, msg);
                                         return;
                                     }
 
@@ -1266,7 +1282,8 @@ namespace Esiur.Net.IIP
                                         }
                                         catch (Exception ex)
                                         {
-                                            SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                            var (code, msg) = SummerizeException(ex);
+                                            SendError(ErrorType.Exception, callback, code, msg);
                                         }
 
                                     }
@@ -1297,7 +1314,8 @@ namespace Esiur.Net.IIP
                                                         .Done();
                                         }).Error(ex =>
                                         {
-                                            SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                            var (code, msg) = SummerizeException(ex);
+                                            SendError(ErrorType.Exception, callback, code, msg);
                                         }).Progress((pt, pv, pm) =>
                                         {
                                             SendProgress(callback, pv, pm);
@@ -1412,7 +1430,8 @@ namespace Esiur.Net.IIP
                                      }
                                      catch (Exception ex)
                                      {
-                                         SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                         var (code, msg) = SummerizeException(ex);
+                                         SendError(ErrorType.Exception, callback, code, msg);
                                          return;
                                      }
 
@@ -1431,7 +1450,8 @@ namespace Esiur.Net.IIP
                                          }
                                          catch (Exception ex)
                                          {
-                                             SendError(ErrorType.Exception, callback, 0, ex.ToString());
+                                             var (code, msg) = SummerizeException(ex);
+                                             SendError(ErrorType.Exception, callback, code, msg);
                                          }
                                      }
                                      else if (rt is Task)
@@ -1459,7 +1479,8 @@ namespace Esiur.Net.IIP
 
                                             }).Error(ex =>
                                             {
-                                                SendError(ErrorType.Exception, callback, (ushort)ex.Code, ex.Message);
+                                                var (code, msg) = SummerizeException(ex);
+                                                SendError(ErrorType.Exception, callback, code, msg);
                                             }).Progress((pt, pv, pm) =>
                                             {
                                                 SendProgress(callback, pv, pm);

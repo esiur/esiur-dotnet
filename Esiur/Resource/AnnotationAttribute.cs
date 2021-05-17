@@ -5,7 +5,7 @@ using System.Text;
 namespace Esiur.Resource
 {
 
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Method | AttributeTargets.Event)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event)]
     public class AnnotationAttribute : Attribute
     {
 

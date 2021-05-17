@@ -11,7 +11,7 @@ namespace Esiur.Proxy
     public class ResourceGeneratorReceiver : ISyntaxContextReceiver
     {
 
-        public List<GenerationInfo> Classes { get; } = new();
+        public List<ResourceGeneratorClassInfo> Classes { get; } = new();
 
         public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
         {
@@ -23,11 +23,8 @@ namespace Esiur.Proxy
 
                 if (cls.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.ResourceAttribute"))
                 {
-                    //if (!Debugger.IsAttached)
-                    //{
-                    //    Debugger.Launch();
-                    //}
-
+                    
+                    
                     var hasTrigger = cds.Members
                         .Where(x => x is MethodDeclarationSyntax)
                         .Select(x => context.SemanticModel.GetDeclaredSymbol(x) as IMethodSymbol)
@@ -40,9 +37,16 @@ namespace Esiur.Proxy
                                             .Where(x => x.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.PublicAttribute"))
                                             .ToArray();
 
+                    //if (!Debugger.IsAttached)
+                    //{
+                    //    if (cls.Name == "User")
+                    //        Debugger.Launch();
+                    //}
+
+
 
                     // get fields
-                    Classes.Add(new GenerationInfo()
+                    Classes.Add(new ResourceGeneratorClassInfo()
                     {
                         Name = cls.Name,
                         ClassDeclaration = cds,

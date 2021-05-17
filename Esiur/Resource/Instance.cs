@@ -14,9 +14,11 @@ using Esiur.Security.Authority;
 using Esiur.Proxy;
 using Esiur.Core;
 using System.Text.Json;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Esiur.Resource
 {
+    [NotMapped]
     public class Instance
     {
         string name;

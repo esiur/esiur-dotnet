@@ -159,7 +159,7 @@ namespace Esiur.Stores.MongoDB
                 resources.Add(id, new WeakReference(resource));
 
             //@TODO this causes store.put to be invoked, need fix 
-            await Warehouse.Put(resource, document["name"].AsString, this);
+            await Warehouse.Put(document["name"].AsString, resource, this);
 
 
             var parents = document["parents"].AsBsonArray;

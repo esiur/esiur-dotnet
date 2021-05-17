@@ -30,6 +30,7 @@ using Esiur.Data;
 using Esiur.Core;
 using System.ComponentModel;
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Esiur.Resource
 {
@@ -41,6 +42,8 @@ namespace Esiur.Resource
     {
 
         AsyncReply<bool> Trigger(ResourceTrigger trigger);
+
+        [NotMapped]
         Instance Instance
         {
             get;
