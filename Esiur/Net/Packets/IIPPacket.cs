@@ -107,6 +107,7 @@ namespace Esiur.Net.Packets
             ResourceHistory,
             ResourceChildren,
             ResourceParents,
+            LinkTemplates,
 
             // Request Invoke
             InvokeFunctionArrayArguments = 0x10,
@@ -484,7 +485,8 @@ namespace Esiur.Net.Packets
                     ResourceId = data.GetUInt32(offset);
                     offset += 4;
                 }
-                else if (Action == IIPPacketAction.QueryLink)
+                else if (Action == IIPPacketAction.QueryLink
+                    || Action == IIPPacketAction.LinkTemplates)
                 {
                     if (NotEnough(offset, ends, 2))
                         return -dataLengthNeeded;
@@ -691,6 +693,7 @@ namespace Esiur.Net.Packets
                         || Action == IIPPacketAction.ResourceChildren
                         || Action == IIPPacketAction.ResourceParents
                         || Action == IIPPacketAction.ResourceHistory
+                        || Action == IIPPacketAction.LinkTemplates
                         // Attribute
                         || Action == IIPPacketAction.GetAllAttributes
                         || Action == IIPPacketAction.GetAttributes)

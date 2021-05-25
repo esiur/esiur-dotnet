@@ -84,6 +84,8 @@ namespace Esiur.Core
             if (Debug)
                 Console.WriteLine($"AsyncReply: {Id} Wait ended");
 
+            if (exception != null)
+                throw exception;
 
             return result;
         }

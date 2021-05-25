@@ -14,6 +14,7 @@ namespace Esiur.Resource.Template
 {
     public class ResourceTemplate
     {
+
         Guid classId;
         string className;
         List<MemberTemplate> members = new List<MemberTemplate>();
@@ -30,6 +31,8 @@ namespace Esiur.Resource.Template
         {
             get { return content; }
         }
+
+        public Type RuntimeType { get; set; }
 
         public MemberTemplate GetMemberTemplate(MemberInfo member)
         {
@@ -135,20 +138,137 @@ namespace Esiur.Resource.Template
         }
 
 
+        public static Guid GetTypeGuid(Type type) => GetTypeGuid(type.FullName);
+
+        public static Guid GetTypeGuid(string typeName)
+        {
+            var tn = Encoding.UTF8.GetBytes(typeName);
+            var hash = SHA256.Create().ComputeHash(tn).Clip(0, 16);
+
+            return new Guid(hash);
+        }
+
+        static Type GetElementType(Type type) => type switch
+            {
+                { IsArray: true } => type.GetElementType(),
+                { IsEnum: true } => type.GetEnumUnderlyingType(),
+                (_) => type
+            };
+        
+
+
+        public static ResourceTemplate[] GetRuntimeTypes(ResourceTemplate template)
+        {
+
+            var list = new List<ResourceTemplate>();
+
+            list.Add(template);
+
+            Action<ResourceTemplate, List<ResourceTemplate>> getRuntimeTypes = null;
+
+            getRuntimeTypes = (ResourceTemplate tmp, List<ResourceTemplate> bag) =>
+            {
+                if (template.RuntimeType == null)
+                    return;
+
+                // functions
+                foreach (var f in tmp.functions)
+                {
+                    var frtt = Warehouse.GetTemplate(GetElementType(f.MethodInfo.ReturnType));
+                    if (frtt != null)
+                    {
+                        if (!bag.Contains(frtt))
+                        {
+                            list.Add(frtt);
+                            getRuntimeTypes(frtt, bag);
+                        }
+                    }
+
+                    var args = f.MethodInfo.GetParameters();
+
+                    for(var i = 0; i < args.Length - 1; i++)
+                    {
+                        var fpt = Warehouse.GetTemplate(GetElementType(args[i].ParameterType));
+                        if (fpt != null)
+                        {
+                            if (!bag.Contains(fpt))
+                            {
+                                bag.Add(fpt);
+                                getRuntimeTypes(fpt, bag);
+                            }
+                        }
+                    }
+
+                    // skip DistributedConnection argument
+                    if (args.Length > 0)
+                    {
+                        var last = args.Last();
+                        if (last.ParameterType != typeof(DistributedConnection))
+                        {
+                            var fpt = Warehouse.GetTemplate(GetElementType(last.ParameterType));
+                            if (fpt != null)
+                            {
+                                if (!bag.Contains(fpt))
+                                {
+                                    bag.Add(fpt);
+                                    getRuntimeTypes(fpt, bag);
+                                }
+                            }
+                        }
+                    }
+
+                }
+
+                // properties
+                foreach (var p in tmp.properties)
+                {
+                    var pt = Warehouse.GetTemplate(GetElementType(p.PropertyInfo.PropertyType));
+                    if (pt != null)
+                    {
+                        if (!bag.Contains(pt))
+                        {
+                            bag.Add(pt);
+                            getRuntimeTypes(pt, bag);
+                        }
+                    }
+                }
+
+                // events
+                foreach (var e in tmp.events)
+                {
+                    var et = Warehouse.GetTemplate(GetElementType(e.EventInfo.EventHandlerType.GenericTypeArguments[0]));
+
+                    if (et != null)
+                    {
+                        if (!bag.Contains(et))
+                        {
+                            bag.Add(et);
+                            getRuntimeTypes(et, bag);
+                        }
+                    }
+                }
+            };
+
+            getRuntimeTypes(template, list);
+            return list.ToArray();
+        }
+
         public ResourceTemplate(Type type)
         {
+            if (!Codec.ImplementsInterface(type, typeof(IResource)))
+                throw new Exception("Type is not a resource.");
 
             type = ResourceProxy.GetBaseType(type);
 
-            // set guid
+            RuntimeType = type;
 
-            var typeName = Encoding.UTF8.GetBytes(type.FullName);
-            var hash = SHA256.Create().ComputeHash(typeName).Clip(0, 16);
-
-            classId = new Guid(hash);
             className = type.FullName;
 
+            //Console.WriteLine($"Creating {className}");
 
+            // set guid
+            classId = GetTypeGuid(className);
+            
 #if NETSTANDARD
             PropertyInfo[] propsInfo = type.GetTypeInfo().GetProperties(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
             EventInfo[] eventsInfo = type.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
@@ -175,8 +295,9 @@ namespace Esiur.Resource.Template
                     {
                         var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
                         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+                        
+                        var pt = new PropertyTemplate(this, i++, pi.Name, TemplateDataType.FromType(pi.PropertyType));
 
-                        var pt = new PropertyTemplate(this, i++, pi.Name);
                         if (storageAttr != null)
                             pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
 
@@ -185,7 +306,7 @@ namespace Esiur.Resource.Template
                         else
                             pt.ReadExpansion = pi.PropertyType.Name;
  
-                        pt.Info = pi;
+                        pt.PropertyInfo = pi;
                         //pt.Serilize = publicAttr.Serialize;
                         properties.Add(pt);
                     }
@@ -195,7 +316,7 @@ namespace Esiur.Resource.Template
                         if (attributeAttr != null)
                         {
                             var at = new AttributeTemplate(this, 0, pi.Name);
-                            at.Info = pi;
+                            at.PropertyInfo = pi;
                             attributes.Add(at);
                         }
                     }
@@ -211,8 +332,9 @@ namespace Esiur.Resource.Template
                         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
                         var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
 
-                        var et = new EventTemplate(this, i++, ei.Name);
-                        et.Info = ei;
+                        var argType = ei.EventHandlerType.GenericTypeArguments[0];
+                        var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
+                        et.EventInfo = ei;
 
                         if (annotationAttr != null)
                             et.Expansion = annotationAttr.Annotation;
@@ -232,12 +354,32 @@ namespace Esiur.Resource.Template
                     {
                         var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
 
-                        var ft = new FunctionTemplate(this, i++, mi.Name, mi.ReturnType == typeof(void));
+                        var returnType = TemplateDataType.FromType(mi.ReturnType);
+
+                        var args = mi.GetParameters();
+
+                        if (args.Length > 0)
+                        {
+                            if (args.Last().ParameterType == typeof(DistributedConnection))
+                                args = args.Take(args.Count() - 1).ToArray();
+                        }
+
+                        var arguments = args.Select(x => new ArgumentTemplate()
+                                         {
+                                             Name = x.Name,
+                                             Type = TemplateDataType.FromType(x.ParameterType),
+                                             ParameterInfo = x
+                                         })
+                                         .ToArray();
+
+                        var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
 
                         if (annotationAttr != null)
                             ft.Expansion = annotationAttr.Annotation;
                         else
                             ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+
+                        ft.MethodInfo = mi;
                         functions.Add(ft);
                     }
                 }
@@ -253,8 +395,9 @@ namespace Esiur.Resource.Template
                     {
                         var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
                         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+                        var valueType = TemplateDataType.FromType(pi.PropertyType);
 
-                        var pt = new PropertyTemplate(this, i++, pi.Name);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
+                        var pt = new PropertyTemplate(this, i++, pi.Name, valueType);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
                         if (storageAttr != null)
                             pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
                         
@@ -263,7 +406,7 @@ namespace Esiur.Resource.Template
                         else
                             pt.ReadExpansion = pi.PropertyType.Name;
 
-                        pt.Info = pi;
+                        pt.PropertyInfo = pi;
                         //pt.Serilize = publicAttr.Serialize;
                         properties.Add(pt);
                     }
@@ -273,7 +416,7 @@ namespace Esiur.Resource.Template
                         if (attributeAttr != null)
                         {
                             var at = new AttributeTemplate(this, 0, pi.Name);
-                            at.Info = pi;
+                            at.PropertyInfo = pi;
                             attributes.Add(at);
                         }
                     }
@@ -289,8 +432,10 @@ namespace Esiur.Resource.Template
                         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
                         var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
 
-                        var et = new EventTemplate(this, i++, ei.Name);
-                        et.Info = ei;
+                        var argType = ei.EventHandlerType.GenericTypeArguments[0];
+
+                        var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
+                        et.EventInfo = ei;
 
                         if (annotationAttr != null)
                             et.Expansion = annotationAttr.Annotation;
@@ -309,13 +454,32 @@ namespace Esiur.Resource.Template
                     if (publicAttr != null)
                     {
                         var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
+                        var returnType = TemplateDataType.FromType(mi.ReturnType);
 
-                        var ft = new FunctionTemplate(this, i++, mi.Name, mi.ReturnType == typeof(void));
+                        var args = mi.GetParameters();
+
+                        if (args.Length > 0)
+                        {
+                            if (args.Last().ParameterType == typeof(DistributedConnection))
+                                args = args.Take(args.Count() - 1).ToArray();
+                        }
+
+                        var arguments = args.Select(x => new ArgumentTemplate()
+                                         {
+                                             Name = x.Name,
+                                             Type = TemplateDataType.FromType(x.ParameterType),
+                                             ParameterInfo = x
+                                         })
+                                         .ToArray();
+
+                        var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
 
                         if (annotationAttr != null)
                             ft.Expansion = annotationAttr.Annotation;
                         else
                             ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x=>x.ParameterType != typeof(DistributedConnection)).Select(x=> "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+
+                        ft.MethodInfo = mi;
                         functions.Add(ft);
                     }
                 }
@@ -391,11 +555,27 @@ namespace Esiur.Resource.Template
                 if (type == 0) // function
                 {
                     string expansion = null;
-                    var hasExpansion = ((data[offset] & 0x10) == 0x10);
-                    var isVoid = ((data[offset++] & 0x08) == 0x08);
+                    var hasExpansion = ((data[offset++] & 0x10) == 0x10);
+
                     var name = data.GetString(offset + 1, data[offset]);
                     offset += (uint)data[offset] + 1;
-                    
+
+                    // return type
+                    var (rts, returnType) = TemplateDataType.Parse(data, offset);
+                    offset += rts;
+
+                    // arguments count
+                    var argsCount = data[offset++];
+                    List<ArgumentTemplate> arguments = new();
+
+                    for (var a = 0; a < argsCount; a++)
+                    {
+                        var (cs, argType) = ArgumentTemplate.Parse(data, offset);
+                        arguments.Add(argType);
+                        offset += cs;
+                    }
+
+                    // arguments
                     if (hasExpansion) // expansion ?
                     {
                         var cs = data.GetUInt32(offset);
@@ -404,7 +584,7 @@ namespace Esiur.Resource.Template
                         offset += cs;
                     }
 
-                    var ft = new FunctionTemplate(od, functionIndex++, name, isVoid, expansion);
+                    var ft = new FunctionTemplate(od, functionIndex++, name, arguments.ToArray(), returnType, expansion);
 
                     od.functions.Add(ft);
                 }
@@ -420,6 +600,10 @@ namespace Esiur.Resource.Template
                     var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
                     
                     offset += (uint)data[offset] + 1;
+
+                    var (dts, valueType) = TemplateDataType.Parse(data, offset);
+
+                    offset += dts;
 
                     if (hasReadExpansion) // expansion ?
                     {
@@ -437,7 +621,7 @@ namespace Esiur.Resource.Template
                         offset += cs;
                     }
 
-                    var pt = new PropertyTemplate(od, propertyIndex++, name, readExpansion, writeExpansion, recordable);
+                    var pt = new PropertyTemplate(od, propertyIndex++, name, valueType, readExpansion, writeExpansion, recordable);
 
                     od.properties.Add(pt);
                 }
@@ -451,6 +635,10 @@ namespace Esiur.Resource.Template
                     var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
                     offset += (uint)data[offset] + 1;
 
+                    var (dts, argType) = TemplateDataType.Parse(data, offset);
+                    
+                    offset += dts;
+
                     if (hasExpansion) // expansion ?
                     {
                         var cs = data.GetUInt32(offset);
@@ -459,7 +647,7 @@ namespace Esiur.Resource.Template
                         offset += cs;
                     }
 
-                    var et = new EventTemplate(od, eventIndex++, name, expansion, listenable);
+                    var et = new EventTemplate(od, eventIndex++, name, argType, expansion, listenable);
 
                     od.events.Add(et);
 

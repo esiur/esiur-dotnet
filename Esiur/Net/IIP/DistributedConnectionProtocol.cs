@@ -498,8 +498,8 @@ namespace Esiur.Net.IIP
                     //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
                     //r.Instance.ResourceModified -= Instance_PropertyModified;
                     //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-                    
-                    
+
+
                     // r.Instance.Children.OnAdd -= Children_OnAdd;
                     // r.Instance.Children.OnRemoved -= Children_OnRemoved;
 
@@ -800,16 +800,16 @@ namespace Esiur.Net.IIP
                                 // create the resource
                                 var resource = Activator.CreateInstance(type, args) as IResource;
 
-                                Warehouse.Put( name, resource, store as IStore, parent).Then(ok =>
-                                {
-                                    SendReply(IIPPacket.IIPPacketAction.CreateResource, callback)
-                                   .AddUInt32(resource.Instance.Id)
-                                   .Done();
+                                Warehouse.Put(name, resource, store as IStore, parent).Then(ok =>
+                               {
+                                   SendReply(IIPPacket.IIPPacketAction.CreateResource, callback)
+                                  .AddUInt32(resource.Instance.Id)
+                                  .Done();
 
-                                }).Error(x =>
-                                {
-                                    SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.AddToStoreFailed);
-                                });
+                               }).Error(x =>
+                               {
+                                   SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.AddToStoreFailed);
+                               });
 
                             });
                         });
@@ -1077,6 +1077,50 @@ namespace Esiur.Net.IIP
 
         }
 
+        void IIPRequestLinkTemplates(uint callback, string resourceLink)
+        {
+            Console.WriteLine("IIPRequestLinkTemplates " + DateTime.UtcNow);
+            Action<IResource[]> queryCallback = (r) =>
+            {
+                if (r == null)
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                else
+                {
+                    var list = r.Where(x => x.Instance.Applicable(session, ActionType.ViewTemplate, null) != Ruling.Denied).ToArray();
+
+                    if (list.Length == 0)
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                    else
+                    {
+                        // get all templates related to this resource
+
+                        var msg = new BinaryList();
+
+                        var templates = new List<ResourceTemplate>();
+                        foreach (var resource in list)
+                            templates.AddRange(ResourceTemplate.GetRuntimeTypes(resource.Instance.Template).Where(x => !templates.Contains(x)));
+
+                        foreach(var t in templates)
+                        {
+                            msg.AddInt32(t.Content.Length)
+                                .AddUInt8Array(t.Content);
+                        }
+
+                        // digggg
+                        SendReply(IIPPacket.IIPPacketAction.LinkTemplates, callback)
+                                    .AddInt32(msg.Length)
+                                    .AddUInt8Array(msg.ToArray())
+                                    .Done();
+                    }
+                }
+            };
+
+            if (Server?.EntryPoint != null)
+                Server.EntryPoint.Query(resourceLink, this).Then(queryCallback);
+            else
+                Warehouse.Query(resourceLink).Then(queryCallback);
+        }
+
         void IIPRequestTemplateFromClassName(uint callback, string className)
         {
             Warehouse.GetTemplate(className).Then((t) =>
@@ -1096,19 +1140,18 @@ namespace Esiur.Net.IIP
 
         void IIPRequestTemplateFromClassId(uint callback, Guid classId)
         {
-            Warehouse.GetTemplate(classId).Then((t) =>
+            var t = Warehouse.GetTemplate(classId);
+
+            if (t != null)
+                SendReply(IIPPacket.IIPPacketAction.TemplateFromClassId, callback)
+                        .AddInt32(t.Content.Length)
+                        .AddUInt8Array(t.Content)
+                        .Done();
+            else
             {
-                if (t != null)
-                    SendReply(IIPPacket.IIPPacketAction.TemplateFromClassId, callback)
-                            .AddInt32(t.Content.Length)
-                            .AddUInt8Array(t.Content)
-                            .Done();
-                else
-                {
-                    // reply failed
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
-                }
-            });
+                // reply failed
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+            }
         }
 
 
@@ -1165,7 +1208,7 @@ namespace Esiur.Net.IIP
         }
 
         [Attribute]
-        public ExceptionLevel ExceptionLevel { get; set; } 
+        public ExceptionLevel ExceptionLevel { get; set; }
             = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
         private Tuple<ushort, string> SummerizeException(Exception ex)
@@ -1477,17 +1520,17 @@ namespace Esiur.Net.IIP
                                                 .AddUInt8Array(Codec.Compose(res, this))
                                                 .Done();
 
-                                            }).Error(ex =>
-                                            {
-                                                var (code, msg) = SummerizeException(ex);
-                                                SendError(ErrorType.Exception, callback, code, msg);
-                                            }).Progress((pt, pv, pm) =>
-                                            {
-                                                SendProgress(callback, pv, pm);
-                                            }).Chunk(v =>
-                                            {
-                                                SendChunk(callback, v);
-                                            });
+                                }).Error(ex =>
+                                {
+                                    var (code, msg) = SummerizeException(ex);
+                                    SendError(ErrorType.Exception, callback, code, msg);
+                                }).Progress((pt, pv, pm) =>
+                                {
+                                    SendProgress(callback, pv, pm);
+                                }).Chunk(v =>
+                                {
+                                    SendChunk(callback, v);
+                                });
                                      }
                                      else
                                      {
@@ -1539,7 +1582,7 @@ namespace Esiur.Net.IIP
                         }
                         else
                         {
-                            lock(subscriptionsLock)
+                            lock (subscriptionsLock)
                             {
                                 if (!subscriptions.ContainsKey(r))
                                 {
@@ -1711,51 +1754,51 @@ namespace Esiur.Net.IIP
             });
         }
 
-//        void IIPRequestGetPropertyIfModifiedSince(uint callback, uint resourceId, byte index, ulong age)
-//        {
-//            Warehouse.GetById(resourceId).Then((r) =>
-//            {
-//                if (r != null)
-//                {
-//                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
-//                    if (pt != null)
-//                    {
-//                        if (r.Instance.GetAge(index) > age)
-//                        {
-//#if NETSTANDARD
-//                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
-//#else
-//                            var pi = r.GetType().GetProperty(pt.Name);
-//#endif
-//                            if (pi != null)
-//                            {
-//                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
-//                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
-//                                            .Done();
-//                            }
-//                            else
-//                            {
-//                                // pt found, pi not found, this should never happen
-//                            }
-//                        }
-//                        else
-//                        {
-//                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
-//                                    .AddUInt8((byte)DataType.NotModified)
-//                                    .Done();
-//                        }
-//                    }
-//                    else
-//                    {
-//                        // pt not found
-//                    }
-//                }
-//                else
-//                {
-//                    // resource not found
-//                }
-//            });
-//        }
+        //        void IIPRequestGetPropertyIfModifiedSince(uint callback, uint resourceId, byte index, ulong age)
+        //        {
+        //            Warehouse.GetById(resourceId).Then((r) =>
+        //            {
+        //                if (r != null)
+        //                {
+        //                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
+        //                    if (pt != null)
+        //                    {
+        //                        if (r.Instance.GetAge(index) > age)
+        //                        {
+        //#if NETSTANDARD
+        //                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
+        //#else
+        //                            var pi = r.GetType().GetProperty(pt.Name);
+        //#endif
+        //                            if (pi != null)
+        //                            {
+        //                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
+        //                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
+        //                                            .Done();
+        //                            }
+        //                            else
+        //                            {
+        //                                // pt found, pi not found, this should never happen
+        //                            }
+        //                        }
+        //                        else
+        //                        {
+        //                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
+        //                                    .AddUInt8((byte)DataType.NotModified)
+        //                                    .Done();
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        // pt not found
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    // resource not found
+        //                }
+        //            });
+        //        }
 
         void IIPRequestSetProperty(uint callback, uint resourceId, byte index, byte[] content)
         {
@@ -1791,7 +1834,7 @@ namespace Esiur.Net.IIP
                                 var pi = r.GetType().GetProperty(pt.Name);
 #endif*/
 
-                                var pi = pt.Info;
+                                var pi = pt.PropertyInfo;
 
                                 if (pi != null)
                                 {
@@ -2091,6 +2134,43 @@ namespace Esiur.Net.IIP
             return new AsyncReply<IResource>(null);
         }
 
+
+        public AsyncReply<ResourceTemplate[]> GetLinkTemplates(string link)
+        {
+            var reply = new AsyncReply<ResourceTemplate[]>();
+
+            var l = DC.ToBytes(link);
+
+            SendRequest(IIPPacket.IIPPacketAction.LinkTemplates)
+            .AddUInt16((ushort)l.Length)
+            .AddUInt8Array(l)
+            .Done()
+            .Then((rt) =>
+            {
+
+                var templates = new List<ResourceTemplate>();
+                // parse templates
+
+                var data = (byte[])rt[0];
+                //var offset = 0;
+                for (uint offset = 0; offset < data.Length;)
+                {
+                    var cs = data.GetUInt32(offset);
+                    offset += 4;
+                    templates.Add(ResourceTemplate.Parse(data, offset, cs));
+                    offset += cs;
+                }
+
+                reply.Trigger(templates.ToArray());
+
+            }).Error((ex) =>
+            {
+                reply.TriggerError(ex);
+            });
+
+            return reply;
+        }
+
         /// <summary>
         /// Fetch a resource from the other end
         /// </summary>
@@ -2125,7 +2205,19 @@ namespace Esiur.Net.IIP
                         .Then((rt) =>
                         {
 
-                            var dr = resource ?? new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
+                            DistributedResource dr;
+
+                            if (resource == null)
+                            {
+                                var template = Warehouse.GetTemplate((Guid)rt[0]);
+                                if (template?.RuntimeType != null)
+                                    dr = Activator.CreateInstance(template.RuntimeType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
+                                else
+                                    dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
+                            }
+                            else
+                                dr = resource;
+
 
                             GetTemplate((Guid)rt[0]).Then((tmp) =>
                             {
@@ -2140,7 +2232,7 @@ namespace Esiur.Net.IIP
                                             resourceRequests.Remove(id);
                                             reply.Trigger(dr);
                                         });
-                                    }).Error(ex=>reply.TriggerError(ex));
+                                    }).Error(ex => reply.TriggerError(ex));
                                 }
                                 else
                                 {
@@ -2149,7 +2241,7 @@ namespace Esiur.Net.IIP
                                         dr._Attach(ar);
                                         resourceRequests.Remove(id);
                                         reply.Trigger(dr);
-                                    }).Error(ex=>reply.TriggerError(ex));
+                                    }).Error(ex => reply.TriggerError(ex));
                                 }
 
                             }).Error((ex) =>
@@ -2422,9 +2514,9 @@ namespace Esiur.Net.IIP
 
         private void UnsubscribeAll()
         {
-            lock(subscriptionsLock)
+            lock (subscriptionsLock)
             {
-                foreach(var resource in subscriptions.Keys)
+                foreach (var resource in subscriptions.Keys)
                 {
                     resource.Instance.ResourceEventOccurred -= Instance_EventOccurred;
                     resource.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
@@ -2491,7 +2583,7 @@ namespace Esiur.Net.IIP
             if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, issuer) == Ruling.Denied)
                 return;
 
-            
+
             // compose the packet
             SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
                         .AddUInt32(resource.Instance.Id)

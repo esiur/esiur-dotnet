@@ -458,7 +458,7 @@ namespace Esiur.Net.IIP
                             case IIPPacketAction.QueryLink:
                                 IIPRequestQueryResources(packet.CallbackId, packet.ResourceLink);
                                 break;
-
+                            
                             case IIPPacketAction.ResourceChildren:
                                 IIPRequestResourceChildren(packet.CallbackId, packet.ResourceId);
                                 break;
@@ -468,6 +468,10 @@ namespace Esiur.Net.IIP
 
                             case IIPPacket.IIPPacketAction.ResourceHistory:
                                 IIPRequestInquireResourceHistory(packet.CallbackId, packet.ResourceId, packet.FromDate, packet.ToDate);
+                                break;
+
+                            case IIPPacketAction.LinkTemplates:
+                                IIPRequestLinkTemplates(packet.CallbackId, packet.ResourceLink);
                                 break;
 
                             // Invoke
@@ -559,6 +563,7 @@ namespace Esiur.Net.IIP
                             case IIPPacketAction.ResourceChildren:
                             case IIPPacketAction.ResourceParents:
                             case IIPPacketAction.ResourceHistory:
+                            case IIPPacketAction.LinkTemplates:
                                 IIPReply(packet.CallbackId, packet.Content);
                                 break;
 
@@ -699,12 +704,50 @@ namespace Esiur.Net.IIP
                                         else
                                         {
                                             //Console.WriteLine("User not found");
-                                            SendParams().AddUInt8(0xc0)
+                                            SendParams()
+                                                            .AddUInt8(0xc0)
                                                             .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
                                                             .AddUInt16(15)
-                                                            .AddString("Token not found").Done();
+                                                            .AddString("Token not found")
+                                                            .Done();
                                         }
                                     });
+                                }
+                                catch (Exception ex)
+                                {
+                                    var errMsg = DC.ToBytes(ex.Message);
+
+                                    SendParams()
+                                        .AddUInt8(0xc0)
+                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                                        .AddUInt16((ushort)errMsg.Length)
+                                        .AddUInt8Array(errMsg)
+                                        .Done();
+                                }
+                            }
+                            else if (authPacket.RemoteMethod == AuthenticationMethod.None && authPacket.LocalMethod == AuthenticationMethod.None)
+                            {
+                                try
+                                {
+                                    // Check if guests are allowed
+                                    if (Server.Membership.GuestsAllowed)
+                                    {
+                                        session.RemoteAuthentication.Username = "g-" + Global.GenerateCode();
+                                        session.RemoteAuthentication.Domain = authPacket.Domain;
+                                        readyToEstablish = true;
+                                        SendParams()
+                                                    .AddUInt8(0x80)
+                                                    .Done();
+                                    }
+                                    else
+                                    {
+                                        SendParams()
+                                                    .AddUInt8(0xc0)
+                                                    .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                                    .AddUInt16(18)
+                                                    .AddString("Guests not allowed")
+                                                    .Done();
+                                    }
                                 }
                                 catch (Exception ex)
                                 {
@@ -716,6 +759,7 @@ namespace Esiur.Net.IIP
                                         .AddUInt8Array(errMsg).Done();
                                 }
                             }
+
                         }
                         else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
                         {
@@ -808,7 +852,7 @@ namespace Esiur.Net.IIP
 
                                             Server?.Membership.Login(session);
                                             loginDate = DateTime.Now;
-                                            
+
                                         }).Error(x =>
                                         {
                                             openReply?.TriggerError(x);
@@ -832,22 +876,32 @@ namespace Esiur.Net.IIP
                     {
                         if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Acknowledge)
                         {
-                            remoteNonce = authPacket.RemoteNonce;
+                            if (authPacket.LocalMethod == AuthenticationMethod.None)
+                            {
+                                SendParams()
+                                            .AddUInt8(0x20)
+                                            .AddUInt16(0)
+                                            .Done();
+                            }
+                            else if (authPacket.LocalMethod == AuthenticationMethod.Credentials
+                                    || authPacket.LocalMethod == AuthenticationMethod.Token)
+                            {
+                                remoteNonce = authPacket.RemoteNonce;
 
-                            // send our hash
-                            var hashFunc = SHA256.Create();
-                            //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
-                            var localHash = hashFunc.ComputeHash(new BinaryList()
-                                                                .AddUInt8Array(localPasswordOrToken)
-                                                                .AddUInt8Array(localNonce)
-                                                                .AddUInt8Array(remoteNonce)
-                                                                .ToArray());
+                                // send our hash
+                                var hashFunc = SHA256.Create();
+                                //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
+                                var localHash = hashFunc.ComputeHash(new BinaryList()
+                                                                    .AddUInt8Array(localPasswordOrToken)
+                                                                    .AddUInt8Array(localNonce)
+                                                                    .AddUInt8Array(remoteNonce)
+                                                                    .ToArray());
 
-                            SendParams()
-                                .AddUInt8(0)
-                                .AddUInt8Array(localHash)
-                                .Done();
-
+                                SendParams()
+                                    .AddUInt8(0)
+                                    .AddUInt8Array(localHash)
+                                    .Done();
+                            }
                             //SendParams((byte)0, localHash);
                         }
                         else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
@@ -867,7 +921,6 @@ namespace Esiur.Net.IIP
                                 if (remoteHash.SequenceEqual(authPacket.Hash))
                                 {
                                     // send establish request
-                                    //SendParams((byte)0x20, (ushort)0);
                                     SendParams()
                                                 .AddUInt8(0x20)
                                                 .AddUInt16(0)
@@ -981,32 +1034,29 @@ namespace Esiur.Net.IIP
         {
             if (trigger == ResourceTrigger.Open)
             {
+                if (this.Server != null)
+                    return new AsyncReply<bool>(true);
+
+                var host = Instance.Name.Split(':');
+
+                var address = host[0];
+                var port = ushort.Parse(host[1]);
+                // assign domain from hostname if not provided
+                var domain = Domain != null ? Domain : address;
+
                 if (Username != null // Instance.Attributes.ContainsKey("username")
                       && Password != null)/// Instance.Attributes.ContainsKey("password"))
                 {
-                    // assign domain from hostname if not provided
-
-                    var host = Instance.Name.Split(':');
-
-                    var address = host[0];
-                    var port = ushort.Parse(host[1]);
-
-                    var domain = Domain != null ? Domain : address;
-
-
                     return Connect(AuthenticationMethod.Credentials, null, address, port, Username, 0, DC.ToBytes(Password), domain);
-
                 }
                 else if (Token != null)
                 {
-                    var host = Instance.Name.Split(':');
-
-                    var address = host[0];
-                    var port = ushort.Parse(host[1]);
-
-                    var domain = Domain != null ? Domain : address;
-
                     return Connect(AuthenticationMethod.Token, null, address, port, null, TokenIndex, DC.ToBytes(Token), domain);
+                }
+                else
+                {
+
+                    return Connect(AuthenticationMethod.None, null, address, port, null, 0, null, domain);
 
                 }
             }

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,7 +17,17 @@ namespace Esiur.Resource.Template
             set;
         }
 
-        public bool IsVoid
+        //public bool IsVoid
+        //{
+        //    get;
+        //    set;
+        //}
+
+        public TemplateDataType ReturnType { get; set; }
+
+        public ArgumentTemplate[] Arguments { get; set; }
+
+        public MethodInfo MethodInfo
         {
             get;
             set;
@@ -25,30 +36,40 @@ namespace Esiur.Resource.Template
 
         public override byte[] Compose()
         {
+ 
             var name = base.Compose();
+            
+            var bl = new BinaryList()
+                    //.AddUInt8(Expansion != null ? (byte)0x10 : (byte)0)
+                    .AddUInt8((byte)name.Length)
+                    .AddUInt8Array(name)
+                    .AddUInt8Array(ReturnType.Compose())
+                    .AddUInt8((byte)Arguments.Length);
+
+            for (var i = 0; i < Arguments.Length; i++)
+                bl.AddUInt8Array(Arguments[i].Compose());
+
 
             if (Expansion != null)
             {
                 var exp = DC.ToBytes(Expansion);
-                return new BinaryList().AddUInt8((byte)(0x10 | (IsVoid ? 0x8 : 0x0)))
-                    .AddUInt8((byte)name.Length)
-                    .AddUInt8Array(name)
-                    .AddInt32(exp.Length)
-                    .AddUInt8Array(exp)
-                    .ToArray();
+                bl.AddInt32(exp.Length)
+                .AddUInt8Array(exp);
+                bl.InsertUInt8(0, 0x10);
             }
             else
-                return new BinaryList().AddUInt8((byte)(IsVoid ? 0x8 : 0x0))
-                    .AddUInt8((byte)name.Length)
-                    .AddUInt8Array(name)
-                    .ToArray();
+                bl.InsertUInt8(0, 0x0);
+
+            return bl.ToArray();
         }
 
 
-        public FunctionTemplate(ResourceTemplate template, byte index, string name,bool isVoid, string expansion = null)
-            :base(template, MemberType.Property, index, name)
+        public FunctionTemplate(ResourceTemplate template, byte index, string name, ArgumentTemplate[] arguments, TemplateDataType returnType, string expansion = null)
+            : base(template, MemberType.Property, index, name)
         {
-            this.IsVoid = isVoid;
+            //this.IsVoid = isVoid;
+            this.Arguments = arguments;
+            this.ReturnType = returnType;
             this.Expansion = expansion;
         }
     }

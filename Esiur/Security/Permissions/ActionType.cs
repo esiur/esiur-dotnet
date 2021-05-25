@@ -45,6 +45,7 @@ namespace Esiur.Security.Permissions
         AddChild,
         RemoveChild,
         Rename,
-        ReceiveEvent
+        ReceiveEvent,
+        ViewTemplate
     }
 }

@@ -11,7 +11,9 @@ namespace Esiur.Proxy
     public class ResourceGeneratorReceiver : ISyntaxContextReceiver
     {
 
-        public List<ResourceGeneratorClassInfo> Classes { get; } = new();
+        public Dictionary<string, ResourceGeneratorClassInfo> Classes { get; } = new();
+
+        public List<string> Imports { get; } = new ();
 
         public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
         {
@@ -20,8 +22,21 @@ namespace Esiur.Proxy
             {
                 var cds = context.Node as ClassDeclarationSyntax;
                 var cls = context.SemanticModel.GetDeclaredSymbol(cds) as ITypeSymbol;
+                var attrs = cls.GetAttributes();
 
-                if (cls.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.ResourceAttribute"))
+                var imports = attrs.Where(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.ImportAttribute");
+
+                foreach (var import in imports)
+                {
+                   // Debugger.Launch();
+
+                    var url = import.ConstructorArguments.First().Value.ToString();
+
+                    if (!Imports.Contains(url))
+                        Imports.Add(url);
+                }
+
+                if (attrs.Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.ResourceAttribute"))
                 {
                     
                     
@@ -46,16 +61,33 @@ namespace Esiur.Proxy
 
 
                     // get fields
-                    Classes.Add(new ResourceGeneratorClassInfo()
-                    {
-                        Name = cls.Name,
-                        ClassDeclaration = cds,
-                        ClassSymbol = cls,
-                        Fields = fields,
-                        ImplementInterface = cls.Interfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource"),
-                        ImplementTrigger = hasTrigger
-                    });
 
+                    var fullName = cls.ContainingAssembly + "." + cls.Name;
+
+                    // Partial class check
+                    if (Classes.ContainsKey(fullName))
+                    {
+                        // append fields
+                        var c = Classes[fullName];
+                        c.Fields.AddRange(fields);
+                        if (!c.HasInterface)
+                            c.HasInterface = cls.Interfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource");
+                        if (!c.HasTrigger)
+                            c.HasTrigger = hasTrigger;
+                    } else
+                    {
+                        Classes.Add(fullName, new ResourceGeneratorClassInfo()
+                        {
+                            Name = cls.Name,
+                            ClassDeclaration = cds,
+                            ClassSymbol = cls,
+                            Fields = fields.ToList(),
+                            HasInterface = cls.Interfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource"),
+                            HasTrigger = hasTrigger
+                        });
+                    }
+
+    
                     return;
                 }
             }

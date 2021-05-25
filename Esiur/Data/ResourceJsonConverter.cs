@@ -53,10 +53,10 @@ namespace Esiur.Data
 
             foreach (var pt in resource.Instance.Template.Properties)
             {
-                var rt = pt.Info.GetValue(resource, null);
+                var rt = pt.PropertyInfo.GetValue(resource, null);
                 if (rt is DistributedPropertyContext)
                     continue;
-
+                
                 writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(pt.Name) ?? pt.Name);
 
                 if (rt is IResource)

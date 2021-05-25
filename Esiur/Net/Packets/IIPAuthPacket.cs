@@ -344,12 +344,15 @@ namespace Esiur.Net.Packets
                 LocalMethod = (AuthenticationMethod)((data[offset] >> 2) & 0x3);
                 var encrypt = ((data[offset++] & 0x2) == 0x2);
 
-                if (NotEnough(offset, ends, 1))
-                    return -dataLengthNeeded;
-
-
-                if (RemoteMethod == AuthenticationMethod.Credentials
-                    || RemoteMethod == AuthenticationMethod.Token)
+                if (RemoteMethod == AuthenticationMethod.None)
+                {
+                    if (LocalMethod == AuthenticationMethod.None)
+                    {
+                        // do nothing
+                    }
+                }
+                else if (RemoteMethod == AuthenticationMethod.Credentials
+                       || RemoteMethod == AuthenticationMethod.Token)
                 {
                     if (LocalMethod == AuthenticationMethod.None)
                     {

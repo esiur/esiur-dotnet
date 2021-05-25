@@ -10,7 +10,7 @@ namespace Esiur.Resource.Template
 {
     public class AttributeTemplate : MemberTemplate
     {
-        public PropertyInfo Info
+        public PropertyInfo PropertyInfo
         {
             get;
             set;

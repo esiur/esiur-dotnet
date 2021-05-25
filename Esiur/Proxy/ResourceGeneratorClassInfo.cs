@@ -9,10 +9,10 @@ namespace Esiur.Proxy
     public struct ResourceGeneratorClassInfo
     {
         public string Name { get; set; }
-        public bool ImplementInterface { get; set; }
+        public bool HasInterface { get; set; }
 
-        public bool ImplementTrigger { get; set; }
-        public IFieldSymbol[] Fields { get; set; }
+        public bool HasTrigger { get; set; }
+        public List<IFieldSymbol> Fields { get; set; }
         public ITypeSymbol ClassSymbol { get; set; }
 
         public ClassDeclarationSyntax ClassDeclaration { get; set; }

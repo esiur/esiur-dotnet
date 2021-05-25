@@ -185,8 +185,8 @@ namespace Esiur.Resource
                     var at = template.GetAttributeTemplate(kv.Key);
 
                     if (at != null)
-                        if (at.Info.CanWrite)
-                            at.Info.SetValue(res, DC.CastConvert(kv.Value, at.Info.PropertyType));
+                        if (at.PropertyInfo.CanWrite)
+                            at.PropertyInfo.SetValue(res, DC.CastConvert(kv.Value, at.PropertyInfo.PropertyType));
 
                 }
             }
@@ -354,17 +354,17 @@ namespace Esiur.Resource
 #endif
 */
 
-            if (pt.Info.PropertyType == typeof(DistributedPropertyContext))
+            if (pt.PropertyInfo.PropertyType == typeof(DistributedPropertyContext))
                 return false;
 
 
-            if (pt.Info.CanWrite)
+            if (pt.PropertyInfo.CanWrite)
             {
                 try
                 {
                     loading = true;
 
-                    pt.Info.SetValue(res, DC.CastConvert(value, pt.Info.PropertyType));
+                    pt.PropertyInfo.SetValue(res, DC.CastConvert(value, pt.PropertyInfo.PropertyType));
                 }
                 catch (Exception ex)
                 {
@@ -453,7 +453,7 @@ namespace Esiur.Resource
 
                 if (resource.TryGetTarget(out res))
                 {
-                    var rt = pt.Info.GetValue(res, null);
+                    var rt = pt.PropertyInfo.GetValue(res, null);
                     props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
                 }
             }
@@ -628,7 +628,7 @@ namespace Esiur.Resource
 
             var pt = template.GetPropertyTemplateByName(name);
 
-            if (pt != null && pt.Info != null)
+            if (pt != null && pt.PropertyInfo != null)
             {
                 /*
 #if NETSTANDARD
@@ -649,7 +649,7 @@ namespace Esiur.Resource
 
                 IResource res;
                 if (resource.TryGetTarget(out res))
-                    value = pt.Info.GetValue(res, null);
+                    value = pt.PropertyInfo.GetValue(res, null);
                 else
                 {
                     value = null;
@@ -900,28 +900,30 @@ namespace Esiur.Resource
                 //if (evt.EventHandlerType != typeof(ResourceEventHanlder))
                 //    continue;
 
-                if (evt.Info == null)
+                if (evt.EventInfo == null)
                     continue;
 
-                if (evt.Info.EventHandlerType == typeof(ResourceEventHanlder))
+                var eventGenericType = evt.EventInfo.EventHandlerType.GetGenericTypeDefinition();
+
+                if (eventGenericType  == typeof(ResourceEventHanlder<>))
                 {
 
                     // var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
                     // if (ca.Length == 0)
                     //     continue;
-
-                    ResourceEventHanlder proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
-                    evt.Info.AddEventHandler(resource, proxyDelegate);
+                    
+                    ResourceEventHanlder<object> proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
+                    evt.EventInfo.AddEventHandler(resource, proxyDelegate);
 
                 }
-                else if (evt.Info.EventHandlerType == typeof(CustomResourceEventHanlder))
+                else if (eventGenericType == typeof(CustomResourceEventHanlder<>))
                 {
                     //var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
                     //if (ca.Length == 0)
                     //    continue;
 
-                    CustomResourceEventHanlder proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
-                    evt.Info.AddEventHandler(resource, proxyDelegate);
+                    CustomResourceEventHanlder<object> proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
+                    evt.EventInfo.AddEventHandler(resource, proxyDelegate);
                 }
 
 

@@ -42,7 +42,7 @@ namespace Esiur.Security.Membership
         AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
         AsyncReply<bool> Login(Session session);
         AsyncReply<bool> Logout(Session session);
-
+        bool GuestsAllowed { get; }
         AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
     }
 }

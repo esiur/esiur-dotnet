@@ -67,7 +67,7 @@ namespace Esiur.Net.IIP
         string link;
         //ulong age;
         //ulong[] ages;
-        object[] properties;
+        protected object[] properties;
         internal List<DistributedResource> parents = new List<DistributedResource>();
         internal List<DistributedResource> children = new List<DistributedResource>();
 
@@ -210,12 +210,15 @@ namespace Esiur.Net.IIP
             return true;
         }
 
-        internal void _EmitEventByIndex(byte index, object args)
+
+        protected internal virtual void _EmitEventByIndex(byte index, object args)
         {
             var et = Instance.Template.GetEventTemplateByIndex(index);
             events[index]?.Invoke(this, args);
             Instance.EmitResourceEvent(et.Name, args);
         }
+
+
 
         public AsyncReply<object> _InvokeByNamedArguments(byte index, Structure namedArgs)
         {
@@ -332,7 +335,7 @@ namespace Esiur.Net.IIP
         /// </summary>
         /// <param name="index">Zero-based property index.</param>
         /// <returns>Value</returns>
-        internal object _Get(byte index)
+        protected internal object _Get(byte index)
         {
             if (index >= properties.Length)
                 return null;
@@ -383,7 +386,7 @@ namespace Esiur.Net.IIP
         /// <param name="index">Zero-based property index.</param>
         /// <param name="value">Value</param>
         /// <returns>Indicator when the property is set.</returns>
-        internal AsyncReply<object> _Set(byte index, object value)
+        protected internal AsyncReply<object> _Set(byte index, object value)
         {
             if (index >= properties.Length)
                 return null;

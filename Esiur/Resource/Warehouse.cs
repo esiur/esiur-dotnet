@@ -113,6 +113,22 @@ namespace Esiur.Resource
                 return new AsyncReply<IResource>(null);
         }
 
+        static void LoadGenerated()
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var generatedType = assembly.GetType("Esiur.Generated");
+                if (generatedType != null)
+                {
+                    var types = (Type[])generatedType.GetProperty("Types").GetValue(null);
+                    foreach (var t in types)
+                    {
+                        PutTemplate(new ResourceTemplate(t));
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Open the warehouse.
         /// This function issues the initialize trigger to all stores and resources.
@@ -122,6 +138,10 @@ namespace Esiur.Resource
         {
             if (warehouseIsOpen)
                 return false;
+
+            // Load generated models
+            LoadGenerated();
+
 
             warehouseIsOpen = true;
 
@@ -380,7 +400,8 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <returns>Resource instance.</returns>
-        public static async AsyncReply<IResource> Get(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
+        public static async AsyncReply<T> Get<T>(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
+            where T: IResource
         {
             //var rt = new AsyncReply<IResource>();
 
@@ -404,9 +425,9 @@ namespace Esiur.Resource
                         //await Put(store, url[2], null, parent, null, 0, manager, attributes);
 
                         if (url[3].Length > 0 && url[3] != "")
-                            return await store.Get(url[3]);
+                            return (T)await store.Get(url[3]);
                         else
-                            return store;
+                            return (T)store;
 
                     }
                     catch (Exception ex)
@@ -471,9 +492,9 @@ namespace Esiur.Resource
             var res = await Query(path);
 
             if (res.Length == 0)
-                return null;
+                return default(T);
             else
-                return res.First();
+                return (T)res.First();
 
         }
 
@@ -503,7 +524,7 @@ namespace Esiur.Resource
                 if (parent != null)
                     throw new Exception("Parent can't be set when using path in instance name");
 
-                parent = await Warehouse.Get(string.Join("/", path.Take(path.Length - 1)));
+                parent = await Warehouse.Get<IResource>(string.Join("/", path.Take(path.Length - 1)));
 
                 if (parent == null)
                     throw new Exception("Can't find parent");
@@ -518,27 +539,28 @@ namespace Esiur.Resource
 
             if (store == null)
             {
-                // assign parent as a store
-                if (parent is IStore)
-                {
-                    store = (IStore)parent;
-                    List<WeakReference<IResource>> list;
-                    if (stores.TryGetValue(store, out list))
-                        lock (((ICollection)list).SyncRoot)
-                            list.Add(resourceReference);
-                    //stores[store].Add(resourceReference);
-                }
                 // assign parent's store as a store
-                else if (parent != null)
+                if (parent != null)
                 {
-                    store = parent.Instance.Store;
+                    // assign parent as a store
+                    if (parent is IStore)
+                    {
+                        store = (IStore)parent;
+                        List<WeakReference<IResource>> list;
+                        if (stores.TryGetValue(store, out list))
+                            lock (((ICollection)list).SyncRoot)
+                                list.Add(resourceReference);
+                        //stores[store].Add(resourceReference);
+                    }
+                    else
+                    {
+                        store = parent.Instance.Store;
 
-                    List<WeakReference<IResource>> list;
-                    if (stores.TryGetValue(store, out list))
-                        lock (((ICollection)list).SyncRoot)
-                            list.Add(resourceReference);
-
-                    //stores[store].Add(resourceReference);
+                        List<WeakReference<IResource>> list;
+                        if (stores.TryGetValue(store, out list))
+                            lock (((ICollection)list).SyncRoot)
+                                list.Add(resourceReference);
+                    }
                 }
                 // assign self as a store (root store)
                 else if (resource is IStore)
@@ -722,9 +744,16 @@ namespace Esiur.Resource
         /// <returns>Resource template.</returns>
         public static ResourceTemplate GetTemplate(Type type)
         {
+            
+            if (!Codec.ImplementsInterface(type, typeof(IResource)))
+                return null;
 
             var baseType = ResourceProxy.GetBaseType(type);
 
+            if (baseType == typeof(IResource) )
+                return null;
+
+            
             // loaded ?
             foreach (var t in templates.Values)
                 if (t.ClassName == baseType.FullName)
@@ -741,10 +770,10 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="classId">Class Id.</param>
         /// <returns>Resource template.</returns>
-        public static AsyncReply<ResourceTemplate> GetTemplate(Guid classId)
+        public static ResourceTemplate GetTemplate(Guid classId)
         {
             if (templates.ContainsKey(classId))
-                return new AsyncReply<ResourceTemplate>(templates[classId]);
+                return templates[classId];
             return null;
         }
 

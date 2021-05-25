@@ -10,7 +10,7 @@ namespace Esiur.Resource.Template
 {
     public class PropertyTemplate : MemberTemplate
     {
-        public enum PropertyPermission:byte
+        public enum PropertyPermission : byte
         {
             Read = 1,
             Write,
@@ -18,11 +18,14 @@ namespace Esiur.Resource.Template
         }
 
 
-        public PropertyInfo Info
+        public PropertyInfo PropertyInfo
         {
             get;
             set;
         }
+
+        public TemplateDataType ValueType { get; set; }
+
 
         /*
         public bool Serilize
@@ -32,12 +35,13 @@ namespace Esiur.Resource.Template
         */
         //bool ReadOnly;
         //IIPTypes::DataType ReturnType;
-        public PropertyPermission Permission {
+        public PropertyPermission Permission
+        {
             get;
             set;
         }
 
-        
+
         public bool Recordable
         {
             get;
@@ -84,6 +88,7 @@ namespace Esiur.Resource.Template
                     .AddUInt8((byte)(0x38 | pv))
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
+                    .AddUInt8Array(ValueType.Compose())
                     .AddInt32(wexp.Length)
                     .AddUInt8Array(wexp)
                     .AddInt32(rexp.Length)
@@ -97,6 +102,7 @@ namespace Esiur.Resource.Template
                     .AddUInt8((byte)(0x30 | pv))
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
+                    .AddUInt8Array(ValueType.Compose())
                     .AddInt32(wexp.Length)
                     .AddUInt8Array(wexp)
                     .ToArray();
@@ -108,25 +114,30 @@ namespace Esiur.Resource.Template
                     .AddUInt8((byte)(0x28 | pv))
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
+                    .AddUInt8Array(ValueType.Compose())
                     .AddInt32(rexp.Length)
                     .AddUInt8Array(rexp)
                     .ToArray();
             }
             else
+            {
                 return new BinaryList()
                     .AddUInt8((byte)(0x20 | pv))
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
+                    .AddUInt8Array(ValueType.Compose())
                     .ToArray();
+            }
         }
 
-        public PropertyTemplate(ResourceTemplate template, byte index, string name, string read = null, string write = null, bool recordable = false)
-            :base(template, MemberType.Property, index, name)
+        public PropertyTemplate(ResourceTemplate template, byte index, string name, TemplateDataType valueType, string read = null, string write = null, bool recordable = false)
+            : base(template, MemberType.Property, index, name)
         {
             this.Recordable = recordable;
             //this.Storage = storage;
             this.ReadExpansion = read;
             this.WriteExpansion = write;
+            this.ValueType = valueType;
         }
     }
 }

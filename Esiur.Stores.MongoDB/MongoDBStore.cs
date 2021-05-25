@@ -52,10 +52,10 @@ namespace Esiur.Stores.MongoDB
 
 
         [Public]
-        public event ResourceEventHanlder ResourceAdded;
+        public event ResourceEventHanlder<IResource> ResourceAdded;
 
         [Public]
-        public event ResourceEventHanlder ResourceRemoved;
+        public event ResourceEventHanlder<IResource> ResourceRemoved;
 
         int count = 0;
 
@@ -225,7 +225,7 @@ namespace Esiur.Stores.MongoDB
                 var doc = value.AsBsonDocument;
                 if (doc["type"] == 0)
                 {
-                    return Warehouse.Get(doc["link"].AsString);
+                    return Warehouse.Get<IResource>(doc["link"].AsString);
                 } // structure
                 else if (doc["type"] == 1)
                 {
@@ -383,7 +383,7 @@ namespace Esiur.Stores.MongoDB
 
                 foreach (var pt in template.Properties)
                 {
-                    var rt = pt.Info.GetValue(resource, null);
+                    var rt = pt.PropertyInfo.GetValue(resource, null);
 
                     values.Add(pt.Name,
                       new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
@@ -612,7 +612,7 @@ namespace Esiur.Stores.MongoDB
                 var pi = resource.GetType().GetProperty(pt.Name);
 #endif
 */
-                var rt = pt.Info.GetValue(resource, null);
+                var rt = pt.PropertyInfo.GetValue(resource, null);
 
                 values.Add(pt.Name,
                                       new BsonDocument { { "age", BsonValue.Create(resource.Instance.GetAge(pt.Index)) },
@@ -841,7 +841,7 @@ namespace Esiur.Stores.MongoDB
 
                 foreach (var child in children)
                 {
-                    var r = Warehouse.Get(child);
+                    var r = Warehouse.Get<T>(child);
                     if (r is AsyncReply<T>)
                         rt.Add(r);// (AsyncReply<T>)r);
                 }
@@ -873,7 +873,7 @@ namespace Esiur.Stores.MongoDB
 
                 foreach (var parent in parents)
                 {
-                    var r = Warehouse.Get(parent);
+                    var r = Warehouse.Get<T>(parent);
                     if (r is AsyncReply<T>)
                         rt.Add(r);// (AsyncReply<T>)r);
                 }

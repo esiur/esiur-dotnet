@@ -30,5 +30,5 @@ using System.Threading.Tasks;
 
 namespace Esiur.Net.IIP
 {
-    public delegate void DistributedResourceEvent(DistributedResource sender, object arguments);
+    public delegate void DistributedResourceEvent(DistributedResource sender, object argument);
 }
