@@ -923,7 +923,7 @@ namespace Esiur.Data
                 var index = data[offset++];
                 var pt = resource.Instance.Template.GetPropertyTemplateByIndex(index);
                 list.Add(pt, null);
-                var cs = DC.GetUInt32(data, offset);
+                var cs = data.GetUInt32(offset);
                 offset += 4;
                 bagOfBags.Add(ParsePropertyValueArray(data, offset, cs, connection));
                 offset += cs;

@@ -146,7 +146,7 @@ namespace Esiur.Net.Packets
                         //Console.WriteLine("stage 2 " + needed);
                         return length - needed;
                     }
-                    PayloadLength = DC.GetUInt16(data, offset);
+                    PayloadLength = data.GetUInt16( offset);
                     offset += 2;
                 }
                 else if (PayloadLength == 127)
@@ -158,7 +158,7 @@ namespace Esiur.Net.Packets
                         return length - needed;
                     }
 
-                    PayloadLength = DC.GetInt64(data, offset);
+                    PayloadLength = data.GetInt64(offset);
                     offset += 8;
                 }
 

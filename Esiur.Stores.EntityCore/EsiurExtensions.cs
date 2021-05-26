@@ -123,7 +123,7 @@ namespace Esiur.Stores.EntityCore
 
             await Warehouse.Put(id.ToString(), res, store, null, null, 0, manager);
 
-            return resource;
+            return (T)res;
         }
 
         //public static async AsyncReply<T> CreateResourceAsync<T>(this IServiceProvider serviceProvider, T properties = null) where T : class, IResource

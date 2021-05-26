@@ -32,7 +32,7 @@ namespace Esiur.Resource.Template
             get { return content; }
         }
 
-        public Type RuntimeType { get; set; }
+        public Type ResourceType { get; set; }
 
         public MemberTemplate GetMemberTemplate(MemberInfo member)
         {
@@ -157,18 +157,18 @@ namespace Esiur.Resource.Template
         
 
 
-        public static ResourceTemplate[] GetRuntimeTypes(ResourceTemplate template)
+        public static ResourceTemplate[] GetDependencies(ResourceTemplate template)
         {
 
             var list = new List<ResourceTemplate>();
 
             list.Add(template);
 
-            Action<ResourceTemplate, List<ResourceTemplate>> getRuntimeTypes = null;
+            Action<ResourceTemplate, List<ResourceTemplate>> getDependenciesFunc = null;
 
-            getRuntimeTypes = (ResourceTemplate tmp, List<ResourceTemplate> bag) =>
+            getDependenciesFunc = (ResourceTemplate tmp, List<ResourceTemplate> bag) =>
             {
-                if (template.RuntimeType == null)
+                if (template.ResourceType == null)
                     return;
 
                 // functions
@@ -180,7 +180,7 @@ namespace Esiur.Resource.Template
                         if (!bag.Contains(frtt))
                         {
                             list.Add(frtt);
-                            getRuntimeTypes(frtt, bag);
+                            getDependenciesFunc(frtt, bag);
                         }
                     }
 
@@ -194,7 +194,7 @@ namespace Esiur.Resource.Template
                             if (!bag.Contains(fpt))
                             {
                                 bag.Add(fpt);
-                                getRuntimeTypes(fpt, bag);
+                                getDependenciesFunc(fpt, bag);
                             }
                         }
                     }
@@ -211,7 +211,7 @@ namespace Esiur.Resource.Template
                                 if (!bag.Contains(fpt))
                                 {
                                     bag.Add(fpt);
-                                    getRuntimeTypes(fpt, bag);
+                                    getDependenciesFunc(fpt, bag);
                                 }
                             }
                         }
@@ -228,7 +228,7 @@ namespace Esiur.Resource.Template
                         if (!bag.Contains(pt))
                         {
                             bag.Add(pt);
-                            getRuntimeTypes(pt, bag);
+                            getDependenciesFunc(pt, bag);
                         }
                     }
                 }
@@ -243,13 +243,13 @@ namespace Esiur.Resource.Template
                         if (!bag.Contains(et))
                         {
                             bag.Add(et);
-                            getRuntimeTypes(et, bag);
+                            getDependenciesFunc(et, bag);
                         }
                     }
                 }
             };
 
-            getRuntimeTypes(template, list);
+            getDependenciesFunc(template, list);
             return list.ToArray();
         }
 
@@ -260,7 +260,7 @@ namespace Esiur.Resource.Template
 
             type = ResourceProxy.GetBaseType(type);
 
-            RuntimeType = type;
+            ResourceType = type;
 
             className = type.FullName;
 

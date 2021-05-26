@@ -108,7 +108,7 @@ namespace Esiur.Resource.Template
                                                // type == DataType.Structure ||
                                                // type == DataType.StructureArray)
             {
-                var guid = DC.GetGuid(data, offset);
+                var guid = data.GetGuid(offset);
                 return (17, new TemplateDataType() { Type = type, TypeGuid = guid });
             }
             else

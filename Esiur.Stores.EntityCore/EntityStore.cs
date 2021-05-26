@@ -207,7 +207,7 @@ namespace Esiur.Stores.EntityCore
             return new AsyncReply<bool>(true);
         }
 
-        void ReloadModel()
+        public void ReloadModel()
         {
 
             TypesByName.Clear();

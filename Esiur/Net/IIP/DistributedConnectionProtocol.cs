@@ -1098,7 +1098,7 @@ namespace Esiur.Net.IIP
 
                         var templates = new List<ResourceTemplate>();
                         foreach (var resource in list)
-                            templates.AddRange(ResourceTemplate.GetRuntimeTypes(resource.Instance.Template).Where(x => !templates.Contains(x)));
+                            templates.AddRange(ResourceTemplate.GetDependencies(resource.Instance.Template).Where(x => !templates.Contains(x)));
 
                         foreach(var t in templates)
                         {
@@ -2210,8 +2210,8 @@ namespace Esiur.Net.IIP
                             if (resource == null)
                             {
                                 var template = Warehouse.GetTemplate((Guid)rt[0]);
-                                if (template?.RuntimeType != null)
-                                    dr = Activator.CreateInstance(template.RuntimeType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
+                                if (template?.ResourceType != null)
+                                    dr = Activator.CreateInstance(template.ResourceType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
                                 else
                                     dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
                             }

@@ -869,6 +869,15 @@ namespace Esiur.Net.IIP
                                     //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
 
                                 }
+                                else
+                                {
+                                    SendParams()
+                                        .AddUInt8(0xc0)
+                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                                        .AddUInt16(9)
+                                        .AddString("Not ready")
+                                        .Done();
+                                }
                             }
                         }
                     }
@@ -876,15 +885,16 @@ namespace Esiur.Net.IIP
                     {
                         if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Acknowledge)
                         {
-                            if (authPacket.LocalMethod == AuthenticationMethod.None)
+                            if (authPacket.RemoteMethod == AuthenticationMethod.None)
                             {
+                                // send establish
                                 SendParams()
                                             .AddUInt8(0x20)
                                             .AddUInt16(0)
                                             .Done();
                             }
-                            else if (authPacket.LocalMethod == AuthenticationMethod.Credentials
-                                    || authPacket.LocalMethod == AuthenticationMethod.Token)
+                            else if (authPacket.RemoteMethod == AuthenticationMethod.Credentials
+                                    || authPacket.RemoteMethod == AuthenticationMethod.Token)
                             {
                                 remoteNonce = authPacket.RemoteNonce;
 

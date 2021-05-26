@@ -17,7 +17,7 @@ namespace Esiur.Resource.Template
         public static (uint, ArgumentTemplate) Parse(byte[] data, uint offset)
         {
             var cs = (uint)data[offset++];
-            var name = DC.GetString(data, offset, cs);
+            var name = data.GetString(offset, cs);
             offset += cs;
             var (size, type) = TemplateDataType.Parse(data, offset);
 
