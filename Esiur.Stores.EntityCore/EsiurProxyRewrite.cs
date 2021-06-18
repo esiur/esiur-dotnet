@@ -37,6 +37,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Esiur.Data;
 
 namespace Esiur.Stores.EntityCore
 {
@@ -57,6 +58,7 @@ namespace Esiur.Stores.EntityCore
         public static object CreateInstance(
                                             IDbContextOptions dbContextOptions,
                                             IEntityType entityType,
+                                            //object id
                                             object[] properties
 
         // ILazyLoader loader,
@@ -64,7 +66,6 @@ namespace Esiur.Stores.EntityCore
         //DbContext context,
         )
         {
-            ///var id = constructorArguments.Last();
             var id = properties.First();
 
             var options = dbContextOptions.FindExtension<EsiurExtensionOptions>();
@@ -75,15 +76,23 @@ namespace Esiur.Stores.EntityCore
             if (cache != null)
                 return cache;
 
-            // check if the object exists
-            var obj = Warehouse.New(entityType.ClrType).Wait() as IResource;//, "", options.Store, null, manager);
-            //obj._PrimaryId = id;
-            options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
-            Warehouse.Put(id.ToString(), obj, options.Store, null, null, 0, manager).Wait();
+            if (Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
+            {
+                // check if the object exists
+                var obj = Warehouse.New(entityType.ClrType).Wait() as IResource;
+                options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
+                Warehouse.Put(id.ToString(), obj, options.Store, null, null, 0, manager).Wait();
+                return obj;
 
-            //            obj.Instance.IntVal = id;//.Variables.Add("eid", id);
+            }
+            else
+            {
+                // record
+                var obj = Activator.CreateInstance(entityType.ClrType);
+                options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
 
-            return obj;
+                return obj;
+            }
         }
 
 
@@ -98,6 +107,10 @@ namespace Esiur.Stores.EntityCore
         {
             foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
             {
+
+                if (!Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
+                    continue;
+
                 var proxyType = ResourceProxy.GetProxy(entityType.ClrType);
 
                 // var ann = entityType.GetAnnotation(CoreAnnotationNames.ConstructorBinding);
@@ -114,8 +127,14 @@ namespace Esiur.Stores.EntityCore
 
 
                 try
-
                 {
+
+                    var key = entityType.FindPrimaryKey().Properties.First();
+                    if (key == null)
+                        continue;
+
+                    //var keys = entityType.FindPrimaryKey().Properties.Select(x=>new PropertyParameterBinding(x));
+
                     entityType.SetAnnotation(
 #pragma warning disable EF1001 // Internal EF Core API usage.
                         CoreAnnotationNames.ConstructorBinding,
@@ -126,12 +145,14 @@ namespace Esiur.Stores.EntityCore
                                 {
                                 new DependencyInjectionParameterBinding(typeof(IDbContextOptions), typeof(IDbContextOptions)),
                                 new EntityTypeParameterBinding(),
+                                //new PropertyParameterBinding(key)
                                 // constructor arguments 
                                 //new ObjectArrayParameterBinding(binding.ParameterBindings),
                                  //new ContextParameterBinding(typeof(DbContext)),
-                                 new ObjectArrayParameterBinding(new ParameterBinding[]{ 
-                                            new PropertyParameterBinding(entityType.FindPrimaryKey().Properties.FirstOrDefault())
-                                 })
+                                 //new ObjectArrayParameterBinding(entityType.FindPrimaryKey().Properties.Select(x=>new PropertyParameterBinding(x)).ToArray())
+                                 new ObjectArrayParameterBinding(new ParameterBinding[]{
+                                            new PropertyParameterBinding(key) })
+                                 //})
                                 // new Microsoft.EntityFrameworkCore.Metadata.ObjectArrayParameterBinding(),
                                  //new ObjectArrayParameterBinding() 
 
@@ -141,6 +162,7 @@ namespace Esiur.Stores.EntityCore
                 }
                 catch
                 {
+
                 }
 
             }

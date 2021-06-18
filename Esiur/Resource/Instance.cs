@@ -875,7 +875,7 @@ namespace Esiur.Resource
             if (customTemplate != null)
                 this.template = customTemplate;
             else
-                this.template = Warehouse.GetTemplate(resource.GetType());
+                this.template = Warehouse.GetTemplateByType(resource.GetType());
 
             // set ages
             for (byte i = 0; i < template.Properties.Length; i++)

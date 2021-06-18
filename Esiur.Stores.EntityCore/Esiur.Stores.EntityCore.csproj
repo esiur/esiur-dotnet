@@ -9,7 +9,7 @@
     <Product>Esiur Entity Framework Extension</Product>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Esiur.Stores.EntityCore</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.2.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

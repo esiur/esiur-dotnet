@@ -1,4 +1,5 @@
-﻿using Esiur.Resource;
+﻿using Esiur.Data;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -51,6 +52,12 @@ namespace Esiur.Proxy
 
             // check if the type was made with code generation
             if (type.GetCustomAttribute<ResourceAttribute>(false) != null)
+            {
+                cache.Add(type, type);
+                return type;
+            }
+
+            if (!Codec.ImplementsInterface(type, typeof(IResource)))
             {
                 cache.Add(type, type);
                 return type;

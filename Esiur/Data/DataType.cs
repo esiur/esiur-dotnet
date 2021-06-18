@@ -53,6 +53,7 @@ namespace Esiur.Data
         ResourceLink,
         String,
         Structure,
+        Record,
         //Stream,
         //Array = 0x80,
         VarArray = 0x80,
@@ -75,6 +76,7 @@ namespace Esiur.Data
         ResourceLinkArray,
         StringArray,
         StructureArray,
+        RecordArray,
         NotModified = 0x7f,
         Unspecified = 0xff,
     }
@@ -113,7 +115,5 @@ namespace Esiur.Data
                     return -1;
             }
         }
-
-
     }
 }

@@ -1079,7 +1079,6 @@ namespace Esiur.Net.IIP
 
         void IIPRequestLinkTemplates(uint callback, string resourceLink)
         {
-            Console.WriteLine("IIPRequestLinkTemplates " + DateTime.UtcNow);
             Action<IResource[]> queryCallback = (r) =>
             {
                 if (r == null)
@@ -1123,7 +1122,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestTemplateFromClassName(uint callback, string className)
         {
-            Warehouse.GetTemplate(className).Then((t) =>
+            Warehouse.GetTemplateByClassName(className).Then((t) =>
             {
                 if (t != null)
                     SendReply(IIPPacket.IIPPacketAction.TemplateFromClassName, callback)
@@ -1140,7 +1139,7 @@ namespace Esiur.Net.IIP
 
         void IIPRequestTemplateFromClassId(uint callback, Guid classId)
         {
-            var t = Warehouse.GetTemplate(classId);
+            var t = Warehouse.GetTemplateByClassId(classId);
 
             if (t != null)
                 SendReply(IIPPacket.IIPPacketAction.TemplateFromClassId, callback)
@@ -2209,7 +2208,7 @@ namespace Esiur.Net.IIP
 
                             if (resource == null)
                             {
-                                var template = Warehouse.GetTemplate((Guid)rt[0]);
+                                var template = Warehouse.GetTemplateByClassId((Guid)rt[0], true);
                                 if (template?.ResourceType != null)
                                     dr = Activator.CreateInstance(template.ResourceType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
                                 else

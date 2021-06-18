@@ -1050,7 +1050,7 @@ namespace Esiur.Net.IIP
                 var host = Instance.Name.Split(':');
 
                 var address = host[0];
-                var port = ushort.Parse(host[1]);
+                var port = host.Length > 1 ? ushort.Parse(host[1]) : (ushort) 10518;
                 // assign domain from hostname if not provided
                 var domain = Domain != null ? Domain : address;
 

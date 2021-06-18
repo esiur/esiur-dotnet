@@ -65,7 +65,7 @@ namespace Esiur.Net.IIP
         {
             get;
             set;
-        }
+        } = 10518;
 
 
         [Attribute]

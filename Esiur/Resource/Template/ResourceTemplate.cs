@@ -12,27 +12,41 @@ using Esiur.Net.IIP;
 
 namespace Esiur.Resource.Template
 {
+    //public enum TemplateType
+    //{
+    //    Resource,
+    //    Record
+    //}
+
     public class ResourceTemplate
     {
 
-        Guid classId;
-        string className;
-        List<MemberTemplate> members = new List<MemberTemplate>();
-        List<FunctionTemplate> functions = new List<FunctionTemplate>();
-        List<EventTemplate> events = new List<EventTemplate>();
-        List<PropertyTemplate> properties = new List<PropertyTemplate>();
-        List<AttributeTemplate> attributes = new List<AttributeTemplate>();
-        int version;
+        protected Guid classId;
+        protected string className;
+        protected List<MemberTemplate> members = new List<MemberTemplate>();
+        protected List<FunctionTemplate> functions = new List<FunctionTemplate>();
+        protected List<EventTemplate> events = new List<EventTemplate>();
+        protected List<PropertyTemplate> properties = new List<PropertyTemplate>();
+        protected List<AttributeTemplate> attributes = new List<AttributeTemplate>();
+        protected int version;
+        protected TemplateType templateType;
+
+       // protected TemplateType
         //bool isReady;
 
-        byte[] content;
+        protected byte[] content;
 
         public byte[] Content
         {
             get { return content; }
         }
 
+        public TemplateType Type => templateType;
+
+
         public Type ResourceType { get; set; }
+
+
 
         public MemberTemplate GetMemberTemplate(MemberInfo member)
         {
@@ -174,7 +188,7 @@ namespace Esiur.Resource.Template
                 // functions
                 foreach (var f in tmp.functions)
                 {
-                    var frtt = Warehouse.GetTemplate(GetElementType(f.MethodInfo.ReturnType));
+                    var frtt = Warehouse.GetTemplateByType(GetElementType(f.MethodInfo.ReturnType));
                     if (frtt != null)
                     {
                         if (!bag.Contains(frtt))
@@ -188,7 +202,7 @@ namespace Esiur.Resource.Template
 
                     for(var i = 0; i < args.Length - 1; i++)
                     {
-                        var fpt = Warehouse.GetTemplate(GetElementType(args[i].ParameterType));
+                        var fpt = Warehouse.GetTemplateByType(GetElementType(args[i].ParameterType));
                         if (fpt != null)
                         {
                             if (!bag.Contains(fpt))
@@ -205,7 +219,7 @@ namespace Esiur.Resource.Template
                         var last = args.Last();
                         if (last.ParameterType != typeof(DistributedConnection))
                         {
-                            var fpt = Warehouse.GetTemplate(GetElementType(last.ParameterType));
+                            var fpt = Warehouse.GetTemplateByType(GetElementType(last.ParameterType));
                             if (fpt != null)
                             {
                                 if (!bag.Contains(fpt))
@@ -222,7 +236,7 @@ namespace Esiur.Resource.Template
                 // properties
                 foreach (var p in tmp.properties)
                 {
-                    var pt = Warehouse.GetTemplate(GetElementType(p.PropertyInfo.PropertyType));
+                    var pt = Warehouse.GetTemplateByType(GetElementType(p.PropertyInfo.PropertyType));
                     if (pt != null)
                     {
                         if (!bag.Contains(pt))
@@ -236,7 +250,7 @@ namespace Esiur.Resource.Template
                 // events
                 foreach (var e in tmp.events)
                 {
-                    var et = Warehouse.GetTemplate(GetElementType(e.EventInfo.EventHandlerType.GenericTypeArguments[0]));
+                    var et = Warehouse.GetTemplateByType(GetElementType(e.EventInfo.EventHandlerType.GenericTypeArguments[0]));
 
                     if (et != null)
                     {
@@ -255,8 +269,18 @@ namespace Esiur.Resource.Template
 
         public ResourceTemplate(Type type)
         {
-            if (!Codec.ImplementsInterface(type, typeof(IResource)))
-                throw new Exception("Type is not a resource.");
+            if (Codec.ImplementsInterface(type, typeof(IRecord)))
+                templateType = TemplateType.Record;
+            else if (Codec.ImplementsInterface(type, typeof(IResource)))
+                templateType = TemplateType.Resource;
+            else
+                throw new Exception("Type is neither a resource nor a record.");
+
+            //if (isRecord && isResource)
+            //  throw new Exception("Type can't have both IResource and IRecord interfaces");
+
+            //if (!(isResource || isRecord))
+            //  throw new Exception("Type is neither a resource nor a record.");
 
             type = ResourceProxy.GetBaseType(type);
 
@@ -322,65 +346,68 @@ namespace Esiur.Resource.Template
                     }
                 }
 
-                i = 0;
-
-                foreach (var ei in eventsInfo)
+                if (templateType == TemplateType.Resource)
                 {
-                    var privateAttr = ei.GetCustomAttribute<PrivateAttribute>(true);
-                    if (privateAttr == null)
+                    i = 0;
+
+                    foreach (var ei in eventsInfo)
                     {
-                        var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
-                        var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
-
-                        var argType = ei.EventHandlerType.GenericTypeArguments[0];
-                        var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
-                        et.EventInfo = ei;
-
-                        if (annotationAttr != null)
-                            et.Expansion = annotationAttr.Annotation;
-
-                        if (listenableAttr != null)
-                            et.Listenable = true;
-
-                        events.Add(et);
-                    }
-                }
-
-                i = 0;
-                foreach (MethodInfo mi in methodsInfo)
-                {
-                    var privateAttr = mi.GetCustomAttribute<PrivateAttribute>(true);
-                    if (privateAttr == null)
-                    {
-                        var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
-
-                        var returnType = TemplateDataType.FromType(mi.ReturnType);
-
-                        var args = mi.GetParameters();
-
-                        if (args.Length > 0)
+                        var privateAttr = ei.GetCustomAttribute<PrivateAttribute>(true);
+                        if (privateAttr == null)
                         {
-                            if (args.Last().ParameterType == typeof(DistributedConnection))
-                                args = args.Take(args.Count() - 1).ToArray();
+                            var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+                            var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
+
+                            var argType = ei.EventHandlerType.GenericTypeArguments[0];
+                            var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
+                            et.EventInfo = ei;
+
+                            if (annotationAttr != null)
+                                et.Expansion = annotationAttr.Annotation;
+
+                            if (listenableAttr != null)
+                                et.Listenable = true;
+
+                            events.Add(et);
                         }
+                    }
 
-                        var arguments = args.Select(x => new ArgumentTemplate()
-                                         {
-                                             Name = x.Name,
-                                             Type = TemplateDataType.FromType(x.ParameterType),
-                                             ParameterInfo = x
-                                         })
-                                         .ToArray();
+                    i = 0;
+                    foreach (MethodInfo mi in methodsInfo)
+                    {
+                        var privateAttr = mi.GetCustomAttribute<PrivateAttribute>(true);
+                        if (privateAttr == null)
+                        {
+                            var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
 
-                        var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
+                            var returnType = TemplateDataType.FromType(mi.ReturnType);
 
-                        if (annotationAttr != null)
-                            ft.Expansion = annotationAttr.Annotation;
-                        else
-                            ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+                            var args = mi.GetParameters();
 
-                        ft.MethodInfo = mi;
-                        functions.Add(ft);
+                            if (args.Length > 0)
+                            {
+                                if (args.Last().ParameterType == typeof(DistributedConnection))
+                                    args = args.Take(args.Count() - 1).ToArray();
+                            }
+
+                            var arguments = args.Select(x => new ArgumentTemplate()
+                            {
+                                Name = x.Name,
+                                Type = TemplateDataType.FromType(x.ParameterType),
+                                ParameterInfo = x
+                            })
+                                             .ToArray();
+
+                            var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
+
+                            if (annotationAttr != null)
+                                ft.Expansion = annotationAttr.Annotation;
+                            else
+                                ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+
+                            ft.MethodInfo = mi;
+                            functions.Add(ft);
+                        }
                     }
                 }
             }
@@ -422,65 +449,68 @@ namespace Esiur.Resource.Template
                     }
                 }
 
-                i = 0;
-
-                foreach (var ei in eventsInfo)
+                if (templateType == TemplateType.Resource)
                 {
-                    var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true);
-                    if (publicAttr != null)
+                    i = 0;
+
+                    foreach (var ei in eventsInfo)
                     {
-                        var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
-                        var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
-
-                        var argType = ei.EventHandlerType.GenericTypeArguments[0];
-
-                        var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
-                        et.EventInfo = ei;
-
-                        if (annotationAttr != null)
-                            et.Expansion = annotationAttr.Annotation;
-
-                        if (listenableAttr != null)
-                            et.Listenable = true;
-
-                        events.Add(et);
-                    }
-                }
-
-                i = 0;
-                foreach (MethodInfo mi in methodsInfo)
-                {
-                    var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
-                    if (publicAttr != null)
-                    {
-                        var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
-                        var returnType = TemplateDataType.FromType(mi.ReturnType);
-
-                        var args = mi.GetParameters();
-
-                        if (args.Length > 0)
+                        var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true);
+                        if (publicAttr != null)
                         {
-                            if (args.Last().ParameterType == typeof(DistributedConnection))
-                                args = args.Take(args.Count() - 1).ToArray();
+                            var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+                            var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
+
+                            var argType = ei.EventHandlerType.GenericTypeArguments[0];
+
+                            var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
+                            et.EventInfo = ei;
+
+                            if (annotationAttr != null)
+                                et.Expansion = annotationAttr.Annotation;
+
+                            if (listenableAttr != null)
+                                et.Listenable = true;
+
+                            events.Add(et);
                         }
+                    }
 
-                        var arguments = args.Select(x => new ArgumentTemplate()
-                                         {
-                                             Name = x.Name,
-                                             Type = TemplateDataType.FromType(x.ParameterType),
-                                             ParameterInfo = x
-                                         })
-                                         .ToArray();
+                    i = 0;
+                    foreach (MethodInfo mi in methodsInfo)
+                    {
+                        var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
+                        if (publicAttr != null)
+                        {
+                            var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
+                            var returnType = TemplateDataType.FromType(mi.ReturnType);
 
-                        var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
+                            var args = mi.GetParameters();
 
-                        if (annotationAttr != null)
-                            ft.Expansion = annotationAttr.Annotation;
-                        else
-                            ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x=>x.ParameterType != typeof(DistributedConnection)).Select(x=> "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+                            if (args.Length > 0)
+                            {
+                                if (args.Last().ParameterType == typeof(DistributedConnection))
+                                    args = args.Take(args.Count() - 1).ToArray();
+                            }
 
-                        ft.MethodInfo = mi;
-                        functions.Add(ft);
+                            var arguments = args.Select(x => new ArgumentTemplate()
+                            {
+                                Name = x.Name,
+                                Type = TemplateDataType.FromType(x.ParameterType),
+                                ParameterInfo = x
+                            })
+                                             .ToArray();
+
+                            var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
+
+                            if (annotationAttr != null)
+                                ft.Expansion = annotationAttr.Annotation;
+                            else
+                                ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+
+                            ft.MethodInfo = mi;
+                            functions.Add(ft);
+                        }
                     }
                 }
             }
@@ -497,7 +527,8 @@ namespace Esiur.Resource.Template
 
             // bake it binarily
             var b = new BinaryList();
-            b.AddGuid(classId)
+            b.AddUInt8((byte)templateType)
+             .AddGuid(classId)
              .AddUInt8((byte)className.Length)
              .AddString(className)
              .AddInt32(version)
@@ -532,6 +563,8 @@ namespace Esiur.Resource.Template
            
             var od = new ResourceTemplate();
             od.content = data.Clip(offset, contentLength);
+
+            od.templateType = (TemplateType)data[offset++];
 
             od.classId = data.GetGuid(offset);
             offset += 16;

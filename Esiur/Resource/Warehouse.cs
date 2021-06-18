@@ -54,6 +54,7 @@ namespace Esiur.Resource
         static uint resourceCounter = 0;
 
         static KeyList<Guid, ResourceTemplate> templates = new KeyList<Guid, ResourceTemplate>();
+        static KeyList<Guid, ResourceTemplate> wrapperTemplates = new KeyList<Guid, ResourceTemplate>();
 
         static bool warehouseIsOpen = false;
 
@@ -120,8 +121,14 @@ namespace Esiur.Resource
                 var generatedType = assembly.GetType("Esiur.Generated");
                 if (generatedType != null)
                 {
-                    var types = (Type[])generatedType.GetProperty("Types").GetValue(null);
-                    foreach (var t in types)
+                    var resourceTypes = (Type[])generatedType.GetProperty("Resources").GetValue(null);
+                    foreach (var t in resourceTypes)
+                    {
+                        PutTemplate(new ResourceTemplate(t), true);
+                    }
+
+                    var recordTypes = (Type[])generatedType.GetProperty("Records").GetValue(null);
+                    foreach (var t in recordTypes)
                     {
                         PutTemplate(new ResourceTemplate(t));
                     }
@@ -730,9 +737,14 @@ namespace Esiur.Resource
         /// Put a resource template in the templates warehouse.
         /// </summary>
         /// <param name="template">Resource template.</param>
-        public static void PutTemplate(ResourceTemplate template)
+        public static void PutTemplate(ResourceTemplate template, bool wrapper = false)
         {
-            if (!templates.ContainsKey(template.ClassId))
+            if (wrapper)
+            {
+                if (!wrapperTemplates.ContainsKey(template.ClassId))
+                    wrapperTemplates.Add(template.ClassId, template);
+            }
+            else if (!templates.ContainsKey(template.ClassId))
                 templates.Add(template.ClassId, template);
         }
 
@@ -742,18 +754,19 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="type">.Net type.</param>
         /// <returns>Resource template.</returns>
-        public static ResourceTemplate GetTemplate(Type type)
+        public static ResourceTemplate GetTemplateByType(Type type)
         {
             
-            if (!Codec.ImplementsInterface(type, typeof(IResource)))
+            if (!(Codec.ImplementsInterface(type, typeof(IResource)) 
+                || Codec.ImplementsInterface(type, typeof(IRecord))))
                 return null;
 
             var baseType = ResourceProxy.GetBaseType(type);
 
-            if (baseType == typeof(IResource) )
+            if (baseType == typeof(IResource) 
+                || baseType == typeof(IRecord))
                 return null;
 
-            
             // loaded ?
             foreach (var t in templates.Values)
                 if (t.ClassName == baseType.FullName)
@@ -770,10 +783,16 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="classId">Class Id.</param>
         /// <returns>Resource template.</returns>
-        public static ResourceTemplate GetTemplate(Guid classId)
+        public static ResourceTemplate GetTemplateByClassId(Guid classId, bool wrapper = false)
         {
-            if (templates.ContainsKey(classId))
+            if (wrapper)
+            {
+                if (wrapperTemplates.ContainsKey(classId))
+                    return wrapperTemplates[classId];
+            }
+            else if (templates.ContainsKey(classId))
                 return templates[classId];
+
             return null;
         }
 
@@ -782,7 +801,7 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="className">Class name.</param>
         /// <returns>Resource template.</returns>
-        public static AsyncReply<ResourceTemplate> GetTemplate(string className)
+        public static AsyncReply<ResourceTemplate> GetTemplateByClassName(string className)
         {
             foreach (var t in templates.Values)
                 if (t.ClassName == className)

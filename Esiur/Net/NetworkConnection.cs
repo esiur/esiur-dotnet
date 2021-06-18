@@ -69,7 +69,7 @@ namespace Esiur.Net
             //sock.OnClose -= Socket_OnClose;
             //sock.OnConnect -= Socket_OnConnect;
             //sock.OnReceive -= Socket_OnReceive;
-            sock.Destroy();
+            sock?.Destroy();
             //Receiver = null;
             Close();
             sock = null;

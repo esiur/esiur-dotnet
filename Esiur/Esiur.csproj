@@ -7,7 +7,7 @@
     <PackageLicenseUrl>https://github.com/Esiur/Esiur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.8.1</Version>
+    <Version>1.8.2.18</Version>
     <RepositoryUrl>https://github.com/esiur/esiur-dotnet</RepositoryUrl>
     <Authors>Ahmed Kh. Zamil</Authors>
     <AssemblyVersion>1.8.1.0</AssemblyVersion>
@@ -41,6 +41,7 @@
     <Compile Remove="Resource\ResourceEvent.cs" />
     <Compile Remove="Resource\ResourceFunction.cs" />
     <Compile Remove="Resource\ResourceProperty.cs" />
+    <Compile Remove="Resource\Template\RecordTemplate.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -53,6 +54,7 @@
     <None Include="Resource\ResourceEvent.cs" />
     <None Include="Resource\ResourceFunction.cs" />
     <None Include="Resource\ResourceProperty.cs" />
+    <None Include="Resource\Template\RecordTemplate.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -79,6 +81,10 @@
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- Package the Newtonsoft.Json dependency alongside the generator assembly -->
     <None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+
+
+    <None Include="Tools/*" Pack="true" PackagePath="tools/" />
+
   </ItemGroup>
 
 </Project> 

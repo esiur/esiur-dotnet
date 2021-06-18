@@ -82,6 +82,29 @@ namespace Esiur.Data
         }
 
         /// <summary>
+        /// Compare two records
+        /// </summary>
+        /// <param name="initial">Initial record to compare with</param>
+        /// <param name="next">Next record to compare with the initial</param>
+        /// <param name="connection">DistributedConnection is required in case a structure holds items at the other end</param>
+        public static RecordComparisonResult Compare(IRecord initial, IRecord next)
+        {
+            if (next == null)
+                return RecordComparisonResult.Null;
+
+            if (initial == null)
+                return RecordComparisonResult.Record;
+
+            if (next == initial)
+                return RecordComparisonResult.Same;
+
+            if (next.GetType() == initial.GetType())
+                return RecordComparisonResult.RecordSameType;
+
+            return RecordComparisonResult.Record;
+        }
+
+        /// <summary>
         /// Compare two structures
         /// </summary>
         /// <param name="initial">Initial structure to compare with</param>
@@ -229,6 +252,184 @@ namespace Esiur.Data
 
             reply.Seal();
             return reply;
+        }
+
+
+        public static AsyncBag<IRecord> ParseRecordArray(byte[] data, uint offset, uint length, DistributedConnection connection)
+        {
+
+            var reply = new AsyncBag<IRecord>();
+            if (length == 0)
+            {
+                reply.Seal();
+                return reply;
+            }
+
+            var end = offset + length;
+
+            var result = (RecordComparisonResult)data[offset++];
+
+            AsyncReply<IRecord> previous = null;
+            Guid? classId = null;
+
+            if (result == RecordComparisonResult.Null)
+                previous = new AsyncReply<IRecord>(null);
+            else if (result == RecordComparisonResult.Record)
+            {
+                uint cs = data.GetUInt32(offset);
+                uint recordLength = cs - 16;
+                offset += 4;
+                classId = data.GetGuid(offset);
+                offset += 16;
+                previous = ParseRecord(data, offset, recordLength, connection, classId);
+                offset += recordLength;
+            }
+
+            reply.Add(previous);
+
+
+            while (offset < end)
+            {
+                result = (RecordComparisonResult)data[offset++];
+
+                if (result == RecordComparisonResult.Null)
+                    previous = new AsyncReply<IRecord>(null);
+                else if (result == RecordComparisonResult.Record)
+                {
+                    uint cs = data.GetUInt32(offset);
+                    uint recordLength = cs - 16;
+                    offset += 4;
+                    classId = data.GetGuid(offset);
+                    offset += 16;
+                    previous = ParseRecord(data, offset, recordLength, connection, classId); 
+                    offset += recordLength;
+                }
+                else if (result == RecordComparisonResult.RecordSameType)
+                {
+                    uint cs = data.GetUInt32(offset);
+                    offset += 4;
+                    previous = ParseRecord(data, offset, cs, connection, classId);
+                    offset += cs;
+                }
+                else if (result == RecordComparisonResult.Same)
+                {
+                    // do nothing
+                }
+
+                reply.Add(previous);
+            }
+
+            reply.Seal();
+            return reply;
+        }
+
+        public static AsyncReply<IRecord> ParseRecord(byte[] data, uint offset, uint length, DistributedConnection connection, Guid? classId = null)
+        {
+            var reply = new AsyncReply<IRecord>();
+
+            if (classId == null)
+            {
+                classId = data.GetGuid(offset);
+
+                offset += 16;
+                length -= 16;
+            }
+
+            var template = Warehouse.GetTemplateByClassId((Guid)classId);
+
+            if (template != null)
+            {
+                ParseVarArray(data, offset, length, connection).Then(ar =>
+                {
+                    if (template.ResourceType != null)
+                    {
+                        var record = Activator.CreateInstance(template.ResourceType) as IRecord;
+                        for (var i = 0; i < template.Properties.Length; i++)
+                           template.Properties[i].PropertyInfo.SetValue(record, ar[i]);
+
+                        reply.Trigger(record);
+                    }
+                    else
+                    {
+                        var record = new Record();
+
+                        for (var i = 0; i < template.Properties.Length; i++)
+                            record.Add(template.Properties[i].Name, ar[i]);
+
+                        reply.Trigger(record);
+                    }
+                });
+            }
+            else
+            {
+                connection.GetTemplate((Guid)classId).Then(tmp => {
+                    ParseVarArray(data, offset, length, connection).Then(ar =>
+                    {
+                        var record = new Record();
+
+                        for (var i = 0; i < tmp.Properties.Length; i++)
+                            record.Add(tmp.Properties[i].Name, ar[i]);
+
+                        reply.Trigger(record);
+                    });
+                }).Error(x=>reply.TriggerError(x));
+            }
+
+            return reply;
+        }
+
+        public static byte[] ComposeRecord(IRecord record, DistributedConnection connection, bool includeClassId = true, bool prependLength = false)
+        {
+            var rt = new BinaryList();
+
+            var template = Warehouse.GetTemplateByType(record.GetType());
+
+            if (includeClassId)
+                rt.AddGuid(template.ClassId);
+
+            foreach (var pt in template.Properties)
+            {
+                var value = pt.PropertyInfo.GetValue(record, null);
+                rt.AddUInt8Array(Compose(value, connection));
+            }
+
+            if (prependLength)
+                rt.InsertInt32(0, rt.Length);
+
+            return rt.ToArray();
+        }
+
+        public static byte[] ComposeRecordArray(IRecord[] records, DistributedConnection connection, bool prependLength = false)
+        {
+            
+            if (records == null || records?.Length == 0)
+                return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
+
+            var rt = new BinaryList();
+            var comparsion = Compare(null, records[0]);
+
+            rt.AddUInt8((byte)comparsion);
+
+
+            if (comparsion == RecordComparisonResult.Record)
+                rt.AddUInt8Array(ComposeRecord(records[0], connection, true, true));
+
+            for (var i = 1; i < records.Length; i++)
+            {
+                comparsion = Compare(records[i - 1], records[i]);
+                rt.AddUInt8((byte)comparsion);
+
+                if (comparsion == RecordComparisonResult.Record)
+                    rt.AddUInt8Array(ComposeRecord(records[i], connection, true, true));
+                else if (comparsion == RecordComparisonResult.RecordSameType)
+                    rt.AddUInt8Array(ComposeRecord(records[i], connection, false, true));
+            }
+
+            if (prependLength)
+                rt.InsertInt32(0, rt.Length);
+
+
+            return rt.ToArray();
         }
 
         /// <summary>
@@ -474,6 +675,9 @@ namespace Esiur.Data
 
                     case DataType.Structure:
                         return ParseStructureArray(data, offset, contentLength, connection);
+
+                    case DataType.Record:
+                        return ParseRecordArray(data, offset, contentLength, connection);
                 }
             }
             else
@@ -536,6 +740,9 @@ namespace Esiur.Data
 
                     case DataType.Structure:
                         return ParseStructure(data, offset, contentLength, connection);
+
+                    case DataType.Record:
+                        return ParseRecord(data, offset, contentLength, connection);
                 }
             }
 
@@ -572,22 +779,6 @@ namespace Esiur.Data
             return connection.Fetch(iid);// Warehouse.Get(iid);
         }
 
-        public enum ResourceComparisonResult
-        {
-            Null,
-            Distributed,
-            Local,
-            Same
-        }
-
-        public enum StructureComparisonResult : byte
-        {
-            Null,
-            Structure,
-            StructureSameKeys,
-            StructureSameTypes,
-            Same
-        }
 
         /// <summary>
         /// Check if a resource is local to a given connection.
@@ -648,7 +839,6 @@ namespace Esiur.Data
         /// <param name="connection">DistributedConnection is required to check locality.</param>
         /// <param name="prependLength">If True, prepend the length of the output at the beginning.</param>
         /// <returns>Array of bytes in the network byte order.</returns>
-
         public static byte[] ComposeResourceArray(IResource[] resources, DistributedConnection connection, bool prependLength = false)
         {
             if (resources == null || resources?.Length == 0)
@@ -1041,6 +1231,10 @@ namespace Esiur.Data
                     rt.AddUInt8Array(ComposeVarArray((Array)value, connection, true));
                     break;
 
+                case DataType.Record:
+                    rt.AddUInt8Array(ComposeRecord((IRecord)value, connection, true, true));
+                    break;
+
                 case DataType.ResourceArray:
                     if (value is IResource[])
                         rt.AddUInt8Array(ComposeResourceArray((IResource[])value, connection, true));
@@ -1050,6 +1244,10 @@ namespace Esiur.Data
 
                 case DataType.StructureArray:
                     rt.AddUInt8Array(ComposeStructureArray((Structure[])value, connection, true));
+                    break;
+
+                case DataType.RecordArray:
+                    rt.AddUInt8Array(ComposeRecordArray((IRecord[])value, connection, true));
                     break;
 
                 default:
@@ -1240,7 +1438,7 @@ namespace Esiur.Data
             DataType type;
 
 
-            
+
             if (t == typeof(bool))
                 type = DataType.Bool;
             else if (t == typeof(char))
@@ -1284,6 +1482,8 @@ namespace Esiur.Data
                     return (IsLocalResource((IResource)value, connection) ? DataType.Resource : DataType.DistributedResource, value);
                 }
             }
+            else if (ImplementsInterface(t, typeof(IRecord)))
+                type = DataType.Record;
             else
                 type = DataType.Void;
 

@@ -10,7 +10,7 @@ namespace Esiur.Resource.Template
     {
         public DataType Type { get; set; }
         //public string TypeName { get; set; }
-        public  ResourceTemplate TypeTemplate => TypeGuid == null ? null : Warehouse.GetTemplate((Guid)TypeGuid);
+        public  ResourceTemplate TypeTemplate => TypeGuid == null ? null : Warehouse.GetTemplateByClassId((Guid)TypeGuid);
 
         public Guid? TypeGuid { get; set; }
         //public TemplateDataType(DataType type, string typeName)
@@ -51,20 +51,14 @@ namespace Esiur.Resource.Template
                 _ when t == typeof(IResource) => DataType.Void, // Dynamic resource (unspecified type)
                 _ when typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject) => DataType.Structure,
                 _ when Codec.ImplementsInterface(t, typeof(IResource)) => DataType.Resource,
+                _ when Codec.ImplementsInterface(t, typeof(IRecord)) => DataType.Record,
                 _ => DataType.Void
             };
 
 
-            //string tn = dt switch
-            //{
-            //    DataType.Resource => t.FullName,
-            //    DataType.Structure when t != typeof(Structure)  => t.FullName,
-            //    _ => null
-            //};
-
             Guid? typeGuid = null;
 
-            if (dt == DataType.Resource)
+            if (dt == DataType.Resource || dt == DataType.Record)
                 typeGuid = ResourceTemplate.GetTypeGuid(t);
 
             if (type.IsArray)
@@ -80,11 +74,9 @@ namespace Esiur.Resource.Template
         public byte[] Compose()
         {
             if (Type == DataType.Resource ||
-                Type == DataType.ResourceArray)//||
-                                               //Type == DataType.DistributedResource ||
-                                               //Type == DataType.DistributedResourceArray ||
-                                               //Type == DataType.Structure ||
-                                               //Type == DataType.StructureArray)
+                Type == DataType.ResourceArray ||
+                Type == DataType.Record ||
+                Type == DataType.RecordArray)
             {
                 var guid = DC.ToBytes((Guid)TypeGuid);
                 return new BinaryList()
@@ -102,11 +94,9 @@ namespace Esiur.Resource.Template
         {
             var type = (DataType)data[offset++];
             if (type == DataType.Resource ||
-                type == DataType.ResourceArray)//||
-                                               // type == DataType.DistributedResource ||
-                                               // type == DataType.DistributedResourceArray)// ||
-                                               // type == DataType.Structure ||
-                                               // type == DataType.StructureArray)
+                type == DataType.ResourceArray ||
+                type == DataType.Record ||
+                type == DataType.RecordArray)
             {
                 var guid = data.GetGuid(offset);
                 return (17, new TemplateDataType() { Type = type, TypeGuid = guid });
