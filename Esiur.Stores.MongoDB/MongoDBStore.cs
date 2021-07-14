@@ -52,10 +52,10 @@ namespace Esiur.Stores.MongoDB
 
 
         [Public]
-        public event ResourceEventHanlder<IResource> ResourceAdded;
+        public event ResourceEventHandler<IResource> ResourceAdded;
 
         [Public]
-        public event ResourceEventHanlder<IResource> ResourceRemoved;
+        public event ResourceEventHandler<IResource> ResourceRemoved;
 
         int count = 0;
 

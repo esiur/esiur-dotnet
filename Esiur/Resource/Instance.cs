@@ -28,7 +28,7 @@ namespace Esiur.Resource
 
         WeakReference<IResource> resource;
         IStore store;
-        ResourceTemplate template;
+        TypeTemplate template;
         AutoList<IPermissionsManager, Instance> managers;
 
 
@@ -794,7 +794,7 @@ namespace Esiur.Resource
         /// <summary>
         /// Resource template describes the properties, functions and events of the resource.
         /// </summary>
-        public ResourceTemplate Template
+        public TypeTemplate Template
         {
             get { return template; }
 
@@ -853,7 +853,7 @@ namespace Esiur.Resource
         /// <param name="name">Name of the instance.</param>
         /// <param name="resource">Resource to manage.</param>
         /// <param name="store">Store responsible for the resource.</param>
-        public Instance(uint id, string name, IResource resource, IStore store, ResourceTemplate customTemplate = null, ulong age = 0)
+        public Instance(uint id, string name, IResource resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0)
         {
             this.store = store;
             this.resource = new WeakReference<IResource>(resource);
@@ -897,7 +897,7 @@ namespace Esiur.Resource
 
             foreach (var evt in template.Events)
             {
-                //if (evt.EventHandlerType != typeof(ResourceEventHanlder))
+                //if (evt.EventHandlerType != typeof(ResourceEventHandler))
                 //    continue;
 
                 if (evt.EventInfo == null)
@@ -905,24 +905,24 @@ namespace Esiur.Resource
 
                 var eventGenericType = evt.EventInfo.EventHandlerType.GetGenericTypeDefinition();
 
-                if (eventGenericType  == typeof(ResourceEventHanlder<>))
+                if (eventGenericType  == typeof(ResourceEventHandler<>))
                 {
 
                     // var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
                     // if (ca.Length == 0)
                     //     continue;
                     
-                    ResourceEventHanlder<object> proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
+                    ResourceEventHandler<object> proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
                     evt.EventInfo.AddEventHandler(resource, proxyDelegate);
 
                 }
-                else if (eventGenericType == typeof(CustomResourceEventHanlder<>))
+                else if (eventGenericType == typeof(CustomResourceEventHandler<>))
                 {
                     //var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
                     //if (ca.Length == 0)
                     //    continue;
 
-                    CustomResourceEventHanlder<object> proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
+                    CustomResourceEventHandler<object> proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
                     evt.EventInfo.AddEventHandler(resource, proxyDelegate);
                 }
 

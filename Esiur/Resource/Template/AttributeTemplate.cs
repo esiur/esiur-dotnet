@@ -17,7 +17,7 @@ namespace Esiur.Resource.Template
         }
 
 
-        public AttributeTemplate(ResourceTemplate template, byte index, string name)
+        public AttributeTemplate(TypeTemplate template, byte index, string name)
             : base(template, MemberType.Attribute, index, name)
         {
 

@@ -39,7 +39,9 @@ namespace Esiur.Core
         int count = 0;
         bool sealedBag = false;
 
-        
+
+        public Type ArrayType { get; set; }
+
         public AsyncBag Then(Action<object[]> callback)
         {
             base.Then(new Action<object>(o => callback((object[])o)));
@@ -82,7 +84,17 @@ namespace Esiur.Core
                     results[index] = r;
                     count++;
                     if (count == results.Count)
-                        Trigger(results.ToArray());
+                    {
+                        if (ArrayType != null)
+                        {
+                            var ar = Array.CreateInstance(ArrayType, count);
+                            for (var i = 0; i < count; i++)
+                                ar.SetValue(results[i], i);
+                            Trigger(ar);
+                        }
+                        else
+                            Trigger(results.ToArray());
+                    }
                 });
             }
         }

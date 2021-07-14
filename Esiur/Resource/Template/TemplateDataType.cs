@@ -10,7 +10,7 @@ namespace Esiur.Resource.Template
     {
         public DataType Type { get; set; }
         //public string TypeName { get; set; }
-        public  ResourceTemplate TypeTemplate => TypeGuid == null ? null : Warehouse.GetTemplateByClassId((Guid)TypeGuid);
+        public  TypeTemplate TypeTemplate => TypeGuid == null ? null : Warehouse.GetTemplateByClassId((Guid)TypeGuid);
 
         public Guid? TypeGuid { get; set; }
         //public TemplateDataType(DataType type, string typeName)
@@ -49,6 +49,7 @@ namespace Esiur.Resource.Template
                 _ when t == typeof(string) => DataType.String,
                 _ when t == typeof(DateTime) => DataType.DateTime,
                 _ when t == typeof(IResource) => DataType.Void, // Dynamic resource (unspecified type)
+                _ when t == typeof(IRecord) => DataType.Void, // Dynamic record (unspecified type)
                 _ when typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject) => DataType.Structure,
                 _ when Codec.ImplementsInterface(t, typeof(IResource)) => DataType.Resource,
                 _ when Codec.ImplementsInterface(t, typeof(IRecord)) => DataType.Record,
@@ -59,7 +60,7 @@ namespace Esiur.Resource.Template
             Guid? typeGuid = null;
 
             if (dt == DataType.Resource || dt == DataType.Record)
-                typeGuid = ResourceTemplate.GetTypeGuid(t);
+                typeGuid = TypeTemplate.GetTypeGuid(t);
 
             if (type.IsArray)
                 dt = (DataType)((byte)dt | 0x80);

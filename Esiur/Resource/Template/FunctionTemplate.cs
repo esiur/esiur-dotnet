@@ -64,7 +64,7 @@ namespace Esiur.Resource.Template
         }
 
 
-        public FunctionTemplate(ResourceTemplate template, byte index, string name, ArgumentTemplate[] arguments, TemplateDataType returnType, string expansion = null)
+        public FunctionTemplate(TypeTemplate template, byte index, string name, ArgumentTemplate[] arguments, TemplateDataType returnType, string expansion = null)
             : base(template, MemberType.Property, index, name)
         {
             //this.IsVoid = isVoid;

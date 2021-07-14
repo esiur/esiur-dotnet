@@ -22,7 +22,7 @@ namespace Esiur.Proxy
 
 
 
-        private KeyList<string, ResourceTemplate[]> cache = new();
+        private KeyList<string, TypeTemplate[]> cache = new();
         // private List<string> inProgress = new();
 
         public void Initialize(GeneratorInitializationContext context)
@@ -41,7 +41,7 @@ namespace Esiur.Proxy
       
        
 
-        void GenerateModel(GeneratorExecutionContext context, ResourceTemplate[] templates)
+        void GenerateModel(GeneratorExecutionContext context, TypeTemplate[] templates)
         {
             foreach (var tmp in templates)
             {
@@ -126,7 +126,7 @@ namespace Esiur.Proxy
                 catch (Exception ex)
                 {
                     ReportError(context, ex.Source, ex.Message, "Esiur");
-                    System.IO.File.AppendAllText("c:\\gen\\error.log", ex.ToString() + "\r\n");
+                    //System.IO.File.AppendAllText("c:\\gen\\error.log", ex.ToString() + "\r\n");
                 }
 
                 //inProgress.Remove(path);

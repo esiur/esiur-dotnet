@@ -130,7 +130,7 @@ namespace Esiur.Resource.Template
             }
         }
 
-        public PropertyTemplate(ResourceTemplate template, byte index, string name, TemplateDataType valueType, string read = null, string write = null, bool recordable = false)
+        public PropertyTemplate(TypeTemplate template, byte index, string name, TemplateDataType valueType, string read = null, string write = null, bool recordable = false)
             : base(template, MemberType.Property, index, name)
         {
             this.Recordable = recordable;

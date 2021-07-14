@@ -44,12 +44,12 @@ namespace Esiur.Net.IIP
     {
         KeyList<uint, DistributedResource> resources = new KeyList<uint, DistributedResource>();
         KeyList<uint, AsyncReply<DistributedResource>> resourceRequests = new KeyList<uint, AsyncReply<DistributedResource>>();
-        KeyList<Guid, AsyncReply<ResourceTemplate>> templateRequests = new KeyList<Guid, AsyncReply<ResourceTemplate>>();
+        KeyList<Guid, AsyncReply<TypeTemplate>> templateRequests = new KeyList<Guid, AsyncReply<TypeTemplate>>();
 
 
         KeyList<string, AsyncReply<IResource>> pathRequests = new KeyList<string, AsyncReply<IResource>>();
 
-        Dictionary<Guid, ResourceTemplate> templates = new Dictionary<Guid, ResourceTemplate>();
+        Dictionary<Guid, TypeTemplate> templates = new Dictionary<Guid, TypeTemplate>();
 
         KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
 
@@ -1095,11 +1095,11 @@ namespace Esiur.Net.IIP
 
                         var msg = new BinaryList();
 
-                        var templates = new List<ResourceTemplate>();
+                        var templates = new List<TypeTemplate>();
                         foreach (var resource in list)
-                            templates.AddRange(ResourceTemplate.GetDependencies(resource.Instance.Template).Where(x => !templates.Contains(x)));
+                            templates.AddRange(TypeTemplate.GetDependencies(resource.Instance.Template).Where(x => !templates.Contains(x)));
 
-                        foreach(var t in templates)
+                        foreach (var t in templates)
                         {
                             msg.AddInt32(t.Content.Length)
                                 .AddUInt8Array(t.Content);
@@ -1122,19 +1122,18 @@ namespace Esiur.Net.IIP
 
         void IIPRequestTemplateFromClassName(uint callback, string className)
         {
-            Warehouse.GetTemplateByClassName(className).Then((t) =>
+            var t = Warehouse.GetTemplateByClassName(className);
+
+            if (t != null)
+                SendReply(IIPPacket.IIPPacketAction.TemplateFromClassName, callback)
+                        .AddInt32(t.Content.Length)
+                        .AddUInt8Array(t.Content)
+                        .Done();
+            else
             {
-                if (t != null)
-                    SendReply(IIPPacket.IIPPacketAction.TemplateFromClassName, callback)
-                            .AddInt32(t.Content.Length)
-                            .AddUInt8Array(t.Content)
-                            .Done();
-                else
-                {
-                    // reply failed
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
-                }
-            });
+                // reply failed
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+            }
         }
 
         void IIPRequestTemplateFromClassId(uint callback, Guid classId)
@@ -2037,14 +2036,14 @@ namespace Esiur.Net.IIP
         /// </summary>
         /// <param name="classId">Class GUID.</param>
         /// <returns>ResourceTemplate.</returns>
-        public AsyncReply<ResourceTemplate> GetTemplate(Guid classId)
+        public AsyncReply<TypeTemplate> GetTemplate(Guid classId)
         {
             if (templates.ContainsKey(classId))
-                return new AsyncReply<ResourceTemplate>(templates[classId]);
+                return new AsyncReply<TypeTemplate>(templates[classId]);
             else if (templateRequests.ContainsKey(classId))
                 return templateRequests[classId];
 
-            var reply = new AsyncReply<ResourceTemplate>();
+            var reply = new AsyncReply<TypeTemplate>();
             templateRequests.Add(classId, reply);
 
             SendRequest(IIPPacket.IIPPacketAction.TemplateFromClassId)
@@ -2053,8 +2052,8 @@ namespace Esiur.Net.IIP
                         .Then((rt) =>
                         {
                             templateRequests.Remove(classId);
-                            templates.Add(((ResourceTemplate)rt[0]).ClassId, (ResourceTemplate)rt[0]);
-                            Warehouse.PutTemplate(rt[0] as ResourceTemplate);
+                            templates.Add(((TypeTemplate)rt[0]).ClassId, (TypeTemplate)rt[0]);
+                            Warehouse.PutTemplate(rt[0] as TypeTemplate);
                             reply.Trigger(rt[0]);
                         }).Error((ex) =>
                         {
@@ -2134,9 +2133,9 @@ namespace Esiur.Net.IIP
         }
 
 
-        public AsyncReply<ResourceTemplate[]> GetLinkTemplates(string link)
+        public AsyncReply<TypeTemplate[]> GetLinkTemplates(string link)
         {
-            var reply = new AsyncReply<ResourceTemplate[]>();
+            var reply = new AsyncReply<TypeTemplate[]>();
 
             var l = DC.ToBytes(link);
 
@@ -2147,7 +2146,7 @@ namespace Esiur.Net.IIP
             .Then((rt) =>
             {
 
-                var templates = new List<ResourceTemplate>();
+                var templates = new List<TypeTemplate>();
                 // parse templates
 
                 var data = (byte[])rt[0];
@@ -2156,7 +2155,7 @@ namespace Esiur.Net.IIP
                 {
                     var cs = data.GetUInt32(offset);
                     offset += 4;
-                    templates.Add(ResourceTemplate.Parse(data, offset, cs));
+                    templates.Add(TypeTemplate.Parse(data, offset, cs));
                     offset += cs;
                 }
 
@@ -2208,9 +2207,9 @@ namespace Esiur.Net.IIP
 
                             if (resource == null)
                             {
-                                var template = Warehouse.GetTemplateByClassId((Guid)rt[0], true);
-                                if (template?.ResourceType != null)
-                                    dr = Activator.CreateInstance(template.ResourceType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
+                                var template = Warehouse.GetTemplateByClassId((Guid)rt[0], TemplateType.Wrapper);
+                                if (template?.DefinedType != null)
+                                    dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
                                 else
                                     dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
                             }

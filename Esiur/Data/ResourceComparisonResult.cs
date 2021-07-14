@@ -6,9 +6,9 @@ namespace Esiur.Data
 {
     public enum ResourceComparisonResult
     {
-        Null,
-        Distributed,
-        Local,
-        Same
+        Null, // null
+        Distributed, // resource is distributed
+        Local, // resource is local
+        Same, // Same as previous
     }
 }

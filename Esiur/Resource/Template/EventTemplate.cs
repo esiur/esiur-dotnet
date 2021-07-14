@@ -48,7 +48,7 @@ namespace Esiur.Resource.Template
         }
 
 
-        public EventTemplate(ResourceTemplate template, byte index, string name, TemplateDataType argumentType, string expansion = null, bool listenable=false)
+        public EventTemplate(TypeTemplate template, byte index, string name, TemplateDataType argumentType, string expansion = null, bool listenable=false)
             :base(template, MemberType.Property, index, name)
         {
             this.Expansion = expansion;

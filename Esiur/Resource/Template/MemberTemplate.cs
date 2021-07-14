@@ -21,14 +21,14 @@ namespace Esiur.Resource.Template
         public string Name => name;
         public MemberType Type => type;
 
-        ResourceTemplate template;
+        TypeTemplate template;
         string name;
         MemberType type;
         byte index;
 
-        public ResourceTemplate Template => template;
+        public TypeTemplate Template => template;
 
-        public MemberTemplate(ResourceTemplate template, MemberType type, byte index, string name)
+        public MemberTemplate(TypeTemplate template, MemberType type, byte index, string name)
         {
             this.template = template;
             this.type = type;

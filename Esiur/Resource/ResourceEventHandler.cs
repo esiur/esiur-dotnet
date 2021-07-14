@@ -35,12 +35,12 @@ namespace Esiur.Resource
 {
     public delegate R DCovariant<out R>();
 
-    public delegate void ResourceEventHanlder<in T>(T argument);
+    public delegate void ResourceEventHandler<in T>(T argument);
     // public delegate void CustomUsersEventHanlder(string[] usernames, params object[] args);
     //public delegate void CustomReceiversEventHanlder(DistributedConnection[] connections, params object[] args);
     //public delegate void CustomInquirerEventHanlder(object inquirer, params object[] args);
 
-    public delegate void CustomResourceEventHanlder<in T>(object issuer, Func<Session, bool> receivers, T argument);// object issuer, Session[] receivers, params object[] args);
+    public delegate void CustomResourceEventHandler<in T>(object issuer, Func<Session, bool> receivers, T argument);// object issuer, Session[] receivers, params object[] args);
 
     // public delegate void CustomReceiversEventHanlder(string[] usernames, DistributedConnection[] connections, params object[] args);
 

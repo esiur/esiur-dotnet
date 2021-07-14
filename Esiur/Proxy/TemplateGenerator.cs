@@ -16,7 +16,7 @@ namespace Esiur.Proxy
     {
         internal static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
-        internal static string GenerateRecord(ResourceTemplate template, ResourceTemplate[] templates)
+        internal static string GenerateRecord(TypeTemplate template, TypeTemplate[] templates)
         {
             var cls = template.ClassName.Split('.');
 
@@ -42,7 +42,7 @@ namespace Esiur.Proxy
             return rt.ToString();
         }
 
-        static string GetTypeName(TemplateDataType templateDataType, ResourceTemplate[] templates)
+        static string GetTypeName(TemplateDataType templateDataType, TypeTemplate[] templates)
         {
 
             if (templateDataType.Type == DataType.Resource)
@@ -162,7 +162,7 @@ namespace Esiur.Proxy
             }
         }
 
-        internal static string GenerateClass(ResourceTemplate template, ResourceTemplate[] templates)
+        internal static string GenerateClass(TypeTemplate template, TypeTemplate[] templates)
         {
             var cls = template.ClassName.Split('.');
 
@@ -213,7 +213,7 @@ namespace Esiur.Proxy
                 {
                     var etTypeName = GetTypeName(e.ArgumentType, templates);
                     rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
-                    eventsList.AppendLine($"public event ResourceEventHanlder<{etTypeName}> {e.Name};");
+                    eventsList.AppendLine($"public event ResourceEventHandler<{etTypeName}> {e.Name};");
                 }
 
                 rt.AppendLine("}}");

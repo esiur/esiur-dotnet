@@ -53,8 +53,17 @@ namespace Esiur.Resource
 
         static uint resourceCounter = 0;
 
-        static KeyList<Guid, ResourceTemplate> templates = new KeyList<Guid, ResourceTemplate>();
-        static KeyList<Guid, ResourceTemplate> wrapperTemplates = new KeyList<Guid, ResourceTemplate>();
+        //static KeyList<Guid, TypeTemplate> templates = new KeyList<Guid, TypeTemplate>();
+        //static KeyList<Guid, TypeTemplate> wrapperTemplates = new KeyList<Guid, TypeTemplate>();
+
+        static KeyList<TemplateType, KeyList<Guid, TypeTemplate>> templates
+            = new KeyList<TemplateType, KeyList<Guid, TypeTemplate>>()
+            {
+                [TemplateType.Unspecified] = new KeyList<Guid, TypeTemplate>(),
+                [TemplateType.Resource] = new KeyList<Guid, TypeTemplate>(),
+                [TemplateType.Record] = new KeyList<Guid, TypeTemplate>(),
+                [TemplateType.Wrapper] = new KeyList<Guid, TypeTemplate>(),
+            };
 
         static bool warehouseIsOpen = false;
 
@@ -124,13 +133,13 @@ namespace Esiur.Resource
                     var resourceTypes = (Type[])generatedType.GetProperty("Resources").GetValue(null);
                     foreach (var t in resourceTypes)
                     {
-                        PutTemplate(new ResourceTemplate(t), true);
+                        PutTemplate(new TypeTemplate(t));
                     }
 
                     var recordTypes = (Type[])generatedType.GetProperty("Records").GetValue(null);
                     foreach (var t in recordTypes)
                     {
-                        PutTemplate(new ResourceTemplate(t));
+                        PutTemplate(new TypeTemplate(t));
                     }
                 }
             }
@@ -519,7 +528,7 @@ namespace Esiur.Resource
         /// <param name="resource">Resource instance.</param>
         /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
         /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-        public static async AsyncReply<T> Put<T>(string name, T resource, IStore store = null, IResource parent = null, ResourceTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T:IResource
+        public static async AsyncReply<T> Put<T>(string name, T resource, IStore store = null, IResource parent = null, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T:IResource
         {
             if (resource.Instance != null)
                 throw new Exception("Resource has a store.");
@@ -737,15 +746,9 @@ namespace Esiur.Resource
         /// Put a resource template in the templates warehouse.
         /// </summary>
         /// <param name="template">Resource template.</param>
-        public static void PutTemplate(ResourceTemplate template, bool wrapper = false)
+        public static void PutTemplate(TypeTemplate template)
         {
-            if (wrapper)
-            {
-                if (!wrapperTemplates.ContainsKey(template.ClassId))
-                    wrapperTemplates.Add(template.ClassId, template);
-            }
-            else if (!templates.ContainsKey(template.ClassId))
-                templates.Add(template.ClassId, template);
+            templates[template.Type][template.ClassId] = template;
         }
 
 
@@ -754,26 +757,31 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="type">.Net type.</param>
         /// <returns>Resource template.</returns>
-        public static ResourceTemplate GetTemplateByType(Type type)
+        public static TypeTemplate GetTemplateByType(Type type)
         {
-            
-            if (!(Codec.ImplementsInterface(type, typeof(IResource)) 
-                || Codec.ImplementsInterface(type, typeof(IRecord))))
-                return null;
 
+            TemplateType templateType = TemplateType.Unspecified;
+
+            if (Codec.InheritsClass(type, typeof(DistributedResource)))
+                templateType = TemplateType.Wrapper;
+            if (Codec.ImplementsInterface(type, typeof(IResource)))
+                templateType = TemplateType.Resource;
+            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
+                templateType = TemplateType.Record;
+            else
+                return null;
+            
             var baseType = ResourceProxy.GetBaseType(type);
 
             if (baseType == typeof(IResource) 
                 || baseType == typeof(IRecord))
                 return null;
 
+            var template = templates[templateType].Values.FirstOrDefault(x => x.DefinedType == type);
+            
             // loaded ?
-            foreach (var t in templates.Values)
-                if (t.ClassName == baseType.FullName)
-                    return t;
-
-            var template = new ResourceTemplate(baseType);
-            templates.Add(template.ClassId, template);
+            if (template == null)
+                template = new TypeTemplate(baseType, true);
 
             return template;
         }
@@ -783,17 +791,26 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="classId">Class Id.</param>
         /// <returns>Resource template.</returns>
-        public static ResourceTemplate GetTemplateByClassId(Guid classId, bool wrapper = false)
+        public static TypeTemplate GetTemplateByClassId(Guid classId, TemplateType templateType = TemplateType.Unspecified)
         {
-            if (wrapper)
+            if (templateType == TemplateType.Unspecified)
             {
-                if (wrapperTemplates.ContainsKey(classId))
-                    return wrapperTemplates[classId];
-            }
-            else if (templates.ContainsKey(classId))
-                return templates[classId];
+                // look in resources
+                var template = templates[TemplateType.Resource][classId];
+                if (template != null)
+                    return template;
+                
+                // look in records
+                template = templates[TemplateType.Record][classId];
+                if (template != null)
+                    return template;
 
-            return null;
+                // look in wrappers
+                template = templates[TemplateType.Wrapper][classId];
+                return template;
+            }
+            else
+                return templates[templateType][classId];
         }
 
         /// <summary>
@@ -801,13 +818,28 @@ namespace Esiur.Resource
         /// </summary>
         /// <param name="className">Class name.</param>
         /// <returns>Resource template.</returns>
-        public static AsyncReply<ResourceTemplate> GetTemplateByClassName(string className)
+        public static TypeTemplate GetTemplateByClassName(string className, TemplateType templateType = TemplateType.Unspecified)
         {
-            foreach (var t in templates.Values)
-                if (t.ClassName == className)
-                    return new AsyncReply<ResourceTemplate>(t);
+            if (templateType == TemplateType.Unspecified)
+            {
+                // look in resources
+                var template = templates[TemplateType.Resource].Values.FirstOrDefault(x => x.ClassName == className);
+                if (template != null)
+                    return template;
 
-            return null;
+                // look in records
+                template = templates[TemplateType.Record].Values.FirstOrDefault(x => x.ClassName == className);
+                if (template != null)
+                    return template;
+
+                // look in wrappers
+                template = templates[TemplateType.Wrapper].Values.FirstOrDefault(x => x.ClassName == className);
+                return template;
+            }
+            else
+            {
+                return templates[templateType].Values.FirstOrDefault(x => x.ClassName == className);
+            }
         }
 
         public static bool Remove(IResource resource)

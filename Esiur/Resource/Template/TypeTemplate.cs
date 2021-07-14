@@ -18,7 +18,7 @@ namespace Esiur.Resource.Template
     //    Record
     //}
 
-    public class ResourceTemplate
+    public class TypeTemplate
     {
 
         protected Guid classId;
@@ -44,7 +44,7 @@ namespace Esiur.Resource.Template
         public TemplateType Type => templateType;
 
 
-        public Type ResourceType { get; set; }
+        public Type DefinedType { get; set; }
 
 
 
@@ -146,7 +146,7 @@ namespace Esiur.Resource.Template
 
 
 
-        public ResourceTemplate()
+        public TypeTemplate()
         {
 
         }
@@ -171,18 +171,18 @@ namespace Esiur.Resource.Template
         
 
 
-        public static ResourceTemplate[] GetDependencies(ResourceTemplate template)
+        public static TypeTemplate[] GetDependencies(TypeTemplate template)
         {
 
-            var list = new List<ResourceTemplate>();
+            var list = new List<TypeTemplate>();
 
             list.Add(template);
 
-            Action<ResourceTemplate, List<ResourceTemplate>> getDependenciesFunc = null;
+            Action<TypeTemplate, List<TypeTemplate>> getDependenciesFunc = null;
 
-            getDependenciesFunc = (ResourceTemplate tmp, List<ResourceTemplate> bag) =>
+            getDependenciesFunc = (TypeTemplate tmp, List<TypeTemplate> bag) =>
             {
-                if (template.ResourceType == null)
+                if (template.DefinedType == null)
                     return;
 
                 // functions
@@ -267,14 +267,16 @@ namespace Esiur.Resource.Template
             return list.ToArray();
         }
 
-        public ResourceTemplate(Type type)
+        public TypeTemplate(Type type, bool addToWarehouse = false)
         {
-            if (Codec.ImplementsInterface(type, typeof(IRecord)))
-                templateType = TemplateType.Record;
+            if (Codec.InheritsClass(type, typeof(DistributedResource)))
+                templateType = TemplateType.Wrapper;
             else if (Codec.ImplementsInterface(type, typeof(IResource)))
                 templateType = TemplateType.Resource;
+            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
+                templateType = TemplateType.Record;
             else
-                throw new Exception("Type is neither a resource nor a record.");
+                throw new Exception("Type must implement IResource, IRecord or inherit from DistributedResource.");
 
             //if (isRecord && isResource)
             //  throw new Exception("Type can't have both IResource and IRecord interfaces");
@@ -284,7 +286,7 @@ namespace Esiur.Resource.Template
 
             type = ResourceProxy.GetBaseType(type);
 
-            ResourceType = type;
+            DefinedType = type;
 
             className = type.FullName;
 
@@ -292,7 +294,10 @@ namespace Esiur.Resource.Template
 
             // set guid
             classId = GetTypeGuid(className);
-            
+
+            if (addToWarehouse)
+                Warehouse.PutTemplate(this);
+
 #if NETSTANDARD
             PropertyInfo[] propsInfo = type.GetTypeInfo().GetProperties(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
             EventInfo[] eventsInfo = type.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
@@ -395,8 +400,7 @@ namespace Esiur.Resource.Template
                                 Name = x.Name,
                                 Type = TemplateDataType.FromType(x.ParameterType),
                                 ParameterInfo = x
-                            })
-                                             .ToArray();
+                            }).ToArray();
 
                             var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
 
@@ -546,13 +550,13 @@ namespace Esiur.Resource.Template
 
         }
 
-        public static ResourceTemplate Parse(byte[] data)
+        public static TypeTemplate Parse(byte[] data)
         {
             return Parse(data, 0, (uint)data.Length);
         }
 
         
-        public static ResourceTemplate Parse(byte[] data, uint offset, uint contentLength)
+        public static TypeTemplate Parse(byte[] data, uint offset, uint contentLength)
         {
 
             uint ends = offset + contentLength;
@@ -561,7 +565,7 @@ namespace Esiur.Resource.Template
 
             // start parsing...
            
-            var od = new ResourceTemplate();
+            var od = new TypeTemplate();
             od.content = data.Clip(offset, contentLength);
 
             od.templateType = (TemplateType)data[offset++];

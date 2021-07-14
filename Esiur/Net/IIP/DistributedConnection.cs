@@ -556,7 +556,7 @@ namespace Esiur.Net.IIP
                             case IIPPacket.IIPPacketAction.TemplateFromClassName:
                             case IIPPacket.IIPPacketAction.TemplateFromClassId:
                             case IIPPacket.IIPPacketAction.TemplateFromResourceId:
-                                IIPReply(packet.CallbackId, ResourceTemplate.Parse(packet.Content));
+                                IIPReply(packet.CallbackId, TypeTemplate.Parse(packet.Content));
                                 break;
 
                             case IIPPacketAction.QueryLink:
