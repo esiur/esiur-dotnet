@@ -46,9 +46,13 @@ namespace Esiur.Proxy
         {
 
             if (templateDataType.Type == DataType.Resource)
-                return templates.First(x => x.ClassId == templateDataType.TypeGuid).ClassName;
+                return templates.First(x => x.ClassId == templateDataType.TypeGuid && (x.Type == TemplateType.Resource || x.Type == TemplateType.Wrapper )).ClassName;
             else if (templateDataType.Type == DataType.ResourceArray)
-                return templates.First(x => x.ClassId == templateDataType.TypeGuid).ClassName + "[]";
+                return templates.First(x => x.ClassId == templateDataType.TypeGuid && (x.Type == TemplateType.Resource || x.Type == TemplateType.Wrapper )).ClassName + "[]";
+            else if (templateDataType.Type == DataType.Record)
+                return templates.First(x => x.ClassId == templateDataType.TypeGuid && x.Type == TemplateType.Record).ClassName;
+            else if (templateDataType.Type == DataType.RecordArray)
+                return templates.First(x => x.ClassId == templateDataType.TypeGuid && x.Type == TemplateType.Record).ClassName + "[]";
 
             var name = templateDataType.Type switch
             {
@@ -112,6 +116,8 @@ namespace Esiur.Proxy
                     dir = path[2].Replace(":", "_");
 
                 var templates = con.GetLinkTemplates(path[3]).Wait(60000);
+                // no longer needed
+                Warehouse.Remove(con);
 
                 var tempDir = new DirectoryInfo(Path.GetTempPath() + Path.DirectorySeparatorChar
                                 + Misc.Global.GenerateCode(20) + Path.DirectorySeparatorChar + dir);
@@ -152,6 +158,7 @@ namespace Esiur.Proxy
 
                 File.WriteAllText(tempDir.FullName + Path.DirectorySeparatorChar + "Esiur.Generated.cs", typesFile);
 
+                
                 return tempDir.FullName;
 
             }
