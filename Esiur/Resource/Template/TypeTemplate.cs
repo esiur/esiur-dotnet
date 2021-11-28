@@ -48,17 +48,18 @@ namespace Esiur.Resource.Template
 
 
 
-        public MemberTemplate GetMemberTemplate(MemberInfo member)
-        {
-            if (member is MethodInfo)
-                return GetFunctionTemplateByName(member.Name);
-            else if (member is EventInfo)
-                return GetEventTemplateByName(member.Name);
-            else if (member is PropertyInfo)
-                return GetPropertyTemplateByName(member.Name);
-            else
-                return null;
-        }
+        
+        //public MemberTemplate GetMemberTemplate(MemberInfo member)
+        //{
+        //    if (member is MethodInfo)
+        //        return GetFunctionTemplateByName(member.Name);
+        //    else if (member is EventInfo)
+        //        return GetEventTemplateByName(member.Name);
+        //    else if (member is PropertyInfo)
+        //        return GetPropertyTemplateByName(member.Name);
+        //    else
+        //        return null;
+        //}
 
         public EventTemplate GetEventTemplateByName(string eventName)
         {
@@ -344,7 +345,8 @@ namespace Esiur.Resource.Template
                         var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
                         if (attributeAttr != null)
                         {
-                            var at = new AttributeTemplate(this, 0, pi.Name);
+                            var an = attributeAttr.Name ?? pi.Name;
+                            var at = new AttributeTemplate(this, 0, an);
                             at.PropertyInfo = pi;
                             attributes.Add(at);
                         }
@@ -427,8 +429,9 @@ namespace Esiur.Resource.Template
                         var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
                         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
                         var valueType = TemplateDataType.FromType(pi.PropertyType);
+                        var pn = publicAttr.Name ?? pi.Name;
 
-                        var pt = new PropertyTemplate(this, i++, pi.Name, valueType);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
+                        var pt = new PropertyTemplate(this, i++, pn, valueType);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
                         if (storageAttr != null)
                             pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
                         
@@ -446,7 +449,8 @@ namespace Esiur.Resource.Template
                         var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
                         if (attributeAttr != null)
                         {
-                            var at = new AttributeTemplate(this, 0, pi.Name);
+                            var pn = attributeAttr.Name ?? pi.Name;
+                            var at = new AttributeTemplate(this, 0, pn);
                             at.PropertyInfo = pi;
                             attributes.Add(at);
                         }
@@ -467,7 +471,9 @@ namespace Esiur.Resource.Template
 
                             var argType = ei.EventHandlerType.GenericTypeArguments[0];
 
-                            var et = new EventTemplate(this, i++, ei.Name, TemplateDataType.FromType(argType));
+                            var en = publicAttr.Name ?? ei.Name;
+
+                            var et = new EventTemplate(this, i++, en, TemplateDataType.FromType(argType));
                             et.EventInfo = ei;
 
                             if (annotationAttr != null)
@@ -505,7 +511,9 @@ namespace Esiur.Resource.Template
                             })
                                              .ToArray();
 
-                            var ft = new FunctionTemplate(this, i++, mi.Name, arguments, returnType);// mi.ReturnType == typeof(void));
+                            var fn = publicAttr.Name ?? mi.Name;
+
+                            var ft = new FunctionTemplate(this, i++, fn, arguments, returnType);// mi.ReturnType == typeof(void));
 
                             if (annotationAttr != null)
                                 ft.Expansion = annotationAttr.Annotation;

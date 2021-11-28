@@ -79,7 +79,7 @@ namespace Esiur.Stores.EntityCore
 
                 foreach (var p in ps)
                 {
-                    
+
                     var mi = resType.GetMember(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
                                     .FirstOrDefault();
 
@@ -155,8 +155,9 @@ namespace Esiur.Stores.EntityCore
 
             if (extension == null)
             {
+                if (store == null)
+                    return optionsBuilder;
 
-                //var store = Warehouse.New<EntityStore>(name, null, parent, manager, new { Options = optionsBuilder, DbContextProvider = dbContextProvider }).Wait();                
                 store.Options = optionsBuilder.Options;
                 extension = new EsiurExtensionOptions(store);
             }

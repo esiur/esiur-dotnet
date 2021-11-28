@@ -58,6 +58,9 @@ namespace Esiur.Net.IIP
         //List<IResource> subscriptions = new List<IResource>();
         Dictionary<IResource, List<byte>> subscriptions = new Dictionary<IResource, List<byte>>();// new List<IResource>();
 
+
+        internal KeyList<IResource, DateTime> cache = new();
+
         object subscriptionsLock = new object();
 
         AsyncQueue<DistributedResourceQueueItem> queue = new AsyncQueue<DistributedResourceQueueItem>();

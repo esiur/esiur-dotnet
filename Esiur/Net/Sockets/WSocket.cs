@@ -38,7 +38,7 @@ using System.Globalization;
 
 namespace Esiur.Net.Sockets
 {
-    public class WSSocket : ISocket, INetworkReceiver<ISocket>
+    public class WSocket : ISocket, INetworkReceiver<ISocket>
     {
         WebsocketPacket pkt_receive = new WebsocketPacket();
         WebsocketPacket pkt_send = new WebsocketPacket();
@@ -80,7 +80,7 @@ namespace Esiur.Net.Sockets
 
         public INetworkReceiver<ISocket> Receiver { get; set; }
 
-        public WSSocket(ISocket socket)
+        public WSocket(ISocket socket)
         {
             pkt_send.FIN = true;
             pkt_send.Mask = false;

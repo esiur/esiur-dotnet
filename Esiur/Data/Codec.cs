@@ -278,7 +278,7 @@ namespace Esiur.Data
 
                 var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
-                reply.ArrayType = template.DefinedType;
+                reply.ArrayType = template?.DefinedType;
 
                 AsyncReply<IRecord> previous = null;
 
@@ -936,6 +936,10 @@ namespace Esiur.Data
             if (resources == null || resources?.Length == 0)
                 return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
 
+
+            foreach(var r in resources)
+                connection.cache.Add(r, DateTime.UtcNow);
+
             var rt = new BinaryList();
             var comparsion = Compare(null, resources[0], connection);
 
@@ -1355,6 +1359,7 @@ namespace Esiur.Data
 
                 case DataType.DistributedResource:
                     //rt.Append((value as IResource).Instance.Template.ClassId, (value as IResource).Instance.Id);
+                    connection.cache.Add(value as IResource, DateTime.UtcNow);
                     rt.AddUInt32((value as IResource).Instance.Id);
 
                     break;

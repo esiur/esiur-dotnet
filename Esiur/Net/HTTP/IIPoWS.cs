@@ -57,7 +57,7 @@ namespace Esiur.Net.HTTP
                     return new AsyncReply<bool>(false);
 
                 var httpServer = sender.Parent;
-                var wsSocket = new WSSocket(tcpSocket);
+                var wsSocket = new WSocket(tcpSocket);
                 httpServer.Remove(sender);
 
                 var iipConnection = new DistributedConnection();

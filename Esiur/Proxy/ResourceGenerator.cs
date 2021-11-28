@@ -20,8 +20,6 @@ namespace Esiur.Proxy
     public class ResourceGenerator : ISourceGenerator
     {
 
-
-
         private KeyList<string, TypeTemplate[]> cache = new();
         // private List<string> inProgress = new();
 
@@ -38,9 +36,7 @@ namespace Esiur.Proxy
             context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("MySG001", title, msg, category, DiagnosticSeverity.Error, true), Location.None));
         }
 
-      
-       
-
+     
         void GenerateModel(GeneratorExecutionContext context, TypeTemplate[] templates)
         {
             foreach (var tmp in templates)
@@ -163,10 +159,16 @@ public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
                             code += "public AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n";
                     }
 
+                    //Debugger.Launch();
+
                     foreach (var f in ci.Fields)
                     {
+                        var givenName = f.GetAttributes().Where(x=>x.AttributeClass.Name == "PublicAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value;
+
                         var fn = f.Name;
-                        var pn = fn.Substring(0, 1).ToUpper() + fn.Substring(1);
+                        var pn = givenName ?? fn.Substring(0, 1).ToUpper() + fn.Substring(1);
+
+                        //System.IO.File.AppendAllText("c:\\gen\\fields.txt", fn + " -> " + pn + "\r\n");
 
                         // copy attributes 
                         var attrs = string.Join(" ", f.GetAttributes().Select(x => $"[{x.ToString()}]"));

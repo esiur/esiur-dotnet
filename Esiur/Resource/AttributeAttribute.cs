@@ -33,10 +33,10 @@ namespace Esiur.Resource
     [AttributeUsage(AttributeTargets.Property)]
     public class AttributeAttribute : System.Attribute
     {
-
-        public AttributeAttribute()
+        public string Name { get; set; }
+        public AttributeAttribute(string name = null)
         {
-
+            this.Name = name;
         }
     }
 }

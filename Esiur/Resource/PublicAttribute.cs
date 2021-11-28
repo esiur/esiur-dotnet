@@ -8,15 +8,11 @@ namespace Esiur.Resource
 
     public class PublicAttribute : Attribute
     {
+        public string Name { get; set; }
 
-      //  public StorageMode Storage { get; set; }
-
-        //public bool Serialize { get; set; }
-
-        public PublicAttribute()//StorageMode storage = StorageMode.NonVolatile, bool serialize = true)
+        public PublicAttribute(string name = null)
         {
-          //  Storage = storage;
-            //Serialize = serialize;
+            Name = name;
         }
     }
 }
