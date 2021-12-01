@@ -29,12 +29,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Core
+namespace Esiur.Core;
+
+public enum LogType
 {
-    public enum LogType
-    {
-        Debug,
-        Warning,
-        Error,
-    }
+    Debug,
+    Warning,
+    Error,
 }

@@ -30,31 +30,29 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+public class EsiurPlugin : IConventionSetPlugin
 {
-    public class EsiurPlugin : IConventionSetPlugin
+    private readonly IDbContextOptions _options;
+    private readonly ProviderConventionSetBuilderDependencies _conventionSetBuilderDependencies;
+
+    public EsiurPlugin(
+         IDbContextOptions options,
+        ProviderConventionSetBuilderDependencies conventionSetBuilderDependencies)
     {
-        private readonly IDbContextOptions _options;
-        private readonly ProviderConventionSetBuilderDependencies _conventionSetBuilderDependencies;
-
-        public EsiurPlugin(
-             IDbContextOptions options,
-            ProviderConventionSetBuilderDependencies conventionSetBuilderDependencies)
-        {
-            _options = options;
-            _conventionSetBuilderDependencies = conventionSetBuilderDependencies;
-        }
-
-     
-        public ConventionSet ModifyConventions(ConventionSet conventionSet)
-        {
-            var extension = _options.FindExtension<EsiurExtensionOptions>();
-            conventionSet.ModelFinalizingConventions.Add(new EsiurProxyRewrite(
-                    extension,
-                    _conventionSetBuilderDependencies));
-            return conventionSet;
-
-        }
+        _options = options;
+        _conventionSetBuilderDependencies = conventionSetBuilderDependencies;
     }
 
+
+    public ConventionSet ModifyConventions(ConventionSet conventionSet)
+    {
+        var extension = _options.FindExtension<EsiurExtensionOptions>();
+        conventionSet.ModelFinalizingConventions.Add(new EsiurProxyRewrite(
+                extension,
+                _conventionSetBuilderDependencies));
+        return conventionSet;
+
+    }
 }
+

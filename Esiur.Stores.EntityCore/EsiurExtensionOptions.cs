@@ -36,79 +36,83 @@ using System.Reflection;
 using Esiur.Proxy;
 using Microsoft.EntityFrameworkCore;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+
+public class EsiurExtensionOptions : IDbContextOptionsExtension
 {
-    public class EsiurExtensionOptions : IDbContextOptionsExtension 
+
+    //public Dictionary<Type, PropertyInfo> Cache { get; } = new Dictionary<Type, PropertyInfo>();
+    //public void AddType(IEntityType type)
+    //{
+    //    if (!Cache.ContainsKey(type.ClrType))
+    //        Cache.Add(type.ClrType, type.FindPrimaryKey().Properties[0].PropertyInfo);
+    //}
+
+
+
+    private DbContextOptionsExtensionInfo _info;
+    EntityStore _store;
+
+    public DbContextOptionsExtensionInfo Info => _info;
+
+    public EntityStore Store => _store;
+
+
+    public void ApplyServices(IServiceCollection services)
+    {
+        // services.AddEntityFrameworkProxies();
+
+        new EntityFrameworkServicesBuilder(services)
+            .TryAdd<IConventionSetPlugin, EsiurPlugin>();
+    }
+
+    public void Validate(IDbContextOptions options)
+    {
+        var internalServiceProvider = options.FindExtension<CoreOptionsExtension>()?.InternalServiceProvider;
+        if (internalServiceProvider != null)
+        {
+            var scope = internalServiceProvider.CreateScope();
+            var conventionPlugins = scope.ServiceProvider.GetService<IEnumerable<IConventionSetPlugin>>();
+            if (conventionPlugins?.Any(s => s is EsiurPlugin) == false)
+            {
+                throw new InvalidOperationException("");
+            }
+        }
+    }
+
+    public EsiurExtensionOptions(EntityStore store)
+    {
+        _info = new ExtensionInfo(this);
+        _store = store;
+    }
+
+
+    private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
     {
 
-        //public Dictionary<Type, PropertyInfo> Cache { get; } = new Dictionary<Type, PropertyInfo>();
-        //public void AddType(IEntityType type)
-        //{
-        //    if (!Cache.ContainsKey(type.ClrType))
-        //        Cache.Add(type.ClrType, type.FindPrimaryKey().Properties[0].PropertyInfo);
-        //}
-
-        
-
-        private DbContextOptionsExtensionInfo _info;
-        EntityStore _store;
-
-        public DbContextOptionsExtensionInfo Info => _info;
-
-        public EntityStore Store => _store;
-
-
-        public void ApplyServices(IServiceCollection services)
+        public ExtensionInfo(IDbContextOptionsExtension extension)
+            : base(extension)
         {
-           // services.AddEntityFrameworkProxies();
-
-            new EntityFrameworkServicesBuilder(services)
-                .TryAdd<IConventionSetPlugin, EsiurPlugin>();
         }
 
-        public void Validate(IDbContextOptions options)
-        {
-            var internalServiceProvider = options.FindExtension<CoreOptionsExtension>()?.InternalServiceProvider;
-            if (internalServiceProvider != null)
-            {
-                var scope = internalServiceProvider.CreateScope();
-                var conventionPlugins = scope.ServiceProvider.GetService<IEnumerable<IConventionSetPlugin>>();
-                if (conventionPlugins?.Any(s => s is EsiurPlugin) == false)
-                {
-                    throw new InvalidOperationException("");
-                }
-            }
-        }
+        private new EsiurExtensionOptions Extension
+            => (EsiurExtensionOptions)base.Extension;
 
-        public EsiurExtensionOptions(EntityStore store)
-        {
-            _info = new ExtensionInfo(this);
-            _store = store;
-        }
+        public override bool IsDatabaseProvider => false;
 
+        public override string LogFragment => "Esiur";
 
-        private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
+        public override int GetServiceProviderHashCode() => 2312;
+
+        public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
         {
 
-            public ExtensionInfo(IDbContextOptionsExtension extension)
-                : base(extension)
-            {
-            }
-
-            private new EsiurExtensionOptions Extension
-                => (EsiurExtensionOptions)base.Extension;
-
-            public override bool IsDatabaseProvider => false;
-
-            public override string LogFragment => "Esiur";
-
-            public override long GetServiceProviderHashCode() => 2312;
-
-            public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
-            {
-
-            }
         }
 
+        public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other)
+        {
+            return true;
+        }
     }
+
 }

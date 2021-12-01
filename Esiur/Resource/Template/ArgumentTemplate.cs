@@ -4,46 +4,44 @@ using System.Collections.Generic;
 using System.Text;
 using System.Reflection;
 
-namespace Esiur.Resource.Template
+namespace Esiur.Resource.Template;
+public class ArgumentTemplate
 {
-    public class ArgumentTemplate
+    public string Name { get; set; }
+
+    public TemplateDataType Type { get; set; }
+
+    public ParameterInfo ParameterInfo { get; set; }
+
+    public static (uint, ArgumentTemplate) Parse(byte[] data, uint offset)
     {
-        public string Name { get; set; }
+        var cs = (uint)data[offset++];
+        var name = data.GetString(offset, cs);
+        offset += cs;
+        var (size, type) = TemplateDataType.Parse(data, offset);
 
-        public TemplateDataType Type { get; set; }
+        return (cs + 1 + size, new ArgumentTemplate(name, type));
+    }
 
-        public ParameterInfo ParameterInfo { get; set; }
+    public ArgumentTemplate()
+    {
 
-        public static (uint, ArgumentTemplate) Parse(byte[] data, uint offset)
-        {
-            var cs = (uint)data[offset++];
-            var name = data.GetString(offset, cs);
-            offset += cs;
-            var (size, type) = TemplateDataType.Parse(data, offset);
+    }
 
-            return (cs + 1 + size, new ArgumentTemplate(name, type));
-        }
+    public ArgumentTemplate(string name, TemplateDataType type)
+    {
+        Name = name;
+        Type = type;
+    }
 
-        public ArgumentTemplate()
-        {
+    public byte[] Compose()
+    {
+        var name = DC.ToBytes(Name);
 
-        }
-
-        public ArgumentTemplate(string name, TemplateDataType type)
-        {
-            Name = name;
-            Type = type;
-        }
-
-        public byte[] Compose()
-        {
-            var name = DC.ToBytes(Name);
-
-            return new BinaryList()
-                    .AddUInt8((byte)name.Length)
-                    .AddUInt8Array(name)
-                    .AddUInt8Array(Type.Compose())
-                    .ToArray();
-        }
+        return new BinaryList()
+                .AddUInt8((byte)name.Length)
+                .AddUInt8Array(name)
+                .AddUInt8Array(Type.Compose())
+                .ToArray();
     }
 }

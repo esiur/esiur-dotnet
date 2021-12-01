@@ -2,15 +2,14 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Property)]
+public class StorageAttribute : Attribute
 {
-    [AttributeUsage(AttributeTargets.Property)]
-    public class StorageAttribute:Attribute
+    public StorageMode Mode { get; set; }
+    public StorageAttribute(StorageMode mode)
     {
-        public StorageMode Mode { get; set; }
-        public StorageAttribute(StorageMode mode)
-        {
-            Mode = mode;
-        }
+        Mode = mode;
     }
 }

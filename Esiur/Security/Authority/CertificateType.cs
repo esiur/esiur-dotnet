@@ -28,15 +28,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+
+public enum CertificateType
 {
-    public enum CertificateType
-    {
-        CAPublic = 0,
-        CAPrivate,
-        DomainPublic,
-        DomainPrivate,
-        UserPublic,
-        UserPrivate
-    }
+    CAPublic = 0,
+    CAPrivate,
+    DomainPublic,
+    DomainPrivate,
+    UserPublic,
+    UserPrivate
 }

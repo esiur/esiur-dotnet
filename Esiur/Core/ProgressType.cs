@@ -2,11 +2,10 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Core
+namespace Esiur.Core;
+
+public enum ProgressType
 {
-    public enum ProgressType
-    {
-        Execution,
-        Network,
-    }
+    Execution,
+    Network,
 }

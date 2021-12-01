@@ -34,209 +34,207 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+public class EntityStore : IStore
 {
-    public class EntityStore : IStore
+    public Instance Instance { get; set; }
+
+    public event DestroyedEvent OnDestroy;
+
+    Dictionary<Type, Dictionary<object, WeakReference>> DB = new Dictionary<Type, Dictionary<object, WeakReference>>();
+    object DBLock = new object();
+
+    Dictionary<string, EntityTypeInfo> TypesByName = new Dictionary<string, EntityTypeInfo>();
+    internal Dictionary<Type, EntityTypeInfo> TypesByType = new Dictionary<Type, EntityTypeInfo>();
+
+    [Attribute]
+    public Func<DbContext> Getter { get; set; }
+
+
+    public AsyncReply<IResource> Get(string path)
     {
-        public Instance Instance { get; set; }
+        var p = path.Split('/');
+        var ti = TypesByName[p[0]];
+        var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);
 
-        public event DestroyedEvent OnDestroy;
+        // Get db
+        var db = Getter();
+        var res = db.Find(ti.Type.ClrType, id);
 
-        Dictionary<Type, Dictionary<object, WeakReference>> DB = new Dictionary<Type, Dictionary<object, WeakReference>>();
-        object DBLock = new object();
+        // load navigation properties
+        var ent = db.Entry(res);
+        foreach (var rf in ent.References)
+            rf.Load();
 
-        Dictionary<string, EntityTypeInfo> TypesByName = new Dictionary<string, EntityTypeInfo>();
-        internal Dictionary<Type, EntityTypeInfo> TypesByType = new Dictionary<Type, EntityTypeInfo>();
+        return new AsyncReply<IResource>(res as IResource);
+    }
 
-        [Attribute]
-        public Func<DbContext> Getter { get; set; }
-
-
-        public AsyncReply<IResource> Get(string path)
-        {
-            var p = path.Split('/');
-            var ti = TypesByName[p[0]];
-            var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);
-
-            // Get db
-            var db = Getter();
-            var res = db.Find(ti.Type.ClrType, id);
-
-            // load navigation properties
-            var ent = db.Entry(res);
-            foreach (var rf in ent.References)
-                rf.Load();
-
-            return new AsyncReply<IResource>(res as IResource);
-        }
-
-        public AsyncReply<bool> Put(IResource resource)
-        {
-            if (resource == this)
-                return new AsyncReply<bool>(true);
-
-            var type = ResourceProxy.GetBaseType(resource);
-
-
-            var eid = TypesByType[type].PrimaryKey.GetValue(resource);
-
-            lock (DBLock)
-            {
-                if (DB[type].ContainsKey(eid))
-                    DB[type].Remove(eid);
-
-                DB[type].Add(eid, new WeakReference(resource));
-            }
-
+    public AsyncReply<bool> Put(IResource resource)
+    {
+        if (resource == this)
             return new AsyncReply<bool>(true);
+
+        var type = ResourceProxy.GetBaseType(resource);
+
+
+        var eid = TypesByType[type].PrimaryKey.GetValue(resource);
+
+        lock (DBLock)
+        {
+            if (DB[type].ContainsKey(eid))
+                DB[type].Remove(eid);
+
+            DB[type].Add(eid, new WeakReference(resource));
         }
 
-        public IResource GetById(Type type, object id)
+        return new AsyncReply<bool>(true);
+    }
+
+    public IResource GetById(Type type, object id)
+    {
+        lock (DBLock)
         {
-            lock (DBLock)
+            if (!DB[type].ContainsKey(id))
+                return null;
+
+            if (!DB[type][id].IsAlive)
+                return null;
+
+            return DB[type][id].Target as IResource;
+        }
+    }
+
+
+
+    //public T CreateDB()
+    //{
+
+    //}
+
+    //DbContext dbContext;
+    //[Attribute]
+    //public DbContext DbContext { get; set; }
+
+    public string Link(IResource resource)
+    {
+        var type = ResourceProxy.GetBaseType(resource.GetType());
+
+        var id = TypesByType[type].PrimaryKey.GetValue(resource);
+        //DbContext.Model.FindEntityType(type).DisplayName();
+
+
+        //            DbContext.Model.FindEntityType(type).DisplayName
+        //var entityType = DbContext.Model.FindEntityType(type);
+        //var id = entityType.FindPrimaryKey().Properties
+        //            .FirstOrDefault()?.PropertyInfo
+        //            .GetValue(resource);
+        //        var id = Types
+
+        if (id != null)
+            return this.Instance.Name + "/" + type.Name + "/" + id.ToString();
+        else
+            return this.Instance.Name + "/" + type.Name;
+    }
+
+    public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    {
+        return true;
+        //throw new NotImplementedException();
+    }
+
+    public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    {
+        return true;
+        //throw new NotImplementedException();
+    }
+
+    public bool Remove(IResource resource)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> AddChild(IResource parent, IResource child)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> RemoveChild(IResource parent, IResource child)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> AddParent(IResource child, IResource parent)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    {
+        throw new NotImplementedException();
+    }
+
+    internal DbContextOptions Options { get; set; }
+
+    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    {
+        if (trigger == ResourceTrigger.Initialize)// SystemInitialized && DbContext != null)
+        {
+
+            if (Getter == null)
+                throw new Exception("Getter is not set for the store.");
+            //  DbContextProvider = () => Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
+
+
+            ReloadModel();
+        }
+
+        return new AsyncReply<bool>(true);
+    }
+
+    public void ReloadModel()
+    {
+
+        TypesByName.Clear();
+        TypesByType.Clear();
+
+        var context = Getter();
+
+        var types = context.Model.GetEntityTypes();
+        foreach (var t in types)
+        {
+            var ti = new EntityTypeInfo()
             {
-                if (!DB[type].ContainsKey(id))
-                    return null;
+                Name = t.ClrType.Name,
+                PrimaryKey = t.FindPrimaryKey().Properties.FirstOrDefault()?.PropertyInfo,
+                Type = t,
+                //Getter = getter
+            };
 
-                if (!DB[type][id].IsAlive)
-                    return null;
+            TypesByName.Add(t.ClrType.Name, ti);
+            TypesByType.Add(t.ClrType, ti);
 
-                return DB[type][id].Target as IResource;
-            }
+            if (!DB.ContainsKey(t.ClrType))
+                DB.Add(t.ClrType, new Dictionary<object, WeakReference>());
         }
+    }
 
-
-
-        //public T CreateDB()
-        //{
-
-        //}
-
-        //DbContext dbContext;
-        //[Attribute]
-        //public DbContext DbContext { get; set; }
-
-        public string Link(IResource resource)
-        {
-            var type = ResourceProxy.GetBaseType(resource.GetType());
-
-            var id = TypesByType[type].PrimaryKey.GetValue(resource);
-            //DbContext.Model.FindEntityType(type).DisplayName();
-
-
-            //            DbContext.Model.FindEntityType(type).DisplayName
-            //var entityType = DbContext.Model.FindEntityType(type);
-            //var id = entityType.FindPrimaryKey().Properties
-            //            .FirstOrDefault()?.PropertyInfo
-            //            .GetValue(resource);
-            //        var id = Types
-
-            if (id != null)
-                return this.Instance.Name + "/" + type.Name + "/" + id.ToString();
-            else
-                return this.Instance.Name + "/" + type.Name;
-        }
-
-        public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
-        {
-            return true;
-            //throw new NotImplementedException();
-        }
-
-        public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
-        {
-            return true;
-            //throw new NotImplementedException();
-        }
-
-        public bool Remove(IResource resource)
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<bool> AddChild(IResource parent, IResource child)
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<bool> RemoveChild(IResource parent, IResource child)
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<bool> AddParent(IResource child, IResource parent)
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
-        {
-            throw new NotImplementedException();
-        }
-
-        public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
-        {
-            throw new NotImplementedException();
-        }
-
-        internal DbContextOptions Options { get; set; }
-
-        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)// SystemInitialized && DbContext != null)
-            {
-
-                if (Getter == null)
-                    throw new Exception("Getter is not set for the store.");
-                  //  DbContextProvider = () => Activator.CreateInstance(Options.Options.ContextType, Options.Options) as DbContext;
-
-
-                ReloadModel();
-            }
-
-            return new AsyncReply<bool>(true);
-        }
-
-        public void ReloadModel()
-        {
-
-            TypesByName.Clear();
-            TypesByType.Clear();
-
-            var context = Getter();
-
-            var types = context.Model.GetEntityTypes();
-            foreach (var t in types)
-            {
-                var ti = new EntityTypeInfo()
-                {
-                    Name = t.ClrType.Name,
-                    PrimaryKey = t.FindPrimaryKey().Properties.FirstOrDefault()?.PropertyInfo,
-                    Type = t,
-                    //Getter = getter
-                };
-
-                TypesByName.Add(t.ClrType.Name, ti);
-                TypesByType.Add(t.ClrType, ti);
-
-                if (!DB.ContainsKey(t.ClrType))
-                    DB.Add(t.ClrType, new Dictionary<object, WeakReference>());
-            }
-        }
-
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-        }
+    public void Destroy()
+    {
+        OnDestroy?.Invoke(this);
     }
 }

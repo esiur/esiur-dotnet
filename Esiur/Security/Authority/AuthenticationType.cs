@@ -28,13 +28,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+
+public enum AuthenticationType
 {
-    public enum AuthenticationType
-    {
-        Host,
-        CoHost,
-        Client,
-        Alien
-    }
+    Host,
+    CoHost,
+    Client,
+    Alien
 }

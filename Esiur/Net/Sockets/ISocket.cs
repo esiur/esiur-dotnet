@@ -36,39 +36,37 @@ using System.Collections.Concurrent;
 using Esiur.Resource;
 using Esiur.Core;
 
-namespace Esiur.Net.Sockets
+namespace Esiur.Net.Sockets;
+//public delegate void ISocketReceiveEvent(NetworkBuffer buffer);
+//public delegate void ISocketConnectEvent();
+//public delegate void ISocketCloseEvent();
+
+public interface ISocket : IDestructible
 {
-    //public delegate void ISocketReceiveEvent(NetworkBuffer buffer);
-    //public delegate void ISocketConnectEvent();
-    //public delegate void ISocketCloseEvent();
+    SocketState State { get; }
 
-    public interface ISocket : IDestructible
-    {
-        SocketState State { get; }
+    //event ISocketReceiveEvent OnReceive;
+    //event ISocketConnectEvent OnConnect;
+    //event ISocketCloseEvent OnClose;
 
-        //event ISocketReceiveEvent OnReceive;
-        //event ISocketConnectEvent OnConnect;
-        //event ISocketCloseEvent OnClose;
+    INetworkReceiver<ISocket> Receiver { get; set; }
 
-        INetworkReceiver<ISocket> Receiver { get; set; }
+    AsyncReply<bool> SendAsync(byte[] message, int offset, int length);
 
-        AsyncReply<bool> SendAsync(byte[] message, int offset, int length);
+    void Send(byte[] message);
+    void Send(byte[] message, int offset, int length);
+    void Close();
+    AsyncReply<bool> Connect(string hostname, ushort port);
+    bool Begin();
+    AsyncReply<bool> BeginAsync();
+    //ISocket Accept();
+    AsyncReply<ISocket> AcceptAsync();
+    ISocket Accept();
 
-        void Send(byte[] message);
-        void Send(byte[] message, int offset, int length);
-        void Close();
-        AsyncReply<bool> Connect(string hostname, ushort port);
-        bool Begin();
-        AsyncReply<bool> BeginAsync();
-        //ISocket Accept();
-        AsyncReply<ISocket> AcceptAsync();
-        ISocket Accept();
+    IPEndPoint RemoteEndPoint { get; }
+    IPEndPoint LocalEndPoint { get; }
 
-        IPEndPoint RemoteEndPoint { get; }
-        IPEndPoint LocalEndPoint { get; }
+    void Hold();
 
-        void Hold();
-
-        void Unhold();
-    }
+    void Unhold();
 }

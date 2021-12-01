@@ -28,15 +28,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Net.Sockets
+namespace Esiur.Net.Sockets;
+public enum SocketState
 {
-    public enum SocketState
-    {
-        Initial,
-        Listening,
-        Connecting,
-        Established,
-        Closed,
-        //Terminated
-    }
+    Initial,
+    Listening,
+    Connecting,
+    Established,
+    Closed,
+    //Terminated
 }

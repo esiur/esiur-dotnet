@@ -32,44 +32,42 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+
+public class EntityResource : IResource
 {
-    
-    public class EntityResource : IResource
+    //[NotMapped]
+    //internal object _PrimaryId;
+
+    public event DestroyedEvent OnDestroy;
+    //public event PropertyChangedEventHandler PropertyChanged;
+
+    [NotMapped]
+    public Instance Instance { get; set; }
+
+    public EntityResource()
     {
-        //[NotMapped]
-        //internal object _PrimaryId;
-
-        public event DestroyedEvent OnDestroy;
-        //public event PropertyChangedEventHandler PropertyChanged;
-
-        [NotMapped]
-        public Instance Instance { get; set; }
-
-        public EntityResource()
-        {
-
-        }
-
-
-        protected virtual void Create()
-        {
-
-        }
-
-        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)
-                Create();
-
-            return new AsyncReply<bool>(true);
-        }
-
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-        }
-
 
     }
+
+
+    protected virtual void Create()
+    {
+
+    }
+
+    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    {
+        if (trigger == ResourceTrigger.Initialize)
+            Create();
+
+        return new AsyncReply<bool>(true);
+    }
+
+    public void Destroy()
+    {
+        OnDestroy?.Invoke(this);
+    }
+
+
 }

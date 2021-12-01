@@ -35,96 +35,94 @@ using Esiur.Data;
 using Esiur.Misc;
 using Esiur.Core;
 
-namespace Esiur.Net
+namespace Esiur.Net;
+public class NetworkSession : IDestructible //<T> where T : TClient
 {
-    public class NetworkSession:IDestructible //<T> where T : TClient
+    public delegate void SessionModifiedEvent(NetworkSession session, string key, object oldValue, object newValue);
+    public delegate void SessionEndedEvent(NetworkSession session);
+
+    private string id;
+    private Timer timer;
+    private int timeout;
+    DateTime creation;
+    DateTime lastAction;
+
+    private KeyList<string, object> variables;
+
+    public event SessionEndedEvent OnEnd;
+    public event SessionModifiedEvent OnModify;
+    public event DestroyedEvent OnDestroy;
+
+    public KeyList<string, object> Variables
     {
-        public delegate void SessionModifiedEvent(NetworkSession session, string key, object oldValue, object newValue);
-        public delegate void SessionEndedEvent(NetworkSession session);
+        get { return variables; }
+    }
 
-        private string id;
-        private Timer timer;
-        private int timeout;
-        DateTime creation;
-        DateTime lastAction;
+    public NetworkSession()
+    {
+        variables = new KeyList<string, object>();
+        variables.OnModified += new KeyList<string, object>.Modified(VariablesModified);
+        creation = DateTime.Now;
+    }
 
-        private KeyList<string, object> variables;
+    internal void Set(string id, int timeout)
+    {
+        //modified = sessionModifiedEvent;
+        //ended = sessionEndEvent;
+        this.id = id;
 
-        public event SessionEndedEvent OnEnd;
-        public event SessionModifiedEvent OnModify;
-        public event DestroyedEvent OnDestroy;
-
-        public KeyList<string, object> Variables
+        if (this.timeout != 0)
         {
-            get { return variables; }
-        }
-
-        public NetworkSession()
-        {
-            variables = new KeyList<string, object>();
-            variables.OnModified += new KeyList<string, object>.Modified(VariablesModified);
+            this.timeout = timeout;
+            timer = new Timer(OnSessionEndTimerCallback, null, TimeSpan.FromSeconds(timeout), TimeSpan.FromSeconds(0));
             creation = DateTime.Now;
-        }
-        
-        internal void Set(string id, int timeout )
-        {
-            //modified = sessionModifiedEvent;
-            //ended = sessionEndEvent;
-            this.id = id;
-
-            if (this.timeout != 0)
-            {
-                this.timeout = timeout;
-                timer = new Timer(OnSessionEndTimerCallback, null, TimeSpan.FromSeconds(timeout), TimeSpan.FromSeconds(0));
-                creation = DateTime.Now;
-            }
-        }
-
-        private void OnSessionEndTimerCallback(object o)
-        {
-            OnEnd?.Invoke(this);
-        }
-
-        void VariablesModified(string key, object oldValue, object newValue, KeyList<string, object> sender)
-        {
-            OnModify?.Invoke(this, key, oldValue, newValue);
-        }
-
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-            timer.Dispose();
-            timer = null;
-        }
-
-        internal void Refresh()
-        {
-            lastAction = DateTime.Now;
-            timer.Change(TimeSpan.FromSeconds(timeout), TimeSpan.FromSeconds(0));
-        }
-
-        public int Timeout // Seconds
-        {
-            get
-            {
-                return timeout;
-            }
-            set
-            {
-                timeout = value;
-                Refresh();
-            }
-        }
-
-        public string Id
-        {
-            get { return id; }
-        }
-
-        public DateTime LastAction
-        {
-            get { return lastAction; }
         }
     }
 
+    private void OnSessionEndTimerCallback(object o)
+    {
+        OnEnd?.Invoke(this);
+    }
+
+    void VariablesModified(string key, object oldValue, object newValue, KeyList<string, object> sender)
+    {
+        OnModify?.Invoke(this, key, oldValue, newValue);
+    }
+
+    public void Destroy()
+    {
+        OnDestroy?.Invoke(this);
+        timer.Dispose();
+        timer = null;
+    }
+
+    internal void Refresh()
+    {
+        lastAction = DateTime.Now;
+        timer.Change(TimeSpan.FromSeconds(timeout), TimeSpan.FromSeconds(0));
+    }
+
+    public int Timeout // Seconds
+    {
+        get
+        {
+            return timeout;
+        }
+        set
+        {
+            timeout = value;
+            Refresh();
+        }
+    }
+
+    public string Id
+    {
+        get { return id; }
+    }
+
+    public DateTime LastAction
+    {
+        get { return lastAction; }
+    }
 }
+

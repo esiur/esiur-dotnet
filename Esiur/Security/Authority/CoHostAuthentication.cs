@@ -28,14 +28,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
-{
-    public class CoHostAuthentication : Authentication
-    {
-        public CoHostAuthentication() 
-            : base(AuthenticationType.CoHost)
-        {
+namespace Esiur.Security.Authority;
 
-        }
+public class CoHostAuthentication : Authentication
+{
+    public CoHostAuthentication()
+        : base(AuthenticationType.CoHost)
+    {
+
     }
 }

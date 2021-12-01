@@ -35,48 +35,46 @@ using Esiur.Data;
 using Esiur.Core;
 using Esiur.Resource;
 
-namespace Esiur.Net.HTTP
+namespace Esiur.Net.HTTP;
+
+public abstract class HTTPFilter : IResource
 {
-
-    public abstract class HTTPFilter : IResource
+    public Instance Instance
     {
-       public Instance Instance
-       {
-            get;
-            set;
-       }
+        get;
+        set;
+    }
 
-        public event DestroyedEvent OnDestroy;
+    public event DestroyedEvent OnDestroy;
 
-        public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-        /*
-        public virtual void SessionModified(HTTPSession session, string key, object oldValue, object newValue)
-        {
+    /*
+    public virtual void SessionModified(HTTPSession session, string key, object oldValue, object newValue)
+    {
 
-        }
+    }
 
-        public virtual void SessionExpired(HTTPSession session)
-        {
+    public virtual void SessionExpired(HTTPSession session)
+    {
 
-        }
-        */
+    }
+    */
 
-        public abstract AsyncReply<bool> Execute(HTTPConnection sender);
+    public abstract AsyncReply<bool> Execute(HTTPConnection sender);
 
-        public virtual void ClientConnected(HTTPConnection HTTP)
-        {
-            //return false;
-        }
+    public virtual void ClientConnected(HTTPConnection HTTP)
+    {
+        //return false;
+    }
 
-        public virtual void ClientDisconnected(HTTPConnection HTTP)
-        {
-            //return false;
-        }
+    public virtual void ClientDisconnected(HTTPConnection HTTP)
+    {
+        //return false;
+    }
 
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-        }
+    public void Destroy()
+    {
+        OnDestroy?.Invoke(this);
     }
 }

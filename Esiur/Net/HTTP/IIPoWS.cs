@@ -32,94 +32,91 @@ using Esiur.Net.IIP;
 using Esiur.Net.Sockets;
 using Esiur.Core;
 
-namespace Esiur.Net.HTTP
+namespace Esiur.Net.HTTP;
+public class IIPoWS : HTTPFilter
 {
-    public class IIPoWS: HTTPFilter
+    [Attribute]
+    public DistributedServer Server
     {
-        [Attribute]
-        public DistributedServer Server
+        get;
+        set;
+    }
+
+    public override AsyncReply<bool> Execute(HTTPConnection sender)
+    {
+
+        if (sender.IsWebsocketRequest())
         {
-            get;
-            set;
-        }
+            if (Server == null)
+                return new AsyncReply<bool>(false);
 
-        public override AsyncReply<bool> Execute(HTTPConnection sender)
-        {
+            var tcpSocket = sender.Unassign();
 
-            if (sender.IsWebsocketRequest())
-            {
-                if (Server == null)
-                    return new AsyncReply<bool>(false);
+            if (tcpSocket == null)
+                return new AsyncReply<bool>(false);
 
-                var tcpSocket = sender.Unassign();
+            var httpServer = sender.Parent;
+            var wsSocket = new WSocket(tcpSocket);
+            httpServer.Remove(sender);
 
-                if (tcpSocket == null)
-                    return new AsyncReply<bool>(false);
+            var iipConnection = new DistributedConnection();
 
-                var httpServer = sender.Parent;
-                var wsSocket = new WSocket(tcpSocket);
-                httpServer.Remove(sender);
+            Server.Add(iipConnection);
+            iipConnection.Assign(wsSocket);
+            wsSocket.Begin();
 
-                var iipConnection = new DistributedConnection();
-
-                Server.Add(iipConnection);
-                iipConnection.Assign(wsSocket);
-                wsSocket.Begin();
-
-                return new AsyncReply<bool>(true);
-            }
-
-            return new AsyncReply<bool>( false);
-
-            /*
-            if (sender.Request.Filename.StartsWith("/iip/"))
-            {
-                // find the service
-                var path = sender.Request.Filename.Substring(5);// sender.Request.Query["path"];
-
-
-                Warehouse.Get(path).Then((r) =>
-                {
-                    if (r is DistributedServer)
-                    {
-                        var httpServer = sender.Parent;
-                        var iipServer = r as DistributedServer;
-                        var tcpSocket = sender.Unassign();
-                        if (tcpSocket == null)
-                            return;
-
-                        var wsSocket = new WSSocket(tcpSocket);
-                        httpServer.RemoveConnection(sender);
-
-                        //httpServer.Connections.Remove(sender);
-                        var iipConnection = new DistributedConnection();
-  //                      iipConnection.OnReady += IipConnection_OnReady;
-//                        iipConnection.Server = iipServer;
-    //                    iipConnection.Assign(wsSocket);
-
-                        iipServer.AddConnection(iipConnection);
-                        iipConnection.Assign(wsSocket);
-                        wsSocket.Begin();
-                    }
-                });
-
-                return true;
-            }
-
-            return false;
-            */
-        }
-
-        private void IipConnection_OnReady(DistributedConnection sender)
-        {
-            Warehouse.Put(sender.RemoteUsername, sender, null, sender.Server).Wait();
-        }
-
-        public override AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
             return new AsyncReply<bool>(true);
         }
+
+        return new AsyncReply<bool>(false);
+
+        /*
+        if (sender.Request.Filename.StartsWith("/iip/"))
+        {
+            // find the service
+            var path = sender.Request.Filename.Substring(5);// sender.Request.Query["path"];
+
+
+            Warehouse.Get(path).Then((r) =>
+            {
+                if (r is DistributedServer)
+                {
+                    var httpServer = sender.Parent;
+                    var iipServer = r as DistributedServer;
+                    var tcpSocket = sender.Unassign();
+                    if (tcpSocket == null)
+                        return;
+
+                    var wsSocket = new WSSocket(tcpSocket);
+                    httpServer.RemoveConnection(sender);
+
+                    //httpServer.Connections.Remove(sender);
+                    var iipConnection = new DistributedConnection();
+//                      iipConnection.OnReady += IipConnection_OnReady;
+//                        iipConnection.Server = iipServer;
+//                    iipConnection.Assign(wsSocket);
+
+                    iipServer.AddConnection(iipConnection);
+                    iipConnection.Assign(wsSocket);
+                    wsSocket.Begin();
+                }
+            });
+
+            return true;
+        }
+
+        return false;
+        */
     }
-    
+
+    private void IipConnection_OnReady(DistributedConnection sender)
+    {
+        Warehouse.Put(sender.RemoteUsername, sender, null, sender.Server).Wait();
+    }
+
+    public override AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    {
+        return new AsyncReply<bool>(true);
+    }
 }
- 
+

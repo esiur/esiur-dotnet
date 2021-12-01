@@ -29,31 +29,30 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+
+public class Source
 {
-    public class Source
+
+    //string id;
+    KeyList<SourceAttributeType, object> attributes;
+
+    public string Id { get; set; }
+
+    public KeyList<SourceAttributeType, object> Attributes
     {
-
-       //string id;
-        KeyList<SourceAttributeType, object> attributes;
-
-        public string Id { get; set; }
-
-        public KeyList<SourceAttributeType, object> Attributes
-        {
-            get => attributes; 
-        }
-
-        public Source(string id, KeyList<SourceAttributeType, object> attributes)
-        {
-            Id = id;
-            this.attributes = attributes;
-        }
-
-        public Source()
-        {
-            attributes = new KeyList<SourceAttributeType, object>();
-        }
-
+        get => attributes;
     }
+
+    public Source(string id, KeyList<SourceAttributeType, object> attributes)
+    {
+        Id = id;
+        this.attributes = attributes;
+    }
+
+    public Source()
+    {
+        attributes = new KeyList<SourceAttributeType, object>();
+    }
+
 }

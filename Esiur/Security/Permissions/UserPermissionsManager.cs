@@ -31,96 +31,95 @@ using Esiur.Resource;
 using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 
-namespace Esiur.Security.Permissions
+namespace Esiur.Security.Permissions;
+
+public class UserPermissionsManager : IPermissionsManager
 {
-    public class UserPermissionsManager : IPermissionsManager
+    IResource resource;
+    Structure settings;
+
+    public Structure Settings => settings;
+
+    public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer)
     {
-        IResource resource;
-        Structure settings;
+        Structure userPermissions = null;
 
-        public Structure Settings => settings;
+        if (settings.ContainsKey(session.RemoteAuthentication.FullName))
+            userPermissions = settings[session.RemoteAuthentication.FullName] as Structure;
+        else if (settings.ContainsKey("public"))
+            userPermissions = settings["public"] as Structure;
+        else
+            return Ruling.Denied;
 
-        public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer)
+        if (action == ActionType.Attach)// || action == ActionType.Delete)
         {
-            Structure userPermissions = null;
-
-            if (settings.ContainsKey(session.RemoteAuthentication.FullName))
-                userPermissions = settings[session.RemoteAuthentication.FullName] as Structure;
-            else if (settings.ContainsKey("public"))
-                userPermissions = settings["public"] as Structure;
-            else
+            if ((string)userPermissions["_attach"] != "yes")
                 return Ruling.Denied;
-
-            if (action == ActionType.Attach)// || action == ActionType.Delete)
-            {
-                if ((string)userPermissions["_attach"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.Delete)
-            {
-                if ((string)userPermissions["_delete"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action== ActionType.InquireAttributes)
-            {
-                if ((string)userPermissions["_get_attributes"] == "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.UpdateAttributes)
-            {
-                if ((string)userPermissions["_set_attributes"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.AddChild)
-            {
-                if ((string)userPermissions["_add_child"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.RemoveChild)
-            {
-                if ((string)userPermissions["_remove_child"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.AddParent)
-            {
-                if ((string)userPermissions["_add_parent"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.RemoveParent)
-            {
-                if ((string)userPermissions["_remove_parent"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (action == ActionType.Rename)
-            {
-                if ((string)userPermissions["_rename"] != "yes")
-                    return Ruling.Denied;
-            }
-            else if (userPermissions.ContainsKey(member?.Name))
-            {
-                Structure methodPermissions = userPermissions[member.Name] as Structure;
-                if ((string)methodPermissions[action.ToString()] != "yes")
-                    return Ruling.Denied;
-            }
-
-            return Ruling.DontCare;
         }
-
-        public UserPermissionsManager()
+        else if (action == ActionType.Delete)
         {
-
+            if ((string)userPermissions["_delete"] != "yes")
+                return Ruling.Denied;
         }
-
-        public UserPermissionsManager(Structure settings)
+        else if (action == ActionType.InquireAttributes)
         {
-            this.settings = settings;
+            if ((string)userPermissions["_get_attributes"] == "yes")
+                return Ruling.Denied;
+        }
+        else if (action == ActionType.UpdateAttributes)
+        {
+            if ((string)userPermissions["_set_attributes"] != "yes")
+                return Ruling.Denied;
+        }
+        else if (action == ActionType.AddChild)
+        {
+            if ((string)userPermissions["_add_child"] != "yes")
+                return Ruling.Denied;
+        }
+        else if (action == ActionType.RemoveChild)
+        {
+            if ((string)userPermissions["_remove_child"] != "yes")
+                return Ruling.Denied;
+        }
+        else if (action == ActionType.AddParent)
+        {
+            if ((string)userPermissions["_add_parent"] != "yes")
+                return Ruling.Denied;
+        }
+        else if (action == ActionType.RemoveParent)
+        {
+            if ((string)userPermissions["_remove_parent"] != "yes")
+                return Ruling.Denied;
+        }
+        else if (action == ActionType.Rename)
+        {
+            if ((string)userPermissions["_rename"] != "yes")
+                return Ruling.Denied;
+        }
+        else if (userPermissions.ContainsKey(member?.Name))
+        {
+            Structure methodPermissions = userPermissions[member.Name] as Structure;
+            if ((string)methodPermissions[action.ToString()] != "yes")
+                return Ruling.Denied;
         }
 
-        public bool Initialize(Structure settings, IResource resource)
-        {
-            this.resource = resource;
-            this.settings = settings;
-            return true;
-        }
+        return Ruling.DontCare;
+    }
+
+    public UserPermissionsManager()
+    {
+
+    }
+
+    public UserPermissionsManager(Structure settings)
+    {
+        this.settings = settings;
+    }
+
+    public bool Initialize(Structure settings, IResource resource)
+    {
+        this.resource = resource;
+        this.settings = settings;
+        return true;
     }
 }

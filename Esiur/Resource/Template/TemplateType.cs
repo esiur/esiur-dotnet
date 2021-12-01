@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Resource.Template
+namespace Esiur.Resource.Template;
+public enum TemplateType : byte
 {
-    public enum TemplateType:byte
-    {
-        Unspecified,
-        Resource,
-        Record,
-        Wrapper,
-    }
+    Unspecified,
+    Resource,
+    Record,
+    Wrapper,
 }

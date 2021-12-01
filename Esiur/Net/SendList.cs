@@ -4,23 +4,22 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Net
+namespace Esiur.Net;
+
+public class SendList : BinaryList
 {
-    public class SendList : BinaryList
+    NetworkConnection connection;
+    AsyncReply<object[]> reply;
+
+    public SendList(NetworkConnection connection, AsyncReply<object[]> reply)
     {
-        NetworkConnection connection;
-        AsyncReply<object[]> reply;
+        this.reply = reply;
+        this.connection = connection;
+    }
 
-        public SendList(NetworkConnection connection, AsyncReply<object[]> reply)
-        {
-            this.reply = reply;
-            this.connection = connection;
-        }
-
-        public override AsyncReply<object[]> Done()
-        {
-            connection.Send(this.ToArray());
-            return reply;
-        }
+    public override AsyncReply<object[]> Done()
+    {
+        connection.Send(this.ToArray());
+        return reply;
     }
 }

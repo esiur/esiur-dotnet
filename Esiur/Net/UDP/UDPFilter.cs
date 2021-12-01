@@ -32,26 +32,24 @@ using Esiur.Data;
 using Esiur.Core;
 using Esiur.Resource;
 
-namespace Esiur.Net.UDP
+namespace Esiur.Net.UDP;
+public abstract class UDPFilter : IResource
 {
-    public abstract class UDPFilter : IResource
+    public Instance Instance
     {
-        public Instance Instance
-        {
-            get;
-            set;
-        }
+        get;
+        set;
+    }
 
 
-        public event DestroyedEvent OnDestroy;
+    public event DestroyedEvent OnDestroy;
 
-        public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-        public abstract bool Execute(byte[] data, IPEndPoint sender);
+    public abstract bool Execute(byte[] data, IPEndPoint sender);
 
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-        }
+    public void Destroy()
+    {
+        OnDestroy?.Invoke(this);
     }
 }

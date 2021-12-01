@@ -33,172 +33,170 @@ using Esiur.Misc;
 using Esiur.Resource;
 using Esiur.Core;
 
-namespace Esiur.Net.UDP
+namespace Esiur.Net.UDP;
+
+/* public class IIPConnection
 {
+    public EndPoint SenderPoint;
+    public 
+}*/
+public class UDPServer : IResource
+{
+    Thread receiver;
+    UdpClient udp;
+    UDPFilter[] filters = new UDPFilter[0];
 
-    /* public class IIPConnection
+    public event DestroyedEvent OnDestroy;
+
+    public Instance Instance
     {
-        public EndPoint SenderPoint;
-        public 
-    }*/
-    public class UDPServer : IResource
+        get;
+        set;
+    }
+
+    [Attribute]
+    string IP
     {
-        Thread receiver;
-        UdpClient udp;
-        UDPFilter[] filters = new UDPFilter[0];
+        get;
+        set;
+    }
 
-        public event DestroyedEvent OnDestroy;
+    [Attribute]
+    ushort Port
+    {
+        get;
+        set;
+    }
 
-        public Instance Instance
+    private void Receiving()
+    {
+        IPEndPoint ep = new IPEndPoint(IPAddress.Any, 0);
+
+
+        while (true)
         {
-            get;
-            set;
-        }
+            byte[] b = udp.Receive(ref ep);
 
-        [Attribute]
-        string IP
-        {
-            get;
-            set;
-        }
-
-        [Attribute]
-        ushort Port
-        {
-            get;
-            set;
-        }
-
-         private void Receiving()
-        {
-            IPEndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-
-
-            while (true)
+            foreach (var child in filters)
             {
-                byte[] b = udp.Receive(ref ep);
+                var f = child as UDPFilter;
 
-                foreach (var child in filters)
+                try
                 {
-                    var f = child as UDPFilter;
-
-                    try
+                    if (f.Execute(b, ep))
                     {
-                        if (f.Execute(b, ep))
-                        {
-                            break;
-                        }
+                        break;
                     }
-                    catch (Exception ex)
-                    {
-                        Global.Log("UDPServer", LogType.Error, ex.ToString());
-                        //Console.WriteLine(ex.ToString());
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Global.Log("UDPServer", LogType.Error, ex.ToString());
+                    //Console.WriteLine(ex.ToString());
                 }
             }
         }
+    }
 
-        public bool Send(byte[] Data, int Count, IPEndPoint EP)
+    public bool Send(byte[] Data, int Count, IPEndPoint EP)
+    {
+        try
         {
-            try
-            {
-                udp.Send(Data, Count, EP);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-        public bool Send(byte[] Data, IPEndPoint EP)
-        {
-            try
-            {
-                udp.Send(Data, Data.Length, EP);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-        public bool Send(byte[] Data, int Count, string Host, int Port)
-        {
-            try
-            {
-                udp.Send(Data, Count, Host, Port);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-        public bool Send(byte[] Data, string Host, int Port)
-        {
-            try
-            {
-                udp.Send(Data, Data.Length, Host, Port);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-        public bool Send(string Data, IPEndPoint EP)
-        {
-            try
-            {
-                udp.Send(Encoding.Default.GetBytes(Data), Data.Length, EP);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-        public bool Send(string Data, string Host, int Port)
-        {
-            try
-            {
-                udp.Send(Encoding.Default.GetBytes(Data), Data.Length, Host, Port);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public void Destroy()
-        {
-            udp.Close();
-            OnDestroy?.Invoke(this);
-        }
-
-        async AsyncReply<bool> IResource.Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)
-            {
-                var address = IP == null ? IPAddress.Any : IPAddress.Parse(IP);
-
-                udp = new UdpClient(new IPEndPoint(address, Port));
-
-                receiver = new Thread(Receiving);
-                receiver.Start();
-            }
-            else if (trigger == ResourceTrigger.Terminate)
-            {
-                if (receiver != null)
-                    receiver.Abort();
-            }
-            else if (trigger == ResourceTrigger.SystemInitialized)
-            {
-                filters = await Instance.Children<UDPFilter>();
-            }
-
+            udp.Send(Data, Count, EP);
             return true;
         }
+        catch
+        {
+            return false;
+        }
+    }
+    public bool Send(byte[] Data, IPEndPoint EP)
+    {
+        try
+        {
+            udp.Send(Data, Data.Length, EP);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    public bool Send(byte[] Data, int Count, string Host, int Port)
+    {
+        try
+        {
+            udp.Send(Data, Count, Host, Port);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    public bool Send(byte[] Data, string Host, int Port)
+    {
+        try
+        {
+            udp.Send(Data, Data.Length, Host, Port);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    public bool Send(string Data, IPEndPoint EP)
+    {
+        try
+        {
+            udp.Send(Encoding.Default.GetBytes(Data), Data.Length, EP);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    public bool Send(string Data, string Host, int Port)
+    {
+        try
+        {
+            udp.Send(Encoding.Default.GetBytes(Data), Data.Length, Host, Port);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void Destroy()
+    {
+        udp.Close();
+        OnDestroy?.Invoke(this);
+    }
+
+    async AsyncReply<bool> IResource.Trigger(ResourceTrigger trigger)
+    {
+        if (trigger == ResourceTrigger.Initialize)
+        {
+            var address = IP == null ? IPAddress.Any : IPAddress.Parse(IP);
+
+            udp = new UdpClient(new IPEndPoint(address, Port));
+
+            receiver = new Thread(Receiving);
+            receiver.Start();
+        }
+        else if (trigger == ResourceTrigger.Terminate)
+        {
+            if (receiver != null)
+                receiver.Abort();
+        }
+        else if (trigger == ResourceTrigger.SystemInitialized)
+        {
+            filters = await Instance.Children<UDPFilter>();
+        }
+
+        return true;
     }
 }

@@ -28,16 +28,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+public enum ResourceTrigger : int
 {
-    public enum ResourceTrigger : int
-    {
-        Open = 0,
-        Initialize,
-        Terminate,
-        Configure,
-        SystemInitialized,
-        SystemTerminated,
-        SystemReload,
-    }
+    Open = 0,
+    Initialize,
+    Terminate,
+    Configure,
+    SystemInitialized,
+    SystemTerminated,
+    SystemReload,
 }

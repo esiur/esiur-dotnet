@@ -28,16 +28,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+public class HostAuthentication : Authentication
 {
-    public class HostAuthentication : Authentication
+
+    public HostAuthentication()
+        : base(AuthenticationType.Host)
     {
 
-        public HostAuthentication()
-            :base(AuthenticationType.Host)
-        {
+    }
 
-        }
-         
-     }
 }

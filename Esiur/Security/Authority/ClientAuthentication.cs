@@ -27,46 +27,44 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+public class ClientAuthentication : Authentication
 {
-    public class ClientAuthentication : Authentication
+    /*
+    string username;
+    byte[] password;
+    string domain;
+    byte[] token;
+    UserCertificate certificate;
+
+    public string Username => username;
+    public byte[] Password => password;
+    //public string Domain => domain;
+    public byte[] Token => token;
+
+    public byte[] Nounce { get; set; }
+    */
+
+    public ClientAuthentication()
+        : base(AuthenticationType.Client)
     {
-        /*
-        string username;
-        byte[] password;
-        string domain;
-        byte[] token;
-        UserCertificate certificate;
 
-        public string Username => username;
-        public byte[] Password => password;
-        //public string Domain => domain;
-        public byte[] Token => token;
-
-        public byte[] Nounce { get; set; }
-        */
-
-        public ClientAuthentication()
-            :base(AuthenticationType.Client)
-        {
-
-        }
-
-
-        /*
-        public ClientAuthentication(byte[] token)
-            : base(AuthenticationType.Client)
-        {
-            this.token = token;
-        }
-
-        public ClientAuthentication(string username, byte[] password) 
-            : base(AuthenticationType.Client)
-        {
-            this.username = username;
-            this.password = password;
-            //this.domain = domain;
-        }
-        */
     }
+
+
+    /*
+    public ClientAuthentication(byte[] token)
+        : base(AuthenticationType.Client)
+    {
+        this.token = token;
+    }
+
+    public ClientAuthentication(string username, byte[] password) 
+        : base(AuthenticationType.Client)
+    {
+        this.username = username;
+        this.password = password;
+        //this.domain = domain;
+    }
+    */
 }

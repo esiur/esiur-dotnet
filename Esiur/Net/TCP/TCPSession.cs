@@ -28,10 +28,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Net.TCP
+namespace Esiur.Net.TCP;
+public class TCPSession : NetworkSession
 {
-    public class TCPSession : NetworkSession
-    {
 
-    }
 }

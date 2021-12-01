@@ -31,23 +31,22 @@ using Esiur.Resource;
 using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 
-namespace Esiur.Security.Permissions
+namespace Esiur.Security.Permissions;
+
+public class StorePermissionsManager : IPermissionsManager
 {
-    public class StorePermissionsManager : IPermissionsManager
+    Structure settings;
+
+    public Structure Settings => settings;
+
+    public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null)
     {
-        Structure settings;
+        return resource.Instance.Store.Instance.Applicable(session, action, member, inquirer);
+    }
 
-        public Structure Settings => settings;
-
-        public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null)
-        {
-            return  resource.Instance.Store.Instance.Applicable(session, action, member, inquirer);
-        }
-
-        public bool Initialize(Structure settings, IResource resource)
-        {
-            this.settings = settings;
-            return true;
-        }
+    public bool Initialize(Structure settings, IResource resource)
+    {
+        this.settings = settings;
+        return true;
     }
 }

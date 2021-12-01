@@ -37,74 +37,62 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+
+public static class EsiurExtensions
 {
-    public static class EsiurExtensions
+    //public static T CreateResource<T>(this DbContext dbContext, object properties = null) where T:class,IResource
+    //{
+    //    return dbContext.GetInfrastructure().CreateResource<T>(properties);
+
+    //}
+
+    public static T AddResource<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
+        => AddResourceAsync(dbSet, resource).Wait();
+
+    public static async AsyncReply<T> AddResourceAsync<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
     {
-        //public static T CreateResource<T>(this DbContext dbContext, object properties = null) where T:class,IResource
-        //{
-        //    return dbContext.GetInfrastructure().CreateResource<T>(properties);
+        var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions>().Store;
 
-        //}
 
-        public static T AddResource<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
-            => AddResourceAsync(dbSet, resource).Wait();
+        var manager = store.Instance.Managers.FirstOrDefault();// > 0 ? store.Instance.Managers.First() : null;
 
-        public static async AsyncReply<T> AddResourceAsync<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
+        //var db = dbSet.GetService<ICurrentDbContext>().Context;
+
+        //var resource = dbSet.GetInfrastructure().CreateResource<T>(properties);
+        //var resource = Warehouse.New<T>("", options.Store, null, null, null, properties);
+
+        var resType = typeof(T);
+        var proxyType = ResourceProxy.GetProxy(resType);
+
+
+        IResource res;
+
+        if (proxyType == resType)
         {
-            var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions>().Store;
+            res = resource;
+        }
+        else
+        {
+            res = Activator.CreateInstance(proxyType) as IResource;
+            var ps = Structure.FromObject(resource);
 
-
-            var manager = store.Instance.Managers.FirstOrDefault();// > 0 ? store.Instance.Managers.First() : null;
-
-            //var db = dbSet.GetService<ICurrentDbContext>().Context;
-
-            //var resource = dbSet.GetInfrastructure().CreateResource<T>(properties);
-            //var resource = Warehouse.New<T>("", options.Store, null, null, null, properties);
-
-            var resType = typeof(T);
-            var proxyType = ResourceProxy.GetProxy(resType);
-
-
-            IResource res;
-
-            if (proxyType == resType)
+            foreach (var p in ps)
             {
-                res = resource;
-            }
-            else
-            {
-                res = Activator.CreateInstance(proxyType) as IResource;
-                var ps = Structure.FromObject(resource);
 
-                foreach (var p in ps)
+                var mi = resType.GetMember(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+                                .FirstOrDefault();
+
+                if (mi != null)
                 {
-
-                    var mi = resType.GetMember(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-                                    .FirstOrDefault();
-
-                    if (mi != null)
+                    if (mi is PropertyInfo)
                     {
-                        if (mi is PropertyInfo)
-                        {
-                            var pi = mi as PropertyInfo;
-                            if (pi.CanWrite)
-                            {
-                                try
-                                {
-                                    pi.SetValue(res, p.Value);
-                                }
-                                catch (Exception ex)
-                                {
-                                    Global.Log(ex);
-                                }
-                            }
-                        }
-                        else if (mi is FieldInfo)
+                        var pi = mi as PropertyInfo;
+                        if (pi.CanWrite)
                         {
                             try
                             {
-                                (mi as FieldInfo).SetValue(res, p.Value);
+                                pi.SetValue(res, p.Value);
                             }
                             catch (Exception ex)
                             {
@@ -112,90 +100,101 @@ namespace Esiur.Stores.EntityCore
                             }
                         }
                     }
+                    else if (mi is FieldInfo)
+                    {
+                        try
+                        {
+                            (mi as FieldInfo).SetValue(res, p.Value);
+                        }
+                        catch (Exception ex)
+                        {
+                            Global.Log(ex);
+                        }
+                    }
                 }
             }
-
-            //await Warehouse.Put<T>("", null, null, null, null, properties);
-            var entity = dbSet.Add((T)res);
-            await entity.Context.SaveChangesAsync();
-
-            var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(resource);
-
-            await Warehouse.Put(id.ToString(), res, store, null, null, 0, manager);
-
-            return (T)res;
         }
 
-        //public static async AsyncReply<T> CreateResourceAsync<T>(this IServiceProvider serviceProvider, T properties = null) where T : class, IResource
-        //{
-        //    var options = serviceProvider.GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions<T>>();
+        //await Warehouse.Put<T>("", null, null, null, null, properties);
+        var entity = dbSet.Add((T)res);
+        await entity.Context.SaveChangesAsync();
 
-        //    var resource = await Warehouse.New<T>("", options.Store, null, null, null, properties);
+        var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(resource);
 
-        //    resource.Instance.Managers.AddRange(options.Store.Instance.Managers.ToArray());
+        await Warehouse.Put(id.ToString(), res, store, null, null, 0, manager);
 
-        //    return resource;
-        //}
+        return (T)res;
+    }
 
-        //public static T CreateResource<T>(this IServiceProvider serviceProvider, object properties = null) where T : class, IResource
-        //    => CreateResourceAsync<T>(serviceProvider, properties).Wait();
+    //public static async AsyncReply<T> CreateResourceAsync<T>(this IServiceProvider serviceProvider, T properties = null) where T : class, IResource
+    //{
+    //    var options = serviceProvider.GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions<T>>();
 
-        public static DbContextOptionsBuilder UseEsiur(this DbContextOptionsBuilder optionsBuilder,
-                                                        EntityStore store,
-                                                        Func<DbContext> getter = null
+    //    var resource = await Warehouse.New<T>("", options.Store, null, null, null, properties);
 
-            //IServiceCollection services = null
-            //string name = null,
-            //IResource parent = null,
-            //IPermissionsManager manager = null,
-            //Func<DbContext> dbContextProvider = null
-            )
+    //    resource.Instance.Managers.AddRange(options.Store.Instance.Managers.ToArray());
+
+    //    return resource;
+    //}
+
+    //public static T CreateResource<T>(this IServiceProvider serviceProvider, object properties = null) where T : class, IResource
+    //    => CreateResourceAsync<T>(serviceProvider, properties).Wait();
+
+    public static DbContextOptionsBuilder UseEsiur(this DbContextOptionsBuilder optionsBuilder,
+                                                    EntityStore store,
+                                                    Func<DbContext> getter = null
+
+        //IServiceCollection services = null
+        //string name = null,
+        //IResource parent = null,
+        //IPermissionsManager manager = null,
+        //Func<DbContext> dbContextProvider = null
+        )
+    {
+        var extension = optionsBuilder.Options.FindExtension<EsiurExtensionOptions>();
+
+        if (extension == null)
         {
-            var extension = optionsBuilder.Options.FindExtension<EsiurExtensionOptions>();
+            if (store == null)
+                return optionsBuilder;
 
-            if (extension == null)
-            {
-                if (store == null)
-                    return optionsBuilder;
-
-                store.Options = optionsBuilder.Options;
-                extension = new EsiurExtensionOptions(store);
-            }
-
-            ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-
-            return optionsBuilder;
-
+            store.Options = optionsBuilder.Options;
+            extension = new EsiurExtensionOptions(store);
         }
 
-        //public static DbContextOptionsBuilder<TContext> UseEsiur<TContext>(
-        //                                     this DbContextOptionsBuilder<TContext> optionsBuilder,
-        //                                    //DbContext context,
-        //                                    string name = null,
-        //                                    IResource parent = null,
-        //                                    IPermissionsManager manager = null,
-        //                                    Func<DbContext> dbContextProvider = null)
-        //                                    where TContext : DbContext
-        //{
+        ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
-
-        //    var extension = optionsBuilder.Options.FindExtension<EsiurExtensionOptions>();
-
-        //    if (extension == null)
-        //    {
-        //        var store = Warehouse.New<EntityStore>(name, null, parent, manager, new { Options = optionsBuilder, DbContextProvider = dbContextProvider }).Wait();
-        //        extension = new EsiurExtensionOptions(store);
-        //        //store.Options = optionsBuilder;
-        //        //store.Options = extension;
-        //        //store.DbContext = context;
-        //    }
-
-
-        //    ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
-
-        //    return optionsBuilder;
-
-        //}
+        return optionsBuilder;
 
     }
+
+    //public static DbContextOptionsBuilder<TContext> UseEsiur<TContext>(
+    //                                     this DbContextOptionsBuilder<TContext> optionsBuilder,
+    //                                    //DbContext context,
+    //                                    string name = null,
+    //                                    IResource parent = null,
+    //                                    IPermissionsManager manager = null,
+    //                                    Func<DbContext> dbContextProvider = null)
+    //                                    where TContext : DbContext
+    //{
+
+
+    //    var extension = optionsBuilder.Options.FindExtension<EsiurExtensionOptions>();
+
+    //    if (extension == null)
+    //    {
+    //        var store = Warehouse.New<EntityStore>(name, null, parent, manager, new { Options = optionsBuilder, DbContextProvider = dbContextProvider }).Wait();
+    //        extension = new EsiurExtensionOptions(store);
+    //        //store.Options = optionsBuilder;
+    //        //store.Options = extension;
+    //        //store.DbContext = context;
+    //    }
+
+
+    //    ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
+
+    //    return optionsBuilder;
+
+    //}
+
 }

@@ -13,6 +13,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Version>1.5.2</Version>
     <PackageId>Esiur.Stores.MongoDB</PackageId>
+	<LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>

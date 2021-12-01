@@ -2,13 +2,12 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Data
+namespace Esiur.Data;
+
+public enum ResourceComparisonResult
 {
-    public enum ResourceComparisonResult
-    {
-        Null, // null
-        Distributed, // resource is distributed
-        Local, // resource is local
-        Same, // Same as previous
-    }
+    Null, // null
+    Distributed, // resource is distributed
+    Local, // resource is local
+    Same, // Same as previous
 }

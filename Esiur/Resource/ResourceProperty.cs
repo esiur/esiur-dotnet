@@ -29,49 +29,47 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Property)]
+public class ResourceProperty : System.Attribute
 {
+    bool serialize;
+    string readExpansion;
+    string writeExpansion;
+    // bool recordable;
+    //bool storable;
 
-    [AttributeUsage(AttributeTargets.Property)]
-    public class ResourceProperty : System.Attribute
+    //public bool Recordable => recordable;
+
+    //public bool Storable => storable;
+    StorageMode storage;
+
+    public StorageMode Storage => storage;
+
+    public bool Serialize => serialize;
+
+    public string ReadExpansion
     {
-        bool serialize;
-        string readExpansion;
-        string writeExpansion;
-        // bool recordable;
-        //bool storable;
-
-        //public bool Recordable => recordable;
-
-        //public bool Storable => storable;
-        StorageMode storage;
-
-        public StorageMode Storage => storage;
-
-        public bool Serialize => serialize;
-
-        public string ReadExpansion
+        get
         {
-            get
-            {
-                return readExpansion;
-            }
+            return readExpansion;
         }
+    }
 
-        public string WriteExpansion
+    public string WriteExpansion
+    {
+        get
         {
-            get
-            {
-                return writeExpansion;
-            }
+            return writeExpansion;
         }
+    }
 
-        public ResourceProperty(StorageMode storage = StorageMode.NonVolatile, bool serialize = true, string readExpansion = null, string writeExpansion = null)
-        {
-            this.readExpansion = readExpansion;
-            this.writeExpansion = writeExpansion;
-            this.storage = storage;
-            this.serialize = serialize;
-        }
+    public ResourceProperty(StorageMode storage = StorageMode.NonVolatile, bool serialize = true, string readExpansion = null, string writeExpansion = null)
+    {
+        this.readExpansion = readExpansion;
+        this.writeExpansion = writeExpansion;
+        this.storage = storage;
+        this.serialize = serialize;
     }
 }

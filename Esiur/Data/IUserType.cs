@@ -2,11 +2,10 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Data
+namespace Esiur.Data;
+public interface IUserType
 {
-    public interface IUserType
-    {
-        object Get();
-        void Set(object value);
-    }
+    object Get();
+    void Set(object value);
 }
+

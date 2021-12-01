@@ -33,44 +33,42 @@ using System.Threading.Tasks;
 using Esiur.Security.Permissions;
 using Esiur.Security.Authority;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+public interface IStore : IResource
 {
-    public interface IStore:IResource
-    {
-        AsyncReply<IResource> Get(string path);//, Func<IResource, bool> filter = null);
-        //AsyncReply<IResource> Retrieve(uint iid);
-        AsyncReply<bool> Put(IResource resource);
-        string Link(IResource resource);
-        bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
-        bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
-        bool Remove(IResource resource);
+    AsyncReply<IResource> Get(string path);//, Func<IResource, bool> filter = null);
+                                           //AsyncReply<IResource> Retrieve(uint iid);
+    AsyncReply<bool> Put(IResource resource);
+    string Link(IResource resource);
+    bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+    bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+    bool Remove(IResource resource);
 
-        //bool RemoveAttributes(IResource resource, string[] attributes = null);
+    //bool RemoveAttributes(IResource resource, string[] attributes = null);
 
-        //Structure GetAttributes(IResource resource, string[] attributes = null);
+    //Structure GetAttributes(IResource resource, string[] attributes = null);
 
-        //bool SetAttributes(IResource resource, Structure attributes, bool clearAttributes = false);
-
-        
-
-        AsyncReply<bool> AddChild(IResource parent, IResource child);
-        AsyncReply<bool> RemoveChild(IResource parent, IResource child);
-
-        AsyncReply<bool> AddParent(IResource child, IResource parent);
-        AsyncReply<bool> RemoveParent(IResource child, IResource parent);
-
-
-        AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource;
-        AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource;
+    //bool SetAttributes(IResource resource, Structure attributes, bool clearAttributes = false);
 
 
 
-        //AsyncReply<PropertyValue[]> GetPropertyRecord(IResource resource, string propertyName, ulong fromAge, ulong toAge);
-        //AsyncReply<PropertyValue[]> GetPropertyRecordByDate(IResource resource, string propertyName, DateTime fromDate, DateTime toDate);
+    AsyncReply<bool> AddChild(IResource parent, IResource child);
+    AsyncReply<bool> RemoveChild(IResource parent, IResource child);
 
-        //AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, ulong fromAge, ulong toAge);
-        // AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByDate(IResource resource, DateTime fromDate, DateTime toDate);
+    AsyncReply<bool> AddParent(IResource child, IResource parent);
+    AsyncReply<bool> RemoveParent(IResource child, IResource parent);
 
-        AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
-    }
+
+    AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource;
+    AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource;
+
+
+
+    //AsyncReply<PropertyValue[]> GetPropertyRecord(IResource resource, string propertyName, ulong fromAge, ulong toAge);
+    //AsyncReply<PropertyValue[]> GetPropertyRecordByDate(IResource resource, string propertyName, DateTime fromDate, DateTime toDate);
+
+    //AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, ulong fromAge, ulong toAge);
+    // AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByDate(IResource resource, DateTime fromDate, DateTime toDate);
+
+    AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
 }

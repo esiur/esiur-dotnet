@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Data
+namespace Esiur.Data;
+public class Record : KeyList<string, object>, IRecord
 {
-    public class Record: KeyList<string, object>, IRecord
-    {
-        
-    }
+
 }

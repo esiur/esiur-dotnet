@@ -34,23 +34,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Permissions
+namespace Esiur.Security.Permissions;
+
+public interface IPermissionsManager
 {
-    public interface IPermissionsManager
-    {
-        /// <summary>
-        /// Check for permission.
-        /// </summary>
-        /// <param name="resource">IResource.</param>
-        /// <param name="session">Caller sessions.</param>
-        /// <param name="action">Action type</param>
-        /// <param name="member">Function, property or event to check for permission.</param>
-        /// <param name="inquirer">Permission inquirer object.</param>
-        /// <returns>Allowed or denined.</returns>
-        Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null);
+    /// <summary>
+    /// Check for permission.
+    /// </summary>
+    /// <param name="resource">IResource.</param>
+    /// <param name="session">Caller sessions.</param>
+    /// <param name="action">Action type</param>
+    /// <param name="member">Function, property or event to check for permission.</param>
+    /// <param name="inquirer">Permission inquirer object.</param>
+    /// <returns>Allowed or denined.</returns>
+    Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null);
 
-        bool Initialize(Structure settings, IResource resource);
+    bool Initialize(Structure settings, IResource resource);
 
-        Structure Settings { get; }
-    }
+    Structure Settings { get; }
 }

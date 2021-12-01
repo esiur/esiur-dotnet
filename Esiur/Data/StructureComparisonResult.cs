@@ -2,14 +2,13 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Data
+namespace Esiur.Data;
+
+public enum StructureComparisonResult : byte
 {
-    public enum StructureComparisonResult : byte
-    {
-        Null,
-        Structure,
-        StructureSameKeys,
-        StructureSameTypes,
-        Same
-    }
+    Null,
+    Structure,
+    StructureSameKeys,
+    StructureSameTypes,
+    Same
 }

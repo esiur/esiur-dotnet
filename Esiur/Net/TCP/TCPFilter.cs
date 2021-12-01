@@ -32,35 +32,34 @@ using Esiur.Net.Sockets;
 using Esiur.Core;
 using Esiur.Resource;
 
-namespace Esiur.Net.TCP
+namespace Esiur.Net.TCP;
+
+public abstract class TCPFilter : IResource
 {
-    public abstract class TCPFilter: IResource
+    public Instance Instance
     {
-        public Instance Instance
-        {
-            get;
-            set;
-        }
+        get;
+        set;
+    }
 
-        public event DestroyedEvent OnDestroy;
+    public event DestroyedEvent OnDestroy;
 
-        public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-        public virtual bool Connected(TCPConnection sender)
-        {
-            return false;
-        }
+    public virtual bool Connected(TCPConnection sender)
+    {
+        return false;
+    }
 
-        public virtual bool Disconnected(TCPConnection sender)
-        {
-            return false;
-        }
+    public virtual bool Disconnected(TCPConnection sender)
+    {
+        return false;
+    }
 
-        public abstract bool Execute(byte[] msg, NetworkBuffer data, TCPConnection sender);
+    public abstract bool Execute(byte[] msg, NetworkBuffer data, TCPConnection sender);
 
-        public void Destroy()
-        {
-            OnDestroy?.Invoke(this);
-        }
+    public void Destroy()
+    {
+        OnDestroy?.Invoke(this);
     }
 }

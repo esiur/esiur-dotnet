@@ -28,25 +28,24 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Method)]
+public class ResourceFunction : System.Attribute
 {
-    [AttributeUsage(AttributeTargets.Method)]
-    public class ResourceFunction : System.Attribute
+    private string expansion = null;
+
+    public string Expansion
     {
-        private string expansion = null;
-        
-        public string Expansion
+        get
         {
-            get
-            {
-                return expansion;
-            }
+            return expansion;
         }
+    }
 
 
-        public ResourceFunction(string expansion = null)
-        {
-            this.expansion = expansion;
-        }
+    public ResourceFunction(string expansion = null)
+    {
+        this.expansion = expansion;
     }
 }

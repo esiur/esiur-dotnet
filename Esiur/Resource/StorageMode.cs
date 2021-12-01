@@ -2,12 +2,10 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+public enum StorageMode : byte
 {
-    public enum StorageMode : byte
-    {
-        NonVolatile,
-        Volatile,
-        Recordable
-    }
+    NonVolatile,
+    Volatile,
+    Recordable
 }

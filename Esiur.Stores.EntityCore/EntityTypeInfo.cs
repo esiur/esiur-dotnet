@@ -5,13 +5,12 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+
+struct EntityTypeInfo
 {
-    struct EntityTypeInfo
-    {
-        public string Name;
-        public IEntityType Type;
-        public PropertyInfo PrimaryKey;
-       // public Func<DbContext> Getter;
-    }
+    public string Name;
+    public IEntityType Type;
+    public PropertyInfo PrimaryKey;
+    // public Func<DbContext> Getter;
 }

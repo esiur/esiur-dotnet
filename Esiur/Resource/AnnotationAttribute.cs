@@ -2,17 +2,15 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event)]
+public class AnnotationAttribute : Attribute
 {
 
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event)]
-    public class AnnotationAttribute : Attribute
+    public string Annotation { get; set; }
+    public AnnotationAttribute(string annotation)
     {
-
-        public string Annotation { get; set; }
-        public AnnotationAttribute(string annotation)
-        {
-            this.Annotation = annotation;
-        }
+        this.Annotation = annotation;
     }
 }

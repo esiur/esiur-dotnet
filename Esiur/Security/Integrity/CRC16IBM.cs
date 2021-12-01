@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Security.Integrity
-{
+namespace Esiur.Security.Integrity;
 
-    public class CRC16IBM
-    {
-        static UInt16[] table = {
+public class CRC16IBM
+{
+    static UInt16[] table = {
 0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
 0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,
 0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
@@ -41,42 +40,40 @@ namespace Esiur.Security.Integrity
 0x4400, 0x84C1, 0x8581, 0x4540, 0x8701, 0x47C0, 0x4680, 0x8641,
 0x8201, 0x42C0, 0x4380, 0x8341, 0x4100, 0x81C1, 0x8081, 0x4040};
 
-        public static ushort Compute(byte[] data)
+    public static ushort Compute(byte[] data)
+    {
+        return Compute(data, 0, (uint)data.Length);
+    }
+
+
+    public static ushort Compute(byte[] data, uint offset, uint length)
+    {
+        ushort crc = 0;// 0xffff;
+        ushort x;
+        for (var i = offset; i < length; i++)
         {
-            return Compute(data, 0, (uint)data.Length);
+            x = (ushort)(crc ^ data[i]);
+            crc = (UInt16)((crc >> 8) ^ table[x & 0x00FF]);
         }
 
+        return crc;
+    }
 
-        public static ushort Compute(byte[] data, uint offset, uint length)
+    public static ushort Compute2(byte[] data, uint offset, uint length)
+    {
+        ushort crc = 0;
+        for (var i = offset; i < length; i++)
         {
-            ushort crc = 0;// 0xffff;
-            ushort x;
-            for (var i = offset; i < length; i++)
+            crc ^= data[i];
+
+            for (var j = 0; j < 8; j++)
             {
-                x = (ushort)(crc ^ data[i]);
-                crc = (UInt16)((crc >> 8) ^ table[x & 0x00FF]);
+                var carry = crc & 0x1;
+                crc >>= 1;
+                if (carry == 1)
+                    crc ^= 0xa001;
             }
-
-            return crc;
         }
-
-        public static ushort Compute2(byte[] data, uint offset, uint length)
-        {
-            ushort crc = 0;
-            for (var i = offset; i < length; i++)
-            {
-                crc ^= data[i];
-
-                for (var j = 0; j < 8; j++)
-                {
-                    var carry = crc & 0x1;
-                    crc >>= 1;
-                    if (carry == 1)
-                        crc ^= 0xa001;
-                }
-            }
-            return crc;
-        }
+        return crc;
     }
 }
-

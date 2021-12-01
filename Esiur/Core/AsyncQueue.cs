@@ -28,57 +28,56 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Core
+namespace Esiur.Core;
+
+public class AsyncQueue<T> : AsyncReply<T>
 {
-    public class AsyncQueue<T> : AsyncReply<T>
+    List<AsyncReply<T>> list = new List<AsyncReply<T>>();
+    //Action<T> callback;
+    object queueLock = new object();
+
+    //public AsyncQueue<T> Then(Action<T> callback)
+    //{
+    //  base.Then(new Action<object>(o => callback((T)o)));
+
+    //return this;
+    //}
+
+    public void Add(AsyncReply<T> reply)
     {
-        List<AsyncReply<T>> list = new List<AsyncReply<T>>();
-        //Action<T> callback;
-        object queueLock = new object();
+        lock (queueLock)
+            list.Add(reply);
 
-        //public AsyncQueue<T> Then(Action<T> callback)
-        //{
-          //  base.Then(new Action<object>(o => callback((T)o)));
+        resultReady = false;
+        reply.Then(processQueue);
+    }
 
-            //return this;
-        //}
+    public void Remove(AsyncReply<T> reply)
+    {
+        lock (queueLock)
+            list.Remove(reply);
+        processQueue(default(T));
+    }
 
-        public void Add(AsyncReply<T> reply)
-        {
-            lock (queueLock)
-                list.Add(reply);
+    void processQueue(T o)
+    {
+        lock (queueLock)
+            for (var i = 0; i < list.Count; i++)
+                if (list[i].Ready)
+                {
+                    Trigger(list[i].Result);
+                    resultReady = false;
+                    list.RemoveAt(i);
+                    i--;
+                }
+                else
+                    break;
 
-            resultReady = false;
-            reply.Then(processQueue);
-        }
+        resultReady = (list.Count == 0);
+    }
 
-        public void Remove(AsyncReply<T> reply)
-        {
-            lock (queueLock)
-                list.Remove(reply);
-            processQueue(default(T));
-        }
+    public AsyncQueue()
+    {
 
-        void processQueue(T o)
-        {
-            lock (queueLock)
-                for (var i = 0; i < list.Count; i++)
-                    if (list[i].Ready)
-                    {
-                        Trigger(list[i].Result);
-                        resultReady = false;
-                        list.RemoveAt(i);
-                        i--;
-                    }
-                    else
-                        break;
-
-            resultReady = (list.Count == 0);
-        }
-
-        public AsyncQueue()
-        {
-
-        }
     }
 }

@@ -39,135 +39,157 @@ using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Esiur.Data;
 
-namespace Esiur.Stores.EntityCore
+namespace Esiur.Stores.EntityCore;
+
+public class EsiurProxyRewrite : IModelFinalizingConvention
 {
-    public class EsiurProxyRewrite : IModelFinalizingConvention 
+    private static readonly MethodInfo _createInstance
+= typeof(EsiurProxyRewrite).GetTypeInfo().GetDeclaredMethod(nameof(EsiurProxyRewrite.CreateInstance));
+
+    private readonly ConstructorBindingConvention _directBindingConvention;
+
+
+
+    public static object CreateInstance(IDbContextOptions dbContextOptions,
+                                        IEntityType entityType,
+                                        object[] properties)
     {
-        private static readonly MethodInfo _createInstance
-    = typeof(EsiurProxyRewrite).GetTypeInfo().GetDeclaredMethod(nameof(EsiurProxyRewrite.CreateInstance));
+        var id = properties.First();
 
-        private readonly ConstructorBindingConvention _directBindingConvention;
+        var options = dbContextOptions.FindExtension<EsiurExtensionOptions>();
+        var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
 
-        //public static object CreateInstance(IDbContextOptions dbContextOptions, IEntityType entityType,
-        //                                    object[] constructorArguments, DbContext context, long id)
-        //{
-        //    return CreateInstance(dbContextOptions, entityType,
-        //                                     constructorArguments,  context,  id);
-        //}
+        var cache = options.Store.GetById(entityType.ClrType, id);
 
-        public static object CreateInstance(
-                                            IDbContextOptions dbContextOptions,
-                                            IEntityType entityType,
-                                            //object id
-                                            object[] properties
+        if (cache != null)
+            return cache;
 
-        // ILazyLoader loader,
-        // object[] constructorArguments,
-        //DbContext context,
-        )
+        if (Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
         {
-            var id = properties.First();
-
-            var options = dbContextOptions.FindExtension<EsiurExtensionOptions>();
-            var manager = options.Store.Instance.Managers.Count > 0 ? options.Store.Instance.Managers.First() : null;
-
-            var cache = options.Store.GetById(entityType.ClrType, id);
-
-            if (cache != null)
-                return cache;
-
-            if (Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
-            {
-                // check if the object exists
-                var obj = Warehouse.New(entityType.ClrType).Wait() as IResource;
-                options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
-                Warehouse.Put(id.ToString(), obj, options.Store, null, null, 0, manager).Wait();
-                return obj;
-
-            }
-            else
-            {
-                // record
-                var obj = Activator.CreateInstance(entityType.ClrType);
-                options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
-
-                return obj;
-            }
-        }
-
-
-        public EsiurProxyRewrite(EsiurExtensionOptions ext, ProviderConventionSetBuilderDependencies conventionSetBuilderDependencies)
-        {
-            _directBindingConvention = new ConstructorBindingConvention(conventionSetBuilderDependencies);
+            // check if the object exists
+            var obj = Warehouse.New(entityType.ClrType).Wait() as IResource;
+            options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
+            Warehouse.Put(id.ToString(), obj, options.Store, null, null, 0, manager).Wait();
+            return obj;
 
         }
-
-
-        public void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
+        else
         {
-            foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
+            // record
+            var obj = Activator.CreateInstance(entityType.ClrType);
+            options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
+
+            return obj;
+        }
+    }
+
+
+    public EsiurProxyRewrite(EsiurExtensionOptions ext, ProviderConventionSetBuilderDependencies conventionSetBuilderDependencies)
+    {
+        _directBindingConvention = new ConstructorBindingConvention(conventionSetBuilderDependencies);
+
+    }
+
+
+    public void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
+    {
+        foreach (var entityType in modelBuilder.Metadata.GetEntityTypes())
+        {
+
+            if (!Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
+                continue;
+
+            var proxyType = ResourceProxy.GetProxy(entityType.ClrType);
+
+            // var ann = entityType.GetAnnotation(CoreAnnotationNames.ConstructorBinding);
+
+#pragma warning disable EF1001 // Internal EF Core API usage.
+            var binding = ((EntityType)entityType).ConstructorBinding;// (InstantiationBinding)entityType[CoreAnnotationNames.ConstructorBinding];
+#pragma warning restore EF1001 // Internal EF Core API usage.
+            if (binding == null)
+            {
+                _directBindingConvention.ProcessModelFinalizing(modelBuilder, context);
+
+#pragma warning disable EF1001 // Internal EF Core API usage.
+                binding = ((EntityType)entityType).ConstructorBinding; // (InstantiationBinding)entityType[CoreAnnotationNames.ConstructorBinding];
+#pragma warning restore EF1001 // Internal EF Core API usage.
+            }
+
+            try
             {
 
-                if (!Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
+                var key = entityType.FindPrimaryKey().Properties.First();
+                if (key == null)
                     continue;
 
-                var proxyType = ResourceProxy.GetProxy(entityType.ClrType);
 
-                // var ann = entityType.GetAnnotation(CoreAnnotationNames.ConstructorBinding);
+                ((EntityType)entityType).SetConstructorBinding(
+                    UpdateConstructorBindings(key, proxyType),
+                    ConfigurationSource.Convention);
 
-#pragma warning disable EF1001 // Internal EF Core API usage.
-                var binding = (InstantiationBinding)entityType[CoreAnnotationNames.ConstructorBinding];
-#pragma warning restore EF1001 // Internal EF Core API usage.
-                if (binding == null)
-                    _directBindingConvention.ProcessModelFinalizing(modelBuilder, context);
-
-#pragma warning disable EF1001 // Internal EF Core API usage.
-                binding = (InstantiationBinding)entityType[CoreAnnotationNames.ConstructorBinding];
-#pragma warning restore EF1001 // Internal EF Core API usage.
-
-
-                try
+                binding = ((EntityType)entityType).ServiceOnlyConstructorBinding;
+                if (binding != null)
                 {
-
-                    var key = entityType.FindPrimaryKey().Properties.First();
-                    if (key == null)
-                        continue;
-
-                    //var keys = entityType.FindPrimaryKey().Properties.Select(x=>new PropertyParameterBinding(x));
-
-                    entityType.SetAnnotation(
-#pragma warning disable EF1001 // Internal EF Core API usage.
-                        CoreAnnotationNames.ConstructorBinding,
-#pragma warning restore EF1001 // Internal EF Core API usage.
-                        new FactoryMethodBinding(
-                            _createInstance,
-                            new List<ParameterBinding>
-                                {
-                                new DependencyInjectionParameterBinding(typeof(IDbContextOptions), typeof(IDbContextOptions)),
-                                new EntityTypeParameterBinding(),
-                                //new PropertyParameterBinding(key)
-                                // constructor arguments 
-                                //new ObjectArrayParameterBinding(binding.ParameterBindings),
-                                 //new ContextParameterBinding(typeof(DbContext)),
-                                 //new ObjectArrayParameterBinding(entityType.FindPrimaryKey().Properties.Select(x=>new PropertyParameterBinding(x)).ToArray())
-                                 new ObjectArrayParameterBinding(new ParameterBinding[]{
-                                            new PropertyParameterBinding(key) })
-                                 //})
-                                // new Microsoft.EntityFrameworkCore.Metadata.ObjectArrayParameterBinding(),
-                                 //new ObjectArrayParameterBinding() 
-
-                                },
-                            proxyType));
-
+                    ((EntityType)entityType).SetServiceOnlyConstructorBinding(
+                        UpdateConstructorBindings(key, proxyType),
+                        ConfigurationSource.Convention);
                 }
-                catch
-                {
 
-                }
+
+                //                entityType.SetAnnotation(
+                //#pragma warning disable EF1001 // Internal EF Core API usage.
+                //                        CoreAnnotationNames.ConstructorBinding,
+                //#pragma warning restore EF1001 // Internal EF Core API usage.
+                //                        new FactoryMethodBinding(
+                //                        _createInstance,
+                //                        new List<ParameterBinding>
+                //                            {
+                //                                new DependencyInjectionParameterBinding(typeof(IDbContextOptions), typeof(IDbContextOptions)),
+                //                                new EntityTypeParameterBinding(),
+                //                                //new PropertyParameterBinding(key)
+                //                                // constructor arguments 
+                //                                //new ObjectArrayParameterBinding(binding.ParameterBindings),
+                //                                 //new ContextParameterBinding(typeof(DbContext)),
+                //                                 //new ObjectArrayParameterBinding(entityType.FindPrimaryKey().Properties.Select(x=>new PropertyParameterBinding(x)).ToArray())
+                //                                 new ObjectArrayParameterBinding(new ParameterBinding[]{
+                //                                            new PropertyParameterBinding(key) })
+                //                            //})
+                //                            // new Microsoft.EntityFrameworkCore.Metadata.ObjectArrayParameterBinding(),
+                //                            //new ObjectArrayParameterBinding() 
+
+                //                        },
+                //                        proxyType));
 
             }
+            catch
+            {
+
+            }
+
+
+
+
         }
 
- 
+
+
+    }
+
+
+    private InstantiationBinding UpdateConstructorBindings(
+    IConventionProperty key,
+    Type proxyType)
+    {
+        return new FactoryMethodBinding(
+                        _createInstance,
+                        new List<ParameterBinding>
+                            {
+                                new DependencyInjectionParameterBinding(typeof(IDbContextOptions), typeof(IDbContextOptions)),
+                                new EntityTypeParameterBinding(),
+                                 new ObjectArrayParameterBinding(new ParameterBinding[]{
+                                            new PropertyParameterBinding((IProperty)key) })
+
+                        },
+                        proxyType);
     }
 }

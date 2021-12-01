@@ -35,143 +35,141 @@ using System.Net;
 using Esiur.Resource;
 using Esiur.Security.Membership;
 
-namespace Esiur.Net.IIP
+namespace Esiur.Net.IIP;
+public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 {
-    public class DistributedServer : NetworkServer<DistributedConnection>, IResource
+    [Attribute]
+    public string IP
     {
-        [Attribute]
-        public string IP
-        {
-            get;
-            set;
-        }
-
-        [Attribute]
-        public IMembership Membership
-        {
-            get;
-            set;
-        }
-
-        [Attribute]
-        public EntryPoint EntryPoint
-        {
-            get;
-            set;
-        }
-
-        [Attribute]
-        public ushort Port
-        {
-            get;
-            set;
-        } = 10518;
-
-
-        [Attribute]
-        public ExceptionLevel ExceptionLevel { get; set; }
-            = ExceptionLevel.Code
-            | ExceptionLevel.Source
-            | ExceptionLevel.Message
-            | ExceptionLevel.Trace;
-
-
-        public Instance Instance
-        {
-            get;
-            set;
-        }
-
-        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)
-            {
-                TCPSocket listener;
-
-                if (IP != null)
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
-                else
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
-
-                Start(listener);
-            }
-            else if (trigger == ResourceTrigger.Terminate)
-            {
-                Stop();
-            }
-            else if (trigger == ResourceTrigger.SystemReload)
-            {
-                Trigger(ResourceTrigger.Terminate);
-                Trigger(ResourceTrigger.Initialize);
-            }
-
-            return new AsyncReply<bool>(true);
-        }
-
-
-
-        //protected override void DataReceived(DistributedConnection sender, NetworkBuffer data)
-        //{
-        //    //throw new NotImplementedException();
- 
-        //}
-
- 
-
-        //protected override void ClientConnected(DistributedConnection sender)
-        //{
-        //    //Console.WriteLine("DistributedConnection Client Connected");
-        //}
-
-        //private void ConnectionReadyEventReceiver(DistributedConnection sender)
-        //{
-        //    sender.OnReady -= ConnectionReadyEventReceiver;
-        //    Warehouse.Put(sender, sender.LocalUsername, null, this);
-        //}
-
-        
-        //public override void RemoveConnection(DistributedConnection connection)
-        //{
-        //    connection.OnReady -= Sender_OnReady;
-        //    //connection.Server = null;
-        //    base.RemoveConnection(connection);
-        //}
-
-        //public override void AddConnection(DistributedConnection connection)
-        //{
-        //    connection.OnReady += Sender_OnReady;
-        //    connection.Server = this;
-        //    base.AddConnection(connection);
-        //}
-
-
-
-        protected override void ClientConnected(DistributedConnection connection)
-        {
-            //connection.OnReady += ConnectionReadyEventReceiver;
-        }
-
-        public override void Add(DistributedConnection connection)
-        {
-            connection.Server = this;
-            connection.ExceptionLevel = ExceptionLevel;
-            base.Add(connection);
-        }
-
-        public override void Remove(DistributedConnection connection)
-        {
-            connection.Server = null;
-            base.Remove(connection);
-        }
-
-        protected override void ClientDisconnected(DistributedConnection connection)
-        {
-            //connection.OnReady -= ConnectionReadyEventReceiver;
-            //Warehouse.Remove(connection);
-
-
-        }
-
-        
+        get;
+        set;
     }
+
+    [Attribute]
+    public IMembership Membership
+    {
+        get;
+        set;
+    }
+
+    [Attribute]
+    public EntryPoint EntryPoint
+    {
+        get;
+        set;
+    }
+
+    [Attribute]
+    public ushort Port
+    {
+        get;
+        set;
+    } = 10518;
+
+
+    [Attribute]
+    public ExceptionLevel ExceptionLevel { get; set; }
+        = ExceptionLevel.Code
+        | ExceptionLevel.Source
+        | ExceptionLevel.Message
+        | ExceptionLevel.Trace;
+
+
+    public Instance Instance
+    {
+        get;
+        set;
+    }
+
+    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    {
+        if (trigger == ResourceTrigger.Initialize)
+        {
+            TCPSocket listener;
+
+            if (IP != null)
+                listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
+            else
+                listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
+
+            Start(listener);
+        }
+        else if (trigger == ResourceTrigger.Terminate)
+        {
+            Stop();
+        }
+        else if (trigger == ResourceTrigger.SystemReload)
+        {
+            Trigger(ResourceTrigger.Terminate);
+            Trigger(ResourceTrigger.Initialize);
+        }
+
+        return new AsyncReply<bool>(true);
+    }
+
+
+
+    //protected override void DataReceived(DistributedConnection sender, NetworkBuffer data)
+    //{
+    //    //throw new NotImplementedException();
+
+    //}
+
+
+
+    //protected override void ClientConnected(DistributedConnection sender)
+    //{
+    //    //Console.WriteLine("DistributedConnection Client Connected");
+    //}
+
+    //private void ConnectionReadyEventReceiver(DistributedConnection sender)
+    //{
+    //    sender.OnReady -= ConnectionReadyEventReceiver;
+    //    Warehouse.Put(sender, sender.LocalUsername, null, this);
+    //}
+
+
+    //public override void RemoveConnection(DistributedConnection connection)
+    //{
+    //    connection.OnReady -= Sender_OnReady;
+    //    //connection.Server = null;
+    //    base.RemoveConnection(connection);
+    //}
+
+    //public override void AddConnection(DistributedConnection connection)
+    //{
+    //    connection.OnReady += Sender_OnReady;
+    //    connection.Server = this;
+    //    base.AddConnection(connection);
+    //}
+
+
+
+    protected override void ClientConnected(DistributedConnection connection)
+    {
+        //connection.OnReady += ConnectionReadyEventReceiver;
+    }
+
+    public override void Add(DistributedConnection connection)
+    {
+        connection.Server = this;
+        connection.ExceptionLevel = ExceptionLevel;
+        base.Add(connection);
+    }
+
+    public override void Remove(DistributedConnection connection)
+    {
+        connection.Server = null;
+        base.Remove(connection);
+    }
+
+    protected override void ClientDisconnected(DistributedConnection connection)
+    {
+        //connection.OnReady -= ConnectionReadyEventReceiver;
+        //Warehouse.Remove(connection);
+
+
+    }
+
+
 }

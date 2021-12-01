@@ -4,20 +4,20 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Distributed Resources Platform</Description>
     <Copyright>Ahmed Kh. Zamil</Copyright>
-    <PackageLicenseUrl>https://github.com/Esiur/Esiur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
-    <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
+     <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.8.8</Version>
+    <Version>2.0.0-alpha</Version>
     <RepositoryUrl>https://github.com/esiur/esiur-dotnet</RepositoryUrl>
     <Authors>Ahmed Kh. Zamil</Authors>
-    <AssemblyVersion>1.8.8.0</AssemblyVersion>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <Company>Esiur Foundation</Company>
-    <FileVersion>1.8.8.0</FileVersion>
+    <FileVersion>2.0.0.0</FileVersion>
     <AssemblyName>Esiur</AssemblyName>
     <RootNamespace>Esiur</RootNamespace>
     <PackageId>Esiur</PackageId>
     <Product>Esiur</Product>
-    <LangVersion>9.0</LangVersion>
+    <LangVersion>latest</LangVersion>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -79,10 +79,13 @@
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- Package the Newtonsoft.Json dependency alongside the generator assembly -->
     <None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-
-
     <None Include="Tools/*" Pack="true" PackagePath="tools/" />
+  </ItemGroup>
 
+
+  <ItemGroup>
+    <None Include="LICENSE" Pack="true" PackagePath="">
+    </None>
   </ItemGroup>
 
 </Project> 

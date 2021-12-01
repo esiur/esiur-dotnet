@@ -28,104 +28,103 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Core
+namespace Esiur.Core;
+
+public class AsyncBag : AsyncReply
 {
-    public class AsyncBag: AsyncReply
+
+    protected List<AsyncReply> replies = new List<AsyncReply>();
+    List<object> results = new List<object>();
+
+    int count = 0;
+    bool sealedBag = false;
+
+
+    public Type ArrayType { get; set; }
+
+    public AsyncBag Then(Action<object[]> callback)
+    {
+        base.Then(new Action<object>(o => callback((object[])o)));
+        return this;
+    }
+
+    public new AsyncBagAwaiter GetAwaiter()
+    {
+        return new AsyncBagAwaiter(this);
+    }
+
+    public new object[] Wait()
+    {
+        return (object[])base.Wait();
+    }
+
+    public new object[] Wait(int timeout)
+    {
+        return (object[])base.Wait(timeout);
+    }
+
+    public void Seal()
+    {
+        if (sealedBag)
+            return;
+
+        sealedBag = true;
+
+        if (results.Count == 0)
+            Trigger(new object[0]);
+
+        for (var i = 0; i < results.Count; i++)
+        //foreach(var reply in results.Keys)
+        {
+            var k = replies[i];// results.Keys.ElementAt(i);
+            var index = i;
+
+            k.Then((r) =>
+            {
+                results[index] = r;
+                count++;
+                if (count == results.Count)
+                {
+                    if (ArrayType != null)
+                    {
+                        var ar = Array.CreateInstance(ArrayType, count);
+                        for (var i = 0; i < count; i++)
+                            ar.SetValue(results[i], i);
+                        Trigger(ar);
+                    }
+                    else
+                        Trigger(results.ToArray());
+                }
+            });
+        }
+    }
+
+    public void Add(AsyncReply reply)
+    {
+        if (!sealedBag)
+        {
+            results.Add(null);
+            replies.Add(reply);
+        }
+    }
+
+    public void AddBag(AsyncBag bag)
+    {
+        foreach (var r in bag.replies)
+            Add(r);
+    }
+
+
+
+    public AsyncBag()
     {
 
-        protected List<AsyncReply> replies = new List<AsyncReply>();
-        List<object> results = new List<object>();
+    }
 
-        int count = 0;
-        bool sealedBag = false;
-
-
-        public Type ArrayType { get; set; }
-
-        public AsyncBag Then(Action<object[]> callback)
-        {
-            base.Then(new Action<object>(o => callback((object[])o)));
-            return this;
-        }
-
-        public new AsyncBagAwaiter GetAwaiter()
-        {
-            return new AsyncBagAwaiter(this);
-        }
-
-        public new object[] Wait()
-        {
-            return (object[])base.Wait();
-        }
-
-        public new object[] Wait(int timeout)
-        {
-            return (object[])base.Wait(timeout);
-        }
-
-        public void Seal()
-        {
-            if (sealedBag)
-                return;
-
-            sealedBag = true;
-
-            if (results.Count == 0)
-                Trigger(new object[0]);
-
-            for (var i = 0; i < results.Count; i++)
-            //foreach(var reply in results.Keys)
-            {
-                var k = replies[i];// results.Keys.ElementAt(i);
-                var index = i;
-
-                k.Then((r) =>
-                {
-                    results[index] = r;
-                    count++;
-                    if (count == results.Count)
-                    {
-                        if (ArrayType != null)
-                        {
-                            var ar = Array.CreateInstance(ArrayType, count);
-                            for (var i = 0; i < count; i++)
-                                ar.SetValue(results[i], i);
-                            Trigger(ar);
-                        }
-                        else
-                            Trigger(results.ToArray());
-                    }
-                });
-            }
-        }
-
-        public void Add(AsyncReply reply)
-        {
-            if (!sealedBag)
-            {
-                results.Add(null);
-                replies.Add(reply);
-            }
-        }
-
-        public void AddBag(AsyncBag bag)
-        {
-            foreach (var r in bag.replies)
-                Add(r);
-        }
-
-      
-
-        public AsyncBag()
-        {
-
-        }
-
-        public AsyncBag(object[] results)
-            : base(results)
-        {
-
-        }
+    public AsyncBag(object[] results)
+        : base(results)
+    {
 
     }
+
 }

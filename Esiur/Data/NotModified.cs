@@ -28,10 +28,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Data
+namespace Esiur.Data;
+public class NotModified
 {
-    public class NotModified
-    {
 
-    }
 }

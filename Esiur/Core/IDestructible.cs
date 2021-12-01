@@ -27,13 +27,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Core
-{
-    public delegate void DestroyedEvent(object sender);
+namespace Esiur.Core;
 
-    public interface IDestructible
-    {
-        event DestroyedEvent OnDestroy;
-        void Destroy();
-    }
+public delegate void DestroyedEvent(object sender);
+
+public interface IDestructible
+{
+    event DestroyedEvent OnDestroy;
+    void Destroy();
 }

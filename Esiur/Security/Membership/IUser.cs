@@ -29,13 +29,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Membership
+namespace Esiur.Security.Membership;
+
+public interface IUser
 {
-    public interface IUser
+    string Username
     {
-        string Username
-        {
-            get;
-        }
+        get;
     }
 }

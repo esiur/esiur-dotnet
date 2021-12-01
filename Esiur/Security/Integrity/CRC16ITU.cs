@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Security.Integrity
-{
+namespace Esiur.Security.Integrity;
 
-    public class CRC16ITU
-    {
-        static UInt16[] table =
+public class CRC16ITU
+{
+    static UInt16[] table =
 {
  0X0000, 0X1189, 0X2312, 0X329B, 0X4624, 0X57AD, 0X6536, 0X74BF,
  0X8C48, 0X9DC1, 0XAF5A, 0XBED3, 0XCA6C, 0XDBE5, 0XE97E, 0XF8F7,
@@ -44,23 +43,22 @@ namespace Esiur.Security.Integrity
 };
 
 
-        public static ushort Compute(byte[] data)
+    public static ushort Compute(byte[] data)
+    {
+        return Compute(data, 0, (uint)data.Length);
+    }
+
+
+    public static ushort Compute(byte[] data, uint offset, uint length)
+    {
+        ushort fcs = 0xffff; // initialization
+        while (length > 0)
         {
-            return Compute(data, 0, (uint)data.Length);
+            fcs = (ushort)((fcs >> 8) ^ table[(fcs ^ data[offset++]) & 0xff]);
+            length--;
         }
-
-
-        public static ushort Compute(byte[] data, uint offset, uint length)
-        {
-            ushort fcs = 0xffff; // initialization
-            while (length > 0)
-            {
-                fcs = (ushort)((fcs >> 8) ^ table[(fcs ^ data[offset++]) & 0xff]);
-                length--;
-            }
-            return (ushort)~fcs; // negated
-        }
-
+        return (ushort)~fcs; // negated
     }
 
 }
+

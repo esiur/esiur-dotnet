@@ -27,16 +27,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
-{
+namespace Esiur.Resource;
 
-    [AttributeUsage(AttributeTargets.Property)]
-    public class AttributeAttribute : System.Attribute
+[AttributeUsage(AttributeTargets.Property)]
+public class AttributeAttribute : System.Attribute
+{
+    public string Name { get; set; }
+    public AttributeAttribute(string name = null)
     {
-        public string Name { get; set; }
-        public AttributeAttribute(string name = null)
-        {
-            this.Name = name;
-        }
+        this.Name = name;
     }
 }

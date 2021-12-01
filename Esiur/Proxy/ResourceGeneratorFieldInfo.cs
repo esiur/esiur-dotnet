@@ -3,11 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Proxy
+namespace Esiur.Proxy;
+public struct ResourceGeneratorFieldInfo
 {
-    public struct ResourceGeneratorFieldInfo
-    {
-        public IFieldSymbol FieldSymbol { get; set; }
-        public string[] Attributes { get; set; }
-    }
+    public IFieldSymbol FieldSymbol { get; set; }
+    public string[] Attributes { get; set; }
 }

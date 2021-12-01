@@ -33,16 +33,15 @@ using Esiur.Core;
 using Esiur.Security.Authority;
 using Esiur.Resource;
 
-namespace Esiur.Security.Membership
+namespace Esiur.Security.Membership;
+
+public interface IMembership
 {
-    public interface IMembership
-    {
-        AsyncReply<bool> UserExists(string username, string domain);
-        AsyncReply<byte[]> GetPassword(string username, string domain);
-        AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
-        AsyncReply<bool> Login(Session session);
-        AsyncReply<bool> Logout(Session session);
-        bool GuestsAllowed { get; }
-        AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
-    }
+    AsyncReply<bool> UserExists(string username, string domain);
+    AsyncReply<byte[]> GetPassword(string username, string domain);
+    AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
+    AsyncReply<bool> Login(Session session);
+    AsyncReply<bool> Logout(Session session);
+    bool GuestsAllowed { get; }
+    AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
 }

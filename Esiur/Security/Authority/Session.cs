@@ -31,31 +31,29 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+public class Session
 {
-    public class Session
+    public Authentication LocalAuthentication => localAuth;
+    public Authentication RemoteAuthentication => remoteAuth;
+
+    // public Source Source { get; }
+    public byte[] Id { get; set; }
+    public DateTime Creation { get; }
+    public DateTime Modification { get; }
+    public KeyList<string, object> Variables { get; } = new KeyList<string, object>();
+
+    //KeyList<string, object> Variables { get; }
+    //IStore Store { get; }
+
+    //string id;
+    Authentication localAuth, remoteAuth;
+    //string domain;
+
+    public Session(Authentication localAuthentication, Authentication remoteAuthentication)
     {
-        public Authentication LocalAuthentication => localAuth;
-        public Authentication RemoteAuthentication => remoteAuth;
 
-       // public Source Source { get; }
-        public byte[] Id { get; set; }
-        public DateTime Creation { get; }
-        public DateTime Modification { get; }
-        public KeyList<string, object> Variables {get;} = new KeyList<string, object>();
-
-         //KeyList<string, object> Variables { get; }
-        //IStore Store { get; }
-
-        //string id;
-        Authentication localAuth, remoteAuth;
-        //string domain;
-
-        public Session(Authentication localAuthentication, Authentication remoteAuthentication)
-        {
-             
-            this.localAuth = localAuthentication;
-            this.remoteAuth = remoteAuthentication;
-        }
+        this.localAuth = localAuthentication;
+        this.remoteAuth = remoteAuthentication;
     }
 }

@@ -27,27 +27,25 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Event)]
+public class ResourceEvent : System.Attribute
 {
 
-    [AttributeUsage(AttributeTargets.Event)]
-    public class ResourceEvent : System.Attribute
+    string expansion;
+
+    public string Expansion
     {
-
-        string expansion;
-
-        public string Expansion
+        get
         {
-            get
-            {
-                return expansion;
-            }
+            return expansion;
         }
-        
+    }
 
-        public ResourceEvent(string expansion = null)
-        {
-            this.expansion = expansion;
-        }
+
+    public ResourceEvent(string expansion = null)
+    {
+        this.expansion = expansion;
     }
 }

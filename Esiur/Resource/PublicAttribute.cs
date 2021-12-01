@@ -2,17 +2,16 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event | AttributeTargets.Class)]
+
+public class PublicAttribute : Attribute
 {
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event | AttributeTargets.Class)]
+    public string Name { get; set; }
 
-    public class PublicAttribute : Attribute
+    public PublicAttribute(string name = null)
     {
-        public string Name { get; set; }
-
-        public PublicAttribute(string name = null)
-        {
-            Name = name;
-        }
+        Name = name;
     }
 }

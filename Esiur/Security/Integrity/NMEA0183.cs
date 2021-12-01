@@ -2,25 +2,23 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Security.Integrity
+namespace Esiur.Security.Integrity;
+
+public class NMEA0183
 {
-
-    public class NMEA0183
+    public static byte Compute(string data)
     {
-        public static byte Compute(string data)
-        {
-            return Compute(data, 0, (uint)data.Length);
-        }
-
-        public static byte Compute(string data, uint offset, uint length)
-        {
-            byte rt = 0;
-            var ends = offset + length;
-            for (int i = (int)offset; i < ends; i++)
-                rt ^= (byte)data[i];
-
-            return rt;
-        }
+        return Compute(data, 0, (uint)data.Length);
     }
 
+    public static byte Compute(string data, uint offset, uint length)
+    {
+        byte rt = 0;
+        var ends = offset + length;
+        for (int i = (int)offset; i < ends; i++)
+            rt ^= (byte)data[i];
+
+        return rt;
+    }
 }
+

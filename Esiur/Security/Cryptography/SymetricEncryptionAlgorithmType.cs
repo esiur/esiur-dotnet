@@ -27,12 +27,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Cryptography
+namespace Esiur.Security.Cryptography;
+
+public enum SymetricEncryptionAlgorithmType
 {
-    public enum SymetricEncryptionAlgorithmType
-    {
-        AES = 0,
-        Blowfish = 1,
-        DES = 2
-    }
+    AES = 0,
+    Blowfish = 1,
+    DES = 2
 }

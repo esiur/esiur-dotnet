@@ -32,24 +32,23 @@ using System.ComponentModel;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+public delegate bool QueryFilter<T>(T value);
+
+//[JsonConverter(typeof(ResourceJsonConverter))]
+
+public interface IResource : IDestructible///, INotifyPropertyChanged
 {
-    public delegate bool QueryFilter<T>(T value);
 
-    //[JsonConverter(typeof(ResourceJsonConverter))]
+    AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-    public interface IResource : IDestructible///, INotifyPropertyChanged
+    [NotMapped]
+    Instance Instance
     {
-
-        AsyncReply<bool> Trigger(ResourceTrigger trigger);
-
-        [NotMapped]
-        Instance Instance
-        {
-            get;
-            set;
-        }
-
-
+        get;
+        set;
     }
+
+
 }

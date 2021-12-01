@@ -28,48 +28,47 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Core
+namespace Esiur.Core;
+
+public class AsyncBag<T> : AsyncBag
 {
-    public class AsyncBag<T>: AsyncBag
-    {     
-        public AsyncBag<T> Then(Action<T[]> callback)
-        {
-            base.Then(new Action<object>((o) => callback(((object[])o).Select(x=>(T)x).ToArray())));
-            return this;
-        }
-        
-
-        public void Add(AsyncReply<T> reply)
-        {
-            base.Add(reply);
-        }
-
-        public void AddBag(AsyncBag<T> bag)
-        {
-            foreach (var r in bag.replies)
-                Add(r);
-        }
+    public AsyncBag<T> Then(Action<T[]> callback)
+    {
+        base.Then(new Action<object>((o) => callback(((object[])o).Select(x => (T)x).ToArray())));
+        return this;
+    }
 
 
-        public new AsyncBagAwaiter<T> GetAwaiter()
-        {
-            return new AsyncBagAwaiter<T>(this);
-        }
+    public void Add(AsyncReply<T> reply)
+    {
+        base.Add(reply);
+    }
 
-        public new T[] Wait()
-        {
-            return base.Wait().Select(x => (T)x).ToArray();
-        }
+    public void AddBag(AsyncBag<T> bag)
+    {
+        foreach (var r in bag.replies)
+            Add(r);
+    }
 
-        public AsyncBag()
-        {
 
-        }
+    public new AsyncBagAwaiter<T> GetAwaiter()
+    {
+        return new AsyncBagAwaiter<T>(this);
+    }
 
-        public AsyncBag(T[] results)
-            : base(results.Select(x=>(object)x).ToArray())
-        {
+    public new T[] Wait()
+    {
+        return base.Wait().Select(x => (T)x).ToArray();
+    }
 
-        }
+    public AsyncBag()
+    {
+
+    }
+
+    public AsyncBag(T[] results)
+        : base(results.Select(x => (object)x).ToArray())
+    {
+
     }
 }

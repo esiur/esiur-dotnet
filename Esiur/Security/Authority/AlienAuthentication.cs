@@ -28,14 +28,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
-{
-    public class AlienAuthentication : Authentication
-    {
-        public AlienAuthentication() : 
-            base(AuthenticationType.Alien)
-        {
+namespace Esiur.Security.Authority;
 
-        }
+public class AlienAuthentication : Authentication
+{
+    public AlienAuthentication() :
+        base(AuthenticationType.Alien)
+    {
+
     }
 }

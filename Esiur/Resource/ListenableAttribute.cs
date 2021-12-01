@@ -27,16 +27,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.Event)]
+public class ListenableAttribute : System.Attribute
 {
 
-    [AttributeUsage(AttributeTargets.Event)]
-    public class ListenableAttribute : System.Attribute
+    public ListenableAttribute()
     {
 
-        public ListenableAttribute()
-        {
-
-        }
     }
 }

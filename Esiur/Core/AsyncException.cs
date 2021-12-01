@@ -26,32 +26,31 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Core
+namespace Esiur.Core;
+
+public class AsyncException : Exception
 {
-    public class AsyncException : Exception
+    public readonly ErrorType Type;
+    public readonly ExceptionCode Code;
+
+    public AsyncException(Exception exception) : base(exception.Message, exception)
     {
-        public readonly ErrorType Type;
-        public readonly ExceptionCode Code;
+        Type = ErrorType.Exception;
+        Code = 0;
+    }
 
-        public AsyncException(Exception exception) :base(exception.Message, exception)
-        {
-            Type = ErrorType.Exception;
-            Code = 0;
-        }
+    public override string StackTrace => InnerException != null && Type == ErrorType.Exception ? InnerException.StackTrace : base.StackTrace;
 
-        public override string StackTrace => InnerException != null && Type == ErrorType.Exception ? InnerException.StackTrace : base.StackTrace;
+    public AsyncException(ErrorType type, ushort code, string message)
+        : base(type == ErrorType.Management ? ((ExceptionCode)code).ToString() : message)
+    {
+        this.Type = type;
+        this.Code = (ExceptionCode)code;
 
-        public AsyncException(ErrorType type, ushort code, string message)
-            : base(type == ErrorType.Management ? ((ExceptionCode)code).ToString() : message)
-        {
-            this.Type = type;
-            this.Code = (ExceptionCode)code;
+    }
 
-        }
-
-        public override string ToString()
-        {
-            return Code.ToString() + ": " + Message;
-        }
+    public override string ToString()
+    {
+        return Code.ToString() + ": " + Message;
     }
 }

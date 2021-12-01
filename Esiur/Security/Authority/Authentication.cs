@@ -29,38 +29,37 @@ using System.Text;
 using System.Threading.Tasks;
 using static Esiur.Net.Packets.IIPAuthPacket;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+
+public class Authentication
 {
-    public class Authentication
+    AuthenticationType type;
+
+    public AuthenticationMethod Method { get; set; }
+
+    public ulong TokenIndex { get; set; }
+
+    public string Username { get; set; }
+    public Certificate Certificate { get; set; }
+    public string Domain { get; set; }
+
+    public string FullName => Username + "@" + Domain;
+
+    public Source Source { get; } = new Source();
+
+    public AuthenticationState State
     {
-        AuthenticationType type;
+        get;
+        set;
+    }
 
-        public AuthenticationMethod Method { get; set; }
+    public AuthenticationType Type
+    {
+        get => type;
+    }
 
-        public ulong TokenIndex { get; set; }
-
-        public string Username { get; set; }
-        public Certificate Certificate { get; set; }
-        public string Domain { get; set; }
-
-        public string FullName => Username + "@" + Domain;
-
-        public Source Source { get; } = new Source();
-
-        public AuthenticationState State
-        {
-            get;
-            set;
-        }
-
-        public AuthenticationType Type
-        {
-            get => type;
-        }
-
-        public Authentication(AuthenticationType type)
-        {
-            this.type = type;
-        }
+    public Authentication(AuthenticationType type)
+    {
+        this.type = type;
     }
 }

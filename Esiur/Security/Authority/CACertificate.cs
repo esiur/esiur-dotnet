@@ -35,168 +35,167 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+
+public class CACertificate : Certificate
 {
-    public class CACertificate : Certificate
+
+    string name;
+
+    public string Name
+    {
+        get { return name; }
+    }
+
+    public CACertificate(byte[] data, uint offset, uint length, bool privateKeyIncluded = false)
+        : base(0, DateTime.MinValue, DateTime.MinValue, HashFunctionType.MD5)
     {
 
-        string name;
+        uint oOffset = offset;
 
-        public string Name
+        this.id = DC.GetUInt64(data, offset);
+        offset += 8;
+        this.issueDate = DC.GetDateTime(data, offset);
+        offset += 8;
+        this.expireDate = DC.GetDateTime(data, offset);
+        offset += 8;
+        this.hashFunction = (HashFunctionType)(data[offset++] >> 4);
+
+
+        this.name = (Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]));
+        offset += (uint)data[offset] + 1;
+
+
+        var aea = (AsymetricEncryptionAlgorithmType)(data[offset] >> 5);
+
+        if (aea == AsymetricEncryptionAlgorithmType.RSA)
         {
-            get { return name; }
-        }
+            var key = new RSAParameters();
+            uint exponentLength = (uint)data[offset++] & 0x1F;
 
-        public CACertificate(byte[] data, uint offset, uint length, bool privateKeyIncluded = false)
-            :base(0, DateTime.MinValue, DateTime.MinValue, HashFunctionType.MD5)
-        {
-            
-            uint oOffset = offset;
+            key.Exponent = DC.Clip(data, offset, exponentLength);
 
-            this.id = DC.GetUInt64(data, offset);
-            offset += 8;
-            this.issueDate = DC.GetDateTime(data, offset);
-            offset += 8;
-            this.expireDate = DC.GetDateTime(data, offset);
-            offset += 8;
-            this.hashFunction = (HashFunctionType)(data[offset++] >> 4);
+            offset += exponentLength;
 
+            uint keySize = DC.GetUInt16(data, offset);
+            offset += 2;
 
-            this.name = (Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]));
-            offset += (uint)data[offset] + 1;
+            key.Modulus = DC.Clip(data, offset, keySize);
 
-            
-            var aea = (AsymetricEncryptionAlgorithmType)(data[offset] >> 5);
+            offset += keySize;
 
-            if (aea == AsymetricEncryptionAlgorithmType.RSA)
+            // copy cert data
+            this.publicRawData = new byte[offset - oOffset];
+            Buffer.BlockCopy(data, (int)oOffset, publicRawData, 0, publicRawData.Length);
+
+            if (privateKeyIncluded)
             {
-                var key = new RSAParameters();
-                uint exponentLength = (uint)data[offset++] & 0x1F;
+                uint privateKeyLength = (keySize * 3) + (keySize / 2);
+                uint halfKeySize = keySize / 2;
 
-                key.Exponent = DC.Clip(data, offset, exponentLength);
+                privateRawData = DC.Clip(data, offset, privateKeyLength);
 
-                offset += exponentLength;
-
-                uint keySize = DC.GetUInt16(data, offset);
-                offset += 2;
-
-                key.Modulus = DC.Clip(data, offset, keySize);
-
+                key.D = DC.Clip(data, offset, keySize);
                 offset += keySize;
 
-                // copy cert data
-                this.publicRawData = new byte[offset - oOffset];
-                Buffer.BlockCopy(data, (int)oOffset, publicRawData, 0, publicRawData.Length);
+                key.DP = DC.Clip(data, offset, halfKeySize);
+                offset += halfKeySize;
 
-                if (privateKeyIncluded)
-                {
-                    uint privateKeyLength = (keySize * 3) + (keySize / 2);
-                    uint halfKeySize = keySize / 2;
-
-                    privateRawData = DC.Clip(data, offset, privateKeyLength);
-
-                    key.D = DC.Clip(data, offset, keySize);
-                    offset += keySize;
-
-                    key.DP = DC.Clip(data, offset, halfKeySize);
-                    offset += halfKeySize;
-
-                    key.DQ = DC.Clip(data, offset, halfKeySize);
-                    offset += halfKeySize;
+                key.DQ = DC.Clip(data, offset, halfKeySize);
+                offset += halfKeySize;
 
 
-                    key.InverseQ = DC.Clip(data, offset, halfKeySize);
-                    offset += halfKeySize;
+                key.InverseQ = DC.Clip(data, offset, halfKeySize);
+                offset += halfKeySize;
 
-                    key.P = DC.Clip(data, offset, halfKeySize);
-                    offset += halfKeySize;
+                key.P = DC.Clip(data, offset, halfKeySize);
+                offset += halfKeySize;
 
-                    key.Q = DC.Clip(data, offset, halfKeySize);
-                    offset += halfKeySize;
+                key.Q = DC.Clip(data, offset, halfKeySize);
+                offset += halfKeySize;
 
-                }
-
-                // setup rsa
-                this.rsa = RSA.Create();// new RSACryptoServiceProvider();
-                this.rsa.ImportParameters(key);
             }
+
+            // setup rsa
+            this.rsa = RSA.Create();// new RSACryptoServiceProvider();
+            this.rsa.ImportParameters(key);
         }
+    }
 
-        public CACertificate(ulong id, string authorityName, DateTime issueDate, DateTime expireDate,
-                                HashFunctionType hashFunction = HashFunctionType.SHA1, uint ip = 0, byte[] ip6 = null)
-            : base(id, issueDate, expireDate, hashFunction)
-        {
-            // assign type
+    public CACertificate(ulong id, string authorityName, DateTime issueDate, DateTime expireDate,
+                            HashFunctionType hashFunction = HashFunctionType.SHA1, uint ip = 0, byte[] ip6 = null)
+        : base(id, issueDate, expireDate, hashFunction)
+    {
+        // assign type
 
-            BinaryList cr = new BinaryList();
+        BinaryList cr = new BinaryList();
 
-            // make header
+        // make header
 
-            cr.AddUInt64(id)
-                .AddDateTime(issueDate)
-                .AddDateTime(expireDate);
-
-
-            // hash function
-            cr.AddUInt8((byte)((byte)hashFunction << 4));
-            this.hashFunction = hashFunction;
-
-            // CA Name
-            this.name = authorityName;
-            cr.AddUInt8((byte)(authorityName.Length))
-              .AddUInt8Array(Encoding.ASCII.GetBytes(authorityName));
-
-            // public key
-            rsa = RSA.Create();// new RSACryptoServiceProvider(2048);
-            rsa.KeySize = 2048;
-            RSAParameters dRSAKey = rsa.ExportParameters(true);
+        cr.AddUInt64(id)
+            .AddDateTime(issueDate)
+            .AddDateTime(expireDate);
 
 
-            cr.AddUInt8((byte)dRSAKey.Exponent.Length)
-                .AddUInt8Array(dRSAKey.Exponent)
-                .AddUInt16((ushort)dRSAKey.Modulus.Length)
-                .AddUInt8Array(dRSAKey.Modulus);
+        // hash function
+        cr.AddUInt8((byte)((byte)hashFunction << 4));
+        this.hashFunction = hashFunction;
+
+        // CA Name
+        this.name = authorityName;
+        cr.AddUInt8((byte)(authorityName.Length))
+          .AddUInt8Array(Encoding.ASCII.GetBytes(authorityName));
+
+        // public key
+        rsa = RSA.Create();// new RSACryptoServiceProvider(2048);
+        rsa.KeySize = 2048;
+        RSAParameters dRSAKey = rsa.ExportParameters(true);
 
 
-            publicRawData = cr.ToArray();
+        cr.AddUInt8((byte)dRSAKey.Exponent.Length)
+            .AddUInt8Array(dRSAKey.Exponent)
+            .AddUInt16((ushort)dRSAKey.Modulus.Length)
+            .AddUInt8Array(dRSAKey.Modulus);
 
-            privateRawData = DC.Merge(dRSAKey.D, dRSAKey.DP, dRSAKey.DQ, dRSAKey.InverseQ, dRSAKey.P, dRSAKey.Q);
 
-        }
+        publicRawData = cr.ToArray();
 
-        public override bool Save(string filename, bool includePrivate = false)
-        {
-            try
-            {
-                if (includePrivate)
-                    File.WriteAllBytes(filename, new BinaryList()
-                                                        .AddUInt8((byte)CertificateType.CAPrivate)
-                                                        .AddUInt8Array(publicRawData)
-                                                        .AddUInt8Array(privateRawData)
-                                                        .ToArray());
-                else
-                    File.WriteAllBytes(filename, new BinaryList()
-                                                        .AddUInt8((byte)CertificateType.CAPublic)
-                                                        .AddUInt8Array(publicRawData).ToArray());
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public override byte[] Serialize(bool includePrivate = false)
-        {
-            if (includePrivate)
-                return new BinaryList()
-                        .AddUInt8Array(publicRawData)
-                        .AddUInt8Array(privateRawData)
-                        .ToArray();
-            else
-                return publicRawData;
-        }
+        privateRawData = DC.Merge(dRSAKey.D, dRSAKey.DP, dRSAKey.DQ, dRSAKey.InverseQ, dRSAKey.P, dRSAKey.Q);
 
     }
+
+    public override bool Save(string filename, bool includePrivate = false)
+    {
+        try
+        {
+            if (includePrivate)
+                File.WriteAllBytes(filename, new BinaryList()
+                                                    .AddUInt8((byte)CertificateType.CAPrivate)
+                                                    .AddUInt8Array(publicRawData)
+                                                    .AddUInt8Array(privateRawData)
+                                                    .ToArray());
+            else
+                File.WriteAllBytes(filename, new BinaryList()
+                                                    .AddUInt8((byte)CertificateType.CAPublic)
+                                                    .AddUInt8Array(publicRawData).ToArray());
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public override byte[] Serialize(bool includePrivate = false)
+    {
+        if (includePrivate)
+            return new BinaryList()
+                    .AddUInt8Array(publicRawData)
+                    .AddUInt8Array(privateRawData)
+                    .ToArray();
+        else
+            return publicRawData;
+    }
+
 }

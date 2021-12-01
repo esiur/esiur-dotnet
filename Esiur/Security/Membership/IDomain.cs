@@ -30,11 +30,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Authority
+namespace Esiur.Authority;
+
+public interface IDomain : IResource
 {
-    public interface IDomain : IResource
-    {
-        string Name { get; }
-        DomainCertificate Certificate { get; }
-    }
+    string Name { get; }
+    DomainCertificate Certificate { get; }
 }

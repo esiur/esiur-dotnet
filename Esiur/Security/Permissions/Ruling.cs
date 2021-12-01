@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Security.Permissions
+namespace Esiur.Security.Permissions;
+
+public enum Ruling
 {
-    public enum Ruling
-    {
-        Denied,
-        Allowed,
-        DontCare
-    }
+    Denied,
+    Allowed,
+    DontCare
 }

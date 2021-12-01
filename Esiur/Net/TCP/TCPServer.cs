@@ -34,123 +34,121 @@ using Esiur.Core;
 using System.Net;
 using Esiur.Resource;
 
-namespace Esiur.Net.TCP
+namespace Esiur.Net.TCP;
+public class TCPServer : NetworkServer<TCPConnection>, IResource
 {
-    public class TCPServer : NetworkServer<TCPConnection>, IResource
+
+    [Attribute]
+    public string IP
+    {
+        get;
+        set;
+    }
+    [Attribute]
+    public ushort Port
+    {
+        get;
+        set;
+    }
+    //[Storable]
+    //public uint Timeout
+    //{
+    //    get;
+    //    set;
+    //}
+    //[Attribute]
+    //public uint Clock
+    //{
+    //    get;
+    //    set;
+    //}
+    public Instance Instance { get; set; }
+
+    TCPFilter[] filters = null;
+
+
+    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    {
+        if (trigger == ResourceTrigger.Initialize)
+        {
+            TCPSocket listener;
+
+
+            if (IP != null)
+                listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
+            else
+                listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
+
+            Start(listener);
+
+
+        }
+        else if (trigger == ResourceTrigger.Terminate)
+        {
+            Stop();
+        }
+        else if (trigger == ResourceTrigger.SystemReload)
+        {
+            Trigger(ResourceTrigger.Terminate);
+            Trigger(ResourceTrigger.Initialize);
+        }
+        else if (trigger == ResourceTrigger.SystemInitialized)
+        {
+            Instance.Children<TCPFilter>().Then(x => filters = x);
+        }
+
+        return new AsyncReply<bool>(true);
+    }
+
+
+
+
+
+    internal bool Execute(TCPConnection sender, NetworkBuffer data)
+    {
+        var msg = data.Read();
+
+        foreach (var filter in filters)
+        {
+            if (filter.Execute(msg, data, sender))
+                return true;
+        }
+
+        return false;
+    }
+
+    private void SessionModified(TCPConnection session, string key, object newValue)
     {
 
-        [Attribute]
-        public string IP
+    }
+
+    protected override void ClientDisconnected(TCPConnection connection)
+    {
+
+        foreach (var filter in filters)
         {
-            get;
-            set;
+            filter.Disconnected(connection);
         }
-        [Attribute]
-        public ushort Port
+    }
+
+    public override void Add(TCPConnection connection)
+    {
+        connection.Server = this;
+        base.Add(connection);
+    }
+
+    public override void Remove(TCPConnection connection)
+    {
+        connection.Server = null;
+        base.Remove(connection);
+    }
+
+    protected override void ClientConnected(TCPConnection connection)
+    {
+        foreach (var filter in filters)
         {
-            get;
-            set;
+            filter.Connected(connection);
         }
-        //[Storable]
-        //public uint Timeout
-        //{
-        //    get;
-        //    set;
-        //}
-        //[Attribute]
-        //public uint Clock
-        //{
-        //    get;
-        //    set;
-        //}
-        public Instance Instance { get; set; }
+    }
 
-        TCPFilter[] filters = null;
-
-
-        public AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            if (trigger == ResourceTrigger.Initialize)
-            {
-                TCPSocket listener;
-
-
-                if (IP != null)
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
-                else
-                    listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
-
-                Start(listener);
-
-
-            }
-            else if (trigger == ResourceTrigger.Terminate)
-            {
-                Stop();
-            }
-            else if (trigger == ResourceTrigger.SystemReload)
-            {
-                Trigger(ResourceTrigger.Terminate);
-                Trigger(ResourceTrigger.Initialize);
-            }
-            else if (trigger == ResourceTrigger.SystemInitialized)
-            {
-                Instance.Children<TCPFilter>().Then(x => filters = x);
-            }
-
-            return new AsyncReply<bool>(true);
-        }
-
-
-
-
-
-        internal bool Execute(TCPConnection sender, NetworkBuffer data)
-        {
-            var msg = data.Read();
-
-            foreach (var filter in filters)
-            {
-                if (filter.Execute(msg, data, sender))
-                    return true;
-            }
-
-            return false;
-        }
-
-        private void SessionModified(TCPConnection session, string key, object newValue)
-        {
-
-        }
-
-        protected override void ClientDisconnected(TCPConnection connection)
-        {
-            
-            foreach (var filter in filters)
-            {
-                filter.Disconnected(connection);
-            }
-        }
-
-        public override void Add(TCPConnection connection)
-        {
-            connection.Server = this;
-            base.Add(connection);
-        }
-
-        public override void Remove(TCPConnection connection)
-        {
-            connection.Server = null;
-            base.Remove(connection);
-        }
-
-        protected override void ClientConnected(TCPConnection connection)
-        {
-            foreach (var filter in filters)
-            {
-                filter.Connected(connection);
-            }
-        }
-
-     }
 }

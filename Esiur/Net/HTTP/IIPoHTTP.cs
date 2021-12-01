@@ -6,34 +6,32 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Net.HTTP
+namespace Esiur.Net.HTTP;
+public class IIPoHTTP : HTTPFilter
 {
-    public class IIPoHTTP : HTTPFilter
+    [Attribute]
+    EntryPoint EntryPoint { get; set; }
+
+    public override AsyncReply<bool> Execute(HTTPConnection sender)
     {
-        [Attribute]
-        EntryPoint EntryPoint { get; set; }
+        if (sender.Request.URL != "iip")
+            return new AsyncReply<bool>(false);
 
-        public override AsyncReply<bool> Execute(HTTPConnection sender)
+        IIPPacket.IIPPacketAction action = (IIPPacket.IIPPacketAction)Convert.ToByte(sender.Request.Query["a"]);
+
+        if (action == IIPPacket.IIPPacketAction.QueryLink)
         {
-            if (sender.Request.URL != "iip")
-                return new AsyncReply<bool>(false);
-
-            IIPPacket.IIPPacketAction action = (IIPPacket.IIPPacketAction)Convert.ToByte(sender.Request.Query["a"]);
-
-            if (action == IIPPacket.IIPPacketAction.QueryLink)
+            EntryPoint.Query(sender.Request.Query["l"], null).Then(x =>
             {
-                EntryPoint.Query(sender.Request.Query["l"], null).Then(x =>
-                {
 
-                });
-            }
-
-            return new AsyncReply<bool>(true);
+            });
         }
 
-        public override AsyncReply<bool> Trigger(ResourceTrigger trigger)
-        {
-            return new AsyncReply<bool>(true);
-        }
+        return new AsyncReply<bool>(true);
+    }
+
+    public override AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    {
+        return new AsyncReply<bool>(true);
     }
 }

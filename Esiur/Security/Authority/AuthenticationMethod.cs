@@ -2,13 +2,12 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Security.Authority
+namespace Esiur.Security.Authority;
+
+public enum AuthenticationMethod : byte
 {
-    public enum AuthenticationMethod : byte
-    {
-        None,
-        Certificate,
-        Credentials,
-        Token
-    }
+    None,
+    Certificate,
+    Credentials,
+    Token
 }

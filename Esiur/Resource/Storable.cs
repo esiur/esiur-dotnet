@@ -30,43 +30,42 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource
+namespace Esiur.Resource;
+
+[AttributeUsage(AttributeTargets.All)]
+public class Storable : global::System.Attribute
 {
-    [AttributeUsage(AttributeTargets.All)]
-    public class Storable : global::System.Attribute
+    public delegate object SerializerFunction(object value);
+    public delegate object DeserializerFunction(object data);
+
+    SerializerFunction serializer;
+    DeserializerFunction deserializer;
+    DataType type;
+
+    public Storable()
     {
-        public delegate object SerializerFunction(object value);
-        public delegate object DeserializerFunction(object data);
+        type = DataType.Void;
+    }
 
-        SerializerFunction serializer;
-        DeserializerFunction deserializer;
-        DataType type;
+    public DeserializerFunction Deserializer
+    {
+        get { return deserializer; }
+    }
 
-        public Storable()
-        {
-            type = DataType.Void;
-        }
+    public SerializerFunction Serializer
+    {
+        get { return serializer; }
+    }
 
-        public DeserializerFunction Deserializer
-        {
-            get { return deserializer; }
-        }
+    public Storable(DataType type)
+    {
+        this.type = type;
+    }
 
-        public SerializerFunction Serializer
-        {
-            get { return serializer; }
-        }
-
-        public Storable(DataType type)
-        {
-            this.type = type;
-        }
-
-        public Storable(DataType type, SerializerFunction serializer, DeserializerFunction deserializer)
-        {
-            this.type = type;
-            this.serializer = serializer;
-            this.deserializer = deserializer;
-        }
+    public Storable(DataType type, SerializerFunction serializer, DeserializerFunction deserializer)
+    {
+        this.type = type;
+        this.serializer = serializer;
+        this.deserializer = deserializer;
     }
 }

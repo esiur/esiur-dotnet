@@ -28,24 +28,23 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Security.Permissions
+namespace Esiur.Security.Permissions;
+
+public enum ActionType
 {
-    public enum ActionType
-    {
-        Attach,
-        Delete,
-        Execute,
-        GetProperty,
-        SetProperty,
-        CreateResource,
-        UpdateAttributes,
-        InquireAttributes,
-        AddParent,
-        RemoveParent,
-        AddChild,
-        RemoveChild,
-        Rename,
-        ReceiveEvent,
-        ViewTemplate
-    }
+    Attach,
+    Delete,
+    Execute,
+    GetProperty,
+    SetProperty,
+    CreateResource,
+    UpdateAttributes,
+    InquireAttributes,
+    AddParent,
+    RemoveParent,
+    AddChild,
+    RemoveChild,
+    Rename,
+    ReceiveEvent,
+    ViewTemplate
 }

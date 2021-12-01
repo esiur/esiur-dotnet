@@ -1,5 +1,4 @@
-﻿using Esiur.Net.IIP;
-using Esiur.Resource;
+﻿
 /*
  
 Copyright (c) 2017-2021 Ahmed Kh. Zamil
@@ -24,76 +23,77 @@ SOFTWARE.
 
 */
 
+using Esiur.Net.IIP;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Esiur.Data
+namespace Esiur.Data;
+
+class ResourceJsonConverter : JsonConverter<IResource>
 {
-    class ResourceJsonConverter : JsonConverter<IResource>
+    public override IResource Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
     {
-        public override IResource Read(
-            ref Utf8JsonReader reader,
-            Type typeToConvert,
-            JsonSerializerOptions options)
-        {
-            return (IResource)JsonSerializer.Deserialize(ref reader,typeof(IResource), options);
-        }
-
-
-        public override void Write(
-            Utf8JsonWriter writer,
-            IResource resource,
-            JsonSerializerOptions options)
-        {
-
-            writer.WriteStartObject();
-
-            foreach (var pt in resource.Instance.Template.Properties)
-            {
-                var rt = pt.PropertyInfo.GetValue(resource, null);
-                if (rt is DistributedPropertyContext)
-                    continue;
-                
-                writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(pt.Name) ?? pt.Name);
-
-                if (rt is IResource)
-                    JsonSerializer.Serialize(writer, (IResource) rt, options);
-                else
-                    JsonSerializer.Serialize(writer, rt, options);
-            }
-
-            writer.WriteEndObject();
-
-        }
+        return (IResource)JsonSerializer.Deserialize(ref reader, typeof(IResource), options);
     }
 
 
-    public class DoubleJsonConverter : JsonConverter<double>
+    public override void Write(
+        Utf8JsonWriter writer,
+        IResource resource,
+        JsonSerializerOptions options)
     {
-        public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            if (reader.TokenType == JsonTokenType.String && reader.GetString() == "NaN")
-            {
-                return double.NaN;
-            }
 
-            return reader.GetDouble(); // JsonException thrown if reader.TokenType != JsonTokenType.Number
-        }
+        writer.WriteStartObject();
 
-        public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options)
+        foreach (var pt in resource.Instance.Template.Properties)
         {
-            if (double.IsNaN(value))
-            {
-                writer.WriteStringValue("NaN");
-            }
+            var rt = pt.PropertyInfo.GetValue(resource, null);
+            if (rt is DistributedPropertyContext)
+                continue;
+
+            writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(pt.Name) ?? pt.Name);
+
+            if (rt is IResource)
+                JsonSerializer.Serialize(writer, (IResource)rt, options);
             else
-            {
-                writer.WriteNumberValue(value);
-            }
+                JsonSerializer.Serialize(writer, rt, options);
         }
+
+        writer.WriteEndObject();
+
+    }
+}
+
+
+public class DoubleJsonConverter : JsonConverter<double>
+{
+    public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String && reader.GetString() == "NaN")
+        {
+            return double.NaN;
+        }
+
+        return reader.GetDouble(); // JsonException thrown if reader.TokenType != JsonTokenType.Number
     }
 
+    public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options)
+    {
+        if (double.IsNaN(value))
+        {
+            writer.WriteStringValue("NaN");
+        }
+        else
+        {
+            writer.WriteNumberValue(value);
+        }
+    }
 }
+

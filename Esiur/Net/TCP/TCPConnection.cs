@@ -32,35 +32,34 @@ using System.Collections;
 using Esiur.Misc;
 using Esiur.Data;
 
-namespace Esiur.Net.TCP
+namespace Esiur.Net.TCP;
+public class TCPConnection : NetworkConnection
 {
-    public class TCPConnection:NetworkConnection    {
 
-        private KeyList<string, object> variables = new KeyList<string, object>();
+    private KeyList<string, object> variables = new KeyList<string, object>();
 
-        public TCPServer Server { get; internal set; }
+    public TCPServer Server { get; internal set; }
 
-        public KeyList<string, object> Variables
+    public KeyList<string, object> Variables
+    {
+        get
         {
-            get
-            {
-                return variables;
-            }
+            return variables;
         }
+    }
 
-        protected override void Connected()
-        {
-            // do nothing
-        }
+    protected override void Connected()
+    {
+        // do nothing
+    }
 
-        protected override void DataReceived(NetworkBuffer buffer)
-        {
-            Server?.Execute(this, buffer);
-        }
+    protected override void DataReceived(NetworkBuffer buffer)
+    {
+        Server?.Execute(this, buffer);
+    }
 
-        protected override void Disconencted()
-        {
-            // do nothing
-        }
+    protected override void Disconencted()
+    {
+        // do nothing
     }
 }
