@@ -121,6 +121,8 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
                         return;
                     }
 
+                    Console.WriteLine("New Socket ... " + DateTime.Now);
+
                     var c = new TConnection();
                         //c.OnClose += ClientDisconnectedEventReceiver;
                         c.Assign(s);

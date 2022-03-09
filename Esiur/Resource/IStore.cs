@@ -40,8 +40,8 @@ public interface IStore : IResource
                                            //AsyncReply<IResource> Retrieve(uint iid);
     AsyncReply<bool> Put(IResource resource);
     string Link(IResource resource);
-    bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
-    bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+    bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
+    bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
     bool Remove(IResource resource);
 
     //bool RemoveAttributes(IResource resource, string[] attributes = null);

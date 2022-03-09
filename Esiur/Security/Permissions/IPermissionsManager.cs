@@ -49,7 +49,7 @@ public interface IPermissionsManager
     /// <returns>Allowed or denined.</returns>
     Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null);
 
-    bool Initialize(Structure settings, IResource resource);
+    bool Initialize(Map<string, object> settings, IResource resource);
 
-    Structure Settings { get; }
+    Map<string, object> Settings { get; }
 }

@@ -42,631 +42,68 @@ namespace Esiur.Data;
 
 public static class Codec
 {
-    /// <summary>
-    /// Check if a DataType is an array
-    /// </summary>
-    /// <param name="type">DataType to check</param>
-    /// <returns>True if DataType is an array, otherwise false</returns>
-    public static bool IsArray(this DataType type)
+ 
+    delegate AsyncReply Parser(byte[] data, uint offset, uint length, DistributedConnection connection);
+
+
+    static Parser[][] FixedParsers = new Parser[][]
     {
-        return (((byte)type & 0x80) == 0x80) && (type != DataType.NotModified);
-    }
+        new Parser[]{
+            DataDeserializer.NullParser,
+            DataDeserializer.BooleanFalseParser,
+            DataDeserializer.BooleanTrueParser,
+            DataDeserializer.NotModifiedParser,
+        },
+        new Parser[]{
+            DataDeserializer.ByteParser,
+            DataDeserializer.SByteParser,
+            DataDeserializer.Char8Parser,
+        },
+        new Parser[]{
+            DataDeserializer.Int16Parser,
+            DataDeserializer.UInt16Parser,
+            DataDeserializer.Char16Parser,
+        },
+        new Parser[]{
+            DataDeserializer.Int32Parser,
+            DataDeserializer.UInt32Parser,
+            DataDeserializer.Float32Parser,
+            DataDeserializer.ResourceParser,
+            DataDeserializer.LocalResourceParser,
+        },
+        new Parser[]{
+            DataDeserializer.Int64Parser,
+            DataDeserializer.UInt64Parser,
+            DataDeserializer.Float64Parser,
+            DataDeserializer.DateTimeParser,
+        },
+        new Parser[]
+        {
+            DataDeserializer.Int128Parser, // int 128
+            DataDeserializer.UInt128Parser, // uint 128
+            DataDeserializer.Float128Parser,
+        }
+    };
 
-    /// <summary>
-    /// Get the element DataType
-    /// </summary>
-    /// <example>
-    /// Passing UInt8Array will return UInt8 
-    /// </example>
-    /// <param name="type">DataType to get its element DataType</param>
-    public static DataType GetElementType(this DataType type)
+    static Parser[] DynamicParsers = new Parser[]
     {
-        return (DataType)((byte)type & 0x7F);
-    }
+        DataDeserializer.RawDataParser,
+        DataDeserializer.StringParser,
+        DataDeserializer.ListParser,
+        DataDeserializer.ResourceListParser,
+        DataDeserializer.RecordListParser,
+    };
 
-    /// <summary>
-    /// Get DataType array of a given Structure
-    /// </summary>
-    /// <param name="structure">Structure to get its DataTypes</param>
-    /// <param name="connection">Distributed connection is required in case a type is at the other end</param>
-    private static DataType[] GetStructureDateTypes(Structure structure, DistributedConnection connection)
+    static Parser[] TypedParsers = new Parser[]
     {
-        var keys = structure.GetKeys();
-        var types = new DataType[keys.Length];
+        DataDeserializer.RecordParser,
+        DataDeserializer.TypedListParser,
+        DataDeserializer.TypedMapParser,
+        DataDeserializer.TupleParser,
+        DataDeserializer.EnumParser,
+        DataDeserializer.ConstantParser,
+    };
 
-        for (var i = 0; i < keys.Length; i++)
-        {
-            types[i] = Codec.GetDataType(structure[keys[i]], connection).type;
-        }
-        return types;
-    }
-
-    /// <summary>
-    /// Compare two records
-    /// </summary>
-    /// <param name="initial">Initial record to compare with</param>
-    /// <param name="next">Next record to compare with the initial</param>
-    /// <param name="connection">DistributedConnection is required in case a structure holds items at the other end</param>
-    public static RecordComparisonResult Compare(IRecord initial, IRecord next)
-    {
-        if (next == null)
-            return RecordComparisonResult.Null;
-
-        if (initial == null)
-            return RecordComparisonResult.Record;
-
-        if (next == initial)
-            return RecordComparisonResult.Same;
-
-        if (next.GetType() == initial.GetType())
-            return RecordComparisonResult.RecordSameType;
-
-        return RecordComparisonResult.Record;
-    }
-
-    /// <summary>
-    /// Compare two structures
-    /// </summary>
-    /// <param name="initial">Initial structure to compare with</param>
-    /// <param name="next">Next structure to compare with the initial</param>
-    /// <param name="connection">DistributedConnection is required in case a structure holds items at the other end</param>
-    public static StructureComparisonResult Compare(Structure initial, Structure next, DistributedConnection connection)
-    {
-        if (next == null)
-            return StructureComparisonResult.Null;
-
-        if (initial == null)
-            return StructureComparisonResult.Structure;
-
-        if (next == initial)
-            return StructureComparisonResult.Same;
-
-        if (initial.Length != next.Length)
-            return StructureComparisonResult.Structure;
-
-        var previousKeys = initial.GetKeys();
-        var nextKeys = next.GetKeys();
-
-        for (var i = 0; i < previousKeys.Length; i++)
-            if (previousKeys[i] != nextKeys[i])
-                return StructureComparisonResult.Structure;
-
-        var previousTypes = GetStructureDateTypes(initial, connection);
-        var nextTypes = GetStructureDateTypes(next, connection);
-
-        for (var i = 0; i < previousTypes.Length; i++)
-            if (previousTypes[i] != nextTypes[i])
-                return StructureComparisonResult.StructureSameKeys;
-
-        return StructureComparisonResult.StructureSameTypes;
-    }
-
-    /// <summary>
-    /// Compose an array of structures into an array of bytes
-    /// </summary>
-    /// <param name="structures">Array of Structure to compose</param>
-    /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end</param>
-    /// <param name="prependLength">If true, prepend the length as UInt32 at the beginning of the returned bytes array</param>
-    /// <returns>Array of bytes in the network byte order</returns>
-    public static byte[] ComposeStructureArray(Structure[] structures, DistributedConnection connection, bool prependLength = false)
-    {
-        if (structures == null || structures?.Length == 0)
-            return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
-
-        var rt = new BinaryList();
-        var comparsion = StructureComparisonResult.Structure;
-
-        rt.AddUInt8((byte)comparsion)
-          .AddUInt8Array(ComposeStructure(structures[0], connection, true, true, true));
-
-        for (var i = 1; i < structures.Length; i++)
-        {
-            comparsion = Compare(structures[i - 1], structures[i], connection);
-            rt.AddUInt8((byte)comparsion);
-
-            if (comparsion == StructureComparisonResult.Structure)
-                rt.AddUInt8Array(ComposeStructure(structures[i], connection, true, true, true));
-            else if (comparsion == StructureComparisonResult.StructureSameKeys)
-                rt.AddUInt8Array(ComposeStructure(structures[i], connection, false, true, true));
-            else if (comparsion == StructureComparisonResult.StructureSameTypes)
-                rt.AddUInt8Array(ComposeStructure(structures[i], connection, false, false, true));
-        }
-
-        if (prependLength)
-            rt.InsertInt32(0, rt.Length);
-
-        return rt.ToArray();
-    }
-
-    /// <summary>
-    /// Parse an array of structures
-    /// </summary>
-    /// <param name="data">Bytes array</param>
-    /// <param name="offset">Zero-indexed offset</param>
-    /// <param name="length">Number of bytes to parse</param>
-    /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end</param>
-    /// <returns>Array of structures</returns>
-    public static AsyncBag<Structure> ParseStructureArray(byte[] data, uint offset, uint length, DistributedConnection connection)
-    {
-        var reply = new AsyncBag<Structure>();
-        if (length == 0)
-        {
-            reply.Seal();
-            return reply;
-        }
-
-        var end = offset + length;
-
-        var result = (StructureComparisonResult)data[offset++];
-
-        AsyncReply<Structure> previous = null;
-        // string[] previousKeys = null;
-        // DataType[] previousTypes = null;
-
-        Structure.StructureMetadata metadata = new Structure.StructureMetadata();
-
-
-        if (result == StructureComparisonResult.Null)
-            previous = new AsyncReply<Structure>(null);
-        else if (result == StructureComparisonResult.Structure)
-        {
-            uint cs = data.GetUInt32(offset);
-            offset += 4;
-            previous = ParseStructure(data, offset, cs, connection, out metadata);
-            offset += cs;
-        }
-
-        reply.Add(previous);
-
-
-        while (offset < end)
-        {
-            result = (StructureComparisonResult)data[offset++];
-
-            if (result == StructureComparisonResult.Null)
-                previous = new AsyncReply<Structure>(null);
-            else if (result == StructureComparisonResult.Structure)
-            {
-                uint cs = data.GetUInt32(offset);
-                offset += 4;
-                previous = ParseStructure(data, offset, cs, connection, out metadata);// out previousKeys, out previousTypes);
-                offset += cs;
-            }
-            else if (result == StructureComparisonResult.StructureSameKeys)
-            {
-                uint cs = data.GetUInt32(offset);
-                offset += 4;
-                previous = ParseStructure(data, offset, cs, connection, out metadata, metadata.Keys);
-                offset += cs;
-            }
-            else if (result == StructureComparisonResult.StructureSameTypes)
-            {
-                uint cs = data.GetUInt32(offset);
-                offset += 4;
-                previous = ParseStructure(data, offset, cs, connection, out metadata, metadata.Keys, metadata.Types);
-                offset += cs;
-            }
-
-            reply.Add(previous);
-        }
-
-        reply.Seal();
-        return reply;
-    }
-
-
-    public static AsyncBag ParseRecordArray(byte[] data, uint offset, uint length, DistributedConnection connection)
-    {
-        var reply = new AsyncBag();
-
-        if (length == 0)
-        {
-            reply.Seal();
-            return reply;
-        }
-
-        var end = offset + length;
-
-        var isTyped = (data[offset] & 0x10) == 0x10;
-
-        var result = (RecordComparisonResult)(data[offset++] & 0xF);
-
-        if (isTyped)
-        {
-            var classId = data.GetGuid(offset);
-            offset += 16;
-
-            var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
-
-            reply.ArrayType = template?.DefinedType;
-
-            AsyncReply<IRecord> previous = null;
-
-            if (result == RecordComparisonResult.Null)
-                previous = new AsyncReply<IRecord>(null);
-            else if (result == RecordComparisonResult.Record
-                    || result == RecordComparisonResult.RecordSameType)
-            {
-                uint cs = data.GetUInt32(offset);
-                uint recordLength = cs;
-                offset += 4;
-                previous = ParseRecord(data, offset, recordLength, connection, classId);
-                offset += recordLength;
-            }
-
-            reply.Add(previous);
-
-            while (offset < end)
-            {
-                result = (RecordComparisonResult)data[offset++];
-
-                if (result == RecordComparisonResult.Null)
-                    previous = new AsyncReply<IRecord>(null);
-                else if (result == RecordComparisonResult.Record
-                    || result == RecordComparisonResult.RecordSameType)
-                {
-                    uint cs = data.GetUInt32(offset);
-                    offset += 4;
-                    previous = ParseRecord(data, offset, cs, connection, classId);
-                    offset += cs;
-                }
-                else if (result == RecordComparisonResult.Same)
-                {
-                    // do nothing
-                }
-
-                reply.Add(previous);
-            }
-        }
-        else
-        {
-            AsyncReply<IRecord> previous = null;
-            Guid? classId = null;
-
-            if (result == RecordComparisonResult.Null)
-                previous = new AsyncReply<IRecord>(null);
-            else if (result == RecordComparisonResult.Record)
-            {
-                uint cs = data.GetUInt32(offset);
-                uint recordLength = cs - 16;
-                offset += 4;
-                classId = data.GetGuid(offset);
-                offset += 16;
-                previous = ParseRecord(data, offset, recordLength, connection, classId);
-                offset += recordLength;
-            }
-
-            reply.Add(previous);
-
-
-            while (offset < end)
-            {
-                result = (RecordComparisonResult)data[offset++];
-
-                if (result == RecordComparisonResult.Null)
-                    previous = new AsyncReply<IRecord>(null);
-                else if (result == RecordComparisonResult.Record)
-                {
-                    uint cs = data.GetUInt32(offset);
-                    uint recordLength = cs - 16;
-                    offset += 4;
-                    classId = data.GetGuid(offset);
-                    offset += 16;
-                    previous = ParseRecord(data, offset, recordLength, connection, classId);
-                    offset += recordLength;
-                }
-                else if (result == RecordComparisonResult.RecordSameType)
-                {
-                    uint cs = data.GetUInt32(offset);
-                    offset += 4;
-                    previous = ParseRecord(data, offset, cs, connection, classId);
-                    offset += cs;
-                }
-                else if (result == RecordComparisonResult.Same)
-                {
-                    // do nothing
-                }
-
-                reply.Add(previous);
-            }
-
-        }
-
-        reply.Seal();
-        return reply;
-    }
-
-    public static AsyncReply<IRecord> ParseRecord(byte[] data, uint offset, uint length, DistributedConnection connection, Guid? classId = null)
-    {
-        var reply = new AsyncReply<IRecord>();
-
-        if (classId == null)
-        {
-            classId = data.GetGuid(offset);
-
-            offset += 16;
-            length -= 16;
-        }
-
-        var template = Warehouse.GetTemplateByClassId((Guid)classId, TemplateType.Record);
-
-        if (template != null)
-        {
-            ParseVarArray(data, offset, length, connection).Then(ar =>
-            {
-                if (template.DefinedType != null)
-                {
-                    var record = Activator.CreateInstance(template.DefinedType) as IRecord;
-                    for (var i = 0; i < template.Properties.Length; i++)
-                        template.Properties[i].PropertyInfo.SetValue(record, ar[i]);
-
-                    reply.Trigger(record);
-                }
-                else
-                {
-                    var record = new Record();
-
-                    for (var i = 0; i < template.Properties.Length; i++)
-                        record.Add(template.Properties[i].Name, ar[i]);
-
-                    reply.Trigger(record);
-                }
-            });
-        }
-        else
-        {
-            connection.GetTemplate((Guid)classId).Then(tmp =>
-            {
-                ParseVarArray(data, offset, length, connection).Then(ar =>
-                {
-                    var record = new Record();
-
-                    for (var i = 0; i < tmp.Properties.Length; i++)
-                        record.Add(tmp.Properties[i].Name, ar[i]);
-
-                    reply.Trigger(record);
-                });
-            }).Error(x => reply.TriggerError(x));
-        }
-
-        return reply;
-    }
-
-    public static byte[] ComposeRecord(IRecord record, DistributedConnection connection, bool includeClassId = true, bool prependLength = false)
-    {
-        var rt = new BinaryList();
-
-        var template = Warehouse.GetTemplateByType(record.GetType());
-
-        if (includeClassId)
-            rt.AddGuid(template.ClassId);
-
-        foreach (var pt in template.Properties)
-        {
-            var value = pt.PropertyInfo.GetValue(record, null);
-            rt.AddUInt8Array(Compose(value, connection));
-        }
-
-        if (prependLength)
-            rt.InsertInt32(0, rt.Length);
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ComposeRecordArray<T>(T[] records, DistributedConnection connection, bool prependLength = false)
-        where T : IRecord
-    {
-
-        if (records == null || records?.Length == 0)
-            return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
-
-        var rt = new BinaryList();
-        var comparsion = Compare(null, records[0]);
-
-        var type = records.GetType().GetElementType();
-        var isTyped = type != typeof(IRecord);
-
-        if (isTyped)
-        {
-            var template = Warehouse.GetTemplateByType(type);
-
-            if (template != null)
-            {
-                // typed array ... no need to add class id , it will be included at the first entry
-                rt.AddUInt8((byte)(0x10 | (byte)comparsion));
-                rt.AddGuid(template.ClassId);
-            }
-            else // something wrong
-            {
-                throw new Exception($"Template for type `{type.FullName}` not found.");
-            }
-
-            if (comparsion == RecordComparisonResult.Record)
-                rt.AddUInt8Array(ComposeRecord(records[0], connection, false, true));
-
-            for (var i = 1; i < records.Length; i++)
-            {
-                comparsion = Compare(records[i - 1], records[i]);
-
-                rt.AddUInt8((byte)comparsion);
-
-                if (comparsion == RecordComparisonResult.RecordSameType
-                    || comparsion == RecordComparisonResult.Record)
-                    rt.AddUInt8Array(ComposeRecord(records[i], connection, false, true));
-            }
-        }
-        else
-        {
-            rt.AddUInt8((byte)comparsion);
-
-            if (comparsion == RecordComparisonResult.Record)
-                rt.AddUInt8Array(ComposeRecord(records[0], connection, true, true));
-
-            for (var i = 1; i < records.Length; i++)
-            {
-                comparsion = Compare(records[i - 1], records[i]);
-
-                rt.AddUInt8((byte)comparsion);
-
-                if (comparsion == RecordComparisonResult.Record)
-                    rt.AddUInt8Array(ComposeRecord(records[i], connection, true, true));
-                else if (comparsion == RecordComparisonResult.RecordSameType)
-                    rt.AddUInt8Array(ComposeRecord(records[i], connection, false, true));
-            }
-        }
-
-
-        if (prependLength)
-            rt.InsertInt32(0, rt.Length);
-
-
-        return rt.ToArray();
-    }
-
-    /// <summary>
-    /// Compose a structure into an array of bytes
-    /// </summary>
-    /// <param name="value">Structure to compose</param>
-    /// <param name="connection">DistributedConnection is required in case an item in the structure is at the other end</param>
-    /// <param name="includeKeys">Whether to include the structure keys</param>
-    /// <param name="includeTypes">Whether to include each item DataType</param>
-    /// <param name="prependLength">If true, prepend the length as UInt32 at the beginning of the returned bytes array</param>
-    /// <returns>Array of bytes in the network byte order</returns>
-    public static byte[] ComposeStructure(Structure value, DistributedConnection connection,
-        bool includeKeys = true, bool includeTypes = true, bool prependLength = false)
-    {
-        var rt = new BinaryList();
-
-        if (includeKeys)
-        {
-            foreach (var i in value)
-            {
-                var key = DC.ToBytes(i.Key);
-                rt.AddUInt8((byte)key.Length)
-                  .AddUInt8Array(key)
-                  .AddUInt8Array(Compose(i.Value, connection));
-            }
-        }
-        else
-        {
-            foreach (var i in value)
-                rt.AddUInt8Array(Compose(i.Value, connection, includeTypes));
-        }
-
-        if (prependLength)
-            rt.InsertInt32(0, rt.Length);
-
-        return rt.ToArray();
-    }
-
-    /// <summary>
-    /// Parse a structure
-    /// </summary>
-    /// <param name="data">Bytes array</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="length">Number of bytes to parse.</param>
-    /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
-    /// <returns>Value</returns>
-    public static AsyncReply<Structure> ParseStructure(byte[] data, uint offset, uint contentLength, DistributedConnection connection)
-    {
-        Structure.StructureMetadata metadata;
-        return ParseStructure(data, offset, contentLength, connection, out metadata);
-    }
-
-    /// <summary>
-    /// Parse a structure
-    /// </summary>
-    /// <param name="data">Bytes array</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="length">Number of bytes to parse.</param>
-    /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
-    /// <param name="parsedKeys">Array to store keys in.</param>
-    /// <param name="parsedTypes">Array to store DataTypes in.</param>
-    /// <param name="keys">Array of keys, in case the data doesn't include keys</param>
-    /// <param name="types">Array of DataTypes, in case the data doesn't include DataTypes</param>
-    /// <returns>Structure</returns>
-    public static AsyncReply<Structure> ParseStructure(byte[] data, uint offset, uint length, DistributedConnection connection, out Structure.StructureMetadata metadata, string[] keys = null, DataType[] types = null)// out string[] parsedKeys, out DataType[] parsedTypes, string[] keys = null, DataType[] types = null)
-    {
-        var reply = new AsyncReply<Structure>();
-        var bag = new AsyncBag<object>();
-        var keylist = new List<string>();
-        var typelist = new List<DataType>();
-
-        if (keys == null)
-        {
-            while (length > 0)
-            {
-                var len = data[offset++];
-                keylist.Add(data.GetString(offset, len));
-                offset += len;
-
-                typelist.Add((DataType)data[offset]);
-
-                uint rt;
-                bag.Add(Codec.Parse(data, offset, out rt, connection));
-                length -= rt + len + 1;
-                offset += rt;
-            }
-        }
-        else if (types == null)
-        {
-            keylist.AddRange(keys);
-
-            while (length > 0)
-            {
-                typelist.Add((DataType)data[offset]);
-
-                uint rt;
-                bag.Add(Codec.Parse(data, offset, out rt, connection));
-                length -= rt;
-                offset += rt;
-            }
-        }
-        else
-        {
-            keylist.AddRange(keys);
-            typelist.AddRange(types);
-
-            var i = 0;
-            while (length > 0)
-            {
-                uint rt;
-                bag.Add(Codec.Parse(data, offset, out rt, connection, types[i]));
-                length -= rt;
-                offset += rt;
-                i++;
-            }
-        }
-
-        bag.Seal();
-
-        bag.Then((res) =>
-        {
-                // compose the list
-                var s = new Structure();
-            for (var i = 0; i < keylist.Count; i++)
-                s[keylist[i]] = res[i];
-            reply.Trigger(s);
-        });
-
-        metadata = new Structure.StructureMetadata() { Keys = keylist.ToArray(), Types = typelist.ToArray() };
-
-        return reply;
-    }
-
-    /// <summary>
-    /// Parse a value
-    /// </summary>
-    /// <param name="data">Bytes array</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
-    /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
-    /// <returns>Structure</returns>
-    public static AsyncReply Parse(byte[] data, uint offset, DistributedConnection connection, DataType dataType = DataType.Unspecified)
-    {
-        uint size;
-        return Parse(data, offset, out size, connection);
-    }
 
     /// <summary>
     /// Parse a value
@@ -677,197 +114,34 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static AsyncReply Parse(byte[] data, uint offset, out uint size, DistributedConnection connection, DataType dataType = DataType.Unspecified)
+    public static (uint, AsyncReply) Parse(byte[] data, uint offset, DistributedConnection connection, TransmissionType? dataType = null)
     {
 
-        bool isArray;
-        DataType t;
+        uint len = 0;
 
-        if (dataType == DataType.Unspecified)
+        if (dataType == null)
         {
-            size = 1;
-            dataType = (DataType)data[offset++];
+            (var longLen, dataType) = TransmissionType.Parse(data, offset, (uint)data.Length);
+            len = (uint)longLen;
+            offset = dataType.Value.Offset;
         }
         else
-            size = 0;
+            len = (uint)dataType.Value.ContentLength;
 
-        t = (DataType)((byte)dataType & 0x7F);
+        var tt = dataType.Value;
 
-        isArray = ((byte)dataType & 0x80) == 0x80;
-
-        var payloadSize = dataType.Size();// SizeOf();
-
-
-        uint contentLength = 0;
-
-        // check if we have the enough data
-        if (payloadSize == -1)
+        if (tt.Class == TransmissionTypeClass.Fixed)
         {
-            contentLength = data.GetUInt32(offset);
-            offset += 4;
-            size += 4 + contentLength;
+            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection));
         }
-        else
-            size += (uint)payloadSize;
-
-        if (isArray)
+        else if (tt.Class == TransmissionTypeClass.Dynamic)
         {
-            switch (t)
-            {
-                // VarArray ?
-                case DataType.Void:
-                    return ParseVarArray(data, offset, contentLength, connection);
-
-                case DataType.Bool:
-                    return new AsyncReply<bool[]>(data.GetBooleanArray(offset, contentLength));
-
-                case DataType.UInt8:
-                    return new AsyncReply<byte[]>(data.GetUInt8Array(offset, contentLength));
-
-                case DataType.Int8:
-                    return new AsyncReply<sbyte[]>(data.GetInt8Array(offset, contentLength));
-
-                case DataType.Char:
-                    return new AsyncReply<char[]>(data.GetCharArray(offset, contentLength));
-
-                case DataType.Int16:
-                    return new AsyncReply<short[]>(data.GetInt16Array(offset, contentLength));
-
-                case DataType.UInt16:
-                    return new AsyncReply<ushort[]>(data.GetUInt16Array(offset, contentLength));
-
-                case DataType.Int32:
-                    return new AsyncReply<int[]>(data.GetInt32Array(offset, contentLength));
-
-                case DataType.UInt32:
-                    return new AsyncReply<uint[]>(data.GetUInt32Array(offset, contentLength));
-
-                case DataType.Int64:
-                    return new AsyncReply<long[]>(data.GetInt64Array(offset, contentLength));
-
-                case DataType.UInt64:
-                    return new AsyncReply<ulong[]>(data.GetUInt64Array(offset, contentLength));
-
-                case DataType.Float32:
-                    return new AsyncReply<float[]>(data.GetFloat32Array(offset, contentLength));
-
-                case DataType.Float64:
-                    return new AsyncReply<double[]>(data.GetFloat64Array(offset, contentLength));
-
-                case DataType.String:
-                    return new AsyncReply<string[]>(data.GetStringArray(offset, contentLength));
-
-                case DataType.Resource:
-                case DataType.DistributedResource:
-                    return ParseResourceArray(data, offset, contentLength, connection);
-
-                case DataType.DateTime:
-                    return new AsyncReply<DateTime[]>(data.GetDateTimeArray(offset, contentLength));
-
-                case DataType.Structure:
-                    return ParseStructureArray(data, offset, contentLength, connection);
-
-                case DataType.Record:
-                    return ParseRecordArray(data, offset, contentLength, connection);
-            }
+            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection));
         }
-        else
+        else //if (tt.Class == TransmissionTypeClass.Typed)
         {
-            switch (t)
-            {
-                case DataType.NotModified:
-                    return new AsyncReply<object>(new NotModified());
-
-                case DataType.Void:
-                    return new AsyncReply<object>(null);
-
-                case DataType.Bool:
-                    return new AsyncReply<object>(data.GetBoolean(offset));
-
-                case DataType.UInt8:
-                    return new AsyncReply<object>(data[offset]);
-
-                case DataType.Int8:
-                    return new AsyncReply<object>((sbyte)data[offset]);
-
-                case DataType.Char:
-                    return new AsyncReply<object>(data.GetChar(offset));
-
-                case DataType.Int16:
-                    return new AsyncReply<object>(data.GetInt16(offset));
-
-                case DataType.UInt16:
-                    return new AsyncReply<object>(data.GetUInt16(offset));
-
-                case DataType.Int32:
-                    return new AsyncReply<object>(data.GetInt32(offset));
-
-                case DataType.UInt32:
-                    return new AsyncReply<object>(data.GetUInt32(offset));
-
-                case DataType.Int64:
-                    return new AsyncReply<object>(data.GetInt64(offset));
-
-                case DataType.UInt64:
-                    return new AsyncReply<object>(data.GetUInt64(offset));
-
-                case DataType.Float32:
-                    return new AsyncReply<object>(data.GetFloat32(offset));
-
-                case DataType.Float64:
-                    return new AsyncReply<object>(data.GetFloat64(offset));
-
-                case DataType.String:
-                    return new AsyncReply<string>(data.GetString(offset, contentLength));
-
-                case DataType.Resource:
-                    return ParseResource(data, offset);
-
-                case DataType.DistributedResource:
-                    return ParseDistributedResource(data, offset, connection);
-
-                case DataType.DateTime:
-                    return new AsyncReply<object>(data.GetDateTime(offset));
-
-                case DataType.Structure:
-                    return ParseStructure(data, offset, contentLength, connection);
-
-                case DataType.Record:
-                    return ParseRecord(data, offset, contentLength, connection);
-            }
+            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection));
         }
-
-
-        return null;
-    }
-
-    /// <summary>
-    /// Parse a resource
-    /// </summary>
-    /// <param name="data">Bytes array</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <returns>Resource</returns>
-    public static AsyncReply<IResource> ParseResource(byte[] data, uint offset)
-    {
-        return Warehouse.GetById(data.GetUInt32(offset));
-    }
-
-    /// <summary>
-    /// Parse a DistributedResource
-    /// </summary>
-    /// <param name="data">Bytes array</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="connection">DistributedConnection is required.</param>
-    /// <returns>DistributedResource</returns>
-    public static AsyncReply<DistributedResource> ParseDistributedResource(byte[] data, uint offset, DistributedConnection connection)
-    {
-        //var g = data.GetGuid(offset);
-        //offset += 16;
-
-        // find the object
-        var iid = data.GetUInt32(offset);
-
-        return connection.Fetch(iid);// Warehouse.Get(iid);
     }
 
 
@@ -886,449 +160,74 @@ public static class Codec
         return false;
     }
 
-    /// <summary>
-    /// Compare two resources
-    /// </summary>
-    /// <param name="initial">Initial resource to make comparison with.</param>
-    /// <param name="next">Next resource to compare with the initial.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <returns>Null, same, local, distributed or same class distributed.</returns>
+    public delegate (TransmissionTypeIdentifier, byte[]) Composer(object value, DistributedConnection connection);
 
-    public static ResourceComparisonResult Compare(IResource initial, IResource next, DistributedConnection connection)
+    public static Dictionary<Type, Composer> Composers = new Dictionary<Type, Composer>()
     {
-        if (next == null)
-            return ResourceComparisonResult.Null;
-        else if (next == initial)
-            return ResourceComparisonResult.Same;
-        else if (IsLocalResource(next, connection))
-            return ResourceComparisonResult.Local;
-        else
-            return ResourceComparisonResult.Distributed;
-    }
+        // Fixed
+        [typeof(bool)] = DataSerializer.BoolComposer,
+        [typeof(bool?)] = DataSerializer.BoolComposer,
+        [typeof(NotModified)] = DataSerializer.NotModifiedComposer,
+        [typeof(byte)] = DataSerializer.UInt8Composer,
+        [typeof(byte?)] = DataSerializer.UInt8Composer,
+        [typeof(sbyte)] = DataSerializer.Int8Composer,
+        [typeof(sbyte?)] = DataSerializer.Int8Composer,
+        [typeof(char)] = DataSerializer.Char16Composer,
+        [typeof(char?)] = DataSerializer.Char16Composer,
+        [typeof(short)] = DataSerializer.Int16Composer,
+        [typeof(short?)] = DataSerializer.Int16Composer,
+        [typeof(ushort)] = DataSerializer.UInt16Composer,
+        [typeof(ushort?)] = DataSerializer.UInt16Composer,
+        [typeof(int)] = DataSerializer.Int32Composer,
+        [typeof(int?)] = DataSerializer.Int32Composer,
+        [typeof(uint)] = DataSerializer.UInt32Composer,
+        [typeof(uint?)] = DataSerializer.UInt32Composer,
+        [typeof(float)] = DataSerializer.Float32Composer,
+        [typeof(float?)] = DataSerializer.Float32Composer,
+        [typeof(long)] = DataSerializer.Int64Composer,
+        [typeof(long?)] = DataSerializer.Int64Composer,
+        [typeof(ulong)] = DataSerializer.UIn64Composer,
+        [typeof(ulong?)] = DataSerializer.UIn64Composer,
+        [typeof(double)] = DataSerializer.Float64Composer,
+        [typeof(double?)] = DataSerializer.Float64Composer,
+        [typeof(DateTime)] = DataSerializer.DateTimeComposer,
+        [typeof(DateTime?)] = DataSerializer.DateTimeComposer,
+        [typeof(decimal)] = DataSerializer.Float128Composer,
+        [typeof(decimal?)] = DataSerializer.Float128Composer,
+        [typeof(byte[])] = DataSerializer.RawDataComposerFromArray,
+        //[typeof(byte?[])] = DataSerializer.RawDataComposerFromArray,
+        [typeof(List<byte>)] = DataSerializer.RawDataComposerFromList,
+        //[typeof(List<byte?>)] = DataSerializer.RawDataComposerFromList,
+        [typeof(string)] = DataSerializer.StringComposer,
+#pragma 
+        // Special
+        [typeof(object[])] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromArray,
+        [typeof(List<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
+        [typeof(IResource[])] = DataSerializer.ResourceListComposer,// (value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
+        [typeof(IResource?[])] = DataSerializer.ResourceListComposer,// (value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
+        [typeof(List<IResource>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
+        [typeof(List<IResource?>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
+        [typeof(IRecord[])] = DataSerializer.RecordListComposer,// (value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(IRecord?[])] = DataSerializer.RecordListComposer,// (value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(List<IRecord>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(List<IRecord?>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(Map<object, object>)] = DataSerializer.MapComposer,
+        [typeof(Map<object?, object>)] = DataSerializer.MapComposer,
+        [typeof(Map<object, object?>)] = DataSerializer.MapComposer,
+        [typeof(Map<object?, object?>)] = DataSerializer.MapComposer,
+        [typeof(PropertyValue[])] = DataSerializer.PropertyValueArrayComposer
+        // Typed
+        // [typeof(bool[])] = (value, con) => DataSerializer.TypedListComposer((IEnumerable)value, typeof(bool), con),
+        // [typeof(bool?[])] = (value, con) => (TransmissionTypeIdentifier.TypedList, new byte[] { (byte)value }),
+        // [typeof(List<bool>)] = (value, con) => (TransmissionTypeIdentifier.TypedList, new byte[] { (byte)value }),
+        // [typeof(List<bool?>)] = (value, con) => (TransmissionTypeIdentifier.TypedList, new byte[] { (byte)value }),
+
+        // [typeof(byte?[])] = (value, con) => (TransmissionTypeIdentifier.TypedList, new byte[] { (byte)value }),
+        // [typeof(List<bool?>)] = (value, con) => (TransmissionTypeIdentifier.TypedList, new byte[] { (byte)value }),
+
+    };
 
-    /// <summary>
-    /// Compose a resource
-    /// </summary>
-    /// <param name="resource">Resource to compose.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] ComposeResource(IResource resource, DistributedConnection connection)
-    {
-        if (IsLocalResource(resource, connection))
-            return DC.ToBytes((resource as DistributedResource).Id);
-        else
-        {
-            return new BinaryList().AddGuid(resource.Instance.Template.ClassId).AddUInt32(resource.Instance.Id).ToArray();
-            //return BinaryList.ToBytes(resource.Instance.Template.ClassId, resource.Instance.Id);
-        }
-    }
 
-    /// <summary>
-    /// Compose an array of resources
-    /// </summary>
-    /// <param name="resources">Array of resources.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <param name="prependLength">If True, prepend the length of the output at the beginning.</param>
-    /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] ComposeResourceArray<T>(T[] resources, DistributedConnection connection, bool prependLength = false)
-        where T : IResource
-    {
-
-        if (resources == null || resources?.Length == 0)
-            return prependLength ? new byte[] { 0, 0, 0, 0 } : new byte[0];
-
-
-        foreach (var r in resources)
-            connection.cache.Add(r, DateTime.UtcNow);
-
-        var rt = new BinaryList();
-        var comparsion = Compare(null, resources[0], connection);
-
-        var type = resources.GetType().GetElementType();
-
-
-        if (type != typeof(IResource))
-        {
-            // get template
-            var tmp = Warehouse.GetTemplateByType(type);
-
-            if (tmp == null) // something wrong
-                rt.AddUInt8((byte)comparsion);
-            else
-            {
-                // typed array
-                rt.AddUInt8((byte)((byte)(tmp.Type == TemplateType.Resource ? ResourceArrayType.Static : ResourceArrayType.Wrapper)
-                             | (byte)comparsion));
-                // add type
-                rt.AddGuid(tmp.ClassId);
-            }
-        }
-        else
-        {
-            rt.AddUInt8((byte)comparsion);
-        }
-
-
-        if (comparsion == ResourceComparisonResult.Local)
-            rt.AddUInt32((resources[0] as DistributedResource).Id);
-        else if (comparsion == ResourceComparisonResult.Distributed)
-            rt.AddUInt32(resources[0].Instance.Id);
-
-        for (var i = 1; i < resources.Length; i++)
-        {
-            comparsion = Compare(resources[i - 1], resources[i], connection);
-            rt.AddUInt8((byte)comparsion);
-            if (comparsion == ResourceComparisonResult.Local)
-                rt.AddUInt32((resources[i] as DistributedResource).Id);
-            else if (comparsion == ResourceComparisonResult.Distributed)
-                rt.AddUInt32(resources[i].Instance.Id);
-        }
-
-        if (prependLength)
-            rt.InsertInt32(0, rt.Length);
-
-        return rt.ToArray();
-    }
-
-    /// <summary>
-    /// Parse an array of bytes into array of resources
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="length">Number of bytes to parse.</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <returns>Array of resources.</returns>
-    public static AsyncBag<IResource> ParseResourceArray(byte[] data, uint offset, uint length, DistributedConnection connection)
-    {
-        var reply = new AsyncBag<IResource>();
-        if (length == 0)
-        {
-            reply.Seal();
-            return reply;
-        }
-
-        var end = offset + length;
-
-        // Is typed array ?
-        var type = (ResourceArrayType)(data[offset] & 0xF0);
-
-        var result = (ResourceComparisonResult)(data[offset++] & 0xF);
-
-
-        if (type == ResourceArrayType.Wrapper)
-        {
-            var classId = data.GetGuid(offset);
-            offset += 16;
-            var tmp = Warehouse.GetTemplateByClassId(classId, TemplateType.Resource);
-            // not mine, look if the type is elsewhere
-            if (tmp == null)
-                Warehouse.GetTemplateByClassId(classId, TemplateType.Wrapper);
-            reply.ArrayType = tmp?.DefinedType;
-        }
-        else if (type == ResourceArrayType.Static)
-        {
-            var classId = data.GetGuid(offset);
-            offset += 16;
-            var tmp = Warehouse.GetTemplateByClassId(classId, TemplateType.Wrapper);
-            reply.ArrayType = tmp?.DefinedType;
-        }
-
-        AsyncReply previous = null;
-
-        if (result == ResourceComparisonResult.Null)
-            previous = new AsyncReply<IResource>(null);
-        else if (result == ResourceComparisonResult.Local)
-        {
-            previous = Warehouse.GetById(data.GetUInt32(offset));
-            offset += 4;
-        }
-        else if (result == ResourceComparisonResult.Distributed)
-        {
-            previous = connection.Fetch(data.GetUInt32(offset));
-            offset += 4;
-        }
-
-        reply.Add(previous);
-
-
-        while (offset < end)
-        {
-            result = (ResourceComparisonResult)data[offset++];
-
-            AsyncReply current = null;
-
-            if (result == ResourceComparisonResult.Null)
-            {
-                current = new AsyncReply<IResource>(null);
-            }
-            else if (result == ResourceComparisonResult.Same)
-            {
-                current = previous;
-            }
-            else if (result == ResourceComparisonResult.Local)
-            {
-                current = Warehouse.GetById(data.GetUInt32(offset));
-                offset += 4;
-            }
-            else if (result == ResourceComparisonResult.Distributed)
-            {
-                current = connection.Fetch(data.GetUInt32(offset));
-                offset += 4;
-            }
-
-            reply.Add(current);
-
-            previous = current;
-        }
-
-        reply.Seal();
-        return reply;
-    }
-
-    /// <summary>
-    /// Compose an array of variables
-    /// </summary>
-    /// <param name="array">Variables.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <param name="prependLength">If True, prepend the length as UInt32 at the beginning of the output.</param>
-    /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] ComposeVarArray(Array array, DistributedConnection connection, bool prependLength = false)
-    {
-        var rt = new List<byte>();
-
-        for (var i = 0; i < array.Length; i++)
-            rt.AddRange(Compose(array.GetValue(i), connection));
-        if (prependLength)
-            rt.InsertRange(0, DC.ToBytes(rt.Count));
-        return rt.ToArray();
-    }
-    /// <summary>
-    /// Parse an array of variables.
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <returns>Array of variables.</returns>
-    public static AsyncBag<object> ParseVarArray(byte[] data, DistributedConnection connection)
-    {
-        return ParseVarArray(data, 0, (uint)data.Length, connection);
-    }
-
-    /// <summary>
-    /// Parse an array of bytes into an array of varialbes.
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="length">Number of bytes to parse.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <returns>Array of variables.</returns>
-    public static AsyncBag<object> ParseVarArray(byte[] data, uint offset, uint length, DistributedConnection connection)
-    {
-        var rt = new AsyncBag<object>();
-
-        while (length > 0)
-        {
-            uint cs;
-
-            rt.Add(Parse(data, offset, out cs, connection));
-
-            if (cs > 0)
-            {
-                offset += (uint)cs;
-                length -= (uint)cs;
-            }
-            else
-                throw new Exception("Error while parsing structured data");
-
-        }
-
-        rt.Seal();
-        return rt;
-    }
-
-    /// <summary>
-    /// Compose an array of property values.
-    /// </summary>
-    /// <param name="array">PropertyValue array.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <param name="prependLength">If True, prepend the length as UInt32 at the beginning of the output.</param>
-    /// <returns>Array of bytes in the network byte order.</returns>
-    /// //, bool includeAge = true
-    public static byte[] ComposePropertyValueArray(PropertyValue[] array, DistributedConnection connection, bool prependLength = false)
-    {
-        var rt = new List<byte>();
-        for (var i = 0; i < array.Length; i++)
-            rt.AddRange(ComposePropertyValue(array[i], connection));
-        if (prependLength)
-            rt.InsertRange(0, DC.ToBytes(rt.Count));
-        return rt.ToArray();
-    }
-
-    /// <summary>
-    /// Compose a property value.
-    /// </summary>
-    /// <param name="propertyValue">Property value</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] ComposePropertyValue(PropertyValue propertyValue, DistributedConnection connection)//, bool includeAge = true)
-    {
-
-        return new BinaryList()
-            .AddUInt64(propertyValue.Age)
-            .AddDateTime(propertyValue.Date)
-            .AddUInt8Array(Compose(propertyValue.Value, connection))
-            .ToArray();
-
-        // age, date, value
-        //if (includeAge)
-        // return BinaryList.ToBytes(propertyValue.Age, propertyValue.Date, Compose(propertyValue.Value, connection));
-        //else
-        //  return BinaryList.ToBytes(propertyValue.Date, Compose(propertyValue.Value, connection));
-
-    }
-
-
-    /// <summary>
-    /// Parse property value.
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <param name="cs">Output content size.</param>
-    /// <returns>PropertyValue.</returns>
-    public static AsyncReply<PropertyValue> ParsePropertyValue(byte[] data, uint offset, out uint cs, DistributedConnection connection)//, bool ageIncluded = true)
-    {
-        var reply = new AsyncReply<PropertyValue>();
-
-        var age = data.GetUInt64(offset);
-        offset += 8;
-
-        DateTime date = data.GetDateTime(offset);
-        offset += 8;
-
-        uint valueSize;
-
-        Parse(data, offset, out valueSize, connection).Then(value =>
-        {
-            reply.Trigger(new PropertyValue(value, age, date));
-        });
-
-        cs = 16 + valueSize;
-        return reply;
-    }
-
-    /// <summary>
-    /// Parse an array of PropertyValue.
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <returns>Array of variables.</returns>
-    public static AsyncBag<PropertyValue> ParsePropertyValueArray(byte[] data, DistributedConnection connection)
-    {
-        return ParsePropertyValueArray(data, 0, (uint)data.Length, connection);
-    }
-
-    /// <summary>
-    /// Parse resource history
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="length">Number of bytes to parse.</param>
-    /// <param name="resource">Resource</param>
-    /// <param name="fromAge">Starting age.</param>
-    /// <param name="toAge">Ending age.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <returns></returns>
-    public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> ParseHistory(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection)
-    {
-        //var count = (int)toAge - (int)fromAge;
-
-        var list = new KeyList<PropertyTemplate, PropertyValue[]>();
-
-        var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
-
-        var bagOfBags = new AsyncBag<PropertyValue[]>();
-
-        var ends = offset + length;
-        while (offset < ends)
-        {
-            var index = data[offset++];
-            var pt = resource.Instance.Template.GetPropertyTemplateByIndex(index);
-            list.Add(pt, null);
-            var cs = data.GetUInt32(offset);
-            offset += 4;
-            bagOfBags.Add(ParsePropertyValueArray(data, offset, cs, connection));
-            offset += cs;
-        }
-
-        bagOfBags.Seal();
-
-        bagOfBags.Then(x =>
-        {
-            for (var i = 0; i < list.Count; i++)
-                list[list.Keys.ElementAt(i)] = x[i];
-
-            reply.Trigger(list);
-        });
-
-        return reply;
-
-    }
-
-    /// <summary>
-    /// Compose resource history
-    /// </summary>
-    /// <param name="history">History</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <returns></returns>
-    public static byte[] ComposeHistory(KeyList<PropertyTemplate, PropertyValue[]> history,
-                                        DistributedConnection connection, bool prependLength = false)
-    {
-        var rt = new BinaryList();
-
-        for (var i = 0; i < history.Count; i++)
-            rt.AddUInt8(history.Keys.ElementAt(i).Index)
-              .AddUInt8Array(ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
-
-        //    rt.Append((byte)history.Keys.ElementAt(i).Index, 
-        //            ComposePropertyValueArray(history.Values.ElementAt(i), connection, true));
-
-        if (prependLength)
-            rt.InsertInt32(0, rt.Length);
-
-        return rt.ToArray();
-    }
-
-    /// <summary>
-    /// Parse an array of PropertyValue.
-    /// </summary>
-    /// <param name="data">Array of bytes.</param>
-    /// <param name="offset">Zero-indexed offset.</param>
-    /// <param name="length">Number of bytes to parse.</param>
-    /// <param name="connection">DistributedConnection is required to fetch resources.</param>
-    /// <param name="ageIncluded">Whether property age is represented in the data.</param>
-    /// <returns></returns>
-    public static AsyncBag<PropertyValue> ParsePropertyValueArray(byte[] data, uint offset, uint length, DistributedConnection connection)//, bool ageIncluded = true)
-    {
-        var rt = new AsyncBag<PropertyValue>();
-
-        while (length > 0)
-        {
-            uint cs;
-
-            rt.Add(ParsePropertyValue(data, offset, out cs, connection));//, ageIncluded));
-
-            if (cs > 0)
-            {
-                offset += (uint)cs;
-                length -= (uint)cs;
-            }
-            else
-                throw new Exception("Error while parsing ValueInfo structured data");
-        }
-
-        rt.Seal();
-        return rt;
-    }
 
     /// <summary>
     /// Compose a variable
@@ -1337,76 +236,116 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required to check locality.</param>
     /// <param name="prependType">If True, prepend the DataType at the beginning of the output.</param>
     /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] Compose(object valueOrSource, DistributedConnection connection, bool prependType = true)
+    public static byte[] Compose(object valueOrSource, DistributedConnection connection)//, bool prependType = true)
     {
 
-        var (type, value) = GetDataType(valueOrSource, connection);
-        var rt = new BinaryList();
 
-        switch (type)
+        if (valueOrSource == null)
+            return TransmissionType.Compose(TransmissionTypeIdentifier.Null, null);
+
+        var type = valueOrSource.GetType();
+
+        if (type.IsGenericType)
         {
-            case DataType.Void:
-                // nothing to do;
-                break;
 
-            case DataType.String:
-                var st = DC.ToBytes((string)value);
-                rt.AddInt32(st.Length).AddUInt8Array(st);
-                break;
-
-            case DataType.Resource:
-                rt.AddUInt32((value as DistributedResource).Id);
-                break;
-
-            case DataType.DistributedResource:
-                //rt.Append((value as IResource).Instance.Template.ClassId, (value as IResource).Instance.Id);
-                connection.cache.Add(value as IResource, DateTime.UtcNow);
-                rt.AddUInt32((value as IResource).Instance.Id);
-
-                break;
-
-            case DataType.Structure:
-                rt.AddUInt8Array(ComposeStructure((Structure)value, connection, true, true, true));
-                break;
-
-            case DataType.VarArray:
-                rt.AddUInt8Array(ComposeVarArray((Array)value, connection, true));
-                break;
-
-            case DataType.Record:
-                rt.AddUInt8Array(ComposeRecord((IRecord)value, connection, true, true));
-                break;
-
-            case DataType.ResourceArray:
-
-                rt.AddUInt8Array(ComposeResourceArray((IResource[])value, connection, true));
-                break;
-            //if (value is IResource[])
-            //    rt.AddUInt8Array(ComposeResourceArray((IResource[])value, connection, true));
-            //else
-            //    rt.AddUInt8Array(ComposeResourceArray((IResource[])DC.CastConvert(value, typeof(IResource[])), connection, true));
-            //break;
-
-            case DataType.StructureArray:
-                rt.AddUInt8Array(ComposeStructureArray((Structure[])value, connection, true));
-                break;
-
-            case DataType.RecordArray:
-                rt.AddUInt8Array(ComposeRecordArray((IRecord[])value, connection, true));
-                break;
-
-            default:
-                rt.Add(type, value);
-                if (type.IsArray())
-                    rt.InsertInt32(0, rt.Length);
-                break;
+            var genericType = type.GetGenericTypeDefinition();
+            if (genericType == typeof(DistributedPropertyContext<>))
+            {
+                valueOrSource = ((IDistributedPropertyContext)valueOrSource).GetValue(connection);
+            }
+            else if (genericType == typeof(Func<>))
+            {
+                var args = genericType.GetGenericArguments();
+                if (args.Length == 2 && args[0] == typeof(DistributedConnection))
+                {
+                    //Func<DistributedConnection, DistributedConnection> a;
+                    //a.Invoke()
+                }
+            }
         }
 
-        if (prependType)
-            rt.InsertUInt8(0, (byte)type);
+        if (valueOrSource is IUserType)
+            valueOrSource = (valueOrSource as IUserType).Get();
 
-        return rt.ToArray();
+        //if (valueOrSource is Func<DistributedConnection, object>)
+        //    valueOrSource = (valueOrSource as Func<DistributedConnection, object>)(connection);
+
+        if (valueOrSource == null)
+            return TransmissionType.Compose(TransmissionTypeIdentifier.Null, null);
+
+
+        type = valueOrSource.GetType();
+
+
+        if (Composers.ContainsKey(type))
+        {
+            var (hdr, data) = Composers[type](valueOrSource, connection);
+            return TransmissionType.Compose(hdr, data);
+        }
+        else
+        {
+            if (type.IsGenericType)
+            {
+                var genericType = type.GetGenericTypeDefinition();
+                if (genericType == typeof(List<>))
+                {
+                    var args = type.GetGenericArguments();
+                    //if (Composers.ContainsKey(args[0]))
+                    //{
+                    var (hdr, data) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, args[0], connection);
+                    return TransmissionType.Compose(hdr, data);
+                    //}
+                }
+                else if (genericType == typeof(Map<,>))
+                {
+                    var args = type.GetGenericArguments();
+
+                    var (hdr, data) = DataSerializer.TypedMapComposer(valueOrSource, args[0], args[1], connection);
+                    return TransmissionType.Compose(hdr, data);
+
+                }
+                else if (genericType == typeof(ValueTuple<,>)
+                      || genericType == typeof(ValueTuple<,,>)
+                      || genericType == typeof(ValueTuple<,,,>)
+                  )
+                {
+                    var (hdr, data) = DataSerializer.TupleComposer(valueOrSource, connection);
+                    return TransmissionType.Compose(hdr, data);
+                }
+            }
+            else if (type.IsArray)
+            {
+                var elementType = type.GetElementType();
+
+                //if (Composers.ContainsKey(elementType))
+                //{
+                var (hdr, data) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, elementType, connection);
+                return TransmissionType.Compose(hdr, data);
+
+                //}
+            }
+            else if (Codec.ImplementsInterface(type, typeof(IResource)))
+            {
+                var (hdr, data) = DataSerializer.ResourceComposer(valueOrSource, connection);
+                return TransmissionType.Compose(hdr, data);
+            }
+            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
+            {
+                var (hdr, data) = DataSerializer.RecordComposer(valueOrSource, connection);
+                return TransmissionType.Compose(hdr, data);
+            }
+            else if (type.IsEnum)
+            {
+                var (hdr, data) = DataSerializer.EnumComposer(valueOrSource, connection);
+                return TransmissionType.Compose(hdr, data);
+            }
+
+        }
+
+        return TransmissionType.Compose(TransmissionTypeIdentifier.Null, null);
+
     }
+
 
 
     public static bool IsAnonymous(Type type)
@@ -1416,6 +355,22 @@ public static class Codec
         var hasCompilerGeneratedAttribute = info.GetCustomAttributes(typeof(CompilerGeneratedAttribute), false).Count() > 0;
         var nameContainsAnonymousType = type.FullName.Contains("AnonymousType");
         return hasCompilerGeneratedAttribute && nameContainsAnonymousType;
+    }
+
+
+    public static Type GetGenericType(Type type, Type ifaceType, int argument = 0)
+    {
+        if (ifaceType.IsAssignableFrom(type))
+        {
+            var col = type.GetInterfaces().Where(x => x.IsGenericType && x.GetGenericTypeDefinition() == ifaceType)
+                                       .FirstOrDefault()?
+                                       .GetGenericArguments()
+                                       .FirstOrDefault() ?? null;
+
+            return col;
+        }
+        else
+            return null;
     }
 
     /// <summary>
@@ -1470,144 +425,4 @@ public static class Codec
 
         return false;
     }
-
-    /// <summary>
-    /// Get the DataType of a given value.
-    /// This function is needed to compose a value.
-    /// </summary>
-    /// <param name="value">Value to find its DataType.</param>
-    /// <param name="connection">DistributedConnection is required to check locality of resources.</param>
-    /// <returns>DataType.</returns>
-    public static (DataType type, object value) GetDataType(object value, DistributedConnection connection)
-    {
-
-        if (value == null)
-            return (DataType.Void, null);
-
-        if (value is IUserType)
-            value = (value as IUserType).Get();
-
-
-        //  value = (List<>)value.ToArray();
-
-        if (value is Func<DistributedConnection, object>)
-            //if (connection != null)
-            value = (value as Func<DistributedConnection, object>)(connection);
-        //else
-        //    return (DataType.Void, null);
-        else if (value is DistributedPropertyContext)
-        {
-            try
-            {
-                //if (connection != null)
-                value = (value as DistributedPropertyContext).Method(connection);
-                //else
-            }
-            catch (Exception ex)
-            {
-                Global.Log(ex);
-                return (DataType.Void, null);
-            }
-            //    return (DataType.Void, null);
-        }
-
-        if (value == null)
-            return (DataType.Void, null);
-
-
-        var t = value.GetType();
-
-        // Convert ICollection<T> to Array<T>
-        if (!t.IsArray && typeof(ICollection).IsAssignableFrom(t))
-        {
-            var col = t.GetInterfaces().Where(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>));
-            if (col.Count() == 0)
-                return (DataType.Void, null);
-
-            var elementType = col.First().GetGenericArguments()[0];
-
-            value = new ArrayList((ICollection)value).ToArray(elementType);
-            t = value.GetType();
-        }
-
-        var isArray = t.IsArray;
-
-        if (isArray)
-        {
-            t = t.GetElementType();
-            if (t.IsEnum)
-            {
-                var src = value as Array;
-                t = t.GetEnumUnderlyingType();
-                var dst = Array.CreateInstance(t, src.Length);
-                src.CopyTo(dst, 0);
-                value = dst;
-            }
-        }
-        else if (t.IsEnum)
-        {
-            t = t.GetEnumUnderlyingType();
-            value = Convert.ChangeType(value, t);
-        }
-
-        DataType type;
-
-
-
-        if (t == typeof(bool))
-            type = DataType.Bool;
-        else if (t == typeof(char))
-            type = DataType.Char;
-        else if (t == typeof(byte))
-            type = DataType.UInt8;
-        else if (t == typeof(sbyte))
-            type = DataType.Int8;
-        else if (t == typeof(short))
-            type = DataType.Int16;
-        else if (t == typeof(ushort))
-            type = DataType.UInt16;
-        else if (t == typeof(int))
-            type = DataType.Int32;
-        else if (t == typeof(uint))
-            type = DataType.UInt32;
-        else if (t == typeof(long))
-            type = DataType.Int64;
-        else if (t == typeof(ulong))
-            type = DataType.UInt64;
-        else if (t == typeof(float))
-            type = DataType.Float32;
-        else if (t == typeof(double))
-            type = DataType.Float64;
-        else if (t == typeof(decimal))
-            type = DataType.Decimal;
-        else if (t == typeof(string))
-            type = DataType.String;
-        else if (t == typeof(DateTime))
-            type = DataType.DateTime;
-        else if (typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject))
-            type = DataType.Structure;
-        //else if (t == typeof(DistributedResource))
-        //  type = DataType.DistributedResource;
-        else if (ImplementsInterface(t, typeof(IResource)))
-        {
-            if (isArray)
-                return (DataType.ResourceArray, value);
-            else
-            {
-                return (IsLocalResource((IResource)value, connection) ? DataType.Resource : DataType.DistributedResource, value);
-            }
-        }
-        else if (ImplementsInterface(t, typeof(IRecord)))
-            type = DataType.Record;
-        else
-            type = DataType.Void;
-
-
-        if (isArray)
-            return ((DataType)((byte)type | 0x80), value);
-        else
-            return (type, value);
-
-    }
-
 }

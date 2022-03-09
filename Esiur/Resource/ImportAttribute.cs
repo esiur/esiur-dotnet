@@ -7,7 +7,7 @@ namespace Esiur.Resource;
 [AttributeUsage(AttributeTargets.Class)]
 public class ImportAttribute : Attribute
 {
-    public ImportAttribute(string url)
+    public ImportAttribute(params string[] urls)
     {
 
     }

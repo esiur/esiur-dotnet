@@ -34,10 +34,13 @@ public class AsyncBag<T> : AsyncBag
 {
     public AsyncBag<T> Then(Action<T[]> callback)
     {
-        base.Then(new Action<object>((o) => callback(((object[])o).Select(x => (T)x).ToArray())));
+        //base.Then(new Action<object>((o) => callback(((object[])o).Select(x => (T)x).ToArray())));
+        base.Then(x => callback((T[])x)); 
+            
         return this;
     }
 
+    public override Type ArrayType => typeof(T);
 
     public void Add(AsyncReply<T> reply)
     {
@@ -58,8 +61,14 @@ public class AsyncBag<T> : AsyncBag
 
     public new T[] Wait()
     {
-        return base.Wait().Select(x => (T)x).ToArray();
+        return (T[])base.Wait();// base.Wait().Select(x => (T)x).ToArray();
     }
+
+    public new T[] Wait(int timeout)
+    {
+        return (T[])base.Wait(timeout);
+    }
+
 
     public AsyncBag()
     {

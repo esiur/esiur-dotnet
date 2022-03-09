@@ -74,6 +74,15 @@ public class ResourceGenerator : ISourceGenerator
 
 
 
+    static string SuggestPropertyName(string propertyName)
+    {
+        if (Char.IsUpper(propertyName[0]))
+            return propertyName.Substring(0, 1).ToLower() + propertyName.Substring(1);
+        else
+            return propertyName.Substring(0, 1).ToUpper() + propertyName.Substring(1);
+
+    }
+
     public void Execute(GeneratorExecutionContext context)
     {
 
@@ -146,27 +155,30 @@ namespace { ci.ClassSymbol.ContainingNamespace.ToDisplayString() } {{
 ";
 
                 if (ci.HasInterface)
-                    code += $"public partial class {ci.Name} {{";
+                    code += $"public partial class {ci.Name} {{\r\n";
                 else
                 {
-                    code += @$"public partial class {ci.Name} : IResource {{
-public Instance Instance {{ get; set; }}
-public event DestroyedEvent OnDestroy;
-public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
+                    code += 
+@$" public partial class {ci.Name} : IResource {{
+        public Instance Instance {{ get; set; }}
+        public event DestroyedEvent OnDestroy;
+
+        public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
 ";
 
                     if (!ci.HasTrigger)
-                        code += "public AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n";
+                        code += 
+"        public AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n";
                 }
 
                 //Debugger.Launch();
 
                 foreach (var f in ci.Fields)
                 {
-                    var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "PublicAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value;
+                    var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "PublicAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value as string;
 
                     var fn = f.Name;
-                    var pn = givenName ?? fn.Substring(0, 1).ToUpper() + fn.Substring(1);
+                    var pn =string.IsNullOrEmpty(givenName) ? SuggestPropertyName(fn): givenName;
 
                     //System.IO.File.AppendAllText("c:\\gen\\fields.txt", fn + " -> " + pn + "\r\n");
 

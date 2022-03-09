@@ -52,7 +52,8 @@ public class DistributedResource : DynamicObject, IResource
     /// Raised when the distributed resource is destroyed.
     /// </summary>
     public event DestroyedEvent OnDestroy;
-    public event Instance.ResourceModifiedEvent OnModified;
+    public event PropertyModifiedEvent PropertyModified;
+
     uint instanceId;
     DistributedConnection connection;
 
@@ -82,6 +83,8 @@ public class DistributedResource : DynamicObject, IResource
     //    get { return template; }
     //}
 
+
+    
 
     /// <summary>
     /// Connection responsible for the distributed resource.
@@ -214,12 +217,10 @@ public class DistributedResource : DynamicObject, IResource
     {
         var et = Instance.Template.GetEventTemplateByIndex(index);
         events[index]?.Invoke(this, args);
-        Instance.EmitResourceEvent(et.Name, args);
+        Instance.EmitResourceEvent(et, args);
     }
 
-
-
-    public AsyncReply<object> _InvokeByNamedArguments(byte index, Structure namedArgs)
+    public AsyncReply<object> _Invoke(byte index, Map<byte, object> args)
     {
         if (destroyed)
             throw new Exception("Trying to access destroyed object");
@@ -231,23 +232,7 @@ public class DistributedResource : DynamicObject, IResource
             throw new Exception("Function index is incorrect");
 
 
-        return connection.SendInvokeByNamedArguments(instanceId, index, namedArgs);
-    }
-
-
-    public AsyncReply<object> _InvokeByArrayArguments(byte index, object[] args)
-    {
-        if (destroyed)
-            throw new Exception("Trying to access destroyed object");
-
-        if (suspended)
-            throw new Exception("Trying to access suspended object");
-
-        if (index >= Instance.Template.Functions.Length)
-            throw new Exception("Function index is incorrect");
-
-
-        return connection.SendInvokeByArrayArguments(instanceId, index, args);
+        return connection.SendInvoke(instanceId, index, args);
     }
 
 
@@ -294,31 +279,43 @@ public class DistributedResource : DynamicObject, IResource
         var ft = Instance.Template.GetFunctionTemplateByName(binder.Name);
 
         var reply = new AsyncReply<object>();
-
+        
         if (attached && ft != null)
         {
+            var indexedArgs = new Map<byte, object>();
+
             if (args.Length == 1)
             {
                 // Detect anonymous types
                 var type = args[0].GetType();
+
+
                 if (Codec.IsAnonymous(type))
                 {
-                    var namedArgs = new Structure();
 
-                    var pi = type.GetTypeInfo().GetProperties();
-                    foreach (var p in pi)
-                        namedArgs[p.Name] = p.GetValue(args[0]);
-                    result = _InvokeByNamedArguments(ft.Index, namedArgs);
+                    var pis = type.GetProperties();
+
+                    for (byte i = 0; i < ft.Arguments.Length; i++)
+                    {
+                        var pi = pis.FirstOrDefault(x => x.Name == ft.Arguments[i].Name);
+                        if (pi != null)
+                            indexedArgs.Add(i, pi.GetValue(args[0]));
+                    }
+
+                    result =_Invoke(ft.Index, indexedArgs);
                 }
                 else
                 {
-                    result = _InvokeByArrayArguments(ft.Index, args);
+                    indexedArgs.Add((byte)0, args[0]);
+                    result = _Invoke(ft.Index, indexedArgs);
                 }
-
             }
             else
             {
-                result = _InvokeByArrayArguments(ft.Index, args);
+                for (byte i = 0; i < args.Length; i++)
+                    indexedArgs.Add(i, args[i]);
+
+                result = _Invoke(ft.Index, indexedArgs);
             }
             return true;
         }
@@ -339,6 +336,20 @@ public class DistributedResource : DynamicObject, IResource
         if (index >= properties.Length)
             return null;
         return properties[index];
+    }
+
+    public bool TryGetPropertyValue(byte index, out object value)
+    {
+        if (index >= properties.Length)
+        {
+            value = null;
+            return false;
+        }
+        else
+        {
+            value = properties[index];
+            return true;
+        }
     }
 
     public override bool TryGetMember(GetMemberBinder binder, out object result)
@@ -409,6 +420,7 @@ public class DistributedResource : DynamicObject, IResource
         return reply;
     }
 
+    
     public override bool TrySetMember(SetMemberBinder binder, object value)
     {
         if (destroyed)
@@ -496,7 +508,7 @@ public class DistributedResource : DynamicObject, IResource
     {
 
         if (trigger == ResourceTrigger.Initialize)
-            this.Instance.ResourceModified += this.OnModified;
+            this.Instance.PropertyModified += this.PropertyModified;
 
         // do nothing.
         return new AsyncReply<bool>(true);

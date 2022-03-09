@@ -30,178 +30,149 @@ using Esiur.Net.Sockets;
 using Esiur.Resource;
 using Esiur.Security.Permissions;
 using Esiur.Stores;
-using Esiur.Stores.MongoDB;
-using System;
+ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Esiur.Security.Integrity;
 using System.Linq;
+using Esiur.Resource.Template;
+using System.Collections;
+using System.Runtime.CompilerServices;
+using Esiur.Proxy;
 
 namespace Test
 {
     class Program
     {
-        static MyObject localObject;
-        static IResource remoteObject;
-
-
-
+        
         static async Task Main(string[] args)
         {
 
+         
+            Warehouse.GetTemplateByType(typeof(MyChildRecord));
 
             // Create stores to keep objects.
-            var system = Warehouse.New<MemoryStore>("system");
-            var remote = Warehouse.New<MemoryStore>("remote");
-            var mongo = Warehouse.New<MongoDBStore>("db");
+            var system = await Warehouse.Put("mem", new MemoryStore());
+            var server = await Warehouse.Put("mem/server", new DistributedServer());
+            var service = await Warehouse.Put("mem/service", new MyService());
+            var res1 = await Warehouse.Put("mem/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
+            var res2 = await Warehouse.Put("mem/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
+            var res3 = await Warehouse.Put("mem/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
 
 
-            // Create new distributed server object
-            var iip = Warehouse.New<DistributedServer>("iip", system);
-            // Set membership which handles authentication.
-            iip.Membership = Warehouse.New<MyMembership>("ms", system);
-            // Start the server on port 5000.
-            iip.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 500)), 600000, 60000);
-
-
-            // Create http server to handle IIP over Websockets
-            var http = Warehouse.New<HTTPServer>("http", system);
-            http.Start(new TCPSocket(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 501)), 600000, 60000);
-
-            // Create IIP over Websocket HTTP module and give it to HTTP server.
-            var wsOverHttp = Warehouse.New<IIPoWS>("IIPoWS", system, http);
-
-            wsOverHttp.DistributedServer = iip;
-
-
-            /*
-            var system = await Warehouse.Get("mem://system").Task;
-            var remote = await Warehouse.Get("mem://remote").Task;
-            var mongo = await Warehouse.Get("mongo://db").Task;
-            var iip = await Warehouse.Get("iip://:5000").Task;
-            var iws = await Warehouse.Get("iipows://:5001", new Structure() { ["iip"] = iip }).Task;
-            */
+            service.Resource = res1;
+            service.ChildResource = res3;
+            service.Resources = new MyResource[] { res1, res2,  res1 , res3 };
 
             var ok = await Warehouse.Open();
 
-
-            // Open the warehouse
-
-
-            // Create new object if the store is empty
-            if (mongo.Count == 0)
-                localObject = Warehouse.New<MyObject>("my", mongo, null,
-                    new UserPermissionsManager(new Structure()
-                    {
-                        ["demo@localhost"] = new Structure()
-                        {
-                            ["Subtract"] = new Structure { ["Execute"] = "yes" },
-                            ["Stream"] = new Structure { ["Execute"] = "yes" },
-                            ["_attach"] = "yes",
-                            ["_get_attributes"] = "yes",
-                            ["_set_attributes"] = "yes",
-                        }
-                    }));
-            else
-                localObject = (MyObject)(await Warehouse.Get("db/my"));
-
-
-            iip.EntryPoint = localObject;
-
-            Warehouse.StoreConnected += (store, name) =>
-            {
-                if (store.Instance.Parents.Contains(iip))
-                {
-                    store.Get("local/js").Then((r) =>
-                    {
-                        if (r != null)
-                        {
-                            dynamic d = r;
-                            d.send("Welcome");
-                        }
-                    });
-                }
-            };
-
+            Console.WriteLine(String.Join(" ", service.Instance.Template.ClassId.ToByteArray()));
             // Start testing
-            TestClient();
+            TestClient(service);
+           // TestClient(service);
+        }
 
-            var running = true;
 
-            while (running)
+        enum aa
+        {
+            a,
+            b,
+            c,
+            d                
+        }
+
+        public static (int, string) tuple() => (33, "sss");
+ 
+        private static async void TestClient(IResource local)
+        {
+            dynamic remote = await Warehouse.Get<IResource>("iip://localhost/mem/service");
+
+            TestObjectProps(local, remote);
+
+            var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
+            Console.WriteLine(opt);
+
+            await remote.Void();
+            await remote.Connection("ss", 33);
+            await remote.ConnectionOptional("Test 2", 88);
+            var rt = await remote.Optional("Optiona", 311);
+            Console.WriteLine(rt);
+
+            var t2 = await remote.GetTuple2(1, "A");
+            Console.WriteLine(t2);
+            var t3 = await remote.GetTuple3(1, "A", 1.3);
+            Console.WriteLine(t3);
+            var t4 = await remote.GetTuple4(1, "A", 1.3, true);
+            Console.WriteLine(t4);
+
+            remote.StringEvent += new DistributedResourceEvent((sender, args) =>
+               Console.WriteLine($"StringEvent {args}")
+            );
+
+            remote.ArrayEvent += new DistributedResourceEvent((sender, args) =>
+               Console.WriteLine($"ArrayEvent {args}")
+            );
+
+            await remote.InvokeEvents("Hello");
+
+            //var childTemplate = remote.Child.Instance.Template;
+
+
+            var path = TemplateGenerator.GetTemplate("iip://localhost/mem/service", "Generated");
+
+            Console.WriteLine(path);
+
+        }
+
+        
+
+        static void TestObjectProps(IResource local, DistributedResource remote)
+        {
+
+            foreach(var pt in local.Instance.Template.Properties)
             {
-                var cmd = Console.ReadLine();
-                if (cmd.ToLower() == "exit")
-                    Warehouse.Close().Then((x) =>
-                    {
-                        if (!x)
-                            Console.WriteLine("Failed to close the warehouse.");
-                        else
-                            Console.WriteLine("Successfully closed the warehouse.");
 
-                        running = false;
-                    });
+                var lv = pt.PropertyInfo.GetValue(local);
+                object v;
+                var rv = remote.TryGetPropertyValue(pt.Index, out v);
+                if (!rv)
+                    Console.WriteLine($" ** {pt.Name } Failed");
                 else
-                {
-                    localObject.Level = 88;
-                    Console.WriteLine(localObject.Name + " " + localObject.Level);
-                }
+                    Console.WriteLine($"{pt.Name } {GetString(lv)} == {GetString(v)}");
             }
 
-
         }
 
-        private static async void TestClient()
+        static string GetString(object value)
         {
+            if (value == null)
+                return "NULL";
 
-            remoteObject = await Warehouse.Get("iip://localhost:500/db/my", new { username= "demo", password = 1234 });
+            var t = value.GetType();
+            var nt = Nullable.GetUnderlyingType(t);
+            if (nt != null)
+                t = nt;
+            if (t.IsArray)
+            {
+                var ar = (Array)value;
+                if (ar.Length == 0)
+                    return "[]";
+                var rt = "[";
+                for (var i = 0; i < ar.Length - 1; i++)
+                    rt += GetString(ar.GetValue(i)) + ",";
+                rt += GetString(ar.GetValue(ar.Length - 1)) + "]";
 
-            dynamic x = remoteObject;
-
+                return rt;
+            } else if (value is IRecord)
+            {
+                return "{" + String.Join(", ",  t.GetProperties().Select(x => x.Name + ": " + x.GetValue(value))) + "}";
+            }
             
-            Console.WriteLine("My Name is: " + x.Name);
-            x.Name = "Hamoo";
-            x.LevelUp += new DistributedResourceEvent((sender, parameters) =>
-            {
-                Console.WriteLine("LevelUp " + parameters[0] + " " + parameters[1]);
-            });
-
-            x.LevelDown += new DistributedResourceEvent((sender, parameters) =>
-            {
-                Console.WriteLine("LevelUp " + parameters[0] + " " + parameters[1]);
-            });
-
-    
-            (x.Stream(10) as AsyncReply<object>).Then(r =>
-            {
-                Console.WriteLine("Stream ended: " + r);
-            }).Chunk(r =>
-            {
-                Console.WriteLine("Chunk..." + r);
-            }).Progress((t, v, m) => Console.WriteLine("Processing {0}/{1}", v, m));
-
-            var rt = await x.Subtract(10);
-
-
-            Console.WriteLine(rt);
-            // Getting object record
-            (remoteObject.Instance.Store as DistributedConnection).GetRecord(remoteObject, DateTime.Now - TimeSpan.FromDays(1), DateTime.Now).Then(record =>
-            {
-                Console.WriteLine("Records received: " + record.Count);
-            });
-
-            //var timer = new Timer(T_Elapsed, null, 5000, 5000);
-            
-
+            else
+                return value.ToString();
         }
-
-        private static void T_Elapsed(object state)
-        {
-            localObject.Level++;
-            dynamic o = remoteObject;
-            Console.WriteLine(localObject.Level + " " + o.Level + o.Me.Me.Level);
-        }
+     
     }
 }
 

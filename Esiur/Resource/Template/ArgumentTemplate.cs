@@ -9,18 +9,24 @@ public class ArgumentTemplate
 {
     public string Name { get; set; }
 
-    public TemplateDataType Type { get; set; }
+    public bool Optional { get; set; }
+
+    public RepresentationType Type { get; set; }
 
     public ParameterInfo ParameterInfo { get; set; }
 
-    public static (uint, ArgumentTemplate) Parse(byte[] data, uint offset)
+    public int Index { get; set; }
+
+    public static (uint, ArgumentTemplate) Parse(byte[] data, uint offset, int index)
     {
+        var optional = (data[offset++] & 0x1) == 0x1;
+
         var cs = (uint)data[offset++];
         var name = data.GetString(offset, cs);
         offset += cs;
-        var (size, type) = TemplateDataType.Parse(data, offset);
+        var (size, type) = RepresentationType.Parse(data, offset);
 
-        return (cs + 1 + size, new ArgumentTemplate(name, type));
+        return (cs + 2 + size, new ArgumentTemplate(name, index, type, optional));
     }
 
     public ArgumentTemplate()
@@ -28,10 +34,12 @@ public class ArgumentTemplate
 
     }
 
-    public ArgumentTemplate(string name, TemplateDataType type)
+    public ArgumentTemplate(string name, int index, RepresentationType type, bool optional)
     {
         Name = name;
+        Index = index;
         Type = type;
+        Optional = optional;
     }
 
     public byte[] Compose()
@@ -39,6 +47,7 @@ public class ArgumentTemplate
         var name = DC.ToBytes(Name);
 
         return new BinaryList()
+                .AddUInt8(Optional ? (byte)1 : (byte)0)
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
                 .AddUInt8Array(Type.Compose())

@@ -32,7 +32,7 @@ public class Resource : IResource
     public Instance Instance { get; set; }
 
     public event DestroyedEvent OnDestroy;
-
+    
     public virtual void Destroy()
     {
         OnDestroy?.Invoke(this);
@@ -51,6 +51,7 @@ public class Resource : IResource
     {
         return true;
     }
+
 
     ~Resource()
     {

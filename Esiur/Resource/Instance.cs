@@ -32,24 +32,20 @@ public class Instance
     AutoList<IPermissionsManager, Instance> managers;
 
 
-    public delegate void ResourceModifiedEvent(IResource resource, string propertyName, object newValue);
-    public delegate void ResourceEventOccurredEvent(IResource resource, string eventName, object args);
+    public event PropertyModifiedEvent PropertyModified;
 
-    public delegate void CustomResourceEventOccurredEvent(IResource resource, object issuer, Func<Session, bool> receivers, string eventName, object args);
-
-    public delegate void ResourceDestroyedEvent(IResource resource);
-
-    public event ResourceModifiedEvent ResourceModified;
-    public event ResourceEventOccurredEvent ResourceEventOccurred;
-    public event CustomResourceEventOccurredEvent CustomResourceEventOccurred;
-    public event ResourceDestroyedEvent ResourceDestroyed;
+ 
+ 
+    public event EventOccurredEvent EventOccurred;
+    public event CustomEventOccurredEvent CustomEventOccurred;
+    public event ResourceDestroyedEvent Destroyed;
 
     bool loading = false;
 
     //KeyList<string, object> attributes;
 
-    List<ulong> ages = new List<ulong>();
-    List<DateTime> modificationDates = new List<DateTime>();
+    List<ulong?> ages = new();
+    List<DateTime?> modificationDates = new ();
     private ulong instanceAge;
     private DateTime instanceModificationDate;
 
@@ -100,10 +96,10 @@ public class Instance
         */
     }
 
-    public Structure GetAttributes(string[] attributes = null)
+    public Map<string,object> GetAttributes(string[] attributes = null)
     {
         // @TODO
-        Structure rt = new Structure();
+        var rt = new Map<string,object>();
 
         if (attributes != null)
         {
@@ -172,7 +168,7 @@ public class Instance
         */
     }
 
-    public bool SetAttributes(Structure attributes, bool clearAttributes = false)
+    public bool SetAttributes(Map<string,object> attributes, bool clearAttributes = false)
     {
 
         // @ TODO
@@ -274,7 +270,7 @@ public class Instance
     /// </summary>
     /// <param name="index">Zero-based property index.</param>
     /// <returns>Age.</returns>
-    public ulong GetAge(byte index)
+    public ulong? GetAge(byte index)
     {
         if (index < ages.Count)
             return ages[index];
@@ -287,13 +283,13 @@ public class Instance
     /// </summary>
     /// <param name="index">Zero-based property index.</param>
     /// <param name="value">Age.</param>
-    public void SetAge(byte index, ulong value)
+    public void SetAge(byte index, ulong? value)
     {
         if (index < ages.Count)
         {
             ages[index] = value;
             if (value > instanceAge)
-                instanceAge = value;
+                instanceAge = (ulong)value;
         }
     }
 
@@ -302,13 +298,13 @@ public class Instance
     /// </summary>
     /// <param name="index">Zero-based property index.</param>
     /// <param name="value">Modification date.</param>
-    public void SetModificationDate(byte index, DateTime value)
+    public void SetModificationDate(byte index, DateTime? value)
     {
         if (index < modificationDates.Count)
         {
             modificationDates[index] = value;
             if (value > instanceModificationDate)
-                instanceModificationDate = value;
+                instanceModificationDate = (DateTime) value;
         }
     }
 
@@ -317,7 +313,7 @@ public class Instance
     /// </summary>
     /// <param name="index">Zero-based property index</param>
     /// <returns>Modification date.</returns>
-    public DateTime GetModificationDate(byte index)
+    public DateTime? GetModificationDate(byte index)
     {
         if (index < modificationDates.Count)
             return modificationDates[index];
@@ -333,7 +329,7 @@ public class Instance
     /// <param name="age">Property age</param>
     /// <param name="value">Property value</param>
     /// <returns></returns>
-    public bool LoadProperty(string name, ulong age, DateTime modificationDate, object value)
+    public bool LoadProperty(string name, ulong? age, DateTime? modificationDate, object value)
     {
 
         IResource res;
@@ -354,7 +350,8 @@ public class Instance
 #endif
 */
 
-        if (pt.PropertyInfo.PropertyType == typeof(DistributedPropertyContext))
+        if (pt.PropertyInfo.PropertyType.IsGenericType
+            && pt.PropertyInfo.PropertyType.GetGenericTypeDefinition() == typeof(DistributedPropertyContext<>))
             return false;
 
 
@@ -394,7 +391,7 @@ public class Instance
     /// <summary>
     /// Last modification date.
     /// </summary>
-    public DateTime ModificationDate
+    public DateTime? ModificationDate
     {
         get
         {
@@ -559,14 +556,15 @@ public class Instance
             if (pt.Recordable)
             {
                 store.Record(res, pt.Name, value, ages[pt.Index], now);
-
             }
             else //if (pt.Storage == StorageMode.Recordable)
             {
                 store.Modify(res, pt.Name, value, ages[pt.Index], now);
             }
 
-            ResourceModified?.Invoke(res, pt.Name, value);
+            //ResourceModified?.Invoke(res, pt.Name, value);
+
+            PropertyModified?.Invoke(new PropertyModificationInfo(res, pt, value, instanceAge));
         }
     }
 
@@ -591,21 +589,21 @@ public class Instance
 
     //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
 
-    internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, string name, object args)
+    internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, EventTemplate eventTemplate, object value)
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            CustomResourceEventOccurred?.Invoke(res, issuer, receivers, name, args);
+            CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventTemplate, receivers, issuer, value));
         }
     }
 
-    internal void EmitResourceEvent(string name, object args)
+    internal void EmitResourceEvent(EventTemplate eventTemplate, object value)
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            ResourceEventOccurred?.Invoke(res, name, args);
+            EventOccurred?.Invoke(new EventOccurredInfo(res, eventTemplate, value));
         }
     }
 
@@ -912,7 +910,7 @@ public class Instance
                 // if (ca.Length == 0)
                 //     continue;
 
-                ResourceEventHandler<object> proxyDelegate = (args) => EmitResourceEvent(evt.Name, args);
+                ResourceEventHandler<object> proxyDelegate = (args) => EmitResourceEvent(evt, args);
                 evt.EventInfo.AddEventHandler(resource, proxyDelegate);
 
             }
@@ -922,7 +920,7 @@ public class Instance
                 //if (ca.Length == 0)
                 //    continue;
 
-                CustomResourceEventHandler<object> proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt.Name, args);
+                CustomResourceEventHandler<object> proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt, args);
                 evt.EventInfo.AddEventHandler(resource, proxyDelegate);
             }
 
@@ -991,6 +989,6 @@ public class Instance
 
     private void Resource_OnDestroy(object sender)
     {
-        ResourceDestroyed?.Invoke((IResource)sender);
+        Destroyed?.Invoke((IResource)sender);
     }
 }

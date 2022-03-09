@@ -109,8 +109,8 @@ class IIPPacket : Packet
         LinkTemplates,
 
         // Request Invoke
-        InvokeFunctionArrayArguments = 0x10,
-        InvokeFunctionNamedArguments,
+        InvokeFunction = 0x10,
+        Reserved,
         Listen,
         Unlisten,
         SetProperty,
@@ -173,6 +173,7 @@ class IIPPacket : Packet
         set;
     }
 
+    public TransmissionType? DataType { get; set; }
 
     public uint ResourceId { get; set; }
     public uint NewResourceId { get; set; }
@@ -181,11 +182,13 @@ class IIPPacket : Packet
     public uint StoreId { get; set; }
 
     public ulong ResourceAge { get; set; }
-    public byte[] Content { get; set; }
+    //public byte[] Content { get; set; }
     public ushort ErrorCode { get; set; }
     public string ErrorMessage { get; set; }
     public string ClassName { get; set; }
     public string ResourceLink { get; set; }
+
+    public string ResourceName { get; set; }
     public Guid ClassId { get; set; }
     public byte MethodIndex { get; set; }
     public string MethodName { get; set; }
@@ -236,7 +239,7 @@ class IIPPacket : Packet
             if (NotEnough(offset, ends, 4))
                 return -dataLengthNeeded;
 
-            ResourceId = data.GetUInt32(offset);
+            ResourceId = data.GetUInt32(offset, Endian.Little);
             offset += 4;
         }
         else if (Command == IIPPacketCommand.Report)
@@ -246,7 +249,7 @@ class IIPPacket : Packet
             if (NotEnough(offset, ends, 4))
                 return -dataLengthNeeded;
 
-            CallbackId = data.GetUInt32(offset);
+            CallbackId = data.GetUInt32(offset, Endian.Little);
             offset += 4;
         }
         else
@@ -257,7 +260,7 @@ class IIPPacket : Packet
             if (NotEnough(offset, ends, 4))
                 return -dataLengthNeeded;
 
-            CallbackId = data.GetUInt32(offset);
+            CallbackId = data.GetUInt32(offset, Endian.Little);
             offset += 4;
         }
 
@@ -268,7 +271,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                NewResourceId = data.GetUInt32(offset);
+                NewResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
             }
@@ -282,7 +285,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                ChildId = data.GetUInt32(offset);
+                ChildId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
             }
             else if (Event == IIPPacketEvent.Renamed)
@@ -290,13 +293,15 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                var cl = data.GetUInt16(offset);
+                var cl = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
 
                 if (NotEnough(offset, ends, cl))
                     return -dataLengthNeeded;
 
-                Content = data.Clip(offset, cl);
+                ResourceName = data.GetString(offset, cl);
+
+                //Content = data.Clip(offset, cl);
 
                 offset += cl;
             }
@@ -308,31 +313,19 @@ class IIPPacket : Packet
 
                 MethodIndex = data[offset++];
 
-                var dt = (DataType)data[offset++];
-                var size = dt.Size();// Codec.SizeOf(dt);
+                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
-                if (size < 0)
-                {
-                    if (NotEnough(offset, ends, 4))
-                        return -dataLengthNeeded;
 
-                    var cl = data.GetUInt32(offset);
-                    offset += 4;
+                //var dt = (DataType)data[offset++];
+                //var size = dt.Size();// Codec.SizeOf(dt);
 
-                    if (NotEnough(offset, ends, cl))
-                        return -dataLengthNeeded;
+                if (DataType == null)
+                    return -(int)size;
 
-                    Content = data.Clip(offset - 5, cl + 5);
-                    offset += cl;
-                }
-                else
-                {
-                    if (NotEnough(offset, ends, (uint)size))
-                        return -dataLengthNeeded;
+                //Content = data.Clip(DataType.Value.Offset, (uint)DataType.Value.ContentLength);
 
-                    Content = data.Clip(offset - 1, (uint)size + 1);
-                    offset += (uint)size;
-                }
+                offset += (uint)size;
+
             }
             //else if (Event == IIPPacketEvent.EventOccurred)
             //{
@@ -357,13 +350,14 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                var cl = data.GetUInt32(offset);
+                var cl = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 if (NotEnough(offset, ends, cl))
                     return -dataLengthNeeded;
 
-                Content = data.Clip(offset, cl);
+                //@TODO: Fix this
+                //Content = data.Clip(offset, cl);
 
                 offset += cl;
             }
@@ -375,7 +369,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
             }
             else if (Action == IIPPacketAction.ReattachResource)
@@ -383,10 +377,10 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 12))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
-                ResourceAge = data.GetUInt64(offset);
+                ResourceAge = data.GetUInt64(offset, Endian.Little);
                 offset += 8;
 
             }
@@ -395,7 +389,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
             }
@@ -404,25 +398,26 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 12))
                     return -dataLengthNeeded;
 
-                StoreId = data.GetUInt32(offset);
+                StoreId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
-                var cl = data.GetUInt32(offset);
+                var cl = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 if (NotEnough(offset, ends, cl))
                     return -dataLengthNeeded;
 
-                this.Content = data.Clip(offset, cl);
+                // @TODO: fix this
+                //this.Content = data.Clip(offset, cl);
             }
             else if (Action == IIPPacketAction.DeleteResource)
             {
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
             }
@@ -432,9 +427,9 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 8))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
-                ChildId = data.GetUInt32(offset);
+                ChildId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
             }
             else if (Action == IIPPacketAction.RenameResource)
@@ -442,15 +437,16 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 6))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
-                var cl = data.GetUInt16(offset);
+                var cl = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
 
                 if (NotEnough(offset, ends, cl))
                     return -dataLengthNeeded;
 
-                Content = data.Clip(offset, cl);
+                ResourceName = data.GetString(offset, cl);
+                //Content = data.Clip(offset, cl);
                 offset += cl;
             }
             else if (Action == IIPPacketAction.TemplateFromClassName)
@@ -481,7 +477,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
             }
             else if (Action == IIPPacketAction.QueryLink
@@ -490,7 +486,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                var cl = data.GetUInt16(offset);
+                var cl = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
 
                 if (NotEnough(offset, ends, cl))
@@ -505,7 +501,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 4))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
             }
             else if (Action == IIPPacketAction.ResourceHistory)
@@ -513,35 +509,42 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 20))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
-                FromDate = data.GetDateTime(offset);
+                FromDate = data.GetDateTime(offset, Endian.Little);
                 offset += 8;
 
-                ToDate = data.GetDateTime(offset);
+                ToDate = data.GetDateTime(offset, Endian.Little);
                 offset += 8;
 
             }
-            else if (Action == IIPPacketAction.InvokeFunctionArrayArguments
-                   || Action == IIPPacketAction.InvokeFunctionNamedArguments)
+            else if (Action == IIPPacketAction.InvokeFunction)
             {
-                if (NotEnough(offset, ends, 9))
+                if (NotEnough(offset, ends, 6))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 MethodIndex = data[offset++];
 
-                var cl = data.GetUInt32(offset);
-                offset += 4;
 
-                if (NotEnough(offset, ends, cl))
-                    return -dataLengthNeeded;
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
-                Content = data.Clip(offset, cl);
-                offset += cl;
+                if (DataType == null)
+                    return -(int)size;
+
+                offset += (uint)size;
+
+                //var cl = data.GetUInt32(offset);
+                //offset += 4;
+
+                //if (NotEnough(offset, ends, cl))
+                //    return -dataLengthNeeded;
+
+                //Content = data.Clip(offset, cl);
+                //offset += cl;
 
             }
             else if (Action == IIPPacketAction.Listen
@@ -550,7 +553,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 5))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 MethodIndex = data[offset++];
@@ -575,37 +578,21 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 6))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 MethodIndex = data[offset++];
 
+                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
-                var dt = (DataType)data[offset++];
-                var size = dt.Size();// Codec.SizeOf(dt);
+                if (DataType == null)
+                    return -(int)size;
 
-                if (size < 0)
-                {
-                    if (NotEnough(offset, ends, 4))
-                        return -dataLengthNeeded;
 
-                    var cl = data.GetUInt32(offset);
-                    offset += 4;
+                //Content = data.Clip(DataType.Value.Offset, (uint)DataType.Value.ContentLength);
 
-                    if (NotEnough(offset, ends, cl))
-                        return -dataLengthNeeded;
+                offset += (uint)size;
 
-                    Content = data.Clip(offset - 5, cl + 5);
-                    offset += cl;
-                }
-                else
-                {
-                    if (NotEnough(offset, ends, (uint)size))
-                        return -dataLengthNeeded;
-
-                    Content = data.Clip(offset - 1, (uint)size + 1);
-                    offset += (uint)size;
-                }
             }
             // Attributes
             else if (Action == IIPPacketAction.UpdateAllAttributes
@@ -616,15 +603,16 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 8))
                     return -dataLengthNeeded;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
-                var cl = data.GetUInt32(offset);
+                var cl = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 if (NotEnough(offset, ends, cl))
                     return -dataLengthNeeded;
 
-                Content = data.Clip(offset, cl);
+                // @TODO: fix this
+                //Content = data.Clip(offset, cl);
                 offset += cl;
             }
         }
@@ -640,10 +628,10 @@ class IIPPacket : Packet
                 ClassId = data.GetGuid(offset);
                 offset += 16;
 
-                ResourceAge = data.GetUInt64(offset);
+                ResourceAge = data.GetUInt64(offset, Endian.Little);
                 offset += 8;
 
-                uint cl = data.GetUInt16(offset);
+                uint cl = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
 
                 if (NotEnough(offset, ends, cl))
@@ -652,17 +640,19 @@ class IIPPacket : Packet
                 ResourceLink = data.GetString(offset, cl);
                 offset += cl;
 
-                if (NotEnough(offset, ends, 4))
-                    return -dataLengthNeeded;
+                //if (NotEnough(offset, ends, 4))
+                  //  return -dataLengthNeeded;
 
-                cl = data.GetUInt32(offset);
-                offset += 4;
 
-                if (NotEnough(offset, ends, cl))
-                    return -dataLengthNeeded;
+                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
-                Content = data.Clip(offset, cl);
-                offset += cl;
+                if (DataType == null)
+                    return -(int)size;
+
+                offset += (uint)size;
+
+                //Content = data.Clip(DataType.Value.Offset, (uint)DataType.Value.ContentLength);
+
             }
             else if (Action == IIPPacketAction.DetachResource)
             {
@@ -676,7 +666,7 @@ class IIPPacket : Packet
                 //ClassId = data.GetGuid(offset);
                 //offset += 16;
 
-                ResourceId = data.GetUInt32(offset);
+                ResourceId = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
             }
@@ -697,51 +687,40 @@ class IIPPacket : Packet
                     || Action == IIPPacketAction.GetAllAttributes
                     || Action == IIPPacketAction.GetAttributes)
             {
-                if (NotEnough(offset, ends, 4))
+                if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                var cl = data.GetUInt32(offset);
-                offset += 4;
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends );
 
-                if (NotEnough(offset, ends, cl))
-                    return -dataLengthNeeded;
+                if (DataType == null)
+                    return -(int)size;
 
-                Content = data.Clip(offset, cl);
-                offset += cl;
+                offset += (uint)size;
+
+                //var cl = data.GetUInt32(offset);
+                //offset += 4;
+
+                //if (NotEnough(offset, ends, cl))
+                //    return -dataLengthNeeded;
+
+                //Content = data.Clip(offset, cl);
+                //offset += cl;
             }
-            else if (Action == IIPPacketAction.InvokeFunctionArrayArguments
-                || Action == IIPPacketAction.InvokeFunctionNamedArguments)
+            else if (Action == IIPPacketAction.InvokeFunction)
             //|| Action == IIPPacketAction.GetProperty
             //|| Action == IIPPacketAction.GetPropertyIfModified)
             {
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                var dt = (DataType)data[offset++];
-                var size = dt.Size();// Codec.SizeOf(dt);
+                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
-                if (size < 0)
-                {
-                    if (NotEnough(offset, ends, 4))
-                        return -dataLengthNeeded;
+                if (DataType == null)
+                    return -(int)size;
 
-                    var cl = data.GetUInt32(offset);
-                    offset += 4;
+                offset += (uint)size;
 
-                    if (NotEnough(offset, ends, cl))
-                        return -dataLengthNeeded;
-
-                    Content = data.Clip(offset - 5, cl + 5);
-                    offset += cl;
-                }
-                else
-                {
-                    if (NotEnough(offset, ends, (uint)size))
-                        return -dataLengthNeeded;
-
-                    Content = data.Clip(offset - 1, (uint)size + 1);
-                    offset += (uint)size;
-                }
+                //Content = data.Clip(DataType.Value.Offset, (uint)DataType.Value.ContentLength);
             }
             else if (Action == IIPPacketAction.SetProperty
                 || Action == IIPPacketAction.Listen
@@ -757,7 +736,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                ErrorCode = data.GetUInt16(offset);
+                ErrorCode = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
             }
             else if (Report == IIPPacketReport.ExecutionError)
@@ -765,13 +744,13 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                ErrorCode = data.GetUInt16(offset);
+                ErrorCode = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
 
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                var cl = data.GetUInt16(offset);
+                var cl = data.GetUInt16(offset, Endian.Little);
                 offset += 2;
 
                 if (NotEnough(offset, ends, cl))
@@ -785,9 +764,9 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 8))
                     return -dataLengthNeeded;
 
-                ProgressValue = data.GetInt32(offset);
+                ProgressValue = data.GetInt32(offset, Endian.Little);
                 offset += 4;
-                ProgressMax = data.GetInt32(offset);
+                ProgressMax = data.GetInt32(offset, Endian.Little);
                 offset += 4;
             }
             else if (Report == IIPPacketReport.ChunkStream)
@@ -795,31 +774,16 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                var dt = (DataType)data[offset++];
-                var size = dt.Size();// Codec.SizeOf(dt);
 
-                if (size < 0)
-                {
-                    if (NotEnough(offset, ends, 4))
-                        return -dataLengthNeeded;
+                 (var size, DataType) = TransmissionType.Parse(Data, offset, ends );
 
-                    var cl = data.GetUInt32(offset);
-                    offset += 4;
+                if (DataType == null)
+                    return -(int)size;
 
-                    if (NotEnough(offset, ends, cl))
-                        return -dataLengthNeeded;
+                offset += (uint)size;
 
-                    Content = data.Clip(offset - 5, cl + 5);
-                    offset += cl;
-                }
-                else
-                {
-                    if (NotEnough(offset, ends, (uint)size))
-                        return -dataLengthNeeded;
+                //Content = data.Clip(DataType.Value.Offset, (uint)DataType.Value.ContentLength);
 
-                    Content = data.Clip(offset - 1, (uint)size + 1);
-                    offset += (uint)size;
-                }
             }
         }
 

@@ -11,7 +11,7 @@
     <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
     <RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Version>1.5.2</Version>
+    <Version>1.5.4</Version>
     <PackageId>Esiur.Stores.MongoDB</PackageId>
 	<LangVersion>latest</LangVersion>
   </PropertyGroup>

@@ -54,6 +54,8 @@ public static class EsiurExtensions
     {
         var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions>().Store;
 
+        if (!store.Initialized)
+            throw new Exception("Store not initialized. Make sure the Warehouse is open");
 
         var manager = store.Instance.Managers.FirstOrDefault();// > 0 ? store.Instance.Managers.First() : null;
 
@@ -75,7 +77,7 @@ public static class EsiurExtensions
         else
         {
             res = Activator.CreateInstance(proxyType) as IResource;
-            var ps = Structure.FromObject(resource);
+            var ps = Map<string,object>.FromObject(resource);
 
             foreach (var p in ps)
             {

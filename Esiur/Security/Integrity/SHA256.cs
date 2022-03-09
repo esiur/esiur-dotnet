@@ -76,7 +76,7 @@ public static class SHA256
 
             var w = new uint[64];
             for (var i = 0; i < 16; i++)
-                w[i] = data.GetUInt32((uint)(chunk + (i * 4)));
+                w[i] = data.GetUInt32((uint)(chunk + (i * 4)), Endian.Big);
 
             //for(var i = 16; i < 64; i++)
             //  w[i] = 0;

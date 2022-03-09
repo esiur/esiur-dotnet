@@ -93,10 +93,10 @@ public static class DC // Data Converter
                         rt.Set(value);
                         return rt;
                     }
-                    else if (sourceType == typeof(Structure) && sourceType.IsAssignableFrom(destinationType))
-                    {
-                        return Structure.FromStructure((Structure)value, destinationType);
-                    }
+                    //else if (sourceType == typeof(Structure) && sourceType.IsAssignableFrom(destinationType))
+                    //{
+                    //    return Structure.FromStructure((Structure)value, destinationType);
+                    //}
                     else if (destinationType.IsEnum)
                     {
                         return Enum.ToObject(destinationType, value);
@@ -190,45 +190,6 @@ public static class DC // Data Converter
         return value.ToByteArray();
     }
 
-    public static byte[] ToBytes(Guid[] value)
-    {
-        var rt = new List<byte>();
-        foreach (var g in value)
-            rt.AddRange(g.ToByteArray());
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(char[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(short[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-
-
-    public static byte[] ToBytes(ushort[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
 
     public static void Append(ref byte[] dst, byte[] src)
     {
@@ -265,88 +226,6 @@ public static class DC // Data Converter
     }
 
 
-    public static byte[] ToBytes(this int[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(this uint[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(this long[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(this ulong[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(this float[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-    public static byte[] ToBytes(this double[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-
-    public static byte[] ToBytes(this decimal[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
-
-    public static byte[] ToBytes(this DateTime[] value)
-    {
-        List<byte> rt = new List<byte>();
-
-        for (int i = 0; i < value.Length; i++)
-            rt.AddRange(ToBytes(value[i]));
-
-        return rt.ToArray();
-    }
-
 
     public static byte[] ToBytes(this string[] value)
     {
@@ -356,7 +235,7 @@ public static class DC // Data Converter
         {
             byte[] ba = ToBytes(value[i]);
             // add string length
-            rt.AddRange(ToBytes(ba.Length));
+            rt.AddRange(ToBytes(ba.Length, Endian.Little));
             // add encoded string
             rt.AddRange(ba);
         }
@@ -364,41 +243,68 @@ public static class DC // Data Converter
         return rt.ToArray();
     }
 
-    public static unsafe byte[] ToBytes(this int value)
+
+    public static unsafe byte[] ToBytes(this int value, Endian endian)
     {
         var rt = new byte[4];
-        byte* p = (byte*)&value;
 
-        rt[0] = *(p + 3);
-        rt[1] = *(p + 2);
-        rt[2] = *(p + 1);
-        rt[3] = *(p + 0);
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((int*)ptr) = value;
+        }
+        else
+        {
+            byte* p = (byte*)&value;
+
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p + 0);
+
+        }
 
         return rt;
     }
 
-    public static unsafe byte[] ToBytes(this short value)
+
+
+    public static unsafe byte[] ToBytes(this short value, Endian endian)
     {
         var rt = new byte[2];
-        byte* p = (byte*)&value;
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((short*)ptr) = value;
+        }
+        else
+        {
+            byte* p = (byte*)&value;
 
-        rt[0] = *(p + 1);
-        rt[1] = *(p + 0);
+            rt[0] = *(p + 1);
+            rt[1] = *(p + 0);
+        }
 
         return rt;
     }
 
-    public static unsafe byte[] ToBytes(this float value)
+    public static unsafe byte[] ToBytes(this float value, Endian endian)
 
     {
         var rt = new byte[4];
-
-        //float rt = 0;
-        byte* p = (byte*)&value;
-        rt[0] = *(p + 3);
-        rt[1] = *(p + 2);
-        rt[2] = *(p + 1);
-        rt[3] = *(p);
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((float*)ptr) = value;
+        }
+        else
+        {
+            byte* p = (byte*)&value;
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p);
+        }
 
         return rt;
     }
@@ -406,122 +312,153 @@ public static class DC // Data Converter
 
 
 
+
+
+
+
+
+     
     public static byte[] ToBytes(this string value)
     {
         return Encoding.UTF8.GetBytes(value);
     }
 
-    public unsafe static byte[] ToBytes(this double value)
+    public unsafe static byte[] ToBytes(this double value, Endian endian)
     {
         var rt = new byte[8];
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((double*)ptr) = value;
+        }
+        else
+        {
+            byte* p = (byte*)&value;
 
-        byte* p = (byte*)&value;
-
-        rt[0] = *(p + 7);
-        rt[1] = *(p + 6);
-        rt[2] = *(p + 5);
-        rt[3] = *(p + 4);
-        rt[4] = *(p + 3);
-        rt[5] = *(p + 2);
-        rt[6] = *(p + 1);
-        rt[7] = *(p + 0);
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+        }
 
         return rt;
     }
 
-    public static unsafe byte[] ToBytes(this long value)
+    public static unsafe byte[] ToBytes(this long value, Endian endian)
     {
         var rt = new byte[8];
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((long*)ptr) = value;
+        }
+        else
+        {
+            byte* p = (byte*)&value;
 
-        byte* p = (byte*)&value;
-
-        rt[0] = *(p + 7);
-        rt[1] = *(p + 6);
-        rt[2] = *(p + 5);
-        rt[3] = *(p + 4);
-        rt[4] = *(p + 3);
-        rt[5] = *(p + 2);
-        rt[6] = *(p + 1);
-        rt[7] = *(p + 0);
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+        }
 
         return rt;
-
     }
-
     public static unsafe byte[] ToBytes(this DateTime value)
     {
-
         var rt = new byte[8];
         var v = value.ToUniversalTime().Ticks;
 
-        byte* p = (byte*)&v;
-
-        rt[0] = *(p + 7);
-        rt[1] = *(p + 6);
-        rt[2] = *(p + 5);
-        rt[3] = *(p + 4);
-        rt[4] = *(p + 3);
-        rt[5] = *(p + 2);
-        rt[6] = *(p + 1);
-        rt[7] = *(p + 0);
-
+        fixed (byte* ptr = rt)
+            *((long*)ptr) = v;
         return rt;
-
     }
 
 
-    public static unsafe byte[] ToBytes(this ulong value)
+    public static unsafe byte[] ToBytes(this ulong value, Endian endia)
     {
         var rt = new byte[8];
+        if (endia == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((ulong*)ptr) = value;
+        }
+        else
+        {
 
-        byte* p = (byte*)&value;
+            byte* p = (byte*)&value;
 
-        rt[0] = *(p + 7);
-        rt[1] = *(p + 6);
-        rt[2] = *(p + 5);
-        rt[3] = *(p + 4);
-        rt[4] = *(p + 3);
-        rt[5] = *(p + 2);
-        rt[6] = *(p + 1);
-        rt[7] = *(p + 0);
+            rt[0] = *(p + 7);
+            rt[1] = *(p + 6);
+            rt[2] = *(p + 5);
+            rt[3] = *(p + 4);
+            rt[4] = *(p + 3);
+            rt[5] = *(p + 2);
+            rt[6] = *(p + 1);
+            rt[7] = *(p + 0);
+        }
 
         return rt;
     }
 
-    public static unsafe byte[] ToBytes(this uint value)
+    public static unsafe byte[] ToBytes(this uint value, Endian endian)
     {
-
         var rt = new byte[4];
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((uint*)ptr) = value;
+        }
+        else
+        {
 
-        byte* p = (byte*)&value;
+            byte* p = (byte*)&value;
 
-        rt[0] = *(p + 3);
-        rt[1] = *(p + 2);
-        rt[2] = *(p + 1);
-        rt[3] = *(p + 0);
+            rt[0] = *(p + 3);
+            rt[1] = *(p + 2);
+            rt[2] = *(p + 1);
+            rt[3] = *(p + 0);
+        }
 
         return rt;
     }
 
-    public static unsafe byte[] ToBytes(this ushort value)
+    public static unsafe byte[] ToBytes(this ushort value, Endian endian)
     {
         var rt = new byte[2];
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = rt)
+                *((ushort*)ptr) = value;
+        }
+        else
+        {
+            byte* p = (byte*)&value;
 
-        byte* p = (byte*)&value;
-
-        rt[0] = *(p + 1);
-        rt[1] = *(p);
-
+            rt[0] = *(p + 1);
+            rt[1] = *(p);
+        }
         return rt;
     }
 
-    public static byte[] ToBytes(this decimal value)
+    public static unsafe byte[] ToBytes(this decimal value, Endian endian)
     {
-        byte[] ret = new byte[0];// BitConverter.GetBytes(value);
+        var rt = new byte[16];
+        fixed (byte* ptr = rt)
+            *((decimal*)ptr) = value;
 
-        Array.Reverse(ret);
+        if (endian == Endian.Big)
+            Array.Reverse(rt);
 
-        return ret;
+        return rt;
     }
 
     public static string ToHex(this byte[] ba)
@@ -533,22 +470,10 @@ public static class DC // Data Converter
 
     public static string ToHex(this byte[] ba, uint offset, uint length, string separator = " ")
     {
-
         if (separator == null)
             separator = "";
 
         return string.Join(separator, ba.Skip((int)offset).Take((int)length).Select(x => x.ToString("x2")).ToArray());
-
-        //StringBuilder hex = new StringBuilder((int)length * 2);
-
-        //for (var i = offset; i < offset + length; i++)
-        //{
-        //    hex.AppendFormat("{0:x2}", ba[i]);
-        //    if (separator != null)
-        //        hex.Append(separator);
-        //}
-
-        //return hex.ToString();
     }
 
     public static byte[] FromHex(string hexString, string separator = " ")
@@ -639,222 +564,179 @@ public static class DC // Data Converter
         return (sbyte)data[offset];
     }
 
-    public static sbyte[] GetInt8Array(this byte[] data, uint offset, uint length)
-    {
-        var rt = new sbyte[length];
-        Buffer.BlockCopy(data, (int)offset, rt, 0, (int)length);
-        return rt;
-    }
+
+
+     
+
+
+
+
 
     public static byte GetUInt8(this byte[] data, uint offset)
     {
         return data[offset];
     }
 
-    public static byte[] GetUInt8Array(this byte[] data, uint offset, uint length)
+    public static unsafe short GetInt16(this byte[] data, uint offset, Endian endian)
     {
-        var rt = new byte[length];
-        Buffer.BlockCopy(data, (int)offset, rt, 0, (int)length);
-        return rt;
-    }
-
-    public static Int16 GetInt16(this byte[] data, uint offset)
-    {
-        return (Int16)((data[offset] << 8) | data[offset + 1]);
-    }
-
-    public static Int16[] GetInt16Array(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-
-        var rt = new Int16[length / 2];
-        for (var i = offset; i < end; i += 2)
-            rt[j++] = GetInt16(data, i);
-
-        return rt;
-    }
-
-    public static UInt16 GetUInt16(this byte[] data, uint offset)
-    {
-        return (UInt16)((data[offset] << 8) | data[offset + 1]);
-    }
-
-    public static UInt16[] GetUInt16Array(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-        var rt = new UInt16[length / 2];
-
-        for (var i = offset; i < end; i += 2)
-            rt[j++] = GetUInt16(data, i);
-
-        return rt;
-
-    }
-
-    public static Int32 GetInt32(this byte[] data, uint offset)
-    {
-        return (Int32)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
-    }
-
-    public static Int32[] GetInt32Array(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-
-        var rt = new Int32[length / 4];
-        for (var i = offset; i < end; i += 4)
-            rt[j++] = GetInt32(data, i);
-
-        return rt;
-    }
-
-    public static UInt32 GetUInt32(this byte[] data, uint offset)
-    {
-        return (UInt32)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
-    }
-
-    public static UInt32[] GetUInt32Array(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-        var rt = new UInt32[length / 4];
-
-        for (var i = offset; i < end; i += 4)
-            rt[j++] = GetUInt16(data, i);
-
-        return rt;
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(short*)ptr;
+        }
+        else
+        {
+            return (Int16)((data[offset] << 8) | data[offset + 1]);
+        }
     }
 
 
-    public static unsafe UInt64 GetUInt64(this byte[] data, uint offset)
+
+    public static unsafe ushort GetUInt16(this byte[] data, uint offset, Endian endian)
     {
-        UInt64 rt = 0;
-        byte* p = (byte*)&rt;
-
-        *(p + 7) = data[offset++];
-        *(p + 6) = data[offset++];
-        *(p + 5) = data[offset++];
-        *(p + 4) = data[offset++];
-        *(p + 3) = data[offset++];
-        *(p + 2) = data[offset++];
-        *(p + 1) = data[offset++];
-        *(p) = data[offset++];
-
-        return rt;
-
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(ushort*)ptr;
+        }
+        else
+        {
+            return (UInt16)((data[offset] << 8) | data[offset + 1]);
+        }
     }
 
-    public static Int64[] GetInt64Array(this byte[] data, uint offset, uint length)
+    public static unsafe int GetInt32(this byte[] data, uint offset, Endian endian)
     {
-        var j = 0; var end = offset + length;
-        var rt = new Int64[length / 8];
-
-        for (var i = offset; i < end; i += 8)
-            rt[j++] = GetInt64(data, i);
-
-        return rt;
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(int*)ptr;
+        }
+        else
+        {
+            return (Int32)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
+        }
     }
 
-    public static unsafe Int64 GetInt64(this byte[] data, uint offset)
+    public static unsafe uint GetUInt32(this byte[] data, uint offset, Endian endian)
     {
-        Int64 rt = 0;
-        byte* p = (byte*)&rt;
 
-        *(p + 7) = data[offset++];
-        *(p + 6) = data[offset++];
-        *(p + 5) = data[offset++];
-        *(p + 4) = data[offset++];
-        *(p + 3) = data[offset++];
-        *(p + 2) = data[offset++];
-        *(p + 1) = data[offset++];
-        *(p) = data[offset++];
-
-        return rt;
-
-        /* Or 
-        return (Int64)(
-                         (data[offset] << 56)
-                       | (data[offset + 1] << 48)
-                       | (data[offset + 2] << 40)
-                       | (data[offset + 3] << 32)
-                       | (data[offset + 4] << 24)
-                       | (data[offset + 5] << 16)
-                       | (data[offset + 6] << 8)
-                       | (data[offset + 7])
-            );
-       */
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(uint*)ptr;
+        }
+        else
+        {
+            return (uint)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
+        }
     }
 
-    public static UInt64[] GetUInt64Array(this byte[] data, uint offset, uint length)
+
+
+
+    public static unsafe ulong GetUInt64(this byte[] data, uint offset, Endian endian)
     {
-        var j = 0; var end = offset + length;
-        var rt = new UInt64[length / 8];
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(ulong*)ptr;
+        }
+        else
+        {
+            UInt64 rt = 0;
+            byte* p = (byte*)&rt;
 
-        for (var i = offset; i < end; i += 8)
-            rt[j++] = GetUInt64(data, i);
+            *(p + 7) = data[offset++];
+            *(p + 6) = data[offset++];
+            *(p + 5) = data[offset++];
+            *(p + 4) = data[offset++];
+            *(p + 3) = data[offset++];
+            *(p + 2) = data[offset++];
+            *(p + 1) = data[offset++];
+            *(p) = data[offset++];
 
-        return rt;
+            return rt;
+        }
     }
 
-    public static unsafe float GetFloat32(this byte[] data, uint offset)
+
+    public static unsafe long GetInt64(this byte[] data, uint offset, Endian endian)
     {
-        float rt = 0;
-        byte* p = (byte*)&rt;
-        *p = data[offset + 3];
-        *(p + 1) = data[offset + 2];
-        *(p + 2) = data[offset + 1];
-        *(p + 3) = data[offset];
-        return rt;
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(long*)ptr;
+        }
+        else
+        {
+            Int64 rt = 0;
+            byte* p = (byte*)&rt;
+
+            *(p + 7) = data[offset++];
+            *(p + 6) = data[offset++];
+            *(p + 5) = data[offset++];
+            *(p + 4) = data[offset++];
+            *(p + 3) = data[offset++];
+            *(p + 2) = data[offset++];
+            *(p + 1) = data[offset++];
+            *(p) = data[offset++];
+
+            return rt;
+
+        }
     }
 
-    public static float[] GetFloat32Array(this byte[] data, uint offset, uint length)
+    public static unsafe float GetFloat32(this byte[] data, uint offset, Endian endian)
     {
-        var j = 0; var end = offset + length;
-        var rt = new float[length / 4];
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(float*)ptr;
+        }
+        else
+        {
+            float rt = 0;
+            byte* p = (byte*)&rt;
+            *p = data[offset + 3];
+            *(p + 1) = data[offset + 2];
+            *(p + 2) = data[offset + 1];
+            *(p + 3) = data[offset];
+            return rt;
 
-        for (var i = offset; i < end; i += 4)
-            rt[j++] = GetFloat32(data, i);
-
-        return rt;
+        }
     }
 
-    public static unsafe double GetFloat64(this byte[] data, uint offset)
+
+    public static unsafe double GetFloat64(this byte[] data, uint offset, Endian endian)
     {
-        double rt = 0;
-        byte* p = (byte*)&rt;
+        if (endian == Endian.Little)
+        {
+            fixed (byte* ptr = &data[offset])
+                return *(double*)ptr;
+        }
+        else
+        {
+            double rt = 0;
+            byte* p = (byte*)&rt;
 
-        *(p + 7) = data[offset++];
-        *(p + 6) = data[offset++];
-        *(p + 5) = data[offset++];
-        *(p + 4) = data[offset++];
-        *(p + 3) = data[offset++];
-        *(p + 2) = data[offset++];
-        *(p + 1) = data[offset++];
-        *(p) = data[offset++];
+            *(p + 7) = data[offset++];
+            *(p + 6) = data[offset++];
+            *(p + 5) = data[offset++];
+            *(p + 4) = data[offset++];
+            *(p + 3) = data[offset++];
+            *(p + 2) = data[offset++];
+            *(p + 1) = data[offset++];
+            *(p) = data[offset++];
 
-        return rt;
+            return rt;
+        }
     }
 
-    public static double[] GetFloat64Array(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-        var rt = new double[length / 8];
-
-        for (var i = offset; i < end; i += 8)
-            rt[j++] = GetFloat64(data, i);
-
-        return rt;
-    }
 
     public static bool GetBoolean(this byte[] data, uint offset)
     {
         return data[offset] > 0;
-    }
-
-    public static bool[] GetBooleanArray(this byte[] data, uint offset, uint length)
-    {
-        var rt = new bool[length];
-        for (var i = 0; i < length; i++)
-            rt[i] = data[offset + i] > 0;
-        return rt;
     }
 
     public static char GetChar(this byte[] data, uint offset)
@@ -862,17 +744,6 @@ public static class DC // Data Converter
         return Convert.ToChar(((data[offset] << 8) | data[offset + 1]));
     }
 
-    public static char[] GetCharArray(this byte[] data, uint offset, uint length)
-    {
-
-        var j = 0; var end = offset + length;
-        var rt = new char[length / 2];
-
-        for (var i = offset; i < end; i += 2)
-            rt[j++] = GetChar(data, i);
-
-        return rt;
-    }
 
     public static string GetString(this byte[] data, uint offset, uint length)
     {
@@ -887,7 +758,7 @@ public static class DC // Data Converter
 
         while (i < length)
         {
-            var cl = GetUInt32(data, offset + i);
+            var cl = GetUInt32(data, offset + i, Endian.Little);
             i += 4;
             ar.Add(Encoding.UTF8.GetString(data, (int)(offset + i), (int)cl));
             i += cl;
@@ -901,68 +772,23 @@ public static class DC // Data Converter
         return new Guid(Clip(data, offset, 16));
     }
 
-    public static Guid[] GetGuidArray(this byte[] data, uint offset, uint length)
+    public static DateTime GetDateTime(this byte[] data, uint offset, Endian endian)
     {
-        var j = 0; var end = offset + length;
-        var rt = new Guid[length / 16];
-
-        for (var i = offset; i < end; i += 16)
-            rt[j++] = GetGuid(data, i);
-
-        return rt;
-    }
-
-    public static DateTime GetDateTime(this byte[] data, uint offset)
-    {
-        var ticks = GetInt64(data, offset);
+        var ticks = GetInt64(data, offset, endian);
         return new DateTime(ticks, DateTimeKind.Utc);
     }
 
-    public static DateTime[] GetDateTimeArray(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-        var rt = new DateTime[length / 8];
-
-        for (var i = offset; i < end; i += 8)
-            rt[j++] = GetDateTime(data, i);
-
-        return rt;
-    }
 
     public static IPAddress GetIPv4Address(this byte[] data, uint offset)
     {
-        return new IPAddress((long)GetUInt32(data, offset));
+        return new IPAddress((long)GetUInt32(data, offset, Endian.Little));
     }
 
-    public static IPAddress[] GetIPv4AddressArray(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-        var rt = new IPAddress[length / 4];
-
-        for (var i = offset; i < end; i += 4)
-            rt[j++] = GetIPv6Address(data, i);
-
-        return rt;
-    }
 
     public static IPAddress GetIPv6Address(this byte[] data, uint offset)
     {
         return new IPAddress(Clip(data, offset, 16));
     }
-
-    public static IPAddress[] GetIPv6AddressArray(this byte[] data, uint offset, uint length)
-    {
-        var j = 0; var end = offset + length;
-        var rt = new IPAddress[length / 16];
-
-        for (var i = offset; i < end; i += 16)
-            rt[j++] = GetIPv6Address(data, i);
-
-        return rt;
-
-    }
-
-
 
     public static byte[] Clip(this byte[] data, uint offset, uint length)
     {

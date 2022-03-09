@@ -66,7 +66,6 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
 
     TCPFilter[] filters = null;
 
-
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {
         if (trigger == ResourceTrigger.Initialize)

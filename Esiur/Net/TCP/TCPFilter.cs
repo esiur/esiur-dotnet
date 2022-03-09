@@ -36,6 +36,7 @@ namespace Esiur.Net.TCP;
 
 public abstract class TCPFilter : IResource
 {
+    
     public Instance Instance
     {
         get;
@@ -43,6 +44,7 @@ public abstract class TCPFilter : IResource
     }
 
     public event DestroyedEvent OnDestroy;
+    
 
     public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 

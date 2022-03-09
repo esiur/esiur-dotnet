@@ -32,7 +32,7 @@ public class AsyncAwaiter<T> : INotifyCompletion
     public T GetResult()
     {
         if (exception != null)
-            throw exception;
+             throw exception;
         return result;
     }
 

@@ -34,42 +34,21 @@ namespace Esiur.Resource;
 [AttributeUsage(AttributeTargets.Property)]
 public class ResourceProperty : System.Attribute
 {
-    bool serialize;
-    string readExpansion;
-    string writeExpansion;
-    // bool recordable;
-    //bool storable;
 
-    //public bool Recordable => recordable;
 
-    //public bool Storable => storable;
-    StorageMode storage;
+    public readonly bool Nullable;
+    public readonly StorageMode Storage;
+    public readonly bool Serialize;
+    public readonly string ReadExpansion;
+    public readonly string WriteExpansion;
 
-    public StorageMode Storage => storage;
 
-    public bool Serialize => serialize;
-
-    public string ReadExpansion
+    public ResourceProperty(StorageMode storage = StorageMode.NonVolatile, bool serialize = true, 
+                            string readExpansion = null, string writeExpansion = null)
     {
-        get
-        {
-            return readExpansion;
-        }
-    }
-
-    public string WriteExpansion
-    {
-        get
-        {
-            return writeExpansion;
-        }
-    }
-
-    public ResourceProperty(StorageMode storage = StorageMode.NonVolatile, bool serialize = true, string readExpansion = null, string writeExpansion = null)
-    {
-        this.readExpansion = readExpansion;
-        this.writeExpansion = writeExpansion;
-        this.storage = storage;
-        this.serialize = serialize;
+        this.ReadExpansion = readExpansion;
+        this.WriteExpansion = writeExpansion;
+        this.Storage = storage;
+        this.Serialize = serialize;
     }
 }

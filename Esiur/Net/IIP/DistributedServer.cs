@@ -38,6 +38,9 @@ using Esiur.Security.Membership;
 namespace Esiur.Net.IIP;
 public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 {
+
+    
+
     [Attribute]
     public string IP
     {
@@ -80,6 +83,8 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
         get;
         set;
     }
+
+    public event PropertyModifiedEvent PropertyModified;
 
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {

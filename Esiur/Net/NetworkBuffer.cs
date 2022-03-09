@@ -170,6 +170,7 @@ public class NetworkBuffer
             {
                 rt = data;
                 data = new byte[0];
+                return rt;
             }
             else
             {
@@ -200,7 +201,6 @@ public class NetworkBuffer
                 }
             }
 
-            return rt;
         }
     }
 }

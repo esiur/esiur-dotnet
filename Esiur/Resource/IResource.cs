@@ -40,7 +40,6 @@ public delegate bool QueryFilter<T>(T value);
 
 public interface IResource : IDestructible///, INotifyPropertyChanged
 {
-
     AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
     [NotMapped]
@@ -50,5 +49,5 @@ public interface IResource : IDestructible///, INotifyPropertyChanged
         set;
     }
 
-
+    
 }

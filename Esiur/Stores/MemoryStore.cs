@@ -15,6 +15,7 @@ public class MemoryStore : IStore
     public Instance Instance { get; set; }
 
     public event DestroyedEvent OnDestroy;
+    
 
     KeyList<uint, IResource> resources = new KeyList<uint, IResource>();
 
@@ -69,7 +70,7 @@ public class MemoryStore : IStore
         return new AsyncReply<bool>(true);
     }
 
-    public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         throw new NotImplementedException();
     }
@@ -85,7 +86,7 @@ public class MemoryStore : IStore
         return true;
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         return true;
     }

@@ -229,7 +229,7 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
 #if NETSTANDARD
         removableList = (typeof(IDestructible).GetTypeInfo().IsAssignableFrom(typeof(T).GetTypeInfo()));
 #else
-                        removableList = (typeof(IDestructible).IsAssignableFrom(typeof(T)));
+        removableList = (typeof(IDestructible).IsAssignableFrom(typeof(T)));
 #endif
 
         this.Owner = owner;

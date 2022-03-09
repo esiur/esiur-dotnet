@@ -222,7 +222,7 @@ class IIPAuthPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                var length = data.GetUInt16(offset);
+                var length = data.GetUInt16(offset, Endian.Little);
 
                 offset += 2;
 
@@ -311,7 +311,7 @@ class IIPAuthPacket : Packet
 
                     offset += 32;
 
-                    RemoteTokenIndex = data.GetUInt64(offset);
+                    RemoteTokenIndex = data.GetUInt64(offset, Endian.Little);
                     offset += 8;
                 }
             }
@@ -321,7 +321,7 @@ class IIPAuthPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                var keyLength = data.GetUInt16(offset);
+                var keyLength = data.GetUInt16(offset, Endian.Little);
 
                 offset += 2;
 
@@ -369,7 +369,7 @@ class IIPAuthPacket : Packet
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
-                var keyLength = data.GetUInt16(offset);
+                var keyLength = data.GetUInt16(offset, Endian.Little);
 
                 offset += 2;
 
@@ -394,7 +394,7 @@ class IIPAuthPacket : Packet
             ErrorCode = data[offset++];
 
 
-            var cl = data.GetUInt16(offset);
+            var cl = data.GetUInt16(offset, Endian.Little);
             offset += 2;
 
             if (NotEnough(offset, ends, cl))

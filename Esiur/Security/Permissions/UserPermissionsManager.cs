@@ -36,18 +36,18 @@ namespace Esiur.Security.Permissions;
 public class UserPermissionsManager : IPermissionsManager
 {
     IResource resource;
-    Structure settings;
+    Map<string, object> settings;
 
-    public Structure Settings => settings;
+    public Map<string,object> Settings => settings;
 
     public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer)
     {
-        Structure userPermissions = null;
+        Map<string,object> userPermissions = null;
 
         if (settings.ContainsKey(session.RemoteAuthentication.FullName))
-            userPermissions = settings[session.RemoteAuthentication.FullName] as Structure;
+            userPermissions = settings[session.RemoteAuthentication.FullName] as Map<string, object>;
         else if (settings.ContainsKey("public"))
-            userPermissions = settings["public"] as Structure;
+            userPermissions = settings["public"] as Map<string,object>;
         else
             return Ruling.Denied;
 
@@ -98,7 +98,7 @@ public class UserPermissionsManager : IPermissionsManager
         }
         else if (userPermissions.ContainsKey(member?.Name))
         {
-            Structure methodPermissions = userPermissions[member.Name] as Structure;
+            Map<string,object> methodPermissions = userPermissions[member.Name] as Map<string,object>;
             if ((string)methodPermissions[action.ToString()] != "yes")
                 return Ruling.Denied;
         }
@@ -111,12 +111,12 @@ public class UserPermissionsManager : IPermissionsManager
 
     }
 
-    public UserPermissionsManager(Structure settings)
+    public UserPermissionsManager(Map<string, object> settings)
     {
         this.settings = settings;
     }
 
-    public bool Initialize(Structure settings, IResource resource)
+    public bool Initialize(Map<string, object> settings, IResource resource)
     {
         this.resource = resource;
         this.settings = settings;

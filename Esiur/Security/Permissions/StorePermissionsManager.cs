@@ -35,16 +35,16 @@ namespace Esiur.Security.Permissions;
 
 public class StorePermissionsManager : IPermissionsManager
 {
-    Structure settings;
+    Map<string, object> settings;
 
-    public Structure Settings => settings;
+    public Map<string,object> Settings => settings;
 
     public Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null)
     {
         return resource.Instance.Store.Instance.Applicable(session, action, member, inquirer);
     }
 
-    public bool Initialize(Structure settings, IResource resource)
+    public bool Initialize(Map<string,object> settings, IResource resource)
     {
         this.settings = settings;
         return true;

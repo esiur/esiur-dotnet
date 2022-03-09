@@ -39,6 +39,11 @@ public class EntityStore : IStore
 {
     public Instance Instance { get; set; }
 
+    bool initialized = false;
+
+
+    public bool Initialized => initialized;
+
     public event DestroyedEvent OnDestroy;
 
     Dictionary<Type, Dictionary<object, WeakReference>> DB = new Dictionary<Type, Dictionary<object, WeakReference>>();
@@ -92,6 +97,9 @@ public class EntityStore : IStore
 
     public IResource GetById(Type type, object id)
     {
+        if (!initialized)
+            throw new Exception("Store not initalized. Make sure the Warehouse is open.");
+
         lock (DBLock)
         {
             if (!DB[type].ContainsKey(id))
@@ -136,13 +144,13 @@ public class EntityStore : IStore
             return this.Instance.Name + "/" + type.Name;
     }
 
-    public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         return true;
         //throw new NotImplementedException();
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         return true;
         //throw new NotImplementedException();
@@ -201,6 +209,8 @@ public class EntityStore : IStore
 
 
             ReloadModel();
+
+            initialized = true;
         }
 
         return new AsyncReply<bool>(true);

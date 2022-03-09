@@ -23,7 +23,7 @@ public class PropertyTemplate : MemberTemplate
         set;
     }
 
-    public TemplateDataType ValueType { get; set; }
+    public RepresentationType ValueType { get; set; }
 
 
     /*
@@ -40,6 +40,7 @@ public class PropertyTemplate : MemberTemplate
         set;
     }
 
+    public bool IsNullable { get; set; }
 
     public bool Recordable
     {
@@ -78,6 +79,9 @@ public class PropertyTemplate : MemberTemplate
     {
         var name = base.Compose();
         var pv = ((byte)(Permission) << 1) | (Recordable ? 1 : 0);
+
+        if (Inherited)
+            pv |= 0x80;
 
         if (WriteExpansion != null && ReadExpansion != null)
         {
@@ -129,12 +133,14 @@ public class PropertyTemplate : MemberTemplate
         }
     }
 
-    public PropertyTemplate(TypeTemplate template, byte index, string name, TemplateDataType valueType, string read = null, string write = null, bool recordable = false)
-        : base(template, MemberType.Property, index, name)
+    public PropertyTemplate(TypeTemplate template, byte index, string name, bool inherited, 
+        RepresentationType valueType, string read = null, string write = null, bool recordable = false)
+        : base(template, index, name, inherited)
     {
         this.Recordable = recordable;
         //this.Storage = storage;
-        this.ReadExpansion = read;
+        if (read != null)
+            this.ReadExpansion = read;
         this.WriteExpansion = write;
         this.ValueType = valueType;
     }

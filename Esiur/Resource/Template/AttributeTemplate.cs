@@ -16,8 +16,8 @@ public class AttributeTemplate : MemberTemplate
     }
 
 
-    public AttributeTemplate(TypeTemplate template, byte index, string name)
-        : base(template, MemberType.Attribute, index, name)
+    public AttributeTemplate(TypeTemplate template, byte index, string name, bool inherited)
+        : base(template, index, name, inherited)
     {
 
     }

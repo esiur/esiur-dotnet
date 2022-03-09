@@ -9,4 +9,5 @@ public enum TemplateType : byte
     Resource,
     Record,
     Wrapper,
+    Enum
 }

@@ -55,7 +55,7 @@ class ResourceJsonConverter : JsonConverter<IResource>
         foreach (var pt in resource.Instance.Template.Properties)
         {
             var rt = pt.PropertyInfo.GetValue(resource, null);
-            if (rt is DistributedPropertyContext)
+            if (rt != null && rt.GetType().IsGenericType)
                 continue;
 
             writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(pt.Name) ?? pt.Name);

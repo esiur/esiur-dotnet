@@ -83,7 +83,7 @@ public class MongoDBStore : IStore
 
     }*/
 
-    public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime date)
+    public bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? date)
     {
         var objectId = resource.Instance.Variables["objectId"].ToString();
         //var bsonObjectId = new BsonObjectId(new ObjectId(objectId));
@@ -168,7 +168,7 @@ public class MongoDBStore : IStore
 
         var attributes = Parse(document["attributes"]).Then(x =>
         {
-            resource.Instance.SetAttributes(x as Structure);
+            resource.Instance.SetAttributes(x as Map<string, object>);
         });
 
         // var bag = new AsyncBag<object>();
@@ -230,10 +230,10 @@ public class MongoDBStore : IStore
             else if (doc["type"] == 1)
             {
                 var bag = new AsyncBag<object>();
-                var rt = new AsyncReply<Structure>();
+                var rt = new AsyncReply<Map<string, object>>();
 
                 var bs = (BsonDocument)doc["values"].AsBsonDocument;
-                var s = new Structure();
+                var s = new Map<string, object>();
 
                 foreach (var v in bs)
                     bag.Add(Parse(v.Value));
@@ -414,7 +414,7 @@ public class MongoDBStore : IStore
         }
     }
 
-    public BsonDocument ComposeStructure(Structure value)
+    public BsonDocument ComposeStructure(Map<string, object> value)
     {
         var rt = new BsonDocument { { "type", 1 } };
 
@@ -436,7 +436,7 @@ public class MongoDBStore : IStore
         return rt;
     }
 
-    BsonArray ComposeStructureArray(Structure[] structures)
+    BsonArray ComposeStructureArray(Map<string, object>[] structures)
     {
         var rt = new BsonArray();
 
@@ -466,44 +466,48 @@ public class MongoDBStore : IStore
 
     private BsonValue Compose(object valueObj)
     {
-        var (type, value) = Codec.GetDataType(valueObj, null);
 
-        switch (type)
-        {
-            case DataType.Void:
-                // nothing to do;
-                return BsonNull.Value;
+        //@TODO : Rewrite
+        //var (type, value) = Tra Codec.GetDataType(valueObj, null);
 
-            case DataType.String:
-                return new BsonString((string)value);
+        //switch (type)
+        //{
+        //    case DataType.Void:
+        //        // nothing to do;
+        //        return BsonNull.Value;
 
-            case DataType.Resource:
-            case DataType.DistributedResource:
+        //    case DataType.String:
+        //        return new BsonString((string)value);
 
-                return new BsonDocument { { "type", 0 }, { "link", (value as IResource).Instance.Link } };
+        //    case DataType.Resource:
+        //    case DataType.DistributedResource:
 
-            //return new BsonObjectId(new ObjectId((string)(value as IResource).Instance.Variables["objectId"]));
+        //        return new BsonDocument { { "type", 0 }, { "link", (value as IResource).Instance.Link } };
 
-            case DataType.Structure:
-                return ComposeStructure((Structure)value);
+        //    //return new BsonObjectId(new ObjectId((string)(value as IResource).Instance.Variables["objectId"]));
 
-            case DataType.VarArray:
-                return ComposeVarArray((Array)value);
+        //    case DataType.Structure:
+        //        return ComposeStructure((Structure)value);
 
-            case DataType.ResourceArray:
-                if (value is IResource[])
-                    return ComposeResourceArray((IResource[])value);
-                else
-                    return ComposeResourceArray((IResource[])DC.CastConvert(value, typeof(IResource[])));
+        //    case DataType.VarArray:
+        //        return ComposeVarArray((Array)value);
 
-
-            case DataType.StructureArray:
-                return ComposeStructureArray((Structure[])value);
+        //    case DataType.ResourceArray:
+        //        if (value is IResource[])
+        //            return ComposeResourceArray((IResource[])value);
+        //        else
+        //            return ComposeResourceArray((IResource[])DC.CastConvert(value, typeof(IResource[])));
 
 
-            default:
-                return BsonValue.Create(value);
-        }
+        //    case DataType.StructureArray:
+        //        return ComposeStructureArray((Structure[])value);
+
+
+        //    default:
+        //        return BsonValue.Create(value);
+        //}
+
+        return BsonValue.Create(valueObj);
     }
 
     public AsyncReply<IResource> Retrieve(uint iid)
@@ -776,7 +780,7 @@ public class MongoDBStore : IStore
         return reply;
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
 
         if (resource == this)

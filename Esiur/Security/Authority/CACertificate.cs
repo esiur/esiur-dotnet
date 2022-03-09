@@ -53,11 +53,11 @@ public class CACertificate : Certificate
 
         uint oOffset = offset;
 
-        this.id = DC.GetUInt64(data, offset);
+        this.id = DC.GetUInt64(data, offset, Endian.Little);
         offset += 8;
-        this.issueDate = DC.GetDateTime(data, offset);
+        this.issueDate = DC.GetDateTime(data, offset, Endian.Little);
         offset += 8;
-        this.expireDate = DC.GetDateTime(data, offset);
+        this.expireDate = DC.GetDateTime(data, offset, Endian.Little);
         offset += 8;
         this.hashFunction = (HashFunctionType)(data[offset++] >> 4);
 
@@ -77,7 +77,7 @@ public class CACertificate : Certificate
 
             offset += exponentLength;
 
-            uint keySize = DC.GetUInt16(data, offset);
+            uint keySize = DC.GetUInt16(data, offset, Endian.Little);
             offset += 2;
 
             key.Modulus = DC.Clip(data, offset, keySize);

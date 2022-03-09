@@ -53,9 +53,7 @@ public static class Warehouse
 
     static uint resourceCounter = 0;
 
-    //static KeyList<Guid, TypeTemplate> templates = new KeyList<Guid, TypeTemplate>();
-    //static KeyList<Guid, TypeTemplate> wrapperTemplates = new KeyList<Guid, TypeTemplate>();
-
+ 
     static KeyList<TemplateType, KeyList<Guid, TypeTemplate>> templates
         = new KeyList<TemplateType, KeyList<Guid, TypeTemplate>>()
         {
@@ -63,6 +61,7 @@ public static class Warehouse
             [TemplateType.Resource] = new KeyList<Guid, TypeTemplate>(),
             [TemplateType.Record] = new KeyList<Guid, TypeTemplate>(),
             [TemplateType.Wrapper] = new KeyList<Guid, TypeTemplate>(),
+            [TemplateType.Enum] = new KeyList<Guid, TypeTemplate>(),
         };
 
     static bool warehouseIsOpen = false;
@@ -137,6 +136,12 @@ public static class Warehouse
                 }
 
                 var recordTypes = (Type[])generatedType.GetProperty("Records").GetValue(null);
+                foreach (var t in recordTypes)
+                {
+                    PutTemplate(new TypeTemplate(t));
+                }
+
+                var enumsTypes = (Type[])generatedType.GetProperty("Enums").GetValue(null);
                 foreach (var t in recordTypes)
                 {
                     PutTemplate(new TypeTemplate(t));
@@ -590,7 +595,7 @@ public static class Warehouse
         resource.Instance = new Instance(resourceCounter++, instanceName, resource, store, customTemplate, age);
 
         if (attributes != null)
-            resource.Instance.SetAttributes(Structure.FromObject(attributes));
+            resource.Instance.SetAttributes(Map<string,object>.FromObject(attributes));
 
         if (manager != null)
             resource.Instance.Managers.Add(manager);
@@ -686,7 +691,7 @@ public static class Warehouse
 
         if (properties != null)
         {
-            var ps = Structure.FromObject(properties);
+            var ps = Map<string,object>.FromObject(properties);
 
             foreach (var p in ps)
             {
@@ -768,6 +773,8 @@ public static class Warehouse
             templateType = TemplateType.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             templateType = TemplateType.Record;
+        else if (type.IsEnum)
+            templateType = TemplateType.Enum;
         else
             return null;
 
@@ -781,7 +788,10 @@ public static class Warehouse
 
         // loaded ?
         if (template == null)
+        {
             template = new TypeTemplate(baseType, true);
+            TypeTemplate.GetDependencies(template);
+        }
 
         return template;
     }
@@ -804,6 +814,12 @@ public static class Warehouse
             template = templates[TemplateType.Record][classId];
             if (template != null)
                 return template;
+
+            // look in enums
+            template = templates[TemplateType.Enum][classId];
+            if (template != null)
+                return template;
+
 
             // look in wrappers
             template = templates[TemplateType.Wrapper][classId];

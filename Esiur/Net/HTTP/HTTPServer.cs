@@ -155,7 +155,12 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         return false;
     }
 
+    //public delegate void HTTPGetHandler(HTTPConnection connection, object[] params values);
 
+    public void MapGet(string pattern, Delegate handler)
+    {
+       // if (p)
+    }
 
 
     /*

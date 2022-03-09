@@ -39,6 +39,7 @@ using Esiur.Resource.Template;
 using System.Linq;
 using System.Diagnostics;
 using static Esiur.Net.Packets.IIPPacket;
+using Esiur.Net.HTTP;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
@@ -56,6 +57,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
     /// </summary>
     public event ErrorEvent OnError;
 
+
+
     IIPPacket packet = new IIPPacket();
     IIPAuthPacket authPacket = new IIPAuthPacket();
 
@@ -71,7 +74,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
     string _hostname;
     ushort _port;
 
+    bool initialPacket = true;
+
     DateTime loginDate;
+
+
 
     /// <summary>
     /// Local username to authenticate ourselves.  
@@ -350,7 +357,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         if (ready)
         {
             var rt = packet.Parse(msg, offset, ends);
-            //Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
+            Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
 
             /*
             if (packet.Command == IIPPacketCommand.Event)
@@ -394,10 +401,10 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPEventResourceDestroyed(packet.ResourceId);
                             break;
                         case IIPPacket.IIPPacketEvent.PropertyUpdated:
-                            IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, packet.Content);
+                            IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
                         case IIPPacket.IIPPacketEvent.EventOccurred:
-                            IIPEventEventOccurred(packet.ResourceId, packet.MethodIndex, packet.Content);
+                            IIPEventEventOccurred(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);//packet.Content);
                             break;
 
                         case IIPPacketEvent.ChildAdded:
@@ -407,10 +414,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPEventChildRemoved(packet.ResourceId, packet.ChildId);
                             break;
                         case IIPPacketEvent.Renamed:
-                            IIPEventRenamed(packet.ResourceId, packet.Content);
+                            IIPEventRenamed(packet.ResourceId, packet.ResourceLink);
                             break;
                         case IIPPacketEvent.AttributesUpdated:
-                            IIPEventAttributesUpdated(packet.ResourceId, packet.Content);
+                            // @TODO: fix this
+                            //IIPEventAttributesUpdated(packet.ResourceId, packet.Content);
                             break;
                     }
                 }
@@ -429,7 +437,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPRequestDetachResource(packet.CallbackId, packet.ResourceId);
                             break;
                         case IIPPacket.IIPPacketAction.CreateResource:
-                            IIPRequestCreateResource(packet.CallbackId, packet.StoreId, packet.ResourceId, packet.Content);
+                            //@TODO : fix this
+                            //IIPRequestCreateResource(packet.CallbackId, packet.StoreId, packet.ResourceId, packet.Content);
                             break;
                         case IIPPacket.IIPPacketAction.DeleteResource:
                             IIPRequestDeleteResource(packet.CallbackId, packet.ResourceId);
@@ -441,7 +450,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPRequestRemoveChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
                             break;
                         case IIPPacketAction.RenameResource:
-                            IIPRequestRenameResource(packet.CallbackId, packet.ResourceId, packet.Content);
+                            IIPRequestRenameResource(packet.CallbackId, packet.ResourceId, packet.ResourceName);
                             break;
 
                         // Inquire
@@ -474,13 +483,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
 
                         // Invoke
-                        case IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments:
-                            IIPRequestInvokeFunctionArrayArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
+                        case IIPPacket.IIPPacketAction.InvokeFunction:
+                            IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
-                        case IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments:
-                            IIPRequestInvokeFunctionNamedArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
-                            break;
+                        //case IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments:
+                        //    IIPRequestInvokeFunctionNamedArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
+                        //    break;
 
                         //case IIPPacket.IIPPacketAction.GetProperty:
                         //    IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
@@ -498,27 +507,33 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
 
                         case IIPPacket.IIPPacketAction.SetProperty:
-                            IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.Content);
+                            IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
                         // Attribute
                         case IIPPacketAction.GetAllAttributes:
-                            IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                            // @TODO : fix this
+                            //IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
                             break;
                         case IIPPacketAction.UpdateAllAttributes:
-                            IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                            // @TODO : fix this
+                            //IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
                             break;
                         case IIPPacketAction.ClearAllAttributes:
-                            IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                            // @TODO : fix this
+                            //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
                             break;
                         case IIPPacketAction.GetAttributes:
-                            IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                            // @TODO : fix this
+                            //IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
                         case IIPPacketAction.UpdateAttributes:
-                            IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                            // @TODO : fix this
+                            //IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
                         case IIPPacketAction.ClearAttributes:
-                            IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                            // @TODO : fix this
+                            //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
                     }
                 }
@@ -528,11 +543,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     {
                         // Manage
                         case IIPPacket.IIPPacketAction.AttachResource:
-                            IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.Content);
+                            IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.DataType, msg);
                             break;
 
                         case IIPPacket.IIPPacketAction.ReattachResource:
-                            IIPReply(packet.CallbackId, packet.ResourceAge, packet.Content);
+                            IIPReply(packet.CallbackId, packet.ResourceAge, packet.DataType, msg);
 
                             break;
                         case IIPPacket.IIPPacketAction.DetachResource:
@@ -555,7 +570,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         case IIPPacket.IIPPacketAction.TemplateFromClassName:
                         case IIPPacket.IIPPacketAction.TemplateFromClassId:
                         case IIPPacket.IIPPacketAction.TemplateFromResourceId:
-                            IIPReply(packet.CallbackId, TypeTemplate.Parse(packet.Content));
+
+                            var content = msg.Clip(packet.DataType.Value.Offset, (uint)packet.DataType.Value.ContentLength);
+                            IIPReply(packet.CallbackId, TypeTemplate.Parse(content));
                             break;
 
                         case IIPPacketAction.QueryLink:
@@ -563,13 +580,12 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         case IIPPacketAction.ResourceParents:
                         case IIPPacketAction.ResourceHistory:
                         case IIPPacketAction.LinkTemplates:
-                            IIPReply(packet.CallbackId, packet.Content);
+                            IIPReply(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
                         // Invoke
-                        case IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments:
-                        case IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments:
-                            IIPReplyInvoke(packet.CallbackId, packet.Content);
+                        case IIPPacket.IIPPacketAction.InvokeFunction:
+                            IIPReplyInvoke(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
                         //case IIPPacket.IIPPacketAction.GetProperty:
@@ -589,7 +605,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         // Attribute
                         case IIPPacketAction.GetAllAttributes:
                         case IIPPacketAction.GetAttributes:
-                            IIPReply(packet.CallbackId, packet.Content);
+                            IIPReply(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
                         case IIPPacketAction.UpdateAllAttributes:
@@ -616,7 +632,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPReportProgress(packet.CallbackId, ProgressType.Execution, packet.ProgressValue, packet.ProgressMax);
                             break;
                         case IIPPacketReport.ChunkStream:
-                            IIPReportChunk(packet.CallbackId, packet.Content);
+                            IIPReportChunk(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
 
                             break;
                     }
@@ -626,6 +642,62 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         else
         {
+
+            // check if the reqeust through websockets
+
+            if (initialPacket)
+            {
+                initialPacket = false;
+
+                if (msg.Length > 3 && Encoding.Default.GetString(msg, 0, 3) == "GET")
+                {
+                    // Parse with http packet
+                    var req = new HTTPRequestPacket();
+                    var pSize = req.Parse(msg, 0, (uint)msg.Length);
+                    if (pSize > 0)
+                    {
+                        // check for WS upgrade
+
+                        if (HTTPConnection.IsWebsocketRequest(req))
+                        {
+
+                            Socket?.Unhold();
+
+                            var res = new HTTPResponsePacket();
+
+                            HTTPConnection.Upgrade(req, res);
+
+
+                            res.Compose(HTTPResponsePacket.ComposeOptions.AllCalculateLength);
+                            Send(res.Data);
+                            // replace my socket with websockets
+                            var tcpSocket = this.Unassign();
+                            var wsSocket = new WSocket(tcpSocket);
+                            this.Assign(wsSocket);
+                        }
+                        else
+                        {
+
+                            var res = new HTTPResponsePacket();
+                            res.Number = HTTPResponsePacket.ResponseCode.BadRequest;
+                            res.Compose(HTTPResponsePacket.ComposeOptions.AllCalculateLength);
+                            Send(res.Data);
+                            //@TODO: kill the connection
+                        }
+                    }
+                    else
+                    {
+                        // packet incomplete
+                        return (uint)pSize;
+                    }
+
+                    // switching completed
+                    return (uint)msg.Length;
+                }
+            }
+
+            Console.WriteLine(msg.GetString(offset, ends - offset));
+
             var rt = authPacket.Parse(msg, offset, ends);
 
             //Console.WriteLine(session.LocalAuthentication.Type.ToString() + " " + offset + " " + ends + " " + rt + " " + authPacket.ToString());
@@ -649,7 +721,16 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         {
                             try
                             {
-                                Server.Membership.UserExists(authPacket.RemoteUsername, authPacket.Domain).Then(x =>
+                                if (Server.Membership == null)
+                                {
+                                    var errMsg = DC.ToBytes("Membership not set.");
+
+                                    SendParams().AddUInt8(0xc0)
+                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                                        .AddUInt16((ushort)errMsg.Length)
+                                        .AddUInt8Array(errMsg).Done();
+                                }
+                                else Server.Membership.UserExists(authPacket.RemoteUsername, authPacket.Domain).Then(x =>
                                 {
                                     if (x)
                                     {
@@ -660,15 +741,15 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                                     .AddUInt8(0xa0)
                                                     .AddUInt8Array(localNonce)
                                                     .Done();
-                                            //SendParams((byte)0xa0, localNonce);
-                                        }
+                                        //SendParams((byte)0xa0, localNonce);
+                                    }
                                     else
                                     {
-                                            //Console.WriteLine("User not found");
-                                            SendParams().AddUInt8(0xc0)
-                                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                        .AddUInt16(14)
-                                                        .AddString("User not found").Done();
+                                        //Console.WriteLine("User not found");
+                                        SendParams().AddUInt8(0xc0)
+                                                    .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                                    .AddUInt16(14)
+                                                    .AddString("User not found").Done();
                                     }
                                 });
                             }
@@ -686,31 +767,43 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         {
                             try
                             {
-                                // Check if user and token exists
-                                Server.Membership.TokenExists(authPacket.RemoteTokenIndex, authPacket.Domain).Then(x =>
+                                if (Server.Membership == null)
                                 {
-                                    if (x != null)
-                                    {
-                                        session.RemoteAuthentication.Username = x;
-                                        session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
-                                        remoteNonce = authPacket.RemoteNonce;
-                                        session.RemoteAuthentication.Domain = authPacket.Domain;
-                                        SendParams()
-                                                    .AddUInt8(0xa0)
-                                                    .AddUInt8Array(localNonce)
-                                                    .Done();
-                                    }
-                                    else
-                                    {
-                                            //Console.WriteLine("User not found");
-                                            SendParams()
+                                    SendParams()
                                                         .AddUInt8(0xc0)
                                                         .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
                                                         .AddUInt16(15)
                                                         .AddString("Token not found")
                                                         .Done();
-                                    }
-                                });
+                                }
+                                // Check if user and token exists
+                                else
+                                {
+                                    Server.Membership.TokenExists(authPacket.RemoteTokenIndex, authPacket.Domain).Then(x =>
+                                    {
+                                 if (x != null)
+                                 {
+                                     session.RemoteAuthentication.Username = x;
+                                     session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
+                                     remoteNonce = authPacket.RemoteNonce;
+                                     session.RemoteAuthentication.Domain = authPacket.Domain;
+                                     SendParams()
+                                                 .AddUInt8(0xa0)
+                                                 .AddUInt8Array(localNonce)
+                                                 .Done();
+                                 }
+                                 else
+                                 {
+                                     //Console.WriteLine("User not found");
+                                     SendParams()
+                                                 .AddUInt8(0xc0)
+                                                 .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                                 .AddUInt16(15)
+                                                 .AddString("Token not found")
+                                                 .Done();
+                                 }
+                             });
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -729,7 +822,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             try
                             {
                                 // Check if guests are allowed
-                                if (Server.Membership.GuestsAllowed)
+                                if (Server.Membership?.GuestsAllowed ?? true)
                                 {
                                     session.RemoteAuthentication.Username = "g-" + Global.GenerateCode();
                                     session.RemoteAuthentication.Domain = authPacket.Domain;
@@ -789,31 +882,31 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     if (pw != null)
                                     {
                                         var hashFunc = SHA256.Create();
-                                            //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
-                                            var hash = hashFunc.ComputeHash((new BinaryList())
-                                                                                .AddUInt8Array(pw)
-                                                                                .AddUInt8Array(remoteNonce)
-                                                                                .AddUInt8Array(localNonce)
-                                                                                .ToArray());
+                                        //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
+                                        var hash = hashFunc.ComputeHash((new BinaryList())
+                                                                            .AddUInt8Array(pw)
+                                                                            .AddUInt8Array(remoteNonce)
+                                                                            .AddUInt8Array(localNonce)
+                                                                            .ToArray());
                                         if (hash.SequenceEqual(remoteHash))
                                         {
-                                                // send our hash
-                                                //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
-                                                //SendParams((byte)0, localHash);
+                                            // send our hash
+                                            //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
+                                            //SendParams((byte)0, localHash);
 
-                                                var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
+                                            var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
                                             SendParams().AddUInt8(0).AddUInt8Array(localHash).Done();
 
                                             readyToEstablish = true;
                                         }
                                         else
                                         {
-                                                //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
-                                                SendParams().AddUInt8(0xc0)
-                                                                .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                                                .AddUInt16(13)
-                                                                .AddString("Access Denied")
-                                                                .Done();
+                                            //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
+                                            SendParams().AddUInt8(0xc0)
+                                                            .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                                            .AddUInt16(13)
+                                                            .AddString("Access Denied")
+                                                            .Done();
                                         }
                                     }
                                 });
@@ -849,7 +942,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                         openReply?.Trigger(true);
                                         OnReady?.Invoke(this);
 
-                                        Server?.Membership.Login(session);
+                                        Server?.Membership?.Login(session);
                                         loginDate = DateTime.Now;
 
                                     }).Error(x =>
@@ -862,7 +955,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     ready = true;
                                     openReply?.Trigger(true);
                                     OnReady?.Invoke(this);
-                                    Server?.Membership.Login(session);
+                                    Server?.Membership?.Login(session);
                                 }
 
                                 //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
@@ -988,7 +1081,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     protected override void DataReceived(NetworkBuffer data)
     {
-        // Console.WriteLine("DR " + hostType + " " + data.Available + " " + RemoteEndPoint.ToString());
+        //Console.WriteLine("DR " + data.Available + " " + RemoteEndPoint.ToString());
         var msg = data.Read();
         uint offset = 0;
         uint ends = (uint)msg.Length;
@@ -997,7 +1090,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         var chunkId = (new Random()).Next(1000, 1000000);
 
-        var list = new List<Structure>();// double, IIPPacketCommand>();
+        //var list = new List<Map<string, object>>();// double, IIPPacketCommand>();
 
 
         this.Socket.Hold();
@@ -1127,7 +1220,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             {
                 try
                 {
-                    var bag = new AsyncBag();
+                    var bag = new AsyncBag<IResource>();
 
                     for (var i = 0; i < resources.Keys.Count; i++)
                     {
@@ -1168,13 +1261,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
         return new AsyncReply<bool>(true);
     }
 
-    public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         // nothing to do
         return true;
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         // nothing to do
         return true;
@@ -1202,9 +1295,10 @@ public partial class DistributedConnection : NetworkConnection, IStore
         throw new NotImplementedException();
     }
 
+
     public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
     {
-        throw new Exception("SS");
+        throw new Exception("Not implemented");
 
         //if (Codec.IsLocalResource(resource, this))
         //  return new AsyncBag<T>((resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x));
@@ -1214,7 +1308,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
     {
-        throw new Exception("SS");
+        throw new Exception("Not implemented");
         //if (Codec.IsLocalResource(resource, this))
         //  return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
 
@@ -1253,7 +1347,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         Warehouse.Remove(this);
 
         if (ready)
-            Server?.Membership.Logout(session);
+            Server?.Membership?.Logout(session);
 
         ready = false;
     }

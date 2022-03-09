@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 
 namespace Esiur.Core;
 
-public class AsyncBagAwaiter : INotifyCompletion
+public class AsyncBagAwaiter<T> : INotifyCompletion
 {
     Action callback = null;
 
     AsyncException exception = null;
 
-    object[] result;
+    T[] result;
 
-    public AsyncBagAwaiter(AsyncBag reply)
+    public AsyncBagAwaiter(AsyncBag<T> reply)
     {
         reply.Then(x =>
         {
@@ -29,7 +29,7 @@ public class AsyncBagAwaiter : INotifyCompletion
         });
     }
 
-    public object[] GetResult()
+    public T[] GetResult()
     {
         if (exception != null)
             throw exception;

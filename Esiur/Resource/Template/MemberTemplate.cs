@@ -8,34 +8,21 @@ using System.Threading.Tasks;
 namespace Esiur.Resource.Template;
 public class MemberTemplate
 {
-    public enum MemberType
+
+    public readonly byte Index;
+    public readonly string Name;
+    public readonly bool Inherited;
+    public readonly TypeTemplate Template;
+
+    public MemberTemplate(TypeTemplate template, byte index, string name, bool inherited)
     {
-        Function = 0,
-        Property = 1,
-        Event = 2,
-        Attribute = 3
+        Template = template;
+        Index = index;
+        Name = name;
+        Inherited = inherited;
     }
 
-    public byte Index => index;
-    public string Name => name;
-    public MemberType Type => type;
-
-    TypeTemplate template;
-    string name;
-    MemberType type;
-    byte index;
-
-    public TypeTemplate Template => template;
-
-    public MemberTemplate(TypeTemplate template, MemberType type, byte index, string name)
-    {
-        this.template = template;
-        this.type = type;
-        this.index = index;
-        this.name = name;
-    }
-
-    public string Fullname => template.ClassName + "." + Name;
+    public string Fullname => Template.ClassName + "." + Name;
 
     public virtual byte[] Compose()
     {

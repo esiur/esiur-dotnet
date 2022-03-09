@@ -29,10 +29,11 @@ public class ResourceGeneratorReceiver : ISyntaxContextReceiver
             {
                 // Debugger.Launch();
 
-                var url = import.ConstructorArguments.First().Value.ToString();
+                var urls = import.ConstructorArguments.Select(x => x.Value.ToString());//.ToString();
 
-                if (!Imports.Contains(url))
-                    Imports.Add(url);
+                foreach(var url in urls)
+                    if (!Imports.Contains(url))
+                        Imports.Add(url);
             }
 
             if (attrs.Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.ResourceAttribute"))
@@ -48,6 +49,7 @@ public class ResourceGeneratorReceiver : ISyntaxContextReceiver
 
                 var fields = cds.Members.Where(x => x is FieldDeclarationSyntax)
                                         .Select(x => context.SemanticModel.GetDeclaredSymbol((x as FieldDeclarationSyntax).Declaration.Variables.First()) as IFieldSymbol)
+                                        .Where(x => !x.IsConst)
                                         .Where(x => x.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.PublicAttribute"))
                                         .ToArray();
 

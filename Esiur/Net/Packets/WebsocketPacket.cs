@@ -88,13 +88,13 @@ public class WebsocketPacket : Packet
         // 4 bytes
         {
             pkt.Add((byte)((Mask ? 0x80 : 0x0) | 127));
-            pkt.AddRange(DC.ToBytes((UInt64)Message.LongCount()));
+            pkt.AddRange(DC.ToBytes((UInt64)Message.LongCount(), Endian.Big));
         }
         else if (Message.Length > 125)
         // 2 bytes
         {
             pkt.Add((byte)((Mask ? 0x80 : 0x0) | 126));
-            pkt.AddRange(DC.ToBytes((UInt16)Message.Length));
+            pkt.AddRange(DC.ToBytes((UInt16)Message.Length, Endian.Big));
         }
         else
         {
@@ -145,7 +145,7 @@ public class WebsocketPacket : Packet
                     //Console.WriteLine("stage 2 " + needed);
                     return length - needed;
                 }
-                PayloadLength = data.GetUInt16(offset);
+                PayloadLength = data.GetUInt16(offset, Endian.Big);
                 offset += 2;
             }
             else if (PayloadLength == 127)
@@ -157,7 +157,7 @@ public class WebsocketPacket : Packet
                     return length - needed;
                 }
 
-                PayloadLength = data.GetInt64(offset);
+                PayloadLength = data.GetInt64(offset, Endian.Big);
                 offset += 8;
             }
 

@@ -13,11 +13,11 @@ public class PropertyValue
     /// <summary>
     /// Get or set date of modification or occurrence.
     /// </summary>
-    public DateTime Date { get; set; }
+    public DateTime? Date { get; set; }
     /// <summary>
     /// Get or set property age.
     /// </summary>
-    public ulong Age { get; set; }
+    public ulong? Age { get; set; }
 
     /// <summary>
     /// Create an instance of PropertyValue.
@@ -25,7 +25,7 @@ public class PropertyValue
     /// <param name="value">Value.</param>
     /// <param name="age">Age.</param>
     /// <param name="date">Date.</param>
-    public PropertyValue(object value, ulong age, DateTime date)
+    public PropertyValue(object value, ulong? age, DateTime? date)
     {
         Value = value;
         Age = age;

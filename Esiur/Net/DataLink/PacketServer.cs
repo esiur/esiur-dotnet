@@ -61,6 +61,7 @@ public class PacketServer : IResource
     }
 
     public event DestroyedEvent OnDestroy;
+    public event PropertyModifiedEvent PropertyModified;
 
     public void Destroy()
     {

@@ -79,19 +79,19 @@ public class DomainCertificate : Certificate
     {
         var oOffset = offset;
 
-        this.id = DC.GetUInt64(data, offset);
+        this.id = DC.GetUInt64(data, offset, Endian.Little);
         offset += 8;
 
         // load IPs
-        this.ip = DC.GetUInt32(data, offset);
+        this.ip = DC.GetUInt32(data, offset, Endian.Little);
         offset += 4;
         this.ip6 = DC.Clip(data, offset, 16);
 
         offset += 16;
 
-        this.issueDate = DC.GetDateTime(data, offset);
+        this.issueDate = DC.GetDateTime(data, offset, Endian.Little);
         offset += 8;
-        this.expireDate = DC.GetDateTime(data, offset);
+        this.expireDate = DC.GetDateTime(data, offset, Endian.Little);
         offset += 8;
 
         this.domain = Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
@@ -100,7 +100,7 @@ public class DomainCertificate : Certificate
         this.authorityName = (Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]));
         offset += (uint)data[offset] + 1;
 
-        caId = DC.GetUInt64(data, offset);
+        caId = DC.GetUInt64(data, offset, Endian.Little);
         offset += 8;
 
         var aea = (AsymetricEncryptionAlgorithmType)(data[offset] >> 5);
@@ -113,7 +113,7 @@ public class DomainCertificate : Certificate
             key.Exponent = DC.Clip(data, offset, exponentLength);
             offset += exponentLength;
 
-            uint keySize = DC.GetUInt16(data, offset);
+            uint keySize = DC.GetUInt16(data, offset, Endian.Little);
             offset += 2;
 
             key.Modulus = DC.Clip(data, offset, keySize);

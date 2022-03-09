@@ -22,7 +22,7 @@ public class FunctionTemplate : MemberTemplate
     //    set;
     //}
 
-    public TemplateDataType ReturnType { get; set; }
+    public RepresentationType ReturnType { get; set; }
 
     public ArgumentTemplate[] Arguments { get; set; }
 
@@ -54,17 +54,16 @@ public class FunctionTemplate : MemberTemplate
             var exp = DC.ToBytes(Expansion);
             bl.AddInt32(exp.Length)
             .AddUInt8Array(exp);
-            bl.InsertUInt8(0, 0x10);
+            bl.InsertUInt8(0, Inherited ? (byte)0x90 : (byte)0x10);
         }
         else
-            bl.InsertUInt8(0, 0x0);
+            bl.InsertUInt8(0, Inherited ? (byte)0x80 : (byte)0x0);
 
         return bl.ToArray();
     }
 
-
-    public FunctionTemplate(TypeTemplate template, byte index, string name, ArgumentTemplate[] arguments, TemplateDataType returnType, string expansion = null)
-        : base(template, MemberType.Property, index, name)
+     public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, ArgumentTemplate[] arguments, RepresentationType returnType, string expansion = null)
+        : base(template, index, name, inherited)
     {
         //this.IsVoid = isVoid;
         this.Arguments = arguments;

@@ -42,6 +42,7 @@ public abstract class PacketFilter : IResource
     }
 
     public event DestroyedEvent OnDestroy;
+ 
 
     public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
@@ -51,4 +52,6 @@ public abstract class PacketFilter : IResource
     {
         OnDestroy?.Invoke(this);
     }
+
+ 
 }

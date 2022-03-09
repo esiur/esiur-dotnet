@@ -46,7 +46,6 @@ public abstract class HTTPFilter : IResource
     }
 
     public event DestroyedEvent OnDestroy;
-
     public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
     /*

@@ -14,7 +14,7 @@ public class TemporaryStore : IStore
     public Instance Instance { get; set; }
 
     public event DestroyedEvent OnDestroy;
-
+    
     Dictionary<uint, WeakReference> resources = new Dictionary<uint, WeakReference>();
 
     public void Destroy()
@@ -64,7 +64,7 @@ public class TemporaryStore : IStore
         return new AsyncReply<bool>(true);
     }
 
-    public bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         throw new NotImplementedException();
     }
@@ -80,7 +80,7 @@ public class TemporaryStore : IStore
         return true;
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime)
+    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         return true;
     }

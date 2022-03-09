@@ -40,11 +40,11 @@ public class Storable : global::System.Attribute
 
     SerializerFunction serializer;
     DeserializerFunction deserializer;
-    DataType type;
+    RepresentationType dataType;
 
     public Storable()
     {
-        type = DataType.Void;
+        //dataType =  = DataType.Void;
     }
 
     public DeserializerFunction Deserializer
@@ -57,14 +57,14 @@ public class Storable : global::System.Attribute
         get { return serializer; }
     }
 
-    public Storable(DataType type)
+    public Storable(RepresentationType type)
     {
-        this.type = type;
+        this.dataType = type;
     }
 
-    public Storable(DataType type, SerializerFunction serializer, DeserializerFunction deserializer)
+    public Storable(RepresentationType type, SerializerFunction serializer, DeserializerFunction deserializer)
     {
-        this.type = type;
+        this.dataType = type;
         this.serializer = serializer;
         this.deserializer = deserializer;
     }

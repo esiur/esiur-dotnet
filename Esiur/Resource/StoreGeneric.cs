@@ -11,6 +11,7 @@ public abstract class Store<T> : IStore where T : IResource
     public Instance Instance { get; set; }
 
     public event DestroyedEvent OnDestroy;
+    
 
     public abstract AsyncReply<bool> AddChild(IResource parent, IResource child);
 
@@ -30,13 +31,13 @@ public abstract class Store<T> : IStore where T : IResource
 
     public abstract string Link(IResource resource);
 
-    public abstract bool Modify(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+    public abstract bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 
     public abstract AsyncBag<T1> Parents<T1>(IResource resource, string name) where T1 : IResource;
 
     public abstract AsyncReply<bool> Put(IResource resource);
 
-    public abstract bool Record(IResource resource, string propertyName, object value, ulong age, DateTime dateTime);
+    public abstract bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 
     public abstract bool Remove(IResource resource);
 

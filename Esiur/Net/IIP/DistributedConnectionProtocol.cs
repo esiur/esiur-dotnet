@@ -148,15 +148,15 @@ partial class DistributedConnection
     }
 
 
-    internal AsyncReply<object> SendInvokeByArrayArguments(uint instanceId, byte index, object[] parameters)
+    internal AsyncReply<object> SendInvoke(uint instanceId, byte index, Map<byte, object> parameters)
     {
-        var pb = Codec.ComposeVarArray(parameters, this, true);
+        var pb = Codec.Compose(parameters, this);// Codec.ComposeVarArray(parameters, this, true);
 
         var reply = new AsyncReply<object>();
         var c = callbackCounter++;
         requests.Add(c, reply);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments))
+        SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunction))
                     .AddUInt32(c)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
@@ -181,35 +181,6 @@ partial class DistributedConnection
             return null;
         }
     }
-
-    internal AsyncReply<object> SendInvokeByNamedArguments(uint instanceId, byte index, Structure parameters)
-    {
-        var pb = Codec.ComposeStructure(parameters, this, true, true, true);
-
-        /*
-        var reply = new AsyncReply<object>();
-        callbackCounter++;
-        var bl = new BinaryList((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments),
-                                callbackCounter, instanceId, index, pb);
-        Send(bl.ToArray());
-        requests.Add(callbackCounter, reply);
-
-        return reply;
-        */
-
-        var reply = new AsyncReply<object>();
-        var c = callbackCounter++;
-        requests.Add(c, reply);
-
-        SendParams().AddUInt8((byte)(0x40 | (byte)Packets.IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments))
-                    .AddUInt32(c)
-                    .AddUInt32(instanceId)
-                    .AddUInt8(index)
-                    .AddUInt8Array(pb)
-                    .Done();
-        return reply;
-    }
-
 
     void SendError(ErrorType type, uint callbackId, ushort errorCode, string errorMessage = "")
     {
@@ -243,7 +214,7 @@ partial class DistributedConnection
 
     void SendChunk(uint callbackId, object chunk)
     {
-        var c = Codec.Compose(chunk, this, true);
+        var c = Codec.Compose(chunk, this);
         SendParams()
             .AddUInt8((byte)(0xC0 | (byte)IIPPacket.IIPPacketReport.ChunkStream))
             .AddUInt32(callbackId)
@@ -257,11 +228,12 @@ partial class DistributedConnection
         req?.Trigger(results);
     }
 
-    void IIPReplyInvoke(uint callbackId, byte[] result)
+    void IIPReplyInvoke(uint callbackId, TransmissionType transmissionType, byte[] content)
     {
         var req = requests.Take(callbackId);
 
-        Codec.Parse(result, 0, this).Then((rt) =>
+        var (_, parsed) = Codec.Parse(content, 0, this, transmissionType);
+        parsed.Then((rt) =>
         {
             req?.Trigger(rt);
         });
@@ -279,12 +251,13 @@ partial class DistributedConnection
         req?.TriggerProgress(type, value, max);
     }
 
-    void IIPReportChunk(uint callbackId, byte[] data)
+    void IIPReportChunk(uint callbackId, TransmissionType dataType, byte[] data)
     {
         if (requests.ContainsKey(callbackId))
         {
             var req = requests[callbackId];
-            Codec.Parse(data, 0, this).Then((x) =>
+            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, dataType);
+            parsed.Then((x) =>
             {
                 req.TriggerChunk(x);
             });
@@ -306,7 +279,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPEventPropertyUpdated(uint resourceId, byte index, byte[] content)
+    void IIPEventPropertyUpdated(uint resourceId, byte index, TransmissionType dataType, byte[] data)
     {
 
         Fetch(resourceId).Then(r =>
@@ -314,7 +287,8 @@ partial class DistributedConnection
             var item = new AsyncReply<DistributedResourceQueueItem>();
             queue.Add(item);
 
-            Codec.Parse(content, 0, this).Then((arguments) =>
+            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, dataType);// 0, this);
+            parsed.Then((arguments) =>
             {
                 var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
                 if (pt != null)
@@ -325,7 +299,7 @@ partial class DistributedConnection
                 }
                 else
                 {    // ft found, fi not found, this should never happen
-                        queue.Remove(item);
+                    queue.Remove(item);
                 }
             });
 
@@ -369,15 +343,16 @@ partial class DistributedConnection
     }
 
 
-    void IIPEventEventOccurred(uint resourceId, byte index, byte[] content)
+    void IIPEventEventOccurred(uint resourceId, byte index, TransmissionType dataType, byte[] data)
     {
         Fetch(resourceId).Then(r =>
         {
-                // push to the queue to gaurantee serialization
-                var item = new AsyncReply<DistributedResourceQueueItem>();
+            // push to the queue to gaurantee serialization
+            var item = new AsyncReply<DistributedResourceQueueItem>();
             queue.Add(item);
 
-            Codec.Parse(content, 0, this).Then((arguments) =>
+            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, dataType);//, 0, this);
+            parsed.Then((arguments) =>
             {
                 var et = r.Instance.Template.GetEventTemplateByIndex(index);
                 if (et != null)
@@ -387,7 +362,7 @@ partial class DistributedConnection
                 }
                 else
                 {    // ft found, fi not found, this should never happen
-                        queue.Remove(item);
+                    queue.Remove(item);
                 }
 
             });
@@ -438,8 +413,8 @@ partial class DistributedConnection
                 parent.children.Add(child);
                 child.parents.Add(parent);
 
-                    //parent.Instance.Children.Add(child);
-                });
+                //parent.Instance.Children.Add(child);
+            });
         });
     }
 
@@ -452,16 +427,16 @@ partial class DistributedConnection
                 parent.children.Remove(child);
                 child.parents.Remove(parent);
 
-                    //                    parent.Instance.Children.Remove(child);
-                });
+                //                    parent.Instance.Children.Remove(child);
+            });
         });
     }
 
-    void IIPEventRenamed(uint resourceId, byte[] name)
+    void IIPEventRenamed(uint resourceId, string name)
     {
         Fetch(resourceId).Then(resource =>
         {
-            resource.Instance.Variables["name"] = name.GetString(0, (uint)name.Length);
+            resource.Instance.Variables["name"] = name;
         });
     }
 
@@ -494,72 +469,74 @@ partial class DistributedConnection
 
                 var r = res as IResource;
 
-                    // unsubscribe
-                    Unsubscribe(r);
+                // unsubscribe
+                Unsubscribe(r);
 
-                    //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                    //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                    //r.Instance.ResourceModified -= Instance_PropertyModified;
-                    //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                //r.Instance.ResourceModified -= Instance_PropertyModified;
+                //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
 
 
-                    // r.Instance.Children.OnAdd -= Children_OnAdd;
-                    // r.Instance.Children.OnRemoved -= Children_OnRemoved;
+                // r.Instance.Children.OnAdd -= Children_OnAdd;
+                // r.Instance.Children.OnRemoved -= Children_OnRemoved;
 
-                    //r.Instance.Attributes.OnModified -= Attributes_OnModified;
+                //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
-                    // Console.WriteLine("Attach {0} {1}", r.Instance.Link, r.Instance.Id);
+                // Console.WriteLine("Attach {0} {1}", r.Instance.Link, r.Instance.Id);
 
-                    // add it to attached resources so GC won't remove it from memory
-                    ///attachedResources.Add(r);
+                // add it to attached resources so GC won't remove it from memory
+                ///attachedResources.Add(r);
 
-                    var link = DC.ToBytes(r.Instance.Link);
+                var link = DC.ToBytes(r.Instance.Link);
 
                 if (r is DistributedResource)
                 {
-                        // reply ok
-                        SendReply(IIPPacket.IIPPacketAction.AttachResource, callback)
-                            .AddGuid(r.Instance.Template.ClassId)
-                            .AddUInt64(r.Instance.Age)
-                            .AddUInt16((ushort)link.Length)
-                            .AddUInt8Array(link)
-                            .AddUInt8Array(Codec.ComposePropertyValueArray((r as DistributedResource)._Serialize(), this, true))
-                            .Done();
+                    // reply ok
+                    SendReply(IIPPacket.IIPPacketAction.AttachResource, callback)
+                        .AddGuid(r.Instance.Template.ClassId)
+                        .AddUInt64(r.Instance.Age)
+                        .AddUInt16((ushort)link.Length)
+                        .AddUInt8Array(link)
+                        //.AddUInt8Array(DataSerializer.PropertyValueArrayComposer((r as DistributedResource)._Serialize(), this, true))
+                        .AddUInt8Array(Codec.Compose((r as DistributedResource)._Serialize(), this))
+                        .Done();
                 }
                 else
                 {
-                        // reply ok
-                        SendReply(IIPPacket.IIPPacketAction.AttachResource, callback)
-                            .AddGuid(r.Instance.Template.ClassId)
-                            .AddUInt64(r.Instance.Age)
-                            .AddUInt16((ushort)link.Length)
-                            .AddUInt8Array(link)
-                            .AddUInt8Array(Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true))
-                            .Done();
+                    // reply ok
+                    SendReply(IIPPacket.IIPPacketAction.AttachResource, callback)
+                        .AddGuid(r.Instance.Template.ClassId)
+                        .AddUInt64(r.Instance.Age)
+                        .AddUInt16((ushort)link.Length)
+                        .AddUInt8Array(link)
+                        .AddUInt8Array(Codec.Compose(r.Instance.Serialize(), this))
+                        //.AddUInt8Array(DataSerializer.PropertyValueArrayComposer(r.Instance.Serialize(), this, true))
+                        .Done();
                 }
 
 
 
-                    // subscribe
-                    //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                    //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-                    //r.Instance.ResourceModified += Instance_PropertyModified;
-                    //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+                // subscribe
+                //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
+                //r.Instance.ResourceModified += Instance_PropertyModified;
+                //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
 
-                    Subscribe(r);
+                Subscribe(r);
 
-                    //r.Instance.Children.OnAdd += Children_OnAdd;
-                    //r.Instance.Children.OnRemoved += Children_OnRemoved;
+                //r.Instance.Children.OnAdd += Children_OnAdd;
+                //r.Instance.Children.OnRemoved += Children_OnRemoved;
 
-                    //r.Instance.Attributes.OnModified += Attributes_OnModified;
+                //r.Instance.Attributes.OnModified += Attributes_OnModified;
 
 
-                }
+            }
             else
             {
-                    // reply failed
-                    //SendParams(0x80, r.Instance.Id, r.Instance.Age, r.Instance.Serialize(false, this));
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                // reply failed
+                //SendParams(0x80, r.Instance.Id, r.Instance.Age, r.Instance.Serialize(false, this));
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
@@ -624,41 +601,41 @@ partial class DistributedConnection
             if (res != null)
             {
                 var r = res as IResource;
-                    // unsubscribe
-                    Unsubscribe(r);
+                // unsubscribe
+                Unsubscribe(r);
                 Subscribe(r);
 
-                    //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                    //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                    //r.Instance.ResourceModified -= Instance_PropertyModified;
-                    //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                //r.Instance.ResourceModified -= Instance_PropertyModified;
+                //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
 
-                    //r.Instance.Children.OnAdd -= Children_OnAdd;
-                    //r.Instance.Children.OnRemoved -= Children_OnRemoved;
+                //r.Instance.Children.OnAdd -= Children_OnAdd;
+                //r.Instance.Children.OnRemoved -= Children_OnRemoved;
 
-                    //r.Instance.Attributes.OnModified -= Attributes_OnModified;
+                //r.Instance.Attributes.OnModified -= Attributes_OnModified;
 
-                    // subscribe
-                    //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                    //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-                    //r.Instance.ResourceModified += Instance_PropertyModified;
-                    //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+                // subscribe
+                //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
+                //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
+                //r.Instance.ResourceModified += Instance_PropertyModified;
+                //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
 
-                    //r.Instance.Children.OnAdd += Children_OnAdd;
-                    //r.Instance.Children.OnRemoved += Children_OnRemoved;
+                //r.Instance.Children.OnAdd += Children_OnAdd;
+                //r.Instance.Children.OnRemoved += Children_OnRemoved;
 
-                    //r.Instance.Attributes.OnModified += Attributes_OnModified;
+                //r.Instance.Attributes.OnModified += Attributes_OnModified;
 
-                    // reply ok
-                    SendReply(IIPPacket.IIPPacketAction.ReattachResource, callback)
-                            .AddUInt64(r.Instance.Age)
-                            .AddUInt8Array(Codec.ComposePropertyValueArray(r.Instance.Serialize(), this, true))
+                // reply ok
+                SendReply(IIPPacket.IIPPacketAction.ReattachResource, callback)
+                        .AddUInt64(r.Instance.Age)
+                        .AddUInt8Array(Codec.Compose(r.Instance.Serialize(), this))
                             .Done();
             }
             else
             {
-                    // reply failed
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                // reply failed
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
@@ -669,24 +646,24 @@ partial class DistributedConnection
         {
             if (res != null)
             {
-                    //var r = res as IResource;
-                    //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                    //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                    //r.Instance.ResourceModified -= Instance_PropertyModified;
-                    //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                //var r = res as IResource;
+                //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
+                //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
+                //r.Instance.ResourceModified -= Instance_PropertyModified;
+                //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
 
-                    Unsubscribe(res);
+                Unsubscribe(res);
 
-                    // remove from attached resources
-                    //attachedResources.Remove(res);
+                // remove from attached resources
+                //attachedResources.Remove(res);
 
-                    // reply ok
-                    SendReply(IIPPacket.IIPPacketAction.DetachResource, callback).Done();
+                // reply ok
+                SendReply(IIPPacket.IIPPacketAction.DetachResource, callback).Done();
             }
             else
             {
-                    // reply failed
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                // reply failed
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
@@ -708,8 +685,8 @@ partial class DistributedConnection
                 return;
             }
 
-                // check security
-                if (store.Instance.Applicable(session, ActionType.CreateResource, null) != Ruling.Allowed)
+            // check security
+            if (store.Instance.Applicable(session, ActionType.CreateResource, null) != Ruling.Allowed)
             {
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.CreateDenied);
                 return;
@@ -718,9 +695,9 @@ partial class DistributedConnection
             Warehouse.GetById(parentId).Then(parent =>
             {
 
-                    // check security
+                // check security
 
-                    if (parent != null)
+                if (parent != null)
                     if (parent.Instance.Applicable(session, ActionType.AddChild, null) != Ruling.Allowed)
                     {
                         SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
@@ -732,11 +709,11 @@ partial class DistributedConnection
                 var className = content.GetString(offset + 1, content[0]);
                 offset += 1 + (uint)content[0];
 
-                var nameLength = content.GetUInt16(offset);
+                var nameLength = content.GetUInt16(offset, Endian.Little);
                 offset += 2;
                 var name = content.GetString(offset, nameLength);
 
-                var cl = content.GetUInt32(offset);
+                var cl = content.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
                 var type = Type.GetType(className);
@@ -747,25 +724,28 @@ partial class DistributedConnection
                     return;
                 }
 
-                Codec.ParseVarArray(content, offset, cl, this).Then(parameters =>
+                DataDeserializer.ListParser(content, offset, cl, this).Then(parameters =>
                 {
                     offset += cl;
-                    cl = content.GetUInt32(offset);
-                    Codec.ParseStructure(content, offset, cl, this).Then(attributes =>
+                    cl = content.GetUInt32(offset, Endian.Little);
+
+                    //Codec.ParseStructure(content, offset, cl, this).Then(attributes =>
+                    DataDeserializer.TypedMapParser(content, offset, cl, this).Then(attributes =>
                     {
                         offset += cl;
                         cl = (uint)content.Length - offset;
 
-                        Codec.ParseStructure(content, offset, cl, this).Then(values =>
+                        //Codec.ParseStructure(content, offset, cl, this).Then(values =>
+                        DataDeserializer.TypedMapParser(content, offset, cl, this).Then(values =>
                         {
 
 #if NETSTANDARD
-                                var constructors = Type.GetType(className).GetTypeInfo().GetConstructors();
+                            var constructors = Type.GetType(className).GetTypeInfo().GetConstructors();
 #else
                                 var constructors = Type.GetType(className).GetConstructors();
 #endif
 
-                                var matching = constructors.Where(x =>
+                            var matching = constructors.Where(x =>
                             {
                                 var ps = x.GetParameters();
                                 if (ps.Length > 0 && ps.Length == parameters.Length + 1)
@@ -778,8 +758,8 @@ partial class DistributedConnection
 
                             var pi = matching[0].GetParameters();
 
-                                // cast arguments
-                                object[] args = null;
+                            // cast arguments
+                            object[] args = null;
 
                             if (pi.Length > 0)
                             {
@@ -800,8 +780,8 @@ partial class DistributedConnection
                                 }
                             }
 
-                                // create the resource
-                                var resource = Activator.CreateInstance(type, args) as IResource;
+                            // create the resource
+                            var resource = Activator.CreateInstance(type, args) as IResource;
 
                             Warehouse.Put(name, resource, store as IStore, parent).Then(ok =>
                            {
@@ -839,8 +819,8 @@ partial class DistributedConnection
 
             if (Warehouse.Remove(r))
                 SendReply(IIPPacket.IIPPacketAction.DeleteResource, callback).Done();
-                //SendParams((byte)0x84, callback);
-                else
+            //SendParams((byte)0x84, callback);
+            else
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteFailed);
         });
     }
@@ -855,8 +835,8 @@ partial class DistributedConnection
                 return;
             }
 
-                //                if (!r.Instance.Store.Instance.Applicable(r, session, ActionType.InquireAttributes, null))
-                if (r.Instance.Applicable(session, ActionType.InquireAttributes, null) != Ruling.Allowed)
+            //                if (!r.Instance.Store.Instance.Applicable(r, session, ActionType.InquireAttributes, null))
+            if (r.Instance.Applicable(session, ActionType.InquireAttributes, null) != Ruling.Allowed)
             {
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ViewAttributeDenied);
                 return;
@@ -871,7 +851,7 @@ partial class DistributedConnection
 
             if (st != null)
                 SendReply(all ? IIPPacket.IIPPacketAction.GetAllAttributes : IIPPacket.IIPPacketAction.GetAttributes, callback)
-                          .AddUInt8Array(Codec.ComposeStructure(st, this, true, true, true))
+                          .AddUInt8Array(Codec.Compose(st, this))
                           .Done();
             else
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GetAttributesFailed);
@@ -912,8 +892,8 @@ partial class DistributedConnection
                 parent.Instance.Store.AddChild(parent, child);
 
                 SendReply(IIPPacket.IIPPacketAction.AddChild, callback).Done();
-                    //child.Instance.Parents
-                });
+                //child.Instance.Parents
+            });
 
         });
     }
@@ -950,14 +930,14 @@ partial class DistributedConnection
 
                 parent.Instance.Store.RemoveChild(parent, child);// Children.Remove(child);
 
-                    SendReply(IIPPacket.IIPPacketAction.RemoveChild, callback).Done();
-                    //child.Instance.Parents
-                });
+                SendReply(IIPPacket.IIPPacketAction.RemoveChild, callback).Done();
+                //child.Instance.Parents
+            });
 
         });
     }
 
-    void IIPRequestRenameResource(uint callback, uint resourceId, byte[] name)
+    void IIPRequestRenameResource(uint callback, uint resourceId, string name)
     {
         Warehouse.GetById(resourceId).Then(resource =>
         {
@@ -974,7 +954,7 @@ partial class DistributedConnection
             }
 
 
-            resource.Instance.Name = name.GetString(0, (uint)name.Length);
+            resource.Instance.Name = name;
             SendReply(IIPPacket.IIPPacketAction.RenameResource, callback).Done();
         });
     }
@@ -992,7 +972,7 @@ partial class DistributedConnection
             resource.Instance.Children<IResource>().Then(children =>
             {
                 SendReply(IIPPacket.IIPPacketAction.ResourceChildren, callback)
-                    .AddUInt8Array(Codec.ComposeResourceArray(children, this, true))
+                .AddUInt8Array(Codec.Compose(children, this))// Codec.ComposeResourceArray(children, this, true))
                     .Done();
 
             });
@@ -1014,7 +994,8 @@ partial class DistributedConnection
             resource.Instance.Parents<IResource>().Then(parents =>
             {
                 SendReply(IIPPacket.IIPPacketAction.ResourceParents, callback)
-                .AddUInt8Array(Codec.ComposeResourceArray(parents, this, true))
+                .AddUInt8Array(Codec.Compose(parents, this))
+                //.AddUInt8Array(Codec.ComposeResourceArray(parents, this, true))
                 .Done();
 
             });
@@ -1067,9 +1048,10 @@ partial class DistributedConnection
                 return;
             }
 
-            Codec.ParseStructure(attributes, 0, (uint)attributes.Length, this).Then(attrs =>
+
+            DataDeserializer.TypedMapParser(attributes, 0, (uint)attributes.Length, this).Then(attrs =>
             {
-                if (r.Instance.SetAttributes(attrs, clearAttributes))
+                if (r.Instance.SetAttributes((Map<string, object>)attrs, clearAttributes))
                     SendReply(clearAttributes ? IIPPacket.IIPPacketAction.ClearAllAttributes : IIPPacket.IIPPacketAction.ClearAttributes,
                               callback).Done();
                 else
@@ -1094,9 +1076,9 @@ partial class DistributedConnection
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
                 {
-                        // get all templates related to this resource
+                    // get all templates related to this resource
 
-                        var msg = new BinaryList();
+                    var msg = new BinaryList();
 
                     var templates = new List<TypeTemplate>();
                     foreach (var resource in list)
@@ -1108,11 +1090,12 @@ partial class DistributedConnection
                             .AddUInt8Array(t.Content);
                     }
 
-                        // digggg
-                        SendReply(IIPPacket.IIPPacketAction.LinkTemplates, callback)
-                                .AddInt32(msg.Length)
-                                .AddUInt8Array(msg.ToArray())
-                                .Done();
+                    // digggg
+                    SendReply(IIPPacket.IIPPacketAction.LinkTemplates, callback)
+                            //.AddInt32(msg.Length)
+                            //.AddUInt8Array(msg.ToArray())
+                            .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, msg.ToArray()))
+                            .Done();
                 }
             }
         };
@@ -1129,8 +1112,9 @@ partial class DistributedConnection
 
         if (t != null)
             SendReply(IIPPacket.IIPPacketAction.TemplateFromClassName, callback)
-                    .AddInt32(t.Content.Length)
-                    .AddUInt8Array(t.Content)
+                    .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, t.Content))
+                    //.AddInt32(t.Content.Length)
+                    //.AddUInt8Array(t.Content)
                     .Done();
         else
         {
@@ -1145,8 +1129,9 @@ partial class DistributedConnection
 
         if (t != null)
             SendReply(IIPPacket.IIPPacketAction.TemplateFromClassId, callback)
-                    .AddInt32(t.Content.Length)
-                    .AddUInt8Array(t.Content)
+                    .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, t.Content))
+                    //.AddInt32(t.Content.Length)
+                    //.AddUInt8Array(t.Content)
                     .Done();
         else
         {
@@ -1168,8 +1153,8 @@ partial class DistributedConnection
                         .Done();
             else
             {
-                    // reply failed
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+                // reply failed
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
             }
         });
     }
@@ -1192,7 +1177,8 @@ partial class DistributedConnection
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
                     SendReply(IIPPacket.IIPPacketAction.QueryLink, callback)
-                                .AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
+                                .AddUInt8Array(Codec.Compose(list, this))
+                                //.AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
                                 .Done();
             }
         };
@@ -1224,303 +1210,147 @@ partial class DistributedConnection
         return new Tuple<ushort, string>((ushort)code, $"{source}: {msg}\n{trace}");
     }
 
-    void IIPRequestInvokeFunctionArrayArguments(uint callback, uint resourceId, byte index, byte[] content)
+    void IIPRequestInvokeFunction(uint callback, uint resourceId, byte index, TransmissionType transmissionType, byte[] content)
     {
         //Console.WriteLine("IIPRequestInvokeFunction " + callback + " " + resourceId + "  " + index);
 
         Warehouse.GetById(resourceId).Then((r) =>
         {
-            if (r != null)
+            if (r == null)
             {
-                Codec.ParseVarArray(content, this).Then((arguments) =>
+                // no resource with this id
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                return;
+            }
+
+            var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
+
+            if (ft == null)
+            {
+                // no function at this index
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                return;
+            }
+
+            var (_, parsed) = Codec.Parse(content, 0, this, transmissionType);
+
+            parsed.Then(results =>
+            {
+                var arguments = (Map<byte, object>)results ;// (object[])results;
+
+                // un hold the socket to send data immediately
+                this.Socket.Unhold();
+
+                if (r is DistributedResource)
                 {
-                    var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
-                    if (ft != null)
+                    var rt = (r as DistributedResource)._Invoke(index, arguments);
+                    if (rt != null)
                     {
-
-                            // un hold the socket to send data immediately
-                            this.Socket.Unhold();
-
-                        if (r is DistributedResource)
+                        rt.Then(res =>
                         {
-                            var rt = (r as DistributedResource)._InvokeByArrayArguments(index, arguments);
-                            if (rt != null)
-                            {
-                                rt.Then(res =>
-                                {
-                                    SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
-                                                .AddUInt8Array(Codec.Compose(res, this))
-                                                .Done();
-                                });
-                            }
-                            else
-                            {
-
-                                    // function not found on a distributed object
-                                }
-                        }
-                        else
-                        {
-#if NETSTANDARD
-                                var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
-#else
-                                var fi = r.GetType().GetMethod(ft.Name);
-#endif
-
-                                if (fi != null)
-                            {
-                                if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
-                                {
-                                    SendError(ErrorType.Management, callback,
-                                        (ushort)ExceptionCode.InvokeDenied);
-                                    return;
-                                }
-
-                                    // cast arguments
-                                    ParameterInfo[] pi = fi.GetParameters();
-                                object[] args = null;
-
-                                if (pi.Length > 0)
-                                {
-                                    int argsCount = pi.Length;
-                                    args = new object[pi.Length];
-
-                                    if (pi[pi.Length - 1].ParameterType == typeof(DistributedConnection))
-                                    {
-                                        args[--argsCount] = this;
-                                    }
-
-                                    if (arguments != null)
-                                    {
-                                        for (int i = 0; i < argsCount && i < arguments.Length; i++)
-                                        {
-                                            args[i] = DC.CastConvert(arguments[i], pi[i].ParameterType);
-                                        }
-                                    }
-                                }
-
-                                object rt;
-
-                                try
-                                {
-                                    rt = fi.Invoke(r, args);
-                                }
-                                catch (Exception ex)
-                                {
-                                    var (code, msg) = SummerizeException(ex);
-                                    SendError(ErrorType.Exception, callback, code, msg);
-                                    return;
-                                }
-
-                                if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Structure || rt is string))
-                                {
-                                    var enu = rt as System.Collections.IEnumerable;
-
-                                    try
-                                    {
-                                        foreach (var v in enu)
-                                            SendChunk(callback, v);
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
-                                        .AddUInt8((byte)DataType.Void)
+                            SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback)
+                                        .AddUInt8Array(Codec.Compose(res, this))
                                         .Done();
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        var (code, msg) = SummerizeException(ex);
-                                        SendError(ErrorType.Exception, callback, code, msg);
-                                    }
-
-                                }
-                                else if (rt is Task)
-                                {
-                                    (rt as Task).ContinueWith(t =>
-                                    {
-#if NETSTANDARD
-                                            var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
-#else
-                                            var res = t.GetType().GetProperty("Result").GetValue(t);
-#endif
-                                            SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
-                                                 .AddUInt8Array(Codec.Compose(res, this))
-                                                 .Done();
-                                    });
-
-                                        //await t;
-                                        //SendParams((byte)0x90, callback, Codec.Compose(res, this));
-                                    }
-                                else if (rt is AsyncReply)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
-                                                          //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
-                                    {
-                                    (rt as AsyncReply).Then(res =>
-                                    {
-                                        SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
-                                                    .AddUInt8Array(Codec.Compose(res, this))
-                                                    .Done();
-                                    }).Error(ex =>
-                                    {
-                                        var (code, msg) = SummerizeException(ex);
-                                        SendError(ErrorType.Exception, callback, code, msg);
-                                    }).Progress((pt, pv, pm) =>
-                                    {
-                                        SendProgress(callback, pv, pm);
-                                    }).Chunk(v =>
-                                    {
-                                        SendChunk(callback, v);
-                                    });
-                                }
-                                else
-                                {
-                                    SendReply(IIPPacket.IIPPacketAction.InvokeFunctionArrayArguments, callback)
-                                            .AddUInt8Array(Codec.Compose(rt, this))
-                                            .Done();
-                                }
-                            }
-                            else
-                            {
-                                    // ft found, fi not found, this should never happen
-                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                            }
-                        }
+                        });
                     }
                     else
                     {
-                            // no function at this index
-                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                        // function not found on a distributed object
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                     }
-                });
-            }
-            else
-            {
-                    // no resource with this id
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-            }
-        });
-    }
+                }
+                else
+                {
+                    var fi = r.GetType().GetMethod(ft.Name);
 
+                    if (fi != null)
+                    {
+                        if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
+                        {
+                            SendError(ErrorType.Management, callback,
+                                (ushort)ExceptionCode.InvokeDenied);
+                            return;
+                        }
 
-    void IIPRequestInvokeFunctionNamedArguments(uint callback, uint resourceId, byte index, byte[] content)
-    {
+                        // cast arguments
+                        ParameterInfo[] pis = fi.GetParameters();
 
-        Warehouse.GetById(resourceId).Then((r) =>
-        {
-            if (r != null)
-            {
-                Codec.ParseStructure(content, 0, (uint)content.Length, this).Then((namedArgs) =>
-                 {
-                     var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
-                     if (ft != null)
-                     {
-                             // un hold the socket to send data immediately
-                             this.Socket.Unhold();
+                        object[] args = new object[pis.Length];
 
-                         if (r is DistributedResource)
-                         {
-                             var rt = (r as DistributedResource)._InvokeByNamedArguments(index, namedArgs);
-                             if (rt != null)
-                             {
-                                 rt.Then(res =>
-                                 {
-                                     SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                             .AddUInt8Array(Codec.Compose(res, this))
-                                             .Done();
-                                 });
-                             }
-                             else
-                             {
+                        if (pis.Length > 0)
+                        {
+                            if (pis.Last().ParameterType == typeof(DistributedConnection))
+                            {
+                                for(byte i = 0; i< pis.Length - 1; i++)
+                                    args[i] = arguments.ContainsKey(i) ? 
+                                                DC.CastConvert(arguments[i], pis[i].ParameterType) : Type.Missing;
+                                args[args.Length - 1] = this;
+                            }
+                            else
+                            {
+                                for (byte i = 0; i < pis.Length ; i++)
+                                    args[i] = arguments.ContainsKey(i) ?
+                                                DC.CastConvert(arguments[i], pis[i].ParameterType) : Type.Missing;
+                            }
+                        }
 
-                                     // function not found on a distributed object
-                                 }
-                         }
-                         else
-                         {
+                        object rt;
+
+                        try
+                        {
+                            rt = fi.Invoke(r, args);
+                        }
+                        catch (Exception ex)
+                        {
+                            var (code, msg) = SummerizeException(ex);
+                            SendError(ErrorType.Exception, callback, code, msg);
+                            return;
+                        }
+
+                        if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Map<string, object> || rt is string))
+                        {
+                            var enu = rt as System.Collections.IEnumerable;
+
+                            try
+                            {
+                                foreach (var v in enu)
+                                    SendChunk(callback, v);
+                                SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback)
+                                .AddUInt8((byte)TransmissionTypeIdentifier.Null)
+                                .Done();
+                            }
+                            catch (Exception ex)
+                            {
+                                var (code, msg) = SummerizeException(ex);
+                                SendError(ErrorType.Exception, callback, code, msg);
+                            }
+
+                        }
+                        else if (rt is Task)
+                        {
+                            (rt as Task).ContinueWith(t =>
+                            {
 #if NETSTANDARD
-                                 var fi = r.GetType().GetTypeInfo().GetMethod(ft.Name);
-#else
-                                var fi = r.GetType().GetMethod(ft.Name);
-#endif
-
-                                 if (fi != null)
-                             {
-                                 if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
-                                 {
-                                     SendError(ErrorType.Management, callback,
-                                         (ushort)ExceptionCode.InvokeDenied);
-                                     return;
-                                 }
-
-                                     // cast arguments
-                                     ParameterInfo[] pi = fi.GetParameters();
-
-                                 object[] args = new object[pi.Length];
-
-                                 for (var i = 0; i < pi.Length; i++)
-                                 {
-                                     if (pi[i].ParameterType == typeof(DistributedConnection))
-                                     {
-                                         args[i] = this;
-                                     }
-                                     else if (namedArgs.ContainsKey(pi[i].Name))
-                                     {
-                                         args[i] = DC.CastConvert(namedArgs[pi[i].Name], pi[i].ParameterType);
-                                     }
-                                 }
-
-
-                                 object rt;
-
-                                 try
-                                 {
-                                     rt = fi.Invoke(r, args);
-                                 }
-                                 catch (Exception ex)
-                                 {
-                                     var (code, msg) = SummerizeException(ex);
-                                     SendError(ErrorType.Exception, callback, code, msg);
-                                     return;
-                                 }
-
-                                 if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Structure || rt is string))
-                                 {
-                                     var enu = rt as System.Collections.IEnumerable;
-
-                                     try
-                                     {
-                                         foreach (var v in enu)
-                                             SendChunk(callback, v);
-
-                                         SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                                 .AddUInt8((byte)DataType.Void)
-                                                 .Done();
-                                     }
-                                     catch (Exception ex)
-                                     {
-                                         var (code, msg) = SummerizeException(ex);
-                                         SendError(ErrorType.Exception, callback, code, msg);
-                                     }
-                                 }
-                                 else if (rt is Task)
-                                 {
-                                     (rt as Task).ContinueWith(t =>
-                                     {
-#if NETSTANDARD
-                                             var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
+                                    var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
                                             var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
-                                             SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                              .AddUInt8Array(Codec.Compose(res, this))
-                                              .Done();
-                                     });
+                                    SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback)
+                                     .AddUInt8Array(Codec.Compose(res, this))
+                                     .Done();
+                            });
 
-                                 }
-                                 else if (rt is AsyncReply)
-                                 {
-                                     (rt as AsyncReply).Then(res =>
+                            //await t;
+                            //SendParams((byte)0x90, callback, Codec.Compose(res, this));
+                        }
+                        else if (rt is AsyncReply)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
+                                                  //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
+                        {
+                            (rt as AsyncReply).Then(res =>
                             {
-                                SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
+                                SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback)
                                             .AddUInt8Array(Codec.Compose(res, this))
                                             .Done();
-
                             }).Error(ex =>
                             {
                                 var (code, msg) = SummerizeException(ex);
@@ -1532,37 +1362,27 @@ partial class DistributedConnection
                             {
                                 SendChunk(callback, v);
                             });
-                                 }
-                                 else
-                                 {
-                                     SendReply(IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments, callback)
-                                             .AddUInt8Array(Codec.Compose(rt, this))
-                                             .Done();
-                                 }
-                             }
-                             else
-                             {
-                                     // ft found, fi not found, this should never happen
-                                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                        }
+                        else
+                        {
+                            SendReply(IIPPacket.IIPPacketAction.InvokeFunction, callback)
+                                    .AddUInt8Array(Codec.Compose(rt, this))
+                                    .Done();
+                        }
+                    }
+                    else
+                    {
+                        // ft found, fi not found, this should never happen
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                    }
+                }
+            });
 
-                             }
-                         }
-                     }
-                     else
-                     {
-                             // no function at this index
-                             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-
-                     }
-                 });
-            }
-            else
-            {
-                    // no resource with this id
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-            }
         });
     }
+
+
+
 
     void IIPRequestListen(uint callback, uint resourceId, byte index)
     {
@@ -1605,14 +1425,14 @@ partial class DistributedConnection
                 }
                 else
                 {
-                        // pt not found
-                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                    // pt not found
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                 }
             }
             else
             {
-                    // resource not found
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                // resource not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
 
@@ -1659,14 +1479,14 @@ partial class DistributedConnection
                 }
                 else
                 {
-                        // pt not found
-                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                    // pt not found
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                 }
             }
             else
             {
-                    // resource not found
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                // resource not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
 
@@ -1727,24 +1547,24 @@ partial class DistributedConnection
             {
                 r.Instance.Store.GetRecord(r, fromDate, toDate).Then((results) =>
                 {
-                    var history = Codec.ComposeHistory(results, this, true);
+                    var history = DataSerializer.HistoryComposer(results, this, true);
 
-                        /*
-                        ulong fromAge = 0;
-                        ulong toAge = 0;
+                    /*
+                    ulong fromAge = 0;
+                    ulong toAge = 0;
 
-                        if (results.Count > 0)
+                    if (results.Count > 0)
+                    {
+                        var firstProp = results.Values.First();
+                        //var lastProp = results.Values.Last();
+
+                        if (firstProp.Length > 0)
                         {
-                            var firstProp = results.Values.First();
-                            //var lastProp = results.Values.Last();
+                            fromAge = firstProp[0].Age;
+                            toAge = firstProp.Last().Age;
+                        }
 
-                            if (firstProp.Length > 0)
-                            {
-                                fromAge = firstProp[0].Age;
-                                toAge = firstProp.Last().Age;
-                            }
-
-                        }*/
+                    }*/
 
                     SendReply(IIPPacket.IIPPacketAction.ResourceHistory, callback)
                             .AddUInt8Array(history)
@@ -1801,38 +1621,38 @@ partial class DistributedConnection
     //            });
     //        }
 
-    void IIPRequestSetProperty(uint callback, uint resourceId, byte index, byte[] content)
+    void IIPRequestSetProperty(uint callback, uint resourceId, byte index, TransmissionType transmissionType, byte[] content)
     {
         Warehouse.GetById(resourceId).Then((r) =>
         {
             if (r != null)
             {
 
-
                 var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
                 if (pt != null)
                 {
-                    Codec.Parse(content, 0, this).Then((value) =>
+                    var (_, parsed) = Codec.Parse(content, 0, this, transmissionType);
+                    parsed.Then((value) =>
                     {
                         if (r is DistributedResource)
                         {
-                                // propagation
-                                (r as DistributedResource)._Set(index, value).Then((x) =>
-                            {
-                                SendReply(IIPPacket.IIPPacketAction.SetProperty, callback).Done();
-                            }).Error(x =>
-                            {
-                                SendError(x.Type, callback, (ushort)x.Code, x.Message);
-                            });
+                            // propagation
+                            (r as DistributedResource)._Set(index, value).Then((x) =>
+                        {
+                            SendReply(IIPPacket.IIPPacketAction.SetProperty, callback).Done();
+                        }).Error(x =>
+                        {
+                            SendError(x.Type, callback, (ushort)x.Code, x.Message);
+                        });
                         }
                         else
                         {
 
-                                /*
+                            /*
 #if NETSTANDARD
-                                var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
+                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
 #else
-                                var pi = r.GetType().GetProperty(pt.Name);
+                            var pi = r.GetType().GetProperty(pt.Name);
 #endif*/
 
                             var pi = pt.PropertyInfo;
@@ -1853,14 +1673,16 @@ partial class DistributedConnection
                                 }
 
 
-                                if (pi.PropertyType == typeof(DistributedPropertyContext))
+                                if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
+                                    == typeof(DistributedPropertyContext<>))
                                 {
-                                    value = new DistributedPropertyContext(this, value);
+                                    value = Activator.CreateInstance(pi.PropertyType, this, value);
+                                    //value = new DistributedPropertyContext(this, value);
                                 }
                                 else
                                 {
-                                        // cast new value type to property type
-                                        value = DC.CastConvert(value, pi.PropertyType);
+                                    // cast new value type to property type
+                                    value = DC.CastConvert(value, pi.PropertyType);
                                 }
 
 
@@ -1877,8 +1699,8 @@ partial class DistributedConnection
                             }
                             else
                             {
-                                    // pt found, pi not found, this should never happen
-                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
+                                // pt found, pi not found, this should never happen
+                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
                             }
                         }
 
@@ -1886,14 +1708,14 @@ partial class DistributedConnection
                 }
                 else
                 {
-                        // property not found
-                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
+                    // property not found
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
                 }
             }
             else
             {
-                    // resource not found
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                // resource not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
@@ -2080,11 +1902,11 @@ partial class DistributedConnection
         Query(path).Then(ar =>
         {
 
-                //if (filter != null)
-                //  ar = ar?.Where(filter).ToArray();
+            //if (filter != null)
+            //  ar = ar?.Where(filter).ToArray();
 
-                // MISSING: should dispatch the unused resources. 
-                if (ar?.Length > 0)
+            // MISSING: should dispatch the unused resources. 
+            if (ar?.Length > 0)
                 rt.Trigger(ar[0]);
             else
                 rt.Trigger(null);
@@ -2150,13 +1972,13 @@ partial class DistributedConnection
         {
 
             var templates = new List<TypeTemplate>();
-                // parse templates
-
-                var data = (byte[])rt[0];
-                //var offset = 0;
-                for (uint offset = 0; offset < data.Length;)
+            // parse templates
+            var tt = (TransmissionType)rt[0];
+            var data = (byte[])rt[1];
+            //var offset = 0;
+            for (var offset = tt.Offset; offset < tt.ContentLength;)
             {
-                var cs = data.GetUInt32(offset);
+                var cs = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
                 templates.Add(TypeTemplate.Parse(data, offset, cs));
                 offset += cs;
@@ -2219,32 +2041,51 @@ partial class DistributedConnection
                         else
                             dr = resource;
 
+                        var transmissionType = (TransmissionType)rt[3];
+                        var content = (byte[])rt[4];
 
                         GetTemplate((Guid)rt[0]).Then((tmp) =>
                         {
-                                // ClassId, ResourceAge, ResourceLink, Content
-                                if (resource == null)
+                            // ClassId, ResourceAge, ResourceLink, Content
+                            if (resource == null)
                             {
                                 Warehouse.Put(id.ToString(), dr, this, null, tmp).Then((ok) =>
                                 {
-                                    Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
+                                    var (_, parsed) = Codec.Parse(content, 0, this, transmissionType);
+                                    parsed.Then(results =>
                                     {
-                                        dr._Attach(ar);
+                                        var ar = results as object[];
+
+                                        var pvs = new List<PropertyValue>();
+
+                                        for (var i = 0; i < ar.Length; i += 3)
+                                            pvs.Add(new PropertyValue(ar[i + 2], (ulong?)ar[i], (DateTime?)ar[i + 1]));
+
+                                        dr._Attach(pvs.ToArray());// (PropertyValue[])pvs);
                                         resourceRequests.Remove(id);
                                         reply.Trigger(dr);
-                                    });
+                                    }).Error(ex => reply.TriggerError(ex));
+
                                 }).Error(ex => reply.TriggerError(ex));
                             }
                             else
                             {
-                                Codec.ParsePropertyValueArray((byte[])rt[3], this).Then((ar) =>
+                                var (_, parsed) = Codec.Parse(content, 0, this, transmissionType);
+                                parsed.Then((results) =>
                                 {
-                                    dr._Attach(ar);
-                                    resourceRequests.Remove(id);
+                                    var ar = results as object[];
+
+                                    var pvs = new List<PropertyValue>();
+
+                                    for (var i = 0; i < ar.Length; i += 3)
+                                        pvs.Add(new PropertyValue(ar[i + 2], (ulong?)ar[i], (DateTime?)ar[i + 1]));
+
+                                    dr._Attach(pvs.ToArray());// (PropertyValue[])pvs);
+
+                                    //                                    resourceRequests.Remove(id);
                                     reply.Trigger(dr);
                                 }).Error(ex => reply.TriggerError(ex));
                             }
-
                         }).Error((ex) =>
                         {
                             reply.TriggerError(ex);
@@ -2267,11 +2108,18 @@ partial class DistributedConnection
                     .Done()
                     .Then(ar =>
                     {
-                        var d = (byte[])ar[0];
-                        Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
-                        {
-                            rt.Trigger(resources);
-                        }).Error(ex => rt.TriggerError(ex));
+                        var dataType = (TransmissionType)ar[0];
+                        var data = (byte[])ar[1];
+
+                        var (_, parsed) = Codec.Parse(data, dataType.Offset, this, dataType);
+
+                        parsed.Then(resources => rt.Trigger(resources))
+                              .Error(ex => rt.TriggerError(ex));
+
+                        //Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
+                        //{
+                        //  rt.Trigger(resources);
+                        //}).Error(ex => rt.TriggerError(ex));
                     });
 
         return rt;
@@ -2286,11 +2134,17 @@ partial class DistributedConnection
             .Done()
             .Then(ar =>
             {
-                var d = (byte[])ar[0];
-                Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
-                {
-                    rt.Trigger(resources);
-                }).Error(ex => rt.TriggerError(ex));
+                var dataType = (TransmissionType)ar[0];
+                var data = (byte[])ar[1];
+                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, dataType);
+
+                parsed.Then(resources => rt.Trigger(resources))
+                      .Error(ex => rt.TriggerError(ex));
+
+                //Codec.ParseResourceArray(d, 0, (uint)d.Length, this).Then(resources =>
+                //{
+                //    rt.Trigger(resources);
+                //}).Error(ex => rt.TriggerError(ex));
             });
 
         return rt;
@@ -2321,13 +2175,14 @@ partial class DistributedConnection
         return rt;
     }
 
-    public AsyncReply<bool> SetAttributes(IResource resource, Structure attributes, bool clearAttributes = false)
+    public AsyncReply<bool> SetAttributes(IResource resource, Map<string, object> attributes, bool clearAttributes = false)
     {
         var rt = new AsyncReply<bool>();
 
         SendRequest(clearAttributes ? IIPPacket.IIPPacketAction.UpdateAllAttributes : IIPPacket.IIPPacketAction.UpdateAttributes)
             .AddUInt32(resource.Instance.Id)
-            .AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
+            //.AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
+            .AddUInt8Array(Codec.Compose(attributes, this))
             .Done()
             .Then(ar => rt.Trigger(true))
             .Error(ex => rt.TriggerError(ex));
@@ -2335,9 +2190,9 @@ partial class DistributedConnection
         return rt;
     }
 
-    public AsyncReply<Structure> GetAttributes(IResource resource, string[] attributes = null)
+    public AsyncReply<Map<string, object>> GetAttributes(IResource resource, string[] attributes = null)
     {
-        var rt = new AsyncReply<Structure>();
+        var rt = new AsyncReply<Map<string, object>>();
 
         if (attributes == null)
         {
@@ -2346,11 +2201,14 @@ partial class DistributedConnection
                 .Done()
                 .Then(ar =>
                 {
-                    var d = ar[0] as byte[];
-                    Codec.ParseStructure(d, 0, (uint)d.Length, this).Then(st =>
+                    var dataType = (TransmissionType)ar[0];
+                    var data = (byte[])ar[1];
+                    //Codec.Parse(d, )
+                    var (_, parsed) = Codec.Parse(data, 0, this, dataType);
+                    parsed.Then(st =>
                     {
 
-                        resource.Instance.SetAttributes(st);
+                        resource.Instance.SetAttributes(st as Map<string, object>);
 
                         rt.Trigger(st);
                     }).Error(ex => rt.TriggerError(ex));
@@ -2366,11 +2224,14 @@ partial class DistributedConnection
                 .Done()
                 .Then(ar =>
                 {
-                    var d = ar[0] as byte[];
-                    Codec.ParseStructure(d, 0, (uint)d.Length, this).Then(st =>
+                    var dataType = (TransmissionType)ar[0];
+                    var data = (byte[])ar[1];
+
+                    var (_, parsed) = Codec.Parse(data, 0, this, dataType);
+                    parsed.Then(st =>
                     {
 
-                        resource.Instance.SetAttributes(st);
+                        resource.Instance.SetAttributes((Map<string, object>)st);
 
                         rt.Trigger(st);
                     }).Error(ex => rt.TriggerError(ex));
@@ -2407,7 +2268,7 @@ partial class DistributedConnection
                 {
                     var content = (byte[])rt[0];
 
-                    Codec.ParseHistory(content, 0, (uint)content.Length, resource, this)
+                    DataDeserializer.HistoryParser(content, 0, (uint)content.Length, resource, this)
                                       .Then((history) => reply.Trigger(history));
 
                 }).Error((ex) => reply.TriggerError(ex));
@@ -2432,12 +2293,18 @@ partial class DistributedConnection
                     .AddUInt16((ushort)str.Length)
                     .AddUInt8Array(str)
                     .Done()
-                    .Then(args =>
+                    .Then(ar =>
                     {
-                        var content = args[0] as byte[];
+                        var dataType = (TransmissionType)ar[0];
+                        var data = ar[1] as byte[];
 
-                        Codec.ParseResourceArray(content, 0, (uint)content.Length, this)
-                                                .Then(resources => reply.Trigger(resources));
+                        var (_, parsed) = Codec.Parse(data, dataType.Offset, this, dataType);
+
+                        parsed.Then(resources => reply.Trigger(resources))
+                              .Error(ex => reply.TriggerError(ex));
+
+                        //Codec.ParseResourceArray(content, 0, (uint)content.Length, this)
+                        //                      .Then(resources => reply.Trigger(resources));
 
                     }).Error(ex => reply.TriggerError(ex));
 
@@ -2454,7 +2321,7 @@ partial class DistributedConnection
     /// <param name="attributes">Resource attributeds.</param>
     /// <param name="values">Values for the resource properties.</param>
     /// <returns>New resource instance</returns>
-    public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, object[] parameters, Structure attributes, Structure values)
+    public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, object[] parameters, Map<string, object> attributes, Map<string, object> values)
     {
         var reply = new AsyncReply<DistributedResource>();
         var pkt = new BinaryList()
@@ -2462,9 +2329,9 @@ partial class DistributedConnection
                                 .AddUInt32(parent.Instance.Id)
                                 .AddUInt8((byte)className.Length)
                                 .AddString(className)
-                                .AddUInt8Array(Codec.ComposeVarArray(parameters, this, true))
-                                .AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
-                                .AddUInt8Array(Codec.ComposeStructure(values, this));
+                                .AddUInt8Array(Codec.Compose(parameters, this))
+                                .AddUInt8Array(Codec.Compose(attributes, this))
+                                .AddUInt8Array(Codec.Compose(values, this));
 
         pkt.InsertInt32(8, pkt.Length);
 
@@ -2489,10 +2356,10 @@ partial class DistributedConnection
     {
         lock (subscriptionsLock)
         {
-            resource.Instance.ResourceEventOccurred += Instance_EventOccurred;
-            resource.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-            resource.Instance.ResourceModified += Instance_PropertyModified;
-            resource.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
+            resource.Instance.EventOccurred += Instance_EventOccurred;
+            resource.Instance.CustomEventOccurred += Instance_CustomEventOccurred;
+            resource.Instance.PropertyModified += Instance_PropertyModified;
+            resource.Instance.Destroyed += Instance_ResourceDestroyed;
 
             subscriptions.Add(resource, new List<byte>());
         }
@@ -2503,10 +2370,10 @@ partial class DistributedConnection
         lock (subscriptionsLock)
         {
             // do something with the list...
-            resource.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-            resource.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-            resource.Instance.ResourceModified -= Instance_PropertyModified;
-            resource.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+            resource.Instance.EventOccurred -= Instance_EventOccurred;
+            resource.Instance.CustomEventOccurred -= Instance_CustomEventOccurred;
+            resource.Instance.PropertyModified -= Instance_PropertyModified;
+            resource.Instance.Destroyed -= Instance_ResourceDestroyed;
 
             subscriptions.Remove(resource);
         }
@@ -2519,10 +2386,10 @@ partial class DistributedConnection
         {
             foreach (var resource in subscriptions.Keys)
             {
-                resource.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                resource.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                resource.Instance.ResourceModified -= Instance_PropertyModified;
-                resource.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
+                resource.Instance.EventOccurred -= Instance_EventOccurred;
+                resource.Instance.CustomEventOccurred -= Instance_CustomEventOccurred;
+                resource.Instance.PropertyModified -= Instance_PropertyModified;
+                resource.Instance.Destroyed -= Instance_ResourceDestroyed;
             }
 
             subscriptions.Clear();
@@ -2541,86 +2408,75 @@ partial class DistributedConnection
 
     }
 
-    private void Instance_PropertyModified(IResource resource, string name, object newValue)
+    private void Instance_PropertyModified(PropertyModificationInfo info)
     {
-        var pt = resource.Instance.Template.GetPropertyTemplateByName(name);
-
-        if (pt == null)
-            return;
+        //var pt = resource.Instance.Template.GetPropertyTemplateByName(name);
+        // if (pt == null)
+        //    return;
 
         SendEvent(IIPPacket.IIPPacketEvent.PropertyUpdated)
-                    .AddUInt32(resource.Instance.Id)
-                    .AddUInt8(pt.Index)
-                    .AddUInt8Array(Codec.Compose(newValue, this))
+                    .AddUInt32(info.Resource.Instance.Id)
+                    .AddUInt8(info.PropertyTemplate.Index)
+                    .AddUInt8Array(Codec.Compose(info.Value, this))
                     .Done();
 
     }
 
     //        private void Instance_EventOccurred(IResource resource, string name, string[] users, DistributedConnection[] connections, object[] args)
 
-    private void Instance_CustomEventOccurred(IResource resource, object issuer, Func<Session, bool> receivers, string name, object args)
+    private void Instance_CustomEventOccurred(CustomEventOccurredInfo info)
     {
-        var et = resource.Instance.Template.GetEventTemplateByName(name);
-
-        if (et == null)
-            return;
-
-        if (et.Listenable)
+        if (info.EventTemplate.Listenable)
         {
             lock (subscriptionsLock)
             {
                 // check the client requested listen
-                if (!subscriptions.ContainsKey(resource))
+                if (!subscriptions.ContainsKey(info.Resource))
                     return;
 
-                if (!subscriptions[resource].Contains(et.Index))
+                if (!subscriptions[info.Resource].Contains(info.EventTemplate.Index))
                     return;
             }
         }
 
-        if (!receivers(this.session))
+        if (!info.Receivers(this.session))
             return;
 
-        if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, issuer) == Ruling.Denied)
+        if (info.Resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, info.EventTemplate, info.Issuer) == Ruling.Denied)
             return;
 
 
         // compose the packet
         SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
-                    .AddUInt32(resource.Instance.Id)
-                    .AddUInt8((byte)et.Index)
-                    .AddUInt8Array(Codec.Compose(args, this, true))
+                    .AddUInt32(info.Resource.Instance.Id)
+                    .AddUInt8((byte)info.EventTemplate.Index)
+                    .AddUInt8Array(Codec.Compose(info.Value, this))
                     .Done();
     }
 
-    private void Instance_EventOccurred(IResource resource, string name, object args)
+    private void Instance_EventOccurred(EventOccurredInfo info)
     {
-        var et = resource.Instance.Template.GetEventTemplateByName(name);
-
-        if (et == null)
-            return;
-
-        if (et.Listenable)
+        if (info.EventTemplate.Listenable)
         {
             lock (subscriptionsLock)
             {
                 // check the client requested listen
-                if (!subscriptions.ContainsKey(resource))
+                if (!subscriptions.ContainsKey(info.Resource))
                     return;
 
-                if (!subscriptions[resource].Contains(et.Index))
+                if (!subscriptions[info.Resource].Contains(info.EventTemplate.Index))
                     return;
             }
         }
 
-        if (resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, et, null) == Ruling.Denied)
+        if (info.Resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, info.EventTemplate, null) == Ruling.Denied)
             return;
 
         // compose the packet
         SendEvent(IIPPacket.IIPPacketEvent.EventOccurred)
-                    .AddUInt32(resource.Instance.Id)
-                    .AddUInt8((byte)et.Index)
-                    .AddUInt8Array(Codec.Compose(args, this, true))
+                    .AddUInt32(info.Resource.Instance.Id)
+                    .AddUInt8((byte)info.EventTemplate.Index)
+                    .AddUInt8Array(Codec.Compose(info.Value, this))
                     .Done();
     }
 }

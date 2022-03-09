@@ -103,26 +103,36 @@ public class HTTPConnection : NetworkConnection
 
     public bool Upgrade()
     {
-        if (IsWebsocketRequest())
+        var ok = Upgrade(Request, Response);
+
+        if (ok)
+        {
+            WSMode = true;
+            Send();
+        }
+
+        return ok;
+    }
+
+    public static bool Upgrade(HTTPRequestPacket request, HTTPResponsePacket response)
+    {
+        if (IsWebsocketRequest(request))
         {
             string magicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-            string ret = Request.Headers["Sec-WebSocket-Key"] + magicString;
+            string ret = request.Headers["Sec-WebSocket-Key"] + magicString;
             // Compute the SHA1 hash
             SHA1 sha = SHA1.Create();
             byte[] sha1Hash = sha.ComputeHash(Encoding.UTF8.GetBytes(ret));
-            Response.Headers["Upgrade"] = Request.Headers["Upgrade"];
-            Response.Headers["Connection"] = Request.Headers["Connection"];// "Upgrade";
-            Response.Headers["Sec-WebSocket-Accept"] = Convert.ToBase64String(sha1Hash);
+            response.Headers["Upgrade"] = request.Headers["Upgrade"];
+            response.Headers["Connection"] = request.Headers["Connection"];// "Upgrade";
+            response.Headers["Sec-WebSocket-Accept"] = Convert.ToBase64String(sha1Hash);
 
-            if (Request.Headers.ContainsKey("Sec-WebSocket-Protocol"))
-                Response.Headers["Sec-WebSocket-Protocol"] = Request.Headers["Sec-WebSocket-Protocol"];
+            if (request.Headers.ContainsKey("Sec-WebSocket-Protocol"))
+                response.Headers["Sec-WebSocket-Protocol"] = request.Headers["Sec-WebSocket-Protocol"];
 
 
-            Response.Number = HTTPResponsePacket.ResponseCode.Switching;
-            Response.Text = "Switching Protocols";
-            WSMode = true;
-
-            Send();
+            response.Number = HTTPResponsePacket.ResponseCode.Switching;
+            response.Text = "Switching Protocols";
 
             return true;
         }
@@ -212,13 +222,18 @@ public class HTTPConnection : NetworkConnection
 
     public bool IsWebsocketRequest()
     {
-        if (Request.Headers.ContainsKey("connection")
-            && Request.Headers["connection"].ToLower().Contains("upgrade")
-            && Request.Headers.ContainsKey("upgrade")
-            && Request.Headers["upgrade"].ToLower() == "websocket"
-            && Request.Headers.ContainsKey("Sec-WebSocket-Version")
-            && Request.Headers["Sec-WebSocket-Version"] == "13"
-            && Request.Headers.ContainsKey("Sec-WebSocket-Key"))
+        return IsWebsocketRequest(this.Request);
+    }
+
+    public static bool IsWebsocketRequest(HTTPRequestPacket request)
+    {
+        if (request.Headers.ContainsKey("connection")
+            && request.Headers["connection"].ToLower().Contains("upgrade")
+            && request.Headers.ContainsKey("upgrade")
+            && request.Headers["upgrade"].ToLower() == "websocket"
+            && request.Headers.ContainsKey("Sec-WebSocket-Version")
+            && request.Headers["Sec-WebSocket-Version"] == "13"
+            && request.Headers.ContainsKey("Sec-WebSocket-Key"))
         //&& Request.Headers.ContainsKey("Sec-WebSocket-Protocol"))
         {
             return true;
@@ -284,7 +299,7 @@ public class HTTPConnection : NetworkConnection
 
 
 
-        if (IsWebsocketRequest() & !WSMode)
+        if (IsWebsocketRequest(Request) & !WSMode)
         {
             Upgrade();
             //return;
