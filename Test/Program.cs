@@ -40,6 +40,8 @@ using Esiur.Resource.Template;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using Esiur.Proxy;
+using System.Text.RegularExpressions;
+using System.Collections.Generic;
 
 namespace Test
 {
@@ -49,12 +51,38 @@ namespace Test
         static async Task Main(string[] args)
         {
 
-         
-            Warehouse.GetTemplateByType(typeof(MyChildRecord));
+            //foreach (var a in ma)
+            //   Console.WriteLine(a);
+
+            //var route = "users/{id:int:min(1)}/{name:string}.jpg";
+            //var route = "users/{id}/{name}.jpg";
+            //var rr = getRouteRegex(route);
+
+
+
+           // var m = rr.Match("users/222/fun.jpg");
+
+//            Console.WriteLine(m.Value);
+
+  //          var escaped = Regex.Escape(route);
+
+    //        var replace = Regex.Replace(route, @"\{([^}]*)\}", @"\{([^}]*)\}");
+
+      //      var ss = route.Split('{', '}');
+
+            //var regex = "users/\"
+            //Regex regex = new Regex(@"\(([^()]+)\)*");
+            
+            //foreach (Match match in regex.Matches("You id is (1) and your number is (0000000000)"))
+            //{
+            //    Console.WriteLine(match.Value);
+            //}
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("mem", new MemoryStore());
             var server = await Warehouse.Put("mem/server", new DistributedServer());
+            var web = await Warehouse.Put("mem/web", new HTTPServer() { Port = 8888});
+
             var service = await Warehouse.Put("mem/service", new MyService());
             var res1 = await Warehouse.Put("mem/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
             var res2 = await Warehouse.Put("mem/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
@@ -65,9 +93,20 @@ namespace Test
             service.ChildResource = res3;
             service.Resources = new MyResource[] { res1, res2,  res1 , res3 };
 
+            //web.MapGet("/{action}/{age}", (int age, string action, HTTPConnection sender) =>
+            //{
+            //    Console.WriteLine($"AGE: {age} ACTION: {action}");
+
+            //    sender.Response.Number = Esiur.Net.Packets.HTTPResponsePacket.ResponseCode.NotFound;
+            //    sender.Send("Not found");
+            //});
+
+            web.MapGet("/", (HTTPConnection sender) => {
+                sender.Send("Hello");
+            });
+
             var ok = await Warehouse.Open();
 
-            Console.WriteLine(String.Join(" ", service.Instance.Template.ClassId.ToByteArray()));
             // Start testing
             TestClient(service);
            // TestClient(service);

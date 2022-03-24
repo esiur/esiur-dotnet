@@ -307,6 +307,9 @@ public static class Codec
                 else if (genericType == typeof(ValueTuple<,>)
                       || genericType == typeof(ValueTuple<,,>)
                       || genericType == typeof(ValueTuple<,,,>)
+                      || genericType == typeof(ValueTuple<,,,,>)
+                      || genericType == typeof(ValueTuple<,,,,,>)
+                      || genericType == typeof(ValueTuple<,,,,,,>)
                   )
                 {
                     var (hdr, data) = DataSerializer.TupleComposer(valueOrSource, connection);

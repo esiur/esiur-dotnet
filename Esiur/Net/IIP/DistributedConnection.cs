@@ -357,7 +357,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         if (ready)
         {
             var rt = packet.Parse(msg, offset, ends);
-            Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
+            //Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
 
             /*
             if (packet.Command == IIPPacketCommand.Event)
@@ -696,7 +696,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 }
             }
 
-            Console.WriteLine(msg.GetString(offset, ends - offset));
+            //Console.WriteLine(msg.GetString(offset, ends - offset));
 
             var rt = authPacket.Parse(msg, offset, ends);
 

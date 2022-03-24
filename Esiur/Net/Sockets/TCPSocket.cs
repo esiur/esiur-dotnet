@@ -79,6 +79,10 @@ public class TCPSocket : ISocket
 
     public bool Begin()
     {
+        // Socket destroyed
+        if (receiveBuffer == null)
+            return false;
+
         if (began)
             return false;
 
@@ -539,8 +543,7 @@ public class TCPSocket : ISocket
 
     public void Destroy()
     {
-        Global.Counters["Sck_D_1"]++;
-
+ 
         Close();
 
         receiveNetworkBuffer = null;
@@ -557,8 +560,7 @@ public class TCPSocket : ISocket
         OnDestroy?.Invoke(this);
         OnDestroy = null;
 
-        Global.Counters["Sck_D_2"]++;
-    }
+     }
 
     public ISocket Accept()
     {

@@ -752,8 +752,6 @@ public class TypeTemplate
         od.className = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        if (od.className == "Test.MyChildRecord")
-            Console.WriteLine();
 
         if (hasParent)
         {

@@ -38,12 +38,137 @@ using Esiur.Core;
 using Esiur.Net.Packets;
 using System.Security.Cryptography.X509Certificates;
 using Esiur.Resource;
+using System.Text.RegularExpressions;
+using System.Linq;
+using System.Reflection;
 
 namespace Esiur.Net.HTTP;
 public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 {
     Dictionary<string, HTTPSession> sessions = new Dictionary<string, HTTPSession>();
     HTTPFilter[] filters = new HTTPFilter[0];
+
+    Dictionary<HTTPRequestPacket.HTTPMethod, List<RouteInfo>> routes = new()
+    {
+        [HTTPRequestPacket.HTTPMethod.GET] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.POST] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.HEAD] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.OPTIONS] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.UNKNOWN] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.DELETE] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.TRACE] = new List<RouteInfo>(),
+        [HTTPRequestPacket.HTTPMethod.CONNECT] = new List<RouteInfo>(),     
+        [HTTPRequestPacket.HTTPMethod.PUT] = new List<RouteInfo>()
+    };
+
+    //List<RouteInfo> GetRoutes = new List<RouteInfo>();
+    //List<RouteInfo> PostRoutes = new List<RouteInfo>();
+
+
+    class RouteInfo
+    {
+        public Delegate Handler;
+        public Regex Pattern;
+        Dictionary<string, ParameterInfo> ParameterIndex = new();
+        int? SenderIndex;
+        //bool HasSender;
+        int ArgumentsCount;
+
+        public RouteInfo(Delegate handler, Regex pattern)
+        {
+
+            Pattern = pattern;
+            Handler = handler;
+
+            var ps = handler.Method.GetParameters();
+
+            ArgumentsCount = ps.Length;
+
+            var last = ps.LastOrDefault();
+
+            if (last != null && last.ParameterType == typeof(HTTPConnection))
+            {
+
+                SenderIndex = ps.Length - 1;
+                for (var i = 0; i < ps.Length - 1; i++)
+                    ParameterIndex[ps[i].Name] = ps[i];
+            }
+            else
+            {
+                for (var i = 0; i < ps.Length; i++)
+                    ParameterIndex[ps[i].Name] = ps[i];
+            }
+        }
+
+
+        public bool Invoke(HTTPConnection sender)
+        {
+            var match = Pattern.Match(sender.Request.URL);
+
+            if (!match.Success)
+                return false;
+
+            var args = new object[ArgumentsCount];
+
+            foreach (var kv in ParameterIndex)
+            {
+                var g = match.Groups[kv.Key];
+                args[kv.Value.Position] = DC.CastConvert(g.Value, kv.Value.ParameterType);
+            }
+
+            if (SenderIndex != null)
+                args[(int)SenderIndex] = sender;
+
+            var rt = Handler.DynamicInvoke(args);
+
+            if (rt is bool)
+                return (bool)rt;
+
+            return true;
+        }
+    }
+
+    struct VarInfo
+    {
+        public string Pre;
+        public string Post;
+        public string VarName;
+
+        public string Build()
+        {
+            return Regex.Escape(Pre) + @"(?<" + VarName + @">[^\{]*)" + Regex.Escape(Post);
+        }
+    }
+
+
+
+    static Regex getRouteRegex(string url)
+    {
+        var sc = Regex.Match(url, @"([^\{]*)\{([^\}]*)\}([^\{]*)");
+
+        List<VarInfo> vars = new List<VarInfo>();
+
+        while (sc.Success)
+        {
+            vars.Add(new VarInfo()
+            {
+                Pre = sc.Groups[1].Value,
+                VarName = sc.Groups[2].Value,
+                Post = sc.Groups[3].Value
+            });
+            sc = sc.NextMatch();
+        }
+
+        if (vars.Count > 0)
+        {
+            return new Regex("^" + String.Join("", vars.Select(x => x.Build()).ToArray()) + "$");
+        }
+        else
+        {
+            return new Regex("^" + Regex.Escape(url) + "$");
+        }
+    }
+
 
     public Instance Instance
     {
@@ -149,9 +274,19 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 
     internal bool Execute(HTTPConnection sender)
     {
+        foreach (var route in routes[sender.Request.Method])
+        {
+            if (route.Invoke(sender))
+                return true;
+        }
+
+
         foreach (var resource in filters)
             if (resource.Execute(sender).Wait(30000))
                 return true;
+
+
+
         return false;
     }
 
@@ -159,9 +294,17 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 
     public void MapGet(string pattern, Delegate handler)
     {
-       // if (p)
+        var regex = getRouteRegex(pattern);
+        var list = routes[HTTPRequestPacket.HTTPMethod.GET];
+        list.Add(new RouteInfo(handler, regex));
     }
 
+    public void MapPost(string pattern, Delegate handler)
+    {
+        var regex = getRouteRegex(pattern);
+        var list = routes[HTTPRequestPacket.HTTPMethod.POST];
+        list.Add(new RouteInfo(handler, regex));
+    }
 
     /*
     protected override void SessionEnded(NetworkSession session)
@@ -260,11 +403,11 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 
     protected override void ClientConnected(HTTPConnection connection)
     {
-        if (filters.Length == 0)
-        {
-            connection.Close();
-            return;
-        }
+        //if (filters.Length == 0 && routes.)
+        //{
+        //    connection.Close();
+        //    return;
+        //}
 
         foreach (var resource in filters)
         {
