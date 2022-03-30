@@ -43,7 +43,7 @@ namespace Esiur.Data;
 public static class Codec
 {
  
-    delegate AsyncReply Parser(byte[] data, uint offset, uint length, DistributedConnection connection);
+    delegate AsyncReply Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
 
     static Parser[][] FixedParsers = new Parser[][]
@@ -114,7 +114,7 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static (uint, AsyncReply) Parse(byte[] data, uint offset, DistributedConnection connection, TransmissionType? dataType = null)
+    public static (uint, AsyncReply) Parse(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionType? dataType = null)
     {
 
         uint len = 0;
@@ -132,15 +132,15 @@ public static class Codec
 
         if (tt.Class == TransmissionTypeClass.Fixed)
         {
-            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection));
+            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
         else if (tt.Class == TransmissionTypeClass.Dynamic)
         {
-            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection));
+            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
         else //if (tt.Class == TransmissionTypeClass.Typed)
         {
-            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection));
+            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
     }
 

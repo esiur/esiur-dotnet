@@ -57,7 +57,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         [HTTPRequestPacket.HTTPMethod.UNKNOWN] = new List<RouteInfo>(),
         [HTTPRequestPacket.HTTPMethod.DELETE] = new List<RouteInfo>(),
         [HTTPRequestPacket.HTTPMethod.TRACE] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.CONNECT] = new List<RouteInfo>(),     
+        [HTTPRequestPacket.HTTPMethod.CONNECT] = new List<RouteInfo>(),
         [HTTPRequestPacket.HTTPMethod.PUT] = new List<RouteInfo>()
     };
 
@@ -274,11 +274,10 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 
     internal bool Execute(HTTPConnection sender)
     {
-        foreach (var route in routes[sender.Request.Method])
-        {
-            if (route.Invoke(sender))
-                return true;
-        }
+        if (!sender.WSMode)
+            foreach (var route in routes[sender.Request.Method])
+                if (route.Invoke(sender))
+                    return true;
 
 
         foreach (var resource in filters)

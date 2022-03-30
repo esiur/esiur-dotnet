@@ -167,13 +167,45 @@ public class TypeTemplate
         return new Guid(hash);
     }
 
-    static Type GetElementType(Type type) => type switch
+    static Type[] GetDistributedTypes(Type type)
     {
-        { IsArray: true } => type.GetElementType(),
-       // { IsEnum: true } => type.GetEnumUnderlyingType(),
-        (_) => type
-    };
+        if (type.IsArray)
+            return GetDistributedTypes(type.GetElementType());
+        else if (type.IsEnum)
+            return new Type[] { type };
+        else if (type.IsGenericType)
+        {
+            var genericType = type.GetGenericTypeDefinition();
+            var genericTypeArgs = type.GetGenericArguments();
 
+            if (genericType == typeof(List<>)
+                || genericType == typeof(DistributedPropertyContext<>))
+            {
+                return GetDistributedTypes(genericTypeArgs[0]);
+            }
+            else if (genericType == typeof(Tuple<>)
+                  || genericType == typeof(Map<,>))
+            {
+                var rt = new List<Type>();
+                for (var i = 0; i < genericTypeArgs.Length; i++)
+                {
+                    var depTypes = GetDistributedTypes(genericTypeArgs[i]);
+                    foreach (var depType in depTypes)
+                        if (!rt.Contains(depType))
+                            rt.Add(depType);
+                }
+
+                return rt.ToArray();
+            }
+        }
+        else if (Codec.ImplementsInterface(type, typeof(IRecord))
+                || Codec.ImplementsInterface(type, typeof(IResource)))
+        {
+            return new Type[] { type };
+        }
+
+        return new Type[0];
+    }
 
 
     public static TypeTemplate[] GetDependencies(TypeTemplate template)
@@ -205,13 +237,20 @@ public class TypeTemplate
             // functions
             foreach (var f in tmp.functions)
             {
-                var frtt = Warehouse.GetTemplateByType(GetElementType(f.MethodInfo.ReturnType));
-                if (frtt != null)
+                var functionReturnTypes = GetDistributedTypes(f.MethodInfo.ReturnType);
+                                        //.Select(x => Warehouse.GetTemplateByType(x))
+                                        //.Where(x => x != null && !bag.Contains(x))
+
+                foreach (var functionReturnType in functionReturnTypes)
                 {
-                    if (!bag.Contains(frtt))
+                    var functionReturnTemplate = Warehouse.GetTemplateByType(functionReturnType);
+                    if (functionReturnTemplate != null)
                     {
-                        list.Add(frtt);
-                        getDependenciesFunc(frtt, bag);
+                        if (!bag.Contains(functionReturnTemplate))
+                        {
+                            list.Add(functionReturnTemplate);
+                            getDependenciesFunc(functionReturnTemplate, bag);
+                        }
                     }
                 }
 
@@ -219,24 +258,11 @@ public class TypeTemplate
 
                 for (var i = 0; i < args.Length - 1; i++)
                 {
-                    var fpt = Warehouse.GetTemplateByType(GetElementType(args[i].ParameterType));
-                    if (fpt != null)
-                    {
-                        if (!bag.Contains(fpt))
-                        {
-                            bag.Add(fpt);
-                            getDependenciesFunc(fpt, bag);
-                        }
-                    }
-                }
+                    var fpTypes = GetDistributedTypes(args[i].ParameterType);
 
-                // skip DistributedConnection argument
-                if (args.Length > 0)
-                {
-                    var last = args.Last();
-                    if (last.ParameterType != typeof(DistributedConnection))
+                    foreach (var fpType in fpTypes)
                     {
-                        var fpt = Warehouse.GetTemplateByType(GetElementType(last.ParameterType));
+                        var fpt = Warehouse.GetTemplateByType(fpType);
                         if (fpt != null)
                         {
                             if (!bag.Contains(fpt))
@@ -248,18 +274,47 @@ public class TypeTemplate
                     }
                 }
 
+                // skip DistributedConnection argument
+                if (args.Length > 0)
+                {
+                    var last = args.Last();
+                    if (last.ParameterType != typeof(DistributedConnection))
+                    {
+
+                        var fpTypes = GetDistributedTypes(last.ParameterType);
+
+                        foreach (var fpType in fpTypes)
+                        {
+                            var fpt = Warehouse.GetTemplateByType(fpType);
+                            if (fpt != null)
+                            {
+                                if (!bag.Contains(fpt))
+                                {
+                                    bag.Add(fpt);
+                                    getDependenciesFunc(fpt, bag);
+                                }
+                            }
+                        }
+                    }
+                }
+
             }
 
             // properties
             foreach (var p in tmp.properties)
             {
-                var pt = Warehouse.GetTemplateByType(GetElementType(p.PropertyInfo.PropertyType));
-                if (pt != null)
+                var propertyTypes = GetDistributedTypes(p.PropertyInfo.PropertyType);
+
+                foreach (var propertyType in propertyTypes)
                 {
-                    if (!bag.Contains(pt))
+                    var propertyTemplate = Warehouse.GetTemplateByType(propertyType);
+                    if (propertyTemplate != null)
                     {
-                        bag.Add(pt);
-                        getDependenciesFunc(pt, bag);
+                        if (!bag.Contains(propertyTemplate))
+                        {
+                            bag.Add(propertyTemplate);
+                            getDependenciesFunc(propertyTemplate, bag);
+                        }
                     }
                 }
             }
@@ -267,14 +322,19 @@ public class TypeTemplate
             // events
             foreach (var e in tmp.events)
             {
-                var et = Warehouse.GetTemplateByType(GetElementType(e.EventInfo.EventHandlerType.GenericTypeArguments[0]));
+                var eventTypes = GetDistributedTypes(e.EventInfo.EventHandlerType.GenericTypeArguments[0]);
 
-                if (et != null)
+                foreach (var eventType in eventTypes)
                 {
-                    if (!bag.Contains(et))
+                    var eventTemplate = Warehouse.GetTemplateByType(eventType);
+
+                    if (eventTemplate != null)
                     {
-                        bag.Add(et);
-                        getDependenciesFunc(et, bag);
+                        if (!bag.Contains(eventTemplate))
+                        {
+                            bag.Add(eventTemplate);
+                            getDependenciesFunc(eventTemplate, bag);
+                        }
                     }
                 }
             }
@@ -323,7 +383,7 @@ public class TypeTemplate
 
         if (addToWarehouse)
             Warehouse.PutTemplate(this);
- 
+
 
         PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
         EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
@@ -358,7 +418,7 @@ public class TypeTemplate
 
                 if (templateType == TemplateType.Enum)
                     value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
-                
+
                 var ct = new ConstantTemplate(this, i++, ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
 
 
@@ -707,11 +767,11 @@ public class TypeTemplate
 
     }
 
-    public static bool HasParent (Type type)
+    public static bool HasParent(Type type)
     {
         var parent = type.BaseType;
 
-        if (parent == typeof(Resource) 
+        if (parent == typeof(Resource)
             || parent == typeof(Record))
             return false;
 
@@ -887,7 +947,7 @@ public class TypeTemplate
 
                 offset += dts;
 
-                (dts, var value) = Codec.Parse(data, offset, null);
+                (dts, var value) = Codec.Parse(data, offset, null, null);
 
                 offset += dts;
 

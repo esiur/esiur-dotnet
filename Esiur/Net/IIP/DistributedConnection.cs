@@ -1225,7 +1225,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     for (var i = 0; i < resources.Keys.Count; i++)
                     {
                         var index = resources.Keys.ElementAt(i);
-                        bag.Add(Fetch(index));
+                        bag.Add(Fetch(index, null));
                     }
 
                     bag.Seal();

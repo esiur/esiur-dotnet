@@ -50,34 +50,7 @@ namespace Test
         
         static async Task Main(string[] args)
         {
-
-            //foreach (var a in ma)
-            //   Console.WriteLine(a);
-
-            //var route = "users/{id:int:min(1)}/{name:string}.jpg";
-            //var route = "users/{id}/{name}.jpg";
-            //var rr = getRouteRegex(route);
-
-
-
-           // var m = rr.Match("users/222/fun.jpg");
-
-//            Console.WriteLine(m.Value);
-
-  //          var escaped = Regex.Escape(route);
-
-    //        var replace = Regex.Replace(route, @"\{([^}]*)\}", @"\{([^}]*)\}");
-
-      //      var ss = route.Split('{', '}');
-
-            //var regex = "users/\"
-            //Regex regex = new Regex(@"\(([^()]+)\)*");
-            
-            //foreach (Match match in regex.Matches("You id is (1) and your number is (0000000000)"))
-            //{
-            //    Console.WriteLine(match.Value);
-            //}
-
+ 
             // Create stores to keep objects.
             var system = await Warehouse.Put("mem", new MemoryStore());
             var server = await Warehouse.Put("mem/server", new DistributedServer());
