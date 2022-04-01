@@ -33,9 +33,9 @@ using System.Threading.Tasks;
 
 namespace Esiur.Resource;
 
-public delegate R DCovariant<out R>();
+//public delegate R DCovariant<out R>();
 
-public delegate void ResourceEventHandler<in T>(T argument);
+public delegate void ResourceEventHandler<in T>(T argument);//where T : class;
 // public delegate void CustomUsersEventHanlder(string[] usernames, params object[] args);
 //public delegate void CustomReceiversEventHanlder(DistributedConnection[] connections, params object[] args);
 //public delegate void CustomInquirerEventHanlder(object inquirer, params object[] args);

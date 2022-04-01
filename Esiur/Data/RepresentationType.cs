@@ -89,14 +89,20 @@ namespace Esiur.Data
 
         public RepresentationType?[] SubTypes = new RepresentationType[3];
 
-        public static RepresentationType? FromType(Type type)
+        public static RepresentationType? FromType(Type type, bool forceNullable = false)
         {
-            var nullType = System.Nullable.GetUnderlyingType(type);
-            var nullable = false;
 
-            if (nullType != null) {
-                type = nullType;
-                nullable = true;
+            var nullable = forceNullable;
+
+            if (!forceNullable)
+            {
+                var nullType = System.Nullable.GetUnderlyingType(type);
+
+                if (nullType != null)
+                {
+                    type = nullType;
+                    nullable = true;
+                }
             }
 
             if (type.IsGenericType)

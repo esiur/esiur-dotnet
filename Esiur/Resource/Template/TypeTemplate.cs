@@ -9,6 +9,7 @@ using Esiur.Core;
 using System.Security.Cryptography;
 using Esiur.Proxy;
 using Esiur.Net.IIP;
+using System.Runtime.CompilerServices;
 
 namespace Esiur.Resource.Template;
 
@@ -393,9 +394,150 @@ public class TypeTemplate
 
         bool classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
 
+        var addConstant = (FieldInfo ci, PublicAttribute publicAttr) => {
+
+            var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
+            var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
+
+            var valueType = RepresentationType.FromType(ci.FieldType);//, nullable != null && nullable.NullableFlags[0] == 2);
+
+            if (valueType == null)
+                throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
+
+            var value = ci.GetValue(null);
+
+            if (templateType == TemplateType.Enum)
+                value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
+
+            var ct = new ConstantTemplate(this, (byte)constants.Count, publicAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
+
+            constants.Add(ct);
+        };
+
+        var addProperty = (PropertyInfo pi, PublicAttribute publicAttr) =>
+        {
+            var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
+            var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+            var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+
+            var attrType = RepresentationType.FromType(pi.PropertyType, nullableAttr != null && nullableAttr.Flag == 2);
+
+            if (attrType == null)
+                throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
+
+            var pt = new PropertyTemplate(this, (byte)properties.Count, publicAttr?.Name ?? pi.Name, pi.DeclaringType != type, attrType);
+
+            if (storageAttr != null)
+                pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
+
+            if (annotationAttr != null)
+                pt.ReadExpansion = annotationAttr.Annotation;
+            else
+                pt.ReadExpansion = GetTypeAnnotationName(pi.PropertyType);
+
+            pt.PropertyInfo = pi;
+            
+            properties.Add(pt);
+
+        };
+
+        var addEvent = (EventInfo ei, PublicAttribute publicAttr) =>
+        {
+
+            var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+            var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
+            var nullableAttr = ei.GetCustomAttribute<NullableAttribute>(true);
+
+            var argIsNull = nullableAttr != null &&
+                            nullableAttr.Flags != null && 
+                            nullableAttr.Flags.Length > 1 && 
+                            nullableAttr.Flags[1] == 2;
+
+            var argType = ei.EventHandlerType.GenericTypeArguments[0];
+            var evtType = RepresentationType.FromType(argType, argIsNull);
+
+            if (evtType == null)
+                throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
+
+            var et = new EventTemplate(this, (byte)events.Count, publicAttr?.Name ?? ei.Name, ei.DeclaringType != type, evtType);
+            et.EventInfo = ei;
+
+            if (annotationAttr != null)
+                et.Expansion = annotationAttr.Annotation;
+
+            if (listenableAttr != null)
+                et.Listenable = true;
+
+            events.Add(et);
+        };
+
+        var addAttribute = (PropertyInfo pi, AttributeAttribute attributeAttr)=>
+        {
+            var an = attributeAttr.Name ?? pi.Name;
+            var at = new AttributeTemplate(this, 0, an, pi.DeclaringType != type);
+            at.PropertyInfo = pi;
+            attributes.Add(at);
+        };
 
 
-        byte i = 0;
+        var addFunction = (MethodInfo mi, PublicAttribute publicAttr) =>
+        {
+            var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
+            var nullableAttr = mi.GetCustomAttribute<NullableAttribute>(true);
+            var nullableContextAttr = mi.GetCustomAttribute<NullableContextAttribute>(true);
+
+            var contextIsNull = nullableContextAttr != null && nullableContextAttr.Flag == 2;
+
+            var returnType = RepresentationType.FromType(mi.ReturnType,
+                nullableAttr != null ? nullableAttr.Flag == 2 : contextIsNull);
+
+            if (returnType == null)
+                throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
+
+            var args = mi.GetParameters();
+
+            if (args.Length > 0)
+            {
+                if (args.Last().ParameterType == typeof(DistributedConnection))
+                    args = args.Take(args.Count() - 1).ToArray();
+            }
+
+            var arguments = args.Select(x =>
+            {
+                var xNullableAttr = x.GetCustomAttribute<NullableAttribute>(true);
+                var xNullableContextAttr = x.GetCustomAttribute<NullableContextAttribute>(true);
+
+                var argType = RepresentationType.FromType(x.ParameterType,
+                    xNullableAttr != null ? xNullableAttr.Flag == 2 : contextIsNull);
+
+                if (argType == null)
+                    throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
+
+                return new ArgumentTemplate()
+                {
+                    Name = x.Name,
+                    Type = argType,
+                    ParameterInfo = x,
+                    Optional = x.IsOptional
+                };
+            })
+            .ToArray();
+
+            var fn = publicAttr.Name ?? mi.Name;
+
+            var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type, arguments, returnType);// mi.ReturnType == typeof(void));
+
+            if (annotationAttr != null)
+                ft.Expansion = annotationAttr.Annotation;
+            else
+                ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+
+            ft.MethodInfo = mi;
+            functions.Add(ft);
+
+        };
+
+
 
         if (classIsPublic)
         {
@@ -403,30 +545,15 @@ public class TypeTemplate
             foreach (var ci in constantsInfo)
             {
                 var privateAttr = ci.GetCustomAttribute<PrivateAttribute>(true);
-                var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
 
                 if (privateAttr != null)
                     continue;
 
+                var publicAttr = ci.GetCustomAttribute<PublicAttribute>(true);
 
-                var valueType = RepresentationType.FromType(ci.FieldType);
-
-                if (valueType == null)
-                    throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
-
-                var value = ci.GetValue(null);
-
-                if (templateType == TemplateType.Enum)
-                    value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
-
-                var ct = new ConstantTemplate(this, i++, ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
-
-
-                constants.Add(ct);
-
+                addConstant(ci, publicAttr);
             }
 
-            i = 0;
 
             foreach (var pi in propsInfo)
             {
@@ -434,117 +561,41 @@ public class TypeTemplate
 
                 if (privateAttr == null)
                 {
-                    var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
-                    var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
-
-                    var attrType = RepresentationType.FromType(pi.PropertyType);
-
-                    if (attrType == null)
-                        throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
-
-                    var pt = new PropertyTemplate(this, i++, pi.Name, pi.DeclaringType != type, attrType);
-
-                    if (storageAttr != null)
-                        pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
-
-                    if (annotationAttr != null)
-                        pt.ReadExpansion = annotationAttr.Annotation;
-                    else
-                        pt.ReadExpansion = GetTypeAnnotationName(pi.PropertyType);
-
-                    pt.PropertyInfo = pi;
-                    //pt.Serilize = publicAttr.Serialize;
-                    properties.Add(pt);
+                    var publicAttr = pi.GetCustomAttribute<PublicAttribute>(true);
+                    addProperty(pi, publicAttr);
                 }
                 else
                 {
                     var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
                     if (attributeAttr != null)
                     {
-                        var an = attributeAttr.Name ?? pi.Name;
-                        var at = new AttributeTemplate(this, 0, an, pi.DeclaringType != type);
-                        at.PropertyInfo = pi;
-                        attributes.Add(at);
+                        addAttribute(pi, attributeAttr);
                     }
                 }
             }
 
             if (templateType == TemplateType.Resource)
             {
-                i = 0;
+
                 foreach (var ei in eventsInfo)
                 {
                     var privateAttr = ei.GetCustomAttribute<PrivateAttribute>(true);
                     if (privateAttr != null)
                         continue;
 
-                    var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
-                    var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
+                    var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true); 
 
-                    var argType = ei.EventHandlerType.GenericTypeArguments[0];
-                    var evtType = RepresentationType.FromType(argType);
-
-                    if (evtType == null)
-                        throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
-
-                    var et = new EventTemplate(this, i++, ei.Name, ei.DeclaringType != type, evtType);
-                    et.EventInfo = ei;
-
-                    if (annotationAttr != null)
-                        et.Expansion = annotationAttr.Annotation;
-
-                    if (listenableAttr != null)
-                        et.Listenable = true;
-
-                    events.Add(et);
+                    addEvent(ei, publicAttr);
                 }
 
-                i = 0;
                 foreach (MethodInfo mi in methodsInfo)
                 {
                     var privateAttr = mi.GetCustomAttribute<PrivateAttribute>(true);
                     if (privateAttr != null)
                         continue;
 
-                    var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
-
-                    var returnType = RepresentationType.FromType(mi.ReturnType);
-
-                    if (returnType == null)
-                        throw new Exception($"Unsupported type {mi.ReturnType} in method {type.Name}.{mi.Name} return");
-
-                    var args = mi.GetParameters();
-
-                    if (args.Length > 0)
-                    {
-                        if (args.Last().ParameterType == typeof(DistributedConnection))
-                            args = args.Take(args.Count() - 1).ToArray();
-                    }
-
-                    var arguments = args.Select(x =>
-                    {
-                        var argType = RepresentationType.FromType(x.ParameterType);
-                        if (argType == null)
-                            throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
-
-                        return new ArgumentTemplate()
-                        {
-                            Name = x.Name,
-                            Type = argType,
-                            ParameterInfo = x,
-                            Optional = x.IsOptional
-                        };
-                    }).ToArray();
-
-                    var ft = new FunctionTemplate(this, i++, mi.Name, mi.DeclaringType != type, arguments, returnType);// mi.ReturnType == typeof(void));
-
-                    if (annotationAttr != null)
-                        ft.Expansion = annotationAttr.Annotation;
-                    else
-                        ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
-
-                    ft.MethodInfo = mi;
-                    functions.Add(ft);
+                    var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
+                    addFunction(mi, publicAttr);
                 }
 
             }
@@ -554,27 +605,13 @@ public class TypeTemplate
             foreach (var ci in constantsInfo)
             {
                 var publicAttr = ci.GetCustomAttribute<PublicAttribute>(true);
-                var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
 
                 if (publicAttr == null)
                     continue;
 
-
-                var valueType = RepresentationType.FromType(ci.FieldType);
-
-                if (valueType == null)
-                    throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
-
-                var value = ci.GetValue(null);
-
-                var ct = new ConstantTemplate(this, i++, ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
-
-
-                constants.Add(ct);
-
+                addConstant(ci, publicAttr);
             }
 
-            i = 0;
 
             foreach (var pi in propsInfo)
             {
@@ -582,45 +619,20 @@ public class TypeTemplate
 
                 if (publicAttr != null)
                 {
-                    var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
-                    var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
-                    var valueType = RepresentationType.FromType(pi.PropertyType);
-
-                    if (valueType == null)
-                        throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
-
-
-                    var pn = publicAttr.Name ?? pi.Name;
-
-                    var pt = new PropertyTemplate(this, i++, pn, pi.DeclaringType != type, valueType);//, rp.ReadExpansion, rp.WriteExpansion, rp.Storage);
-                    if (storageAttr != null)
-                        pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
-
-                    if (annotationAttr != null)
-                        pt.ReadExpansion = annotationAttr.Annotation;
-                    else
-                        pt.ReadExpansion = GetTypeAnnotationName(pi.PropertyType);
-
-                    pt.PropertyInfo = pi;
-                    //pt.Serilize = publicAttr.Serialize;
-                    properties.Add(pt);
+                    addProperty(pi, publicAttr);
                 }
                 else
                 {
                     var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
                     if (attributeAttr != null)
                     {
-                        var pn = attributeAttr.Name ?? pi.Name;
-                        var at = new AttributeTemplate(this, 0, pn, pi.DeclaringType != type);
-                        at.PropertyInfo = pi;
-                        attributes.Add(at);
+                        addAttribute(pi, attributeAttr);
                     }
                 }
             }
 
             if (templateType == TemplateType.Resource)
             {
-                i = 0;
 
                 foreach (var ei in eventsInfo)
                 {
@@ -629,104 +641,38 @@ public class TypeTemplate
                     if (publicAttr == null)
                         continue;
 
-
-                    var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
-                    var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
-
-                    var argType = ei.EventHandlerType.GenericTypeArguments[0];
-
-                    var en = publicAttr.Name ?? ei.Name;
-
-                    var evtType = RepresentationType.FromType(argType);
-
-                    if (evtType == null)
-                        throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
-
-                    var et = new EventTemplate(this, i++, en, ei.DeclaringType != type, evtType);
-                    et.EventInfo = ei;
-
-                    if (annotationAttr != null)
-                        et.Expansion = annotationAttr.Annotation;
-
-                    if (listenableAttr != null)
-                        et.Listenable = true;
-
-                    events.Add(et);
+                    addEvent(ei, publicAttr);
                 }
 
-                i = 0;
                 foreach (MethodInfo mi in methodsInfo)
                 {
                     var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
                     if (publicAttr == null)
                         continue;
 
-
-                    var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
-                    var returnType = RepresentationType.FromType(mi.ReturnType);
-
-                    if (returnType == null)
-                        throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
-
-                    var args = mi.GetParameters();
-
-                    if (args.Length > 0)
-                    {
-                        if (args.Last().ParameterType == typeof(DistributedConnection))
-                            args = args.Take(args.Count() - 1).ToArray();
-                    }
-
-                    var arguments = args.Select(x =>
-                    {
-                        var argType = RepresentationType.FromType(x.ParameterType);
-                        if (argType == null)
-                            throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
-
-                        return new ArgumentTemplate()
-                        {
-                            Name = x.Name,
-                            Type = argType,
-                            ParameterInfo = x,
-                            Optional = x.IsOptional
-                        };
-                    })
-                    .ToArray();
-
-                    var fn = publicAttr.Name ?? mi.Name;
-
-                    var ft = new FunctionTemplate(this, i++, fn, mi.DeclaringType != type, arguments, returnType);// mi.ReturnType == typeof(void));
-
-                    if (annotationAttr != null)
-                        ft.Expansion = annotationAttr.Annotation;
-                    else
-                        ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
-
-                    ft.MethodInfo = mi;
-                    functions.Add(ft);
-
+                    addFunction(mi, publicAttr);
                 }
             }
         }
 
         // append signals
-        for (i = 0; i < events.Count; i++)
+        for (var i = 0; i < events.Count; i++)
             members.Add(events[i]);
         // append slots
-        for (i = 0; i < functions.Count; i++)
+        for (var i = 0; i < functions.Count; i++)
             members.Add(functions[i]);
         // append properties
-        for (i = 0; i < properties.Count; i++)
+        for (var i = 0; i < properties.Count; i++)
             members.Add(properties[i]);
 
         // append constants
-        for (i = 0; i < constants.Count; i++)
+        for (var i = 0; i < constants.Count; i++)
             members.Add(constants[i]);
 
         // bake it binarily
         var b = new BinaryList();
 
         // find the first parent type that implements IResource
-
 
 
 
