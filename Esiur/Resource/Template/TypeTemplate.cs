@@ -239,8 +239,8 @@ public class TypeTemplate
             foreach (var f in tmp.functions)
             {
                 var functionReturnTypes = GetDistributedTypes(f.MethodInfo.ReturnType);
-                                        //.Select(x => Warehouse.GetTemplateByType(x))
-                                        //.Where(x => x != null && !bag.Contains(x))
+                //.Select(x => Warehouse.GetTemplateByType(x))
+                //.Where(x => x != null && !bag.Contains(x))
 
                 foreach (var functionReturnType in functionReturnTypes)
                 {
@@ -394,7 +394,8 @@ public class TypeTemplate
 
         bool classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
 
-        var addConstant = (FieldInfo ci, PublicAttribute publicAttr) => {
+        var addConstant = (FieldInfo ci, PublicAttribute publicAttr) =>
+        {
 
             var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
             var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
@@ -416,16 +417,35 @@ public class TypeTemplate
 
         var addProperty = (PropertyInfo pi, PublicAttribute publicAttr) =>
         {
-            var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
-            var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
-            var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+            var propType = RepresentationType.FromType(pi.PropertyType);//, nullableAttr != null && nullableAttr.Flag == 2);
 
-            var attrType = RepresentationType.FromType(pi.PropertyType, nullableAttr != null && nullableAttr.Flag == 2);
-
-            if (attrType == null)
+            if (propType == null)
                 throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
 
-            var pt = new PropertyTemplate(this, (byte)properties.Count, publicAttr?.Name ?? pi.Name, pi.DeclaringType != type, attrType);
+            var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
+            var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+
+            var nullableContextAttr = pi.GetCustomAttribute<NullableContextAttribute>(true);
+            var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+
+            var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+            if (nullableContextAttr?.Flag == 2)
+            {
+                if (flags.Count == 1)
+                    propType.SetNotNull(flags.FirstOrDefault());
+                else
+                    propType.SetNotNull(flags);
+            }
+            else
+            {
+                if (flags.Count == 1)
+                    propType.SetNull(flags.FirstOrDefault());
+                else
+                    propType.SetNull(flags);
+            }
+
+            var pt = new PropertyTemplate(this, (byte)properties.Count, publicAttr?.Name ?? pi.Name, pi.DeclaringType != type, propType);
 
             if (storageAttr != null)
                 pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
@@ -436,28 +456,44 @@ public class TypeTemplate
                 pt.ReadExpansion = GetTypeAnnotationName(pi.PropertyType);
 
             pt.PropertyInfo = pi;
-            
+
             properties.Add(pt);
 
         };
 
         var addEvent = (EventInfo ei, PublicAttribute publicAttr) =>
         {
+            var argType = ei.EventHandlerType.GenericTypeArguments[0];
+            var evtType = RepresentationType.FromType(argType);//, argIsNull);
+
+            if (evtType == null)
+                throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
 
             var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
             var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
             var nullableAttr = ei.GetCustomAttribute<NullableAttribute>(true);
+            var nullableContextAttr = ei.GetCustomAttribute<NullableContextAttribute>(true);
 
-            var argIsNull = nullableAttr != null &&
-                            nullableAttr.Flags != null && 
-                            nullableAttr.Flags.Length > 1 && 
-                            nullableAttr.Flags[1] == 2;
+            var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
 
-            var argType = ei.EventHandlerType.GenericTypeArguments[0];
-            var evtType = RepresentationType.FromType(argType, argIsNull);
+            // skip the eventHandler class
+            if (flags.Count > 1)
+                flags = flags.Skip(1).ToList();
 
-            if (evtType == null)
-                throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
+            if (nullableContextAttr?.Flag == 2)
+            {
+                if (flags.Count == 1)
+                    evtType.SetNotNull(flags.FirstOrDefault());
+                else
+                    evtType.SetNotNull(flags);
+            }
+            else
+            {
+                if (flags.Count == 1)
+                    evtType.SetNull(flags.FirstOrDefault());
+                else
+                    evtType.SetNull(flags);
+            }
 
             var et = new EventTemplate(this, (byte)events.Count, publicAttr?.Name ?? ei.Name, ei.DeclaringType != type, evtType);
             et.EventInfo = ei;
@@ -471,7 +507,7 @@ public class TypeTemplate
             events.Add(et);
         };
 
-        var addAttribute = (PropertyInfo pi, AttributeAttribute attributeAttr)=>
+        var addAttribute = (PropertyInfo pi, AttributeAttribute attributeAttr) =>
         {
             var an = attributeAttr.Name ?? pi.Name;
             var at = new AttributeTemplate(this, 0, an, pi.DeclaringType != type);
@@ -482,17 +518,43 @@ public class TypeTemplate
 
         var addFunction = (MethodInfo mi, PublicAttribute publicAttr) =>
         {
+
+            var rtType = RepresentationType.FromType(mi.ReturnType);
+
+            if (rtType == null)
+                throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
+
             var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
             var nullableAttr = mi.GetCustomAttribute<NullableAttribute>(true);
             var nullableContextAttr = mi.GetCustomAttribute<NullableContextAttribute>(true);
 
-            var contextIsNull = nullableContextAttr != null && nullableContextAttr.Flag == 2;
+            var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
 
-            var returnType = RepresentationType.FromType(mi.ReturnType,
-                nullableAttr != null ? nullableAttr.Flag == 2 : contextIsNull);
+            var rtNullableAttr = mi.ReturnTypeCustomAttributes.GetCustomAttributes(typeof(NullableAttribute), true).FirstOrDefault() as NullableAttribute;
+            var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
+                                            .GetCustomAttributes(typeof(NullableContextAttribute), true)
+                                            .FirstOrDefault() as NullableContextAttribute
+                                            ?? nullableContextAttr;
 
-            if (returnType == null)
-                throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
+            var rtFlags = rtNullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+
+
+
+            if (rtNullableContextAttr?.Flag == 2)
+            {
+                if (rtFlags.Count == 1)
+                    rtType.SetNotNull(rtFlags.FirstOrDefault());
+                else
+                    rtType.SetNotNull(rtFlags);
+            }
+            else
+            {
+                if (rtFlags.Count == 1)
+                    rtType.SetNull(rtFlags.FirstOrDefault());
+                else
+                    rtType.SetNull(rtFlags);
+            }
 
             var args = mi.GetParameters();
 
@@ -504,14 +566,32 @@ public class TypeTemplate
 
             var arguments = args.Select(x =>
             {
-                var xNullableAttr = x.GetCustomAttribute<NullableAttribute>(true);
-                var xNullableContextAttr = x.GetCustomAttribute<NullableContextAttribute>(true);
-
-                var argType = RepresentationType.FromType(x.ParameterType,
-                    xNullableAttr != null ? xNullableAttr.Flag == 2 : contextIsNull);
+                var argType = RepresentationType.FromType(x.ParameterType);
 
                 if (argType == null)
                     throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
+
+
+                var argNullableAttr = x.GetCustomAttribute<NullableAttribute>(true);
+                var argNullableContextAttr = x.GetCustomAttribute<NullableContextAttribute>(true) ?? nullableContextAttr;
+
+                var argFlags = argNullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+
+                if (argNullableContextAttr?.Flag == 2)
+                {
+                    if (argFlags.Count == 1)
+                        argType.SetNotNull(argFlags.FirstOrDefault());
+                    else
+                        argType.SetNotNull(argFlags);
+                }
+                else
+                {
+                    if (rtFlags.Count == 1)
+                        argType.SetNull(argFlags.FirstOrDefault());
+                    else
+                        argType.SetNull(argFlags);
+                }
 
                 return new ArgumentTemplate()
                 {
@@ -525,7 +605,7 @@ public class TypeTemplate
 
             var fn = publicAttr.Name ?? mi.Name;
 
-            var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type, arguments, returnType);// mi.ReturnType == typeof(void));
+            var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type, arguments, rtType);
 
             if (annotationAttr != null)
                 ft.Expansion = annotationAttr.Annotation;
@@ -534,6 +614,8 @@ public class TypeTemplate
 
             ft.MethodInfo = mi;
             functions.Add(ft);
+
+            Console.WriteLine(rtType.ToString() + " " + fn);
 
         };
 
@@ -583,7 +665,7 @@ public class TypeTemplate
                     if (privateAttr != null)
                         continue;
 
-                    var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true); 
+                    var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true);
 
                     addEvent(ei, publicAttr);
                 }

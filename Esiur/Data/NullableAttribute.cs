@@ -13,11 +13,12 @@
     public sealed class NullableAttribute : Attribute
     {
         public readonly byte[] Flags;
-        public readonly byte Flag;
+        //public readonly byte Flag;
 
         public NullableAttribute(byte flag)
         {
-            Flag = flag;// new byte[] { flag };
+            //Flag = flag;
+            Flags = new byte[] { flag };
         }
         public NullableAttribute(byte[] flags)
         {

@@ -222,7 +222,7 @@ public struct TransmissionType
             ulong cl = (ulong)(1 << (exp -1));
 
             if (ends - offset < cl)  
-                return (ends - offset - (uint)cl, null);
+                return (cl - (ends - offset), null);
 
             //offset += (uint)cl;
 
@@ -233,12 +233,15 @@ public struct TransmissionType
             ulong cll = (ulong)(h >> 3) & 0x7;
 
             if (ends - offset < cll)
-                return (ends - offset - (uint)cll, null);
+                return (cll - (ends - offset), null);
 
             ulong cl = 0;
              
             for (uint i = 0; i < cll; i++)
                 cl = cl << 8 | data[offset++];
+
+            if (ends - offset < cl)
+                return (cl - (ends - offset), null);
 
             return (1 + cl + cll, new TransmissionType((TransmissionTypeIdentifier)(h & 0xC7), cls, h & 0x7, offset, cl));
         }

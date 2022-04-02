@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Linq;
 using System.Text;
 
 namespace Esiur.Data
@@ -50,6 +51,84 @@ namespace Esiur.Data
 
     public class RepresentationType
     {
+
+        static RepresentationTypeIdentifier[] refTypes = new RepresentationTypeIdentifier[]
+          {
+                    RepresentationTypeIdentifier.Dynamic,
+                    RepresentationTypeIdentifier.RawData,
+                    RepresentationTypeIdentifier.String,
+                    RepresentationTypeIdentifier.Resource,
+                    RepresentationTypeIdentifier.Record,
+                    RepresentationTypeIdentifier.Map,
+                    RepresentationTypeIdentifier.List,
+                    RepresentationTypeIdentifier.TypedList,
+                    RepresentationTypeIdentifier.TypedMap,
+                    RepresentationTypeIdentifier.Tuple2,
+                    RepresentationTypeIdentifier.Tuple3,
+                    RepresentationTypeIdentifier.Tuple4,
+                    RepresentationTypeIdentifier.Tuple5,
+                    RepresentationTypeIdentifier.Tuple6,
+                    RepresentationTypeIdentifier.Tuple7,
+                    RepresentationTypeIdentifier.TypedRecord,
+                    RepresentationTypeIdentifier.TypedResource
+          };
+
+        public void SetNull(List<byte> flags)
+        {
+            if (refTypes.Contains(Identifier))
+            {
+                Nullable = (flags.FirstOrDefault() == 2);
+                if (flags.Count > 0)
+                    flags.RemoveAt(0);
+            }
+
+            foreach (var st in SubTypes)
+                st.SetNull(flags);
+        }
+
+        public void SetNull(byte flag)
+        {
+            if (refTypes.Contains(Identifier))
+            {
+                Nullable = (flag == 2);
+            }
+
+            foreach (var st in SubTypes)
+                st.SetNull(flag);
+        }
+
+
+        public void SetNotNull(List<byte> flags)
+        {
+            if (refTypes.Contains(Identifier))
+            {
+                Nullable = (flags.FirstOrDefault() != 1);
+                if (flags.Count > 0)
+                    flags.RemoveAt(0);
+            }
+
+            foreach (var st in SubTypes)
+                st.SetNotNull(flags);
+        }
+
+
+        public override string ToString()
+        {
+            if (SubTypes != null && SubTypes.Length > 0)
+                return Identifier.ToString() + "<" + String.Join(",", SubTypes.Select(x => x.ToString())) + ">" + (Nullable ? "?" : "");
+            return Identifier.ToString() + (Nullable ? "?" : "");
+        }
+        public void SetNotNull(byte flag)
+        {
+            if (refTypes.Contains(Identifier))
+            {
+                Nullable = (flag != 1);
+            }
+
+            foreach (var st in SubTypes)
+                st.SetNotNull(flag);
+        }
+
         public Type? GetRuntimeType()
         {
             return Identifier switch
@@ -89,21 +168,21 @@ namespace Esiur.Data
 
         public RepresentationType?[] SubTypes = new RepresentationType[3];
 
-        public static RepresentationType? FromType(Type type, bool forceNullable = false)
+        public static RepresentationType? FromType(Type type)//, bool forceNullable = false)
         {
 
-            var nullable = forceNullable;
+            var nullable = false;// = forceNullable;
 
-            if (!forceNullable)
+            //if (!forceNullable)
+            //{
+            var nullType = System.Nullable.GetUnderlyingType(type);
+
+            if (nullType != null)
             {
-                var nullType = System.Nullable.GetUnderlyingType(type);
-
-                if (nullType != null)
-                {
-                    type = nullType;
-                    nullable = true;
-                }
+                type = nullType;
+                nullable = true;
             }
+            //}
 
             if (type.IsGenericType)
             {
@@ -167,7 +246,7 @@ namespace Esiur.Data
                 {
                     var args = type.GetGenericArguments();
                     var subTypes = new RepresentationType[args.Length];
-                    for(var i = 0; i < args.Length; i++)
+                    for (var i = 0; i < args.Length; i++)
                     {
                         subTypes[i] = FromType(args[i]);
                         if (subTypes[i] == null)
