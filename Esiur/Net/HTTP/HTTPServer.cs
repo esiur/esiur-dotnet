@@ -129,7 +129,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     }
 
     struct VarInfo
-    {
+    { 
         public string Pre;
         public string Post;
         public string VarName;

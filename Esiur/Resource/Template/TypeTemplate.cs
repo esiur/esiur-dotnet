@@ -615,8 +615,7 @@ public class TypeTemplate
             ft.MethodInfo = mi;
             functions.Add(ft);
 
-            Console.WriteLine(rtType.ToString() + " " + fn);
-
+ 
         };
 
 
