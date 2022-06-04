@@ -284,7 +284,17 @@ public static class Codec
         }
         else
         {
-            if (type.IsGenericType)
+            if (Codec.ImplementsInterface(type, typeof(IResource)))
+            {
+                var (hdr, data) = DataSerializer.ResourceComposer(valueOrSource, connection);
+                return TransmissionType.Compose(hdr, data);
+            }
+            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
+            {
+                var (hdr, data) = DataSerializer.RecordComposer(valueOrSource, connection);
+                return TransmissionType.Compose(hdr, data);
+            }
+            else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
                 if (genericType == typeof(List<>))
@@ -326,17 +336,7 @@ public static class Codec
                 return TransmissionType.Compose(hdr, data);
 
                 //}
-            }
-            else if (Codec.ImplementsInterface(type, typeof(IResource)))
-            {
-                var (hdr, data) = DataSerializer.ResourceComposer(valueOrSource, connection);
-                return TransmissionType.Compose(hdr, data);
-            }
-            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            {
-                var (hdr, data) = DataSerializer.RecordComposer(valueOrSource, connection);
-                return TransmissionType.Compose(hdr, data);
-            }
+            } 
             else if (type.IsEnum)
             {
                 var (hdr, data) = DataSerializer.EnumComposer(valueOrSource, connection);

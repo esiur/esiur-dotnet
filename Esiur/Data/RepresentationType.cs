@@ -168,13 +168,11 @@ namespace Esiur.Data
 
         public RepresentationType?[] SubTypes = new RepresentationType[3];
 
-        public static RepresentationType? FromType(Type type)//, bool forceNullable = false)
+        public static RepresentationType? FromType(Type type) 
         {
 
-            var nullable = false;// = forceNullable;
-
-            //if (!forceNullable)
-            //{
+            var nullable = false; 
+ 
             var nullType = System.Nullable.GetUnderlyingType(type);
 
             if (nullType != null)
@@ -182,9 +180,30 @@ namespace Esiur.Data
                 type = nullType;
                 nullable = true;
             }
-            //}
 
-            if (type.IsGenericType)
+            if (type == typeof(IResource))
+                return new RepresentationType(RepresentationTypeIdentifier.Resource, nullable);
+            else if (type == typeof(IRecord) || type == typeof(Record))
+                return new RepresentationType(RepresentationTypeIdentifier.Record, nullable);
+            else if (type == typeof(Map<object, object>))
+                return new RepresentationType(RepresentationTypeIdentifier.Map, nullable);
+            else if (Codec.ImplementsInterface(type, typeof(IResource)))
+            {
+                return new RepresentationType(
+                   RepresentationTypeIdentifier.TypedResource,
+                   nullable,
+                   TypeTemplate.GetTypeGuid(type)
+                );
+            }
+            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
+            {
+                return new RepresentationType(
+                   RepresentationTypeIdentifier.TypedRecord,
+                   nullable,
+                   TypeTemplate.GetTypeGuid(type)
+                );
+            }
+            else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
                 if (genericType == typeof(List<>))
@@ -326,28 +345,6 @@ namespace Esiur.Data
                     return new RepresentationType(RepresentationTypeIdentifier.TypedList, nullable, null, subType);
 
                 }
-            }
-            else if (type == typeof(IResource))
-                return new RepresentationType(RepresentationTypeIdentifier.Resource, nullable);
-            else if (type == typeof(IRecord) || type == typeof(Record))
-                return new RepresentationType(RepresentationTypeIdentifier.Record, nullable);
-            else if (type == typeof(Map<object, object>))
-                return new RepresentationType(RepresentationTypeIdentifier.Map, nullable);
-            else if (Codec.ImplementsInterface(type, typeof(IResource)))
-            {
-                return new RepresentationType(
-                   RepresentationTypeIdentifier.TypedResource,
-                   nullable,
-                   TypeTemplate.GetTypeGuid(type)
-                );
-            }
-            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            {
-                return new RepresentationType(
-                   RepresentationTypeIdentifier.TypedRecord,
-                   nullable,
-                   TypeTemplate.GetTypeGuid(type)
-                );
             }
             else if (type.IsEnum)
             {

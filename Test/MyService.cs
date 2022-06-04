@@ -19,6 +19,15 @@ public enum SizeEnum:short
     XLarge = 22
 }
 
+
+public class SearchResults<T> : IRecord where T : IResource
+{
+    [Public] public int Offset { get; set; }
+    [Public] public int Needed { get; set; }
+    [Public] public int Total { get; set; }
+    [Public] public T[] Results { get; set; }
+}
+
 [Resource]
 public partial class MyService
 {
@@ -28,6 +37,12 @@ public partial class MyService
 
     [Public] bool boolean = true;
     [Public] bool[] booleanArray = new bool[] { true, false, true, false, true };
+
+    [Public]
+    public SearchResults<MyResource> GetRecords()
+    {
+        return new SearchResults<MyResource>() { Needed = 3, Offset = 10, Results = new MyResource[0], Total = 102 };
+    }
 
     [Public] byte uInt8Test = 8;
     [Public] byte? uInt8Null = null;
@@ -124,7 +139,7 @@ public partial class MyService
     [Public] public IResource[] Resources { get; set; }
 
     [Public]
-    public void Void() => 
+    public void Void() =>
         Console.WriteLine("Void()");
 
     [Public]
@@ -159,7 +174,8 @@ public partial class MyService
     [Public]
     public (int, string, double, bool) GetTuple4(int a1, string a2, double a3, bool a4) => (a1, a2, a3, a4);
 
-    [Public] public MyRecord SendRecord(MyRecord record)
+    [Public]
+    public MyRecord SendRecord(MyRecord record)
     {
         Console.WriteLine(record.ToString());
         return record;

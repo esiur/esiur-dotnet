@@ -190,20 +190,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         set;
     }
 
-    //[Attribute]
-    //public virtual uint Timeout
-    //{
-    //    get;
-    //    set;
-    //}
-
-    //[Attribute]
-    //public virtual uint Clock
-    //{
-    //    get;
-    //    set;
-    //}
-
+ 
     [Attribute]
     public virtual uint MaxPost
     {

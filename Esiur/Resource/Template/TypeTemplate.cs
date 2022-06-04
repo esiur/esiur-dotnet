@@ -158,7 +158,7 @@ public class TypeTemplate
     }
 
 
-    public static Guid GetTypeGuid(Type type) => GetTypeGuid(type.FullName);
+    public static Guid GetTypeGuid(Type type) => GetTypeGuid(GetTypeClassName(type));
 
     public static Guid GetTypeGuid(string typeName)
     {
@@ -174,6 +174,11 @@ public class TypeTemplate
             return GetDistributedTypes(type.GetElementType());
         else if (type.IsEnum)
             return new Type[] { type };
+        else if (Codec.ImplementsInterface(type, typeof(IRecord))
+                || Codec.ImplementsInterface(type, typeof(IResource)))
+        {
+            return new Type[] { type };
+        }
         else if (type.IsGenericType)
         {
             var genericType = type.GetGenericTypeDefinition();
@@ -199,11 +204,7 @@ public class TypeTemplate
                 return rt.ToArray();
             }
         }
-        else if (Codec.ImplementsInterface(type, typeof(IRecord))
-                || Codec.ImplementsInterface(type, typeof(IResource)))
-        {
-            return new Type[] { type };
-        }
+         
 
         return new Type[0];
     }
@@ -354,6 +355,22 @@ public class TypeTemplate
             return type.Name + "?";
     }
 
+    public static string GetTypeClassName(Type type, string separator = ".")
+    {
+
+        if (type.IsGenericType)
+        {
+            var index = type.Name.IndexOf("`");
+            var name = $"{type.Namespace}{separator}{((index > -1) ? type.Name.Substring(0, index) : type.Name)}Of";
+            foreach (var t in type.GenericTypeArguments)
+                name += GetTypeClassName(t, "_");
+
+            return name;
+        }
+        else
+            return $"{type.Namespace}{separator}{type.Name}";
+    }
+
     public TypeTemplate(Type type, bool addToWarehouse = false)
     {
         if (Codec.InheritsClass(type, typeof(DistributedResource)))
@@ -377,7 +394,7 @@ public class TypeTemplate
 
         DefinedType = type;
 
-        className = type.FullName;
+        className = GetTypeClassName(type);
 
         // set guid
         classId = GetTypeGuid(className);
@@ -615,7 +632,6 @@ public class TypeTemplate
             ft.MethodInfo = mi;
             functions.Add(ft);
 
- 
         };
 
 
@@ -761,7 +777,7 @@ public class TypeTemplate
         {
             // find the first parent type that implements IResource
             var ParentDefinedType = ResourceProxy.GetBaseType(type.BaseType);
-            var parentId = GetTypeGuid(ParentDefinedType.FullName);
+            var parentId = GetTypeGuid(ParentDefinedType);
 
             b.AddUInt8((byte)(0x80 | (byte)templateType))
              .AddGuid(classId)

@@ -45,6 +45,9 @@ using System.Collections.Generic;
 
 namespace Test
 {
+
+
+
     class Program
     {
         
@@ -64,7 +67,7 @@ namespace Test
 
             service.Resource = res1;
             service.ChildResource = res3;
-            service.Resources = new MyResource[] { res1, res2,  res1 , res3 };
+            service.Resources = new MyResource[] { res1, res2, res1, res3 };
 
             //web.MapGet("/{action}/{age}", (int age, string action, HTTPConnection sender) =>
             //{
@@ -86,24 +89,17 @@ namespace Test
         }
 
 
-        enum aa
-        {
-            a,
-            b,
-            c,
-            d                
-        }
-
-        public static (int, string) tuple() => (33, "sss");
  
         private static async void TestClient(IResource local)
         {
             dynamic remote = await Warehouse.Get<IResource>("iip://localhost/mem/service");
 
             TestObjectProps(local, remote);
+            var r = await remote.GetRecords();
 
             var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
             Console.WriteLine(opt);
+
 
             await remote.Void();
             await remote.Connection("ss", 33);
