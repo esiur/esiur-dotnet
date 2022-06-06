@@ -95,7 +95,9 @@ namespace Test
             dynamic remote = await Warehouse.Get<IResource>("iip://localhost/mem/service");
 
             TestObjectProps(local, remote);
-            var r = await remote.GetRecords();
+
+            var gr = await remote.GetGenericRecord();
+            Console.WriteLine(gr);
 
             var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
             Console.WriteLine(opt);

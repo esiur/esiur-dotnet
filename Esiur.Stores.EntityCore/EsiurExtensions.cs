@@ -54,6 +54,9 @@ public static class EsiurExtensions
     {
         var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions>().Store;
 
+        if (store == null)
+            throw new Exception("Store not set, please call 'UseEsiur' on your DbContextOptionsBuilder.");
+
         if (!store.Initialized)
             throw new Exception("Store not initialized. Make sure the Warehouse is open");
 
