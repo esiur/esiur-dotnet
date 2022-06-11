@@ -53,7 +53,7 @@ namespace Test
         
         static async Task Main(string[] args)
         {
- 
+
             // Create stores to keep objects.
             var system = await Warehouse.Put("mem", new MemoryStore());
             var server = await Warehouse.Put("mem/server", new DistributedServer());

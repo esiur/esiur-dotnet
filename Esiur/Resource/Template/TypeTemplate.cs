@@ -25,6 +25,8 @@ public class TypeTemplate
     protected Guid classId;
     protected Guid? parentId;
 
+    public string Annotation { get; set; }
+
     string className;
     List<MemberTemplate> members = new List<MemberTemplate>();
     List<FunctionTemplate> functions = new List<FunctionTemplate>();
@@ -156,7 +158,6 @@ public class TypeTemplate
     {
 
     }
-
 
     public static Guid GetTypeGuid(Type type) => GetTypeGuid(GetTypeClassName(type));
 
@@ -401,6 +402,7 @@ public class TypeTemplate
 
         if (addToWarehouse)
             Warehouse.PutTemplate(this);
+
 
 
         PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
@@ -772,30 +774,36 @@ public class TypeTemplate
         // find the first parent type that implements IResource
 
 
+        var hasParent = HasParent(type);
+        var classAnnotation = type.GetCustomAttribute<AnnotationAttribute>(false);
+        var hasAnnotation = classAnnotation != null && classAnnotation.Annotation != null;
 
-        if (HasParent(type))
+        var classNameBytes = DC.ToBytes(className);
+
+        b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasAnnotation ? 0x40 : 0x0) | (byte)templateType))
+         .AddGuid(classId)
+         .AddUInt8((byte)classNameBytes.Length)
+         .AddUInt8Array(classNameBytes);
+
+        if (hasParent)
         {
             // find the first parent type that implements IResource
             var ParentDefinedType = ResourceProxy.GetBaseType(type.BaseType);
             var parentId = GetTypeGuid(ParentDefinedType);
-
-            b.AddUInt8((byte)(0x80 | (byte)templateType))
-             .AddGuid(classId)
-             .AddUInt8((byte)className.Length)
-             .AddString(className)
-             .AddGuid(parentId)
-             .AddInt32(version)
-             .AddUInt16((ushort)members.Count);
+            b.AddGuid(parentId);
         }
-        else
+        
+        if (hasAnnotation)
         {
-            b.AddUInt8((byte)templateType)
-             .AddGuid(classId)
-             .AddUInt8((byte)className.Length)
-             .AddString(className)
-             .AddInt32(version)
-             .AddUInt16((ushort)members.Count);
+            var classAnnotationBytes = DC.ToBytes(classAnnotation.Annotation);
+            b.AddUInt16((ushort)classAnnotationBytes.Length)
+             .AddUInt8Array(classAnnotationBytes);
+
+            Annotation = classAnnotation.Annotation;
         }
+
+        b.AddInt32(version)
+         .AddUInt16((ushort)members.Count);
 
         foreach (var ft in functions)
             b.AddUInt8Array(ft.Compose());
@@ -848,6 +856,8 @@ public class TypeTemplate
         od.content = data.Clip(offset, contentLength);
 
         var hasParent = (data[offset] & 0x80) > 0;
+        var hasAnnotation = (data[offset] & 0x40) > 0;
+
         od.templateType = (TemplateType)(data[offset++] & 0xF);
 
         od.classId = data.GetGuid(offset);
@@ -860,6 +870,14 @@ public class TypeTemplate
         {
             od.parentId = data.GetGuid(offset);
             offset += 16;
+        }
+
+        if (hasAnnotation)
+        {
+            var len = data.GetUInt16(offset, Endian.Little);
+            offset += 2;
+            od.Annotation = data.GetString(offset, len);
+            offset += len;
         }
 
         od.version = data.GetInt32(offset, Endian.Little);

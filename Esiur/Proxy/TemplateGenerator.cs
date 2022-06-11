@@ -15,6 +15,49 @@ public static class TemplateGenerator
 {
     internal static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
+    //public static string ToLiteral(string valueTextForCompiler)
+    //{
+    //    return SymbolDisplay.FormatLiteral(valueTextForCompiler, false);
+    //}
+
+    static string ToLiteral(string input)
+    {
+        var literal = new StringBuilder();
+        literal.Append("\"");
+        foreach (var c in input)
+        {
+            switch (c)
+            {
+                case '\"': literal.Append("\\\""); break;
+                case '\\': literal.Append(@"\\"); break;
+                case '\0': literal.Append(@"\0"); break;
+                case '\a': literal.Append(@"\a"); break;
+                case '\b': literal.Append(@"\b"); break;
+                case '\f': literal.Append(@"\f"); break;
+                case '\n': literal.Append(@"\n"); break;
+                case '\r': literal.Append(@"\r"); break;
+                case '\t': literal.Append(@"\t"); break;
+                case '\v': literal.Append(@"\v"); break;
+                default:
+                    // ASCII printable character
+                    if (c >= 0x20 && c <= 0x7e)
+                    {
+                        literal.Append(c);
+                        // As UTF16 escaped character
+                    }
+                    else
+                    {
+                        literal.Append(@"\u");
+                        literal.Append(((int)c).ToString("x4"));
+                    }
+                    break;
+            }
+        }
+        literal.Append("\"");
+        return literal.ToString();
+    }
+
+
     internal static string GenerateRecord(TypeTemplate template, TypeTemplate[] templates)
     {
         var cls = template.ClassName.Split('.');
@@ -22,10 +65,15 @@ public static class TemplateGenerator
         var nameSpace = string.Join(".", cls.Take(cls.Length - 1));
         var className = cls.Last();
 
+
         var rt = new StringBuilder();
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
         rt.AppendLine($"namespace { nameSpace} {{");
+
+        if (template.Annotation != null)
+            rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
+
         rt.AppendLine($"[Public] public class {className} : IRecord {{");
 
 
@@ -52,6 +100,10 @@ public static class TemplateGenerator
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
         rt.AppendLine($"namespace { nameSpace} {{");
+
+        if (template.Annotation != null)
+            rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
+
         rt.AppendLine($"[Public] public enum {className} {{");
 
         rt.AppendLine(String.Join(",\r\n", template.Constants.Select(x => $"{x.Name}={x.Value}")));
@@ -212,6 +264,9 @@ public static class TemplateGenerator
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
         rt.AppendLine($"namespace { nameSpace} {{");
+
+        if (template.Annotation != null)
+            rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
         // extends
         if (template.ParentId == null)

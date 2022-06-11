@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace Test
 {
     [Resource]
+    [Annotation("A", "B", "C", "D")]
     public partial class MyResource
     {
         [Public] string description;
