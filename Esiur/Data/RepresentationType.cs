@@ -1,4 +1,5 @@
-﻿using Esiur.Net.IIP;
+﻿using Esiur.Core;
+using Esiur.Net.IIP;
 using Esiur.Resource;
 using Esiur.Resource.Template;
 using System;
@@ -131,6 +132,24 @@ namespace Esiur.Data
 
         public Type? GetRuntimeType()
         {
+
+            if (Identifier == RepresentationTypeIdentifier.TypedList)
+            {
+                var sub = SubTypes[0].GetRuntimeType();
+                if (sub == null)
+                    return null;
+
+                var rt = sub.MakeArrayType();
+
+                return rt;
+            }
+            else if (Identifier == RepresentationTypeIdentifier.TypedMap)
+            {
+                var subs = SubTypes.Select(x => x.GetRuntimeType()).ToArray();
+                var rt = typeof(Map<,>).MakeGenericType(subs);
+                return rt;
+            }
+            
             return Identifier switch
             {
                 (RepresentationTypeIdentifier.Void) => typeof(void),
@@ -155,6 +174,7 @@ namespace Esiur.Data
                 (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Record).DefinedType,
                 (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Unspecified).DefinedType,
                 (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Enum).DefinedType,
+
                 _ => null
             };
         }
@@ -249,11 +269,16 @@ namespace Esiur.Data
                         return new RepresentationType(RepresentationTypeIdentifier.TypedMap, nullable, null, subType1, subType2);
                     }
                 }
-                else if (genericType == typeof(DistributedPropertyContext<>))
-                {
-                    var args = type.GetGenericArguments();
-                    return FromType(args[0]);
-                }
+                //else if (genericType == typeof(AsyncReply<>))
+                //{
+                //    var args = type.GetGenericArguments();
+                //    return FromType(args[0]);
+                //}
+                //else if (genericType == typeof(DistributedPropertyContext<>))
+                //{
+                //    var args = type.GetGenericArguments();
+                //    return FromType(args[0]);
+                //}
                 else if (genericType == typeof(ValueTuple<,>))
                 {
                     var args = type.GetGenericArguments();

@@ -289,7 +289,7 @@ public static class TemplateGenerator
             var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
 
 
-            rt.Append($"public AsyncReply<{rtTypeName}> {f.Name}(");
+            rt.Append($"[Public] public AsyncReply<{rtTypeName}> {f.Name}(");
 
 
             if (positionalArgs.Length > 0)
@@ -332,7 +332,7 @@ public static class TemplateGenerator
                 continue;
 
             var ptTypeName = GetTypeName(p.ValueType, templates);
-            rt.AppendLine($"public {ptTypeName} {p.Name} {{");
+            rt.AppendLine($"[Public] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
             rt.AppendLine($"set =>  _Set({p.Index}, value);");
             rt.AppendLine("}");
@@ -344,7 +344,7 @@ public static class TemplateGenerator
                 continue;
 
             var ctTypeName = GetTypeName(c.ValueType, templates);
-            rt.AppendLine($"public const {ctTypeName} {c.Name} = {c.Value};");
+            rt.AppendLine($"[Public] public const {ctTypeName} {c.Name} = {c.Value};");
         }
 
 
@@ -360,7 +360,7 @@ public static class TemplateGenerator
             {
                 var etTypeName = GetTypeName(e.ArgumentType, templates);
                 rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
-                eventsList.AppendLine($"public event ResourceEventHandler<{etTypeName}> {e.Name};");
+                eventsList.AppendLine($"[Public] public event ResourceEventHandler<{etTypeName}> {e.Name};");
             }
 
             rt.AppendLine("}}");

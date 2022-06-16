@@ -106,6 +106,7 @@ namespace Test
             var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
             Console.WriteLine(opt);
 
+            var hello = await remote.AsyncHello();
 
             await remote.Void();
             await remote.Connection("ss", 33);

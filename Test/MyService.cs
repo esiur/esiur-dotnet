@@ -149,6 +149,14 @@ public partial class MyService
         return new Random().NextDouble();
     }
 
+
+    [Public] public AsyncReply<List<Map<int, string?>?>> AsyncHello()
+    {
+        var rt = new List<Map<int, string?>?>();
+        rt.Add(new Map<int, string?>() { [1] = "SSSSS", [2] = null });
+        return new AsyncReply<List<Map<int, string?>?>>(rt);
+    }
+
     [Public]
     public void Connection(object a1, int a2, DistributedConnection a3) =>
         Console.WriteLine($"VoidArgs {a1} {a2} {a3}");

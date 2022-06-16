@@ -205,7 +205,7 @@ public class TypeTemplate
                 return rt.ToArray();
             }
         }
-         
+
 
         return new Type[0];
     }
@@ -436,7 +436,14 @@ public class TypeTemplate
 
         var addProperty = (PropertyInfo pi, PublicAttribute publicAttr) =>
         {
-            var propType = RepresentationType.FromType(pi.PropertyType);//, nullableAttr != null && nullableAttr.Flag == 2);
+
+            var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
+
+            var propType = genericPropType == typeof(DistributedPropertyContext<>) ?
+                    RepresentationType.FromType(pi.PropertyType.GetGenericArguments()[0]) :
+                    RepresentationType.FromType(pi.PropertyType);
+
+            //var propType = RepresentationType.FromType(pi.PropertyType);//, nullableAttr != null && nullableAttr.Flag == 2);
 
             if (propType == null)
                 throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
@@ -448,6 +455,9 @@ public class TypeTemplate
             var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
 
             var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+            if (flags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
+                flags.RemoveAt(0);
 
             if (nullableContextAttr?.Flag == 2)
             {
@@ -537,8 +547,11 @@ public class TypeTemplate
 
         var addFunction = (MethodInfo mi, PublicAttribute publicAttr) =>
         {
+            var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
 
-            var rtType = RepresentationType.FromType(mi.ReturnType);
+            var rtType = genericRtType == typeof(AsyncReply<>) ?
+                    RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]) :
+                    RepresentationType.FromType(mi.ReturnType);
 
             if (rtType == null)
                 throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
@@ -557,8 +570,8 @@ public class TypeTemplate
 
             var rtFlags = rtNullableAttr?.Flags?.ToList() ?? new List<byte>();
 
-
-
+            if (rtFlags.Count > 0 && genericRtType == typeof(AsyncReply<>))
+                rtFlags.RemoveAt(0);
 
             if (rtNullableContextAttr?.Flag == 2)
             {
@@ -673,7 +686,8 @@ public class TypeTemplate
                 }
             }
 
-            if (templateType == TemplateType.Resource)
+            if (templateType == TemplateType.Resource
+                || templateType == TemplateType.Wrapper)
             {
 
                 foreach (var ei in eventsInfo)
@@ -730,7 +744,8 @@ public class TypeTemplate
                 }
             }
 
-            if (templateType == TemplateType.Resource)
+            if (templateType == TemplateType.Resource
+                || templateType == TemplateType.Wrapper)
             {
 
                 foreach (var ei in eventsInfo)
@@ -792,7 +807,7 @@ public class TypeTemplate
             var parentId = GetTypeGuid(ParentDefinedType);
             b.AddGuid(parentId);
         }
-        
+
         if (hasClassAnnotation)
         {
             var classAnnotationBytes = DC.ToBytes(classAnnotation.Annotation);
@@ -934,7 +949,7 @@ public class TypeTemplate
             else if (type == 1)    // property
             {
 
-                string readAnnotation = null, writeAnnotation= null;
+                string readAnnotation = null, writeAnnotation = null;
 
                 var hasReadAnnotation = ((data[offset] & 0x8) == 0x8);
                 var hasWriteAnnotation = ((data[offset] & 0x10) == 0x10);
