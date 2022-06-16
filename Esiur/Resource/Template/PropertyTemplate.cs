@@ -55,13 +55,13 @@ public class PropertyTemplate : MemberTemplate
         set;
     }*/
 
-    public string ReadExpansion
+    public string ReadAnnotation
     {
         get;
         set;
     }
 
-    public string WriteExpansion
+    public string WriteAnnotation
     {
         get;
         set;
@@ -83,10 +83,10 @@ public class PropertyTemplate : MemberTemplate
         if (Inherited)
             pv |= 0x80;
 
-        if (WriteExpansion != null && ReadExpansion != null)
+        if (WriteAnnotation != null && ReadAnnotation != null)
         {
-            var rexp = DC.ToBytes(ReadExpansion);
-            var wexp = DC.ToBytes(WriteExpansion);
+            var rexp = DC.ToBytes(ReadAnnotation);
+            var wexp = DC.ToBytes(WriteAnnotation);
             return new BinaryList()
                 .AddUInt8((byte)(0x38 | pv))
                 .AddUInt8((byte)name.Length)
@@ -98,9 +98,9 @@ public class PropertyTemplate : MemberTemplate
                 .AddUInt8Array(rexp)
                 .ToArray();
         }
-        else if (WriteExpansion != null)
+        else if (WriteAnnotation != null)
         {
-            var wexp = DC.ToBytes(WriteExpansion);
+            var wexp = DC.ToBytes(WriteAnnotation);
             return new BinaryList()
                 .AddUInt8((byte)(0x30 | pv))
                 .AddUInt8((byte)name.Length)
@@ -110,9 +110,9 @@ public class PropertyTemplate : MemberTemplate
                 .AddUInt8Array(wexp)
                 .ToArray();
         }
-        else if (ReadExpansion != null)
+        else if (ReadAnnotation != null)
         {
-            var rexp = DC.ToBytes(ReadExpansion);
+            var rexp = DC.ToBytes(ReadAnnotation);
             return new BinaryList()
                 .AddUInt8((byte)(0x28 | pv))
                 .AddUInt8((byte)name.Length)
@@ -134,14 +134,14 @@ public class PropertyTemplate : MemberTemplate
     }
 
     public PropertyTemplate(TypeTemplate template, byte index, string name, bool inherited, 
-        RepresentationType valueType, string read = null, string write = null, bool recordable = false)
+        RepresentationType valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
         : base(template, index, name, inherited)
     {
         this.Recordable = recordable;
         //this.Storage = storage;
-        if (read != null)
-            this.ReadExpansion = read;
-        this.WriteExpansion = write;
+        if (readAnnotation != null)
+            this.ReadAnnotation = readAnnotation;
+        this.WriteAnnotation = writeAnnotation;
         this.ValueType = valueType;
     }
 }

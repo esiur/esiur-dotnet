@@ -9,13 +9,13 @@ public class ConstantTemplate : MemberTemplate
 {
     public readonly object Value;
     //public readonly byte[] ValueData;
-    public readonly string Expansion;
+    public readonly string Annotation;
     public readonly RepresentationType ValueType;
 
-    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType valueType, object value, string expansion) 
+    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType valueType, object value, string annotation) 
         : base(template, index, name, inherited)
     {
-        Expansion = expansion;
+        Annotation = annotation;
         ValueType = valueType;
         Value = value;
         //try
@@ -36,9 +36,9 @@ public class ConstantTemplate : MemberTemplate
         var hdr = Inherited ? (byte)0x80 : (byte)0;
 
 
-        if (Expansion != null)
+        if (Annotation != null)
         {
-            var exp = DC.ToBytes(Expansion);
+            var exp = DC.ToBytes(Annotation);
             hdr |= 0x70;
             return new BinaryList()
                     .AddUInt8(hdr)

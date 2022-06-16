@@ -94,6 +94,10 @@ namespace Test
         {
             dynamic remote = await Warehouse.Get<IResource>("iip://localhost/mem/service");
 
+            var con = remote.Connection as DistributedConnection;
+            var template = await con.GetTemplateByClassName("Test.MyResource");
+
+
             TestObjectProps(local, remote);
 
             var gr = await remote.GetGenericRecord();
@@ -184,5 +188,9 @@ namespace Test
         }
      
     }
+
+
+
+
 }
 

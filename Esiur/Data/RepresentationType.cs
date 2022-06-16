@@ -168,6 +168,12 @@ namespace Esiur.Data
 
         public RepresentationType?[] SubTypes = new RepresentationType[3];
 
+
+        public RepresentationType ToNullable()
+        {
+            return new RepresentationType(Identifier, true, GUID, SubTypes);
+        }
+
         public static RepresentationType? FromType(Type type) 
         {
 

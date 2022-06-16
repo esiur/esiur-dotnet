@@ -46,6 +46,8 @@ partial class DistributedConnection
     KeyList<uint, AsyncReply<DistributedResource>> resourceRequests = new KeyList<uint, AsyncReply<DistributedResource>>();
     KeyList<Guid, AsyncReply<TypeTemplate>> templateRequests = new KeyList<Guid, AsyncReply<TypeTemplate>>();
 
+    KeyList<string, AsyncReply<TypeTemplate>> templateByNameRequests = new KeyList<string, AsyncReply<TypeTemplate>>();
+
 
     KeyList<string, AsyncReply<IResource>> pathRequests = new KeyList<string, AsyncReply<IResource>>();
 
@@ -1877,6 +1879,39 @@ partial class DistributedConnection
                     .Then((rt) =>
                     {
                         templateRequests.Remove(classId);
+                        templates.Add(((TypeTemplate)rt[0]).ClassId, (TypeTemplate)rt[0]);
+                        Warehouse.PutTemplate(rt[0] as TypeTemplate);
+                        reply.Trigger(rt[0]);
+                    }).Error((ex) =>
+                    {
+                        reply.TriggerError(ex);
+                    });
+
+        return reply;
+    }
+
+
+    public AsyncReply<TypeTemplate> GetTemplateByClassName(string className)
+    {
+        var template = templates.Values.FirstOrDefault(x => x.ClassName == className);
+        if (template != null)
+            return new AsyncReply<TypeTemplate>(template);
+
+        if (templateByNameRequests.ContainsKey(className))
+            return templateByNameRequests[className];
+
+        var reply = new AsyncReply<TypeTemplate>();
+        templateByNameRequests.Add(className, reply);
+
+        var classNameBytes = DC.ToBytes(className);
+
+        SendRequest(IIPPacket.IIPPacketAction.TemplateFromClassName)
+            .AddUInt8((byte)classNameBytes.Length)
+            .AddUInt8Array(classNameBytes)
+                    .Done()
+                    .Then((rt) =>
+                    {
+                        templateByNameRequests.Remove(className);
                         templates.Add(((TypeTemplate)rt[0]).ClassId, (TypeTemplate)rt[0]);
                         Warehouse.PutTemplate(rt[0] as TypeTemplate);
                         reply.Trigger(rt[0]);

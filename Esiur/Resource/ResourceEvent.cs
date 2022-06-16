@@ -33,19 +33,19 @@ namespace Esiur.Resource;
 public class ResourceEvent : System.Attribute
 {
 
-    string expansion;
+    string annotation;
 
-    public string Expansion
+    public readonly string Annotation
     {
         get
         {
-            return expansion;
+            return annotation;
         }
     }
 
 
-    public ResourceEvent(string expansion = null)
+    public ResourceEvent(string annotation = null)
     {
-        this.expansion = expansion;
+        this.annotation = annotation;
     }
 }

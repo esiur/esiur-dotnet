@@ -10,7 +10,7 @@ namespace Esiur.Resource.Template;
 public class FunctionTemplate : MemberTemplate
 {
 
-    public string Expansion
+    public string Annotation
     {
         get;
         set;
@@ -39,7 +39,6 @@ public class FunctionTemplate : MemberTemplate
         var name = base.Compose();
 
         var bl = new BinaryList()
-                //.AddUInt8(Expansion != null ? (byte)0x10 : (byte)0)
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
                 .AddUInt8Array(ReturnType.Compose())
@@ -49,9 +48,9 @@ public class FunctionTemplate : MemberTemplate
             bl.AddUInt8Array(Arguments[i].Compose());
 
 
-        if (Expansion != null)
+        if (Annotation != null)
         {
-            var exp = DC.ToBytes(Expansion);
+            var exp = DC.ToBytes(Annotation);
             bl.AddInt32(exp.Length)
             .AddUInt8Array(exp);
             bl.InsertUInt8(0, Inherited ? (byte)0x90 : (byte)0x10);
@@ -62,12 +61,12 @@ public class FunctionTemplate : MemberTemplate
         return bl.ToArray();
     }
 
-     public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, ArgumentTemplate[] arguments, RepresentationType returnType, string expansion = null)
+     public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, ArgumentTemplate[] arguments, RepresentationType returnType, string annotation = null)
         : base(template, index, name, inherited)
     {
         //this.IsVoid = isVoid;
         this.Arguments = arguments;
         this.ReturnType = returnType;
-        this.Expansion = expansion;
+        this.Annotation = annotation;
     }
 }

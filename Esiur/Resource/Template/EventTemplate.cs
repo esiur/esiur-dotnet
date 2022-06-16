@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace Esiur.Resource.Template;
 public class EventTemplate : MemberTemplate
 {
-    public string Expansion
+    public string Annotation
     {
         get;
         set;
@@ -30,9 +30,9 @@ public class EventTemplate : MemberTemplate
         if (Listenable)
             hdr |= 0x8;
 
-        if (Expansion != null)
+        if (Annotation != null)
         {
-            var exp = DC.ToBytes(Expansion);
+            var exp = DC.ToBytes(Annotation);
             hdr |= 0x50;
             return new BinaryList()
                     .AddUInt8(hdr)
@@ -53,10 +53,10 @@ public class EventTemplate : MemberTemplate
                     .ToArray();
     }
 
-     public EventTemplate(TypeTemplate template, byte index, string name,bool inherited, RepresentationType argumentType, string expansion = null, bool listenable = false)
+     public EventTemplate(TypeTemplate template, byte index, string name,bool inherited, RepresentationType argumentType, string annotation = null, bool listenable = false)
         : base(template, index, name, inherited)
     {
-        this.Expansion = expansion;
+        this.Annotation = annotation;
         this.Listenable = listenable;
         this.ArgumentType = argumentType;
     }

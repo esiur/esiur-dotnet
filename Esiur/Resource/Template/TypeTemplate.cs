@@ -470,9 +470,9 @@ public class TypeTemplate
                 pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
 
             if (annotationAttr != null)
-                pt.ReadExpansion = annotationAttr.Annotation;
+                pt.ReadAnnotation = annotationAttr.Annotation;
             else
-                pt.ReadExpansion = GetTypeAnnotationName(pi.PropertyType);
+                pt.ReadAnnotation = GetTypeAnnotationName(pi.PropertyType);
 
             pt.PropertyInfo = pi;
 
@@ -518,7 +518,7 @@ public class TypeTemplate
             et.EventInfo = ei;
 
             if (annotationAttr != null)
-                et.Expansion = annotationAttr.Annotation;
+                et.Annotation = annotationAttr.Annotation;
 
             if (listenableAttr != null)
                 et.Listenable = true;
@@ -627,9 +627,9 @@ public class TypeTemplate
             var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type, arguments, rtType);
 
             if (annotationAttr != null)
-                ft.Expansion = annotationAttr.Annotation;
+                ft.Annotation = annotationAttr.Annotation;
             else
-                ft.Expansion = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+                ft.Annotation = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
 
             ft.MethodInfo = mi;
             functions.Add(ft);
@@ -776,11 +776,11 @@ public class TypeTemplate
 
         var hasParent = HasParent(type);
         var classAnnotation = type.GetCustomAttribute<AnnotationAttribute>(false);
-        var hasAnnotation = classAnnotation != null && classAnnotation.Annotation != null;
+        var hasClassAnnotation = classAnnotation != null && classAnnotation.Annotation != null;
 
         var classNameBytes = DC.ToBytes(className);
 
-        b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasAnnotation ? 0x40 : 0x0) | (byte)templateType))
+        b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasClassAnnotation ? 0x40 : 0x0) | (byte)templateType))
          .AddGuid(classId)
          .AddUInt8((byte)classNameBytes.Length)
          .AddUInt8Array(classNameBytes);
@@ -793,7 +793,7 @@ public class TypeTemplate
             b.AddGuid(parentId);
         }
         
-        if (hasAnnotation)
+        if (hasClassAnnotation)
         {
             var classAnnotationBytes = DC.ToBytes(classAnnotation.Annotation);
             b.AddUInt16((ushort)classAnnotationBytes.Length)
@@ -856,7 +856,7 @@ public class TypeTemplate
         od.content = data.Clip(offset, contentLength);
 
         var hasParent = (data[offset] & 0x80) > 0;
-        var hasAnnotation = (data[offset] & 0x40) > 0;
+        var hasClassAnnotation = (data[offset] & 0x40) > 0;
 
         od.templateType = (TemplateType)(data[offset++] & 0xF);
 
@@ -872,7 +872,7 @@ public class TypeTemplate
             offset += 16;
         }
 
-        if (hasAnnotation)
+        if (hasClassAnnotation)
         {
             var len = data.GetUInt16(offset, Endian.Little);
             offset += 2;
@@ -897,8 +897,8 @@ public class TypeTemplate
 
             if (type == 0) // function
             {
-                string expansion = null;
-                var hasExpansion = ((data[offset++] & 0x10) == 0x10);
+                string annotation = null;
+                var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
 
                 var name = data.GetString(offset + 1, data[offset]);
                 offset += (uint)data[offset] + 1;
@@ -919,25 +919,25 @@ public class TypeTemplate
                 }
 
                 // arguments
-                if (hasExpansion) // expansion ?
+                if (hasAnnotation) // Annotation ?
                 {
                     var cs = data.GetUInt32(offset, Endian.Little);
                     offset += 4;
-                    expansion = data.GetString(offset, cs);
+                    annotation = data.GetString(offset, cs);
                     offset += cs;
                 }
 
-                var ft = new FunctionTemplate(od, functionIndex++, name, inherited, arguments.ToArray(), returnType, expansion);
+                var ft = new FunctionTemplate(od, functionIndex++, name, inherited, arguments.ToArray(), returnType, annotation);
 
                 od.functions.Add(ft);
             }
             else if (type == 1)    // property
             {
 
-                string readExpansion = null, writeExpansion = null;
+                string readAnnotation = null, writeAnnotation= null;
 
-                var hasReadExpansion = ((data[offset] & 0x8) == 0x8);
-                var hasWriteExpansion = ((data[offset] & 0x10) == 0x10);
+                var hasReadAnnotation = ((data[offset] & 0x8) == 0x8);
+                var hasWriteAnnotation = ((data[offset] & 0x10) == 0x10);
                 var recordable = ((data[offset] & 1) == 1);
                 var permission = (PropertyTemplate.PropertyPermission)((data[offset++] >> 1) & 0x3);
                 var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
@@ -948,31 +948,31 @@ public class TypeTemplate
 
                 offset += dts;
 
-                if (hasReadExpansion) // expansion ?
+                if (hasReadAnnotation) // annotation ?
                 {
                     var cs = data.GetUInt32(offset, Endian.Little);
                     offset += 4;
-                    readExpansion = data.GetString(offset, cs);
+                    readAnnotation = data.GetString(offset, cs);
                     offset += cs;
                 }
 
-                if (hasWriteExpansion) // expansion ?
+                if (hasWriteAnnotation) // annotation ?
                 {
                     var cs = data.GetUInt32(offset, Endian.Little);
                     offset += 4;
-                    writeExpansion = data.GetString(offset, cs);
+                    writeAnnotation = data.GetString(offset, cs);
                     offset += cs;
                 }
 
-                var pt = new PropertyTemplate(od, propertyIndex++, name, inherited, valueType, readExpansion, writeExpansion, recordable);
+                var pt = new PropertyTemplate(od, propertyIndex++, name, inherited, valueType, readAnnotation, writeAnnotation, recordable);
 
                 od.properties.Add(pt);
             }
             else if (type == 2) // Event
             {
 
-                string expansion = null;
-                var hasExpansion = ((data[offset] & 0x10) == 0x10);
+                string annotation = null;
+                var hasAnnotation = ((data[offset] & 0x10) == 0x10);
                 var listenable = ((data[offset++] & 0x8) == 0x8);
 
                 var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
@@ -982,15 +982,15 @@ public class TypeTemplate
 
                 offset += dts;
 
-                if (hasExpansion) // expansion ?
+                if (hasAnnotation) // annotation ?
                 {
                     var cs = data.GetUInt32(offset, Endian.Little);
                     offset += 4;
-                    expansion = data.GetString(offset, cs);
+                    annotation = data.GetString(offset, cs);
                     offset += cs;
                 }
 
-                var et = new EventTemplate(od, eventIndex++, name, inherited, argType, expansion, listenable);
+                var et = new EventTemplate(od, eventIndex++, name, inherited, argType, annotation, listenable);
 
                 od.events.Add(et);
 
@@ -998,8 +998,8 @@ public class TypeTemplate
             // constant
             else if (type == 3)
             {
-                string expansion = null;
-                var hasExpansion = ((data[offset++] & 0x10) == 0x10);
+                string annotation = null;
+                var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
 
                 var name = data.GetString(offset + 1, data[offset]);
                 offset += (uint)data[offset] + 1;
@@ -1012,15 +1012,15 @@ public class TypeTemplate
 
                 offset += dts;
 
-                if (hasExpansion) // expansion ?
+                if (hasAnnotation) // annotation ?
                 {
                     var cs = data.GetUInt32(offset, Endian.Little);
                     offset += 4;
-                    expansion = data.GetString(offset, cs);
+                    annotation = data.GetString(offset, cs);
                     offset += cs;
                 }
 
-                var ct = new ConstantTemplate(od, eventIndex++, name, inherited, valueType, value.Result, expansion);
+                var ct = new ConstantTemplate(od, eventIndex++, name, inherited, valueType, value.Result, annotation);
 
                 od.constants.Add(ct);
             }

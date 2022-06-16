@@ -39,15 +39,15 @@ public class ResourceProperty : System.Attribute
     public readonly bool Nullable;
     public readonly StorageMode Storage;
     public readonly bool Serialize;
-    public readonly string ReadExpansion;
-    public readonly string WriteExpansion;
+    public readonly string ReadAnnotation;
+    public readonly string WriteAnnotation;
 
 
     public ResourceProperty(StorageMode storage = StorageMode.NonVolatile, bool serialize = true, 
-                            string readExpansion = null, string writeExpansion = null)
+                            string readAnnotation = null, string writeAnnotation = null)
     {
-        this.ReadExpansion = readExpansion;
-        this.WriteExpansion = writeExpansion;
+        this.ReadAnnotation = readAnnotation;
+        this.WriteAnnotation = writeAnnotation;
         this.Storage = storage;
         this.Serialize = serialize;
     }

@@ -11,7 +11,7 @@ namespace Test
     [Annotation("A", "B", "C", "D")]
     public partial class MyResource
     {
-        [Public] string description;
+        [Public][Annotation("Comment")] string description;
         [Public] int categoryId;
     }
 }

@@ -284,12 +284,42 @@ public static class TemplateGenerator
                 continue;
 
             var rtTypeName = GetTypeName(f.ReturnType, templates);
+
+            var positionalArgs = f.Arguments.Where((x) => !x.Optional).ToArray();
+            var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
+
+
             rt.Append($"public AsyncReply<{rtTypeName}> {f.Name}(");
-            rt.Append(string.Join(",", f.Arguments.Select(x => GetTypeName(x.Type, templates) + " " + x.Name)));
+
+
+            if (positionalArgs.Length > 0)
+                rt.Append(
+                    String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, templates) + " " + a.Name)));
+
+            if (optionalArgs.Length > 0)
+            {
+                if (positionalArgs.Length > 0) rt.Append(",");
+
+                rt.Append(
+                    String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), templates) + " " + a.Name + " = null")));
+            }
+
+            //rt.Append(string.Join(",", f.Arguments.Select(x => GetTypeName(x.Type, templates) + " " + x.Name)));
 
             rt.AppendLine(") {");
+
+            rt.AppendLine(
+               $"var args = new Map<byte, object>(){{{ String.Join(", ", positionalArgs.Select((e) => "[" + e.Index + "] = " + e.Name))}}};");
+
+            foreach(var a in  optionalArgs) {
+                rt.AppendLine(
+                    $"if ({a.Name} != null) args[{a.Index}] = {a.Name};");
+            }
+
+            
             rt.AppendLine($"var rt = new AsyncReply<{rtTypeName}>();");
-            rt.AppendLine($"_InvokeByArrayArguments({f.Index}, new object[] {{ { string.Join(", ", f.Arguments.Select(x => x.Name)) } }})");
+            //rt.AppendLine($"_Invoke({f.Index}, new Map<byte, object>[] {{ { string.Join(", ",  f.Arguments.Select(x => x.Name)) } }})");
+            rt.AppendLine($"_Invoke({f.Index}, args)");
             rt.AppendLine($".Then(x => rt.Trigger(({rtTypeName})x))");
             rt.AppendLine($".Error(x => rt.TriggerError(x))");
             rt.AppendLine($".Chunk(x => rt.TriggerChunk(x));");

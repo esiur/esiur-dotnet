@@ -33,19 +33,19 @@ namespace Esiur.Resource;
 [AttributeUsage(AttributeTargets.Method)]
 public class ResourceFunction : System.Attribute
 {
-    private string expansion = null;
+    private string annotation = null;
 
-    public string Expansion
+    public string Annotation
     {
         get
         {
-            return expansion;
+            return annotation;
         }
     }
 
 
-    public ResourceFunction(string expansion = null)
+    public ResourceFunction(string annotation = null)
     {
-        this.expansion = expansion;
+        this.annotation = annotation;
     }
 }

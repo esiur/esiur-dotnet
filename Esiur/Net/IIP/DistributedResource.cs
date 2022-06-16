@@ -222,6 +222,7 @@ public class DistributedResource : DynamicObject, IResource
 
     public AsyncReply<object> _Invoke(byte index, Map<byte, object> args)
     {
+        
         if (destroyed)
             throw new Exception("Trying to access destroyed object");
 
