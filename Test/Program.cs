@@ -55,14 +55,14 @@ namespace Test
         {
 
             // Create stores to keep objects.
-            var system = await Warehouse.Put("mem", new MemoryStore());
-            var server = await Warehouse.Put("mem/server", new DistributedServer());
-            var web = await Warehouse.Put("mem/web", new HTTPServer() { Port = 8888});
+            var system = await Warehouse.Put("sys", new MemoryStore());
+            var server = await Warehouse.Put("sys/server", new DistributedServer());
+            var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8888});
 
-            var service = await Warehouse.Put("mem/service", new MyService());
-            var res1 = await Warehouse.Put("mem/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
-            var res2 = await Warehouse.Put("mem/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
-            var res3 = await Warehouse.Put("mem/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
+            var service = await Warehouse.Put("sys/service", new MyService());
+            var res1 = await Warehouse.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
+            var res2 = await Warehouse.Put("sys/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
+            var res3 = await Warehouse.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
 
 
             service.Resource = res1;
@@ -92,7 +92,7 @@ namespace Test
  
         private static async void TestClient(IResource local)
         {
-            dynamic remote = await Warehouse.Get<IResource>("iip://localhost/mem/service");
+            dynamic remote = await Warehouse.Get<IResource>("iip://localhost/sys/service");
 
             var con = remote.Connection as DistributedConnection;
             var template = await con.GetTemplateByClassName("Test.MyResource");
@@ -134,7 +134,7 @@ namespace Test
             //var childTemplate = remote.Child.Instance.Template;
 
 
-            var path = TemplateGenerator.GetTemplate("iip://localhost/mem/service", "Generated");
+            var path = TemplateGenerator.GetTemplate("iip://localhost/sys/service", "Generated");
 
             Console.WriteLine(path);
 

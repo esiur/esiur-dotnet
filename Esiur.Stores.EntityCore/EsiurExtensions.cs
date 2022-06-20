@@ -47,6 +47,7 @@ public static class EsiurExtensions
 
     //}
 
+
     public static T AddResource<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
         => AddResourceAsync(dbSet, resource).Wait();
 

@@ -219,16 +219,6 @@ public class TypeTemplate
         // Add self
         list.Add(template);
 
-        // Add parents
-        var parentType = template.ParentDefinedType;
-
-        // Get parents
-        while (parentType != null)
-        {
-            var parentTemplate = Warehouse.GetTemplateByType(parentType);
-            list.Add(parentTemplate);
-            parentType = parentTemplate.ParentDefinedType;
-        }
 
         Action<TypeTemplate, List<TypeTemplate>> getDependenciesFunc = null;
 
@@ -236,6 +226,20 @@ public class TypeTemplate
         {
             if (template.DefinedType == null)
                 return;
+
+            // Add parents
+            var parentType = tmp.ParentDefinedType;
+
+            // Get parents
+            while (parentType != null)
+            {
+                var parentTemplate = Warehouse.GetTemplateByType(parentType);
+                if (parentTemplate != null)
+                {
+                    list.Add(parentTemplate);
+                    parentType = parentTemplate.ParentDefinedType;
+                }
+            }
 
             // functions
             foreach (var f in tmp.functions)
@@ -803,7 +807,7 @@ public class TypeTemplate
         if (hasParent)
         {
             // find the first parent type that implements IResource
-            var ParentDefinedType = ResourceProxy.GetBaseType(type.BaseType);
+            ParentDefinedType = ResourceProxy.GetBaseType(type.BaseType);
             var parentId = GetTypeGuid(ParentDefinedType);
             b.AddGuid(parentId);
         }
@@ -838,7 +842,8 @@ public class TypeTemplate
         var parent = type.BaseType;
 
         if (parent == typeof(Resource)
-            || parent == typeof(Record))
+            || parent == typeof(Record)
+            || parent == typeof(EntryPoint))
             return false;
 
         while (parent != null)
