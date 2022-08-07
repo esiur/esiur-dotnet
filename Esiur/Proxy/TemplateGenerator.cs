@@ -69,7 +69,7 @@ public static class TemplateGenerator
         var rt = new StringBuilder();
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
-        rt.AppendLine($"namespace { nameSpace} {{");
+        rt.AppendLine($"namespace {nameSpace} {{");
 
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
@@ -99,7 +99,7 @@ public static class TemplateGenerator
         var rt = new StringBuilder();
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
-        rt.AppendLine($"namespace { nameSpace} {{");
+        rt.AppendLine($"namespace {nameSpace} {{");
 
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
@@ -136,7 +136,7 @@ public static class TemplateGenerator
                  representationType.Identifier == RepresentationTypeIdentifier.Tuple5 ||
                  representationType.Identifier == RepresentationTypeIdentifier.Tuple6 ||
                  representationType.Identifier == RepresentationTypeIdentifier.Tuple7)
-            name = "(" + String.Join(",", representationType.SubTypes.Select(x=> GetTypeName(x, templates)))
+            name = "(" + String.Join(",", representationType.SubTypes.Select(x => GetTypeName(x, templates)))
                     + ")";
         else
         {
@@ -263,7 +263,7 @@ public static class TemplateGenerator
         var rt = new StringBuilder();
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
-        rt.AppendLine($"namespace { nameSpace} {{");
+        rt.AppendLine($"namespace {nameSpace} {{");
 
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
@@ -289,37 +289,55 @@ public static class TemplateGenerator
             var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
 
 
-            rt.Append($"[Public] public AsyncReply<{rtTypeName}> {f.Name}(");
-
-
-            if (positionalArgs.Length > 0)
-                rt.Append(
-                    String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, templates) + " " + a.Name)));
-
-            if (optionalArgs.Length > 0)
+            if (f.IsStatic)
             {
-                if (positionalArgs.Length > 0) rt.Append(",");
+                rt.Append($"[Public] public static AsyncReply<{rtTypeName}> {f.Name}(DistributedConnection connection");
 
-                rt.Append(
-                    String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), templates) + " " + a.Name + " = null")));
+                if (positionalArgs.Length > 0)
+                    rt.Append(", " +
+                        String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, templates) + " " + a.Name)));
+
+                if (optionalArgs.Length > 0)
+                    rt.Append(", " +
+                        String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), templates) + " " + a.Name + " = null")));
+
             }
+            else
+            {
+                rt.Append($"[Public] public AsyncReply<{rtTypeName}> {f.Name}(");
 
-            //rt.Append(string.Join(",", f.Arguments.Select(x => GetTypeName(x.Type, templates) + " " + x.Name)));
+                if (positionalArgs.Length > 0)
+                    rt.Append(
+                        String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, templates) + " " + a.Name)));
+
+                if (optionalArgs.Length > 0)
+                {
+                    if (positionalArgs.Length > 0) rt.Append(",");
+
+                    rt.Append(
+                        String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), templates) + " " + a.Name + " = null")));
+                }
+            }
 
             rt.AppendLine(") {");
 
             rt.AppendLine(
-               $"var args = new Map<byte, object>(){{{ String.Join(", ", positionalArgs.Select((e) => "[" + e.Index + "] = " + e.Name))}}};");
+               $"var args = new Map<byte, object>(){{{String.Join(", ", positionalArgs.Select((e) => "[" + e.Index + "] = " + e.Name))}}};");
 
-            foreach(var a in  optionalArgs) {
+            foreach (var a in optionalArgs)
+            {
                 rt.AppendLine(
                     $"if ({a.Name} != null) args[{a.Index}] = {a.Name};");
             }
 
-            
+
             rt.AppendLine($"var rt = new AsyncReply<{rtTypeName}>();");
-            //rt.AppendLine($"_Invoke({f.Index}, new Map<byte, object>[] {{ { string.Join(", ",  f.Arguments.Select(x => x.Name)) } }})");
-            rt.AppendLine($"_Invoke({f.Index}, args)");
+
+            if (f.IsStatic)
+                rt.AppendLine($"connection.StaticCall(Guid.Parse(\"{template.ClassId.ToString()}\"), {f.Index}, args)");
+            else
+                rt.AppendLine($"_Invoke({f.Index}, args)");
+
             rt.AppendLine($".Then(x => rt.Trigger(({rtTypeName})x))");
             rt.AppendLine($".Error(x => rt.TriggerError(x))");
             rt.AppendLine($".Chunk(x => rt.TriggerChunk(x));");
@@ -350,7 +368,7 @@ public static class TemplateGenerator
 
         if (template.Events.Length > 0)
         {
-            
+
             rt.AppendLine("protected override void _EmitEventByIndex(byte index, object args) {");
             rt.AppendLine("switch (index) {");
 

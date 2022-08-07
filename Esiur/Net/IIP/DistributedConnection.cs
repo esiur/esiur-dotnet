@@ -40,12 +40,16 @@ using System.Linq;
 using System.Diagnostics;
 using static Esiur.Net.Packets.IIPPacket;
 using Esiur.Net.HTTP;
+using System.Timers;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
 {
     public delegate void ReadyEvent(DistributedConnection sender);
     public delegate void ErrorEvent(DistributedConnection sender, byte errorCode, string errorMessage);
+
+
+    Timer keepAliveTimer;
 
     /// <summary>
     /// Ready event is raised when the connection is fully established.
@@ -330,12 +334,63 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else
                 x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
         });
-        //q.timeout?.Dispose();
+
 
         var r = new Random();
         localNonce = new byte[32];
         r.NextBytes(localNonce);
+
+        keepAliveTimer = new Timer(KeepAliveInterval * 1000);
+        keepAliveTimer.Elapsed += KeepAliveTimer_Elapsed;
     }
+
+    [Public] public virtual uint Jitter { get; set; }
+
+    public uint KeepAliveTime { get; set; } = 10;
+
+    DateTime? lastKeepAliveSent;
+
+    private void KeepAliveTimer_Elapsed(object sender, ElapsedEventArgs e)
+    {
+        if (!IsConnected)
+            return;
+
+
+        keepAliveTimer.Stop();
+
+        var now = DateTime.UtcNow;
+
+        uint interval = lastKeepAliveSent == null ? 0 :
+                        (uint)(now - (DateTime)lastKeepAliveSent).TotalMilliseconds;
+
+        lastKeepAliveSent = now;
+
+        SendRequest(IIPPacketAction.KeepAlive)
+                .AddDateTime(now)
+                .AddUInt32(interval)
+                .Done()
+                .Then(x =>
+                {
+
+                    Jitter = (uint)x[1];
+                    keepAliveTimer.Start();
+                        //Console.WriteLine($"Keep Alive Received {Jitter}");
+                }).Error(ex =>
+                {
+                    keepAliveTimer.Stop();
+                    Close();
+                }).Timeout((int)(KeepAliveTime * 1000), () =>
+                {
+                    keepAliveTimer.Stop();
+                    Close();
+                });
+
+        //Console.WriteLine("Keep Alive sent");
+
+
+    }
+
+    public uint KeepAliveInterval { get; set; } = 30;
 
     public override void Destroy()
     {
@@ -535,6 +590,19 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             // @TODO : fix this
                             //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
+
+                        case IIPPacketAction.KeepAlive:
+                            IIPRequestKeepAlive(packet.CallbackId, packet.CurrentTime, packet.Interval);
+                            break;
+
+                        case IIPPacketAction.ProcedureCall:
+                            IIPRequestProcedureCall(packet.CallbackId, packet.Procedure, (TransmissionType)packet.DataType, msg);
+                            break;
+
+                        case IIPPacketAction.StaticCall:
+                            IIPRequestStaticCall(packet.CallbackId, packet.ClassId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
+                            break;
+
                     }
                 }
                 else if (packet.Command == IIPPacket.IIPPacketCommand.Reply)
@@ -584,7 +652,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
 
                         // Invoke
-                        case IIPPacket.IIPPacketAction.InvokeFunction:
+                        case IIPPacketAction.InvokeFunction:
+                        case IIPPacketAction.StaticCall:
+                        case IIPPacketAction.ProcedureCall:
                             IIPReplyInvoke(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
@@ -615,6 +685,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPReply(packet.CallbackId);
                             break;
 
+                        case IIPPacketAction.KeepAlive:
+                            IIPReply(packet.CallbackId, packet.CurrentTime, packet.Jitter);
+                            break;
                     }
 
                 }
@@ -781,28 +854,28 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 {
                                     Server.Membership.TokenExists(authPacket.RemoteTokenIndex, authPacket.Domain).Then(x =>
                                     {
-                                 if (x != null)
-                                 {
-                                     session.RemoteAuthentication.Username = x;
-                                     session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
-                                     remoteNonce = authPacket.RemoteNonce;
-                                     session.RemoteAuthentication.Domain = authPacket.Domain;
-                                     SendParams()
-                                                 .AddUInt8(0xa0)
-                                                 .AddUInt8Array(localNonce)
-                                                 .Done();
-                                 }
-                                 else
-                                 {
-                                     //Console.WriteLine("User not found");
-                                     SendParams()
-                                                 .AddUInt8(0xc0)
-                                                 .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                 .AddUInt16(15)
-                                                 .AddString("Token not found")
-                                                 .Done();
-                                 }
-                             });
+                                        if (x != null)
+                                        {
+                                            session.RemoteAuthentication.Username = x;
+                                            session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
+                                            remoteNonce = authPacket.RemoteNonce;
+                                            session.RemoteAuthentication.Domain = authPacket.Domain;
+                                            SendParams()
+                                                        .AddUInt8(0xa0)
+                                                        .AddUInt8Array(localNonce)
+                                                        .Done();
+                                        }
+                                        else
+                                        {
+                                            //Console.WriteLine("User not found");
+                                            SendParams()
+                                                        .AddUInt8(0xc0)
+                                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                                        .AddUInt16(15)
+                                                        .AddString("Token not found")
+                                                        .Done();
+                                        }
+                                    });
                                 }
                             }
                             catch (Exception ex)
@@ -937,7 +1010,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 {
                                     Warehouse.Put(this.RemoteUsername, this, null, Server).Then(x =>
                                     {
-
                                         ready = true;
                                         openReply?.Trigger(true);
                                         OnReady?.Invoke(this);
@@ -1061,6 +1133,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 openReply?.Trigger(true);
                                 OnReady?.Invoke(this);
                             }
+
+                            // start perodic keep alive timer
+                            keepAliveTimer.Start();
                         }
                     }
                     else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
@@ -1326,28 +1401,61 @@ public partial class DistributedConnection : NetworkConnection, IStore
         // clean up
         readyToEstablish = false;
 
+        keepAliveTimer.Stop();
+
+
         foreach (var x in requests.Values)
-            x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+        {
+            try
+            {
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+            }
+            catch (Exception ex)
+            {
+                Global.Log(ex);
+            }
+        }
 
         foreach (var x in resourceRequests.Values)
-            x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+        {
+            try
+            {
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+            }
+            catch (Exception ex)
+            {
+                Global.Log(ex);
+            }
+        }
 
         foreach (var x in templateRequests.Values)
-            x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+        {
+            try
+            {
+                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+            }
+            catch (Exception ex)
+            {
+                Global.Log(ex);
+            }
+        }
 
         requests.Clear();
         resourceRequests.Clear();
         templateRequests.Clear();
 
-        foreach (var x in resources.Values)
-            x.Suspend();
 
-        UnsubscribeAll();
 
-        Warehouse.Remove(this);
+        if (Server != null) {
+            foreach (var x in resources.Values)
+                x.Suspend();
+            UnsubscribeAll();
+            Warehouse.Remove(this);
 
-        if (ready)
-            Server?.Membership?.Logout(session);
+            if (ready)
+                Server.Membership?.Logout(session);
+        };
+
 
         ready = false;
     }

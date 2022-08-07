@@ -57,7 +57,14 @@ namespace Test
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
             var server = await Warehouse.Put("sys/server", new DistributedServer());
-            var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8888});
+
+            server.MapCall("Hello", (string msg, DateTime time, DistributedConnection sender) =>
+            {
+                Console.WriteLine(msg);
+                return "Hi " + DateTime.UtcNow;
+            });
+
+            var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8088});
 
             var service = await Warehouse.Put("sys/service", new MyService());
             var res1 = await Warehouse.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
@@ -95,6 +102,9 @@ namespace Test
             dynamic remote = await Warehouse.Get<IResource>("iip://localhost/sys/service");
 
             var con = remote.Connection as DistributedConnection;
+
+            var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);
+
             var template = await con.GetTemplateByClassName("Test.MyResource");
 
 

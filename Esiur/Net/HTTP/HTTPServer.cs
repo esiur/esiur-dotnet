@@ -128,46 +128,9 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         }
     }
 
-    struct VarInfo
-    { 
-        public string Pre;
-        public string Post;
-        public string VarName;
-
-        public string Build()
-        {
-            return Regex.Escape(Pre) + @"(?<" + VarName + @">[^\{]*)" + Regex.Escape(Post);
-        }
-    }
 
 
 
-    static Regex getRouteRegex(string url)
-    {
-        var sc = Regex.Match(url, @"([^\{]*)\{([^\}]*)\}([^\{]*)");
-
-        List<VarInfo> vars = new List<VarInfo>();
-
-        while (sc.Success)
-        {
-            vars.Add(new VarInfo()
-            {
-                Pre = sc.Groups[1].Value,
-                VarName = sc.Groups[2].Value,
-                Post = sc.Groups[3].Value
-            });
-            sc = sc.NextMatch();
-        }
-
-        if (vars.Count > 0)
-        {
-            return new Regex("^" + String.Join("", vars.Select(x => x.Build()).ToArray()) + "$");
-        }
-        else
-        {
-            return new Regex("^" + Regex.Escape(url) + "$");
-        }
-    }
 
 
     public Instance Instance
@@ -276,18 +239,17 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         return false;
     }
 
-    //public delegate void HTTPGetHandler(HTTPConnection connection, object[] params values);
-
+    
     public void MapGet(string pattern, Delegate handler)
     {
-        var regex = getRouteRegex(pattern);
+        var regex = Global.GetRouteRegex(pattern);
         var list = routes[HTTPRequestPacket.HTTPMethod.GET];
         list.Add(new RouteInfo(handler, regex));
     }
 
     public void MapPost(string pattern, Delegate handler)
     {
-        var regex = getRouteRegex(pattern);
+        var regex = Global.GetRouteRegex(pattern);
         var list = routes[HTTPRequestPacket.HTTPMethod.POST];
         list.Add(new RouteInfo(handler, regex));
     }

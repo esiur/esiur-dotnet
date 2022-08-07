@@ -47,5 +47,4 @@ public class AsyncAwaiter<T> : INotifyCompletion
             callback = continuation;
     }
 
-
 }

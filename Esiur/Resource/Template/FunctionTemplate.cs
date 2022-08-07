@@ -24,6 +24,8 @@ public class FunctionTemplate : MemberTemplate
 
     public RepresentationType ReturnType { get; set; }
 
+    public bool IsStatic { get; set; }
+
     public ArgumentTemplate[] Arguments { get; set; }
 
     public MethodInfo MethodInfo
@@ -53,20 +55,20 @@ public class FunctionTemplate : MemberTemplate
             var exp = DC.ToBytes(Annotation);
             bl.AddInt32(exp.Length)
             .AddUInt8Array(exp);
-            bl.InsertUInt8(0, Inherited ? (byte)0x90 : (byte)0x10);
+            bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x90 : (byte)0x10) | (IsStatic ? 0x4 : 0)));
         }
         else
-            bl.InsertUInt8(0, Inherited ? (byte)0x80 : (byte)0x0);
+            bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x80 : (byte)0x0) | (IsStatic ? 0x4 : 0)));
 
         return bl.ToArray();
     }
 
-     public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, ArgumentTemplate[] arguments, RepresentationType returnType, string annotation = null)
+     public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, RepresentationType returnType, string annotation = null)
         : base(template, index, name, inherited)
     {
-        //this.IsVoid = isVoid;
         this.Arguments = arguments;
         this.ReturnType = returnType;
         this.Annotation = annotation;
+        this.IsStatic = isStatic;
     }
 }

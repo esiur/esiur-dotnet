@@ -222,9 +222,8 @@ public class DistributedResource : DynamicObject, IResource
 
     public AsyncReply<object> _Invoke(byte index, Map<byte, object> args)
     {
-        
         if (destroyed)
-            throw new Exception("Trying to access destroyed object");
+            throw new Exception("Trying to access a destroyed object");
 
         if (suspended)
             throw new Exception("Trying to access suspended object");
@@ -232,10 +231,16 @@ public class DistributedResource : DynamicObject, IResource
         if (index >= Instance.Template.Functions.Length)
             throw new Exception("Function index is incorrect");
 
+        var ft = Instance.Template.GetFunctionTemplateByIndex(index);
 
-        return connection.SendInvoke(instanceId, index, args);
+        if (ft == null)
+            throw new Exception("Function template not found.");
+
+        if (ft.IsStatic)
+            return connection.StaticCall(Instance.Template.ClassId, index, args);
+        else
+            return connection.SendInvoke(instanceId, index, args);
     }
-
 
     public AsyncReply Listen(EventTemplate et)
     {

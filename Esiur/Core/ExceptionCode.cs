@@ -40,5 +40,6 @@ public enum ExceptionCode : ushort
     NotAttached,
     AlreadyListened,
     AlreadyUnlistened,
-    NotListenable
+    NotListenable,
+    ParseError
 }

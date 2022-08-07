@@ -176,5 +176,11 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 
     }
 
+    public KeyList<string, Delegate> Calls { get; } = new KeyList<string, Delegate>();
+
+    public void MapCall(string call, Delegate handler)
+    {
+        Calls.Add(call, handler);
+    }
 
 }

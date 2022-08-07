@@ -482,6 +482,36 @@ public static Hashtable Cached
         else
             return Expression;
     }
+
+
+
+    public static Regex GetRouteRegex(string url)
+    {
+        var sc = Regex.Match(url, @"([^\{]*)\{([^\}]*)\}([^\{]*)");
+
+        List<VarInfo> vars = new List<VarInfo>();
+
+        while (sc.Success)
+        {
+            vars.Add(new VarInfo()
+            {
+                Pre = sc.Groups[1].Value,
+                VarName = sc.Groups[2].Value,
+                Post = sc.Groups[3].Value
+            });
+            sc = sc.NextMatch();
+        }
+
+        if (vars.Count > 0)
+        {
+            return new Regex("^" + String.Join("", vars.Select(x => x.Build()).ToArray()) + "$");
+        }
+        else
+        {
+            return new Regex("^" + Regex.Escape(url) + "$");
+        }
+    }
+
     //public void Replace(string Expression, string Find, string Replacement, int Start, int Count)
     //{
     //    Expression.IndexOf(

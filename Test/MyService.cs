@@ -37,6 +37,8 @@ public partial class MyService
         return new MyGenericRecord<MyResource>() { Needed = 3, Start = 10, Results = new MyResource[0], Total = 102 };
     }
 
+    [Public] public static string staticFunction(string name) => $"Hello {name}";
+
     [Public] byte uInt8Test = 8;
     [Public] byte? uInt8Null = null;
     [Public] byte[] uInt8Array = new byte[] { 0, 1, 2, 3, 4, 5 };

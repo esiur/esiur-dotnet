@@ -90,6 +90,16 @@ public class AsyncReply
         return result;
     }
 
+    public AsyncReply Timeout(int milliseconds, Action callback)
+    {
+        Task.Delay(milliseconds).ContinueWith(x =>
+        {
+            if (!resultReady && exception == null)
+                callback();
+        });
+
+        return this;
+    }
 
     public object Wait(int millisecondsTimeout)
     {

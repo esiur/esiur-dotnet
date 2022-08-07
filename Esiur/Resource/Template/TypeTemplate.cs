@@ -409,9 +409,9 @@ public class TypeTemplate
 
 
 
-        PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
-        EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
-        MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance); // | BindingFlags.DeclaredOnly);
+        PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);
+        MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static); 
         FieldInfo[] constantsInfo = type.GetFields(BindingFlags.Public | BindingFlags.Static);
 
 
@@ -423,7 +423,7 @@ public class TypeTemplate
             var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
             var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
 
-            var valueType = RepresentationType.FromType(ci.FieldType);//, nullable != null && nullable.NullableFlags[0] == 2);
+            var valueType = RepresentationType.FromType(ci.FieldType);
 
             if (valueType == null)
                 throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
@@ -446,8 +446,6 @@ public class TypeTemplate
             var propType = genericPropType == typeof(DistributedPropertyContext<>) ?
                     RepresentationType.FromType(pi.PropertyType.GetGenericArguments()[0]) :
                     RepresentationType.FromType(pi.PropertyType);
-
-            //var propType = RepresentationType.FromType(pi.PropertyType);//, nullableAttr != null && nullableAttr.Flag == 2);
 
             if (propType == null)
                 throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
@@ -497,7 +495,7 @@ public class TypeTemplate
         var addEvent = (EventInfo ei, PublicAttribute publicAttr) =>
         {
             var argType = ei.EventHandlerType.GenericTypeArguments[0];
-            var evtType = RepresentationType.FromType(argType);//, argIsNull);
+            var evtType = RepresentationType.FromType(argType);
 
             if (evtType == null)
                 throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
@@ -641,7 +639,9 @@ public class TypeTemplate
 
             var fn = publicAttr.Name ?? mi.Name;
 
-            var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type, arguments, rtType);
+            var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type,
+                mi.IsStatic,
+                arguments, rtType);
 
             if (annotationAttr != null)
                 ft.Annotation = annotationAttr.Annotation;
@@ -918,6 +918,9 @@ public class TypeTemplate
             if (type == 0) // function
             {
                 string annotation = null;
+                var isStatic = ((data[offset] & 0x4) == 0x4);
+
+
                 var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
 
                 var name = data.GetString(offset + 1, data[offset]);
@@ -947,7 +950,7 @@ public class TypeTemplate
                     offset += cs;
                 }
 
-                var ft = new FunctionTemplate(od, functionIndex++, name, inherited, arguments.ToArray(), returnType, annotation);
+                var ft = new FunctionTemplate(od, functionIndex++, name, inherited, isStatic, arguments.ToArray(), returnType, annotation);
 
                 od.functions.Add(ft);
             }

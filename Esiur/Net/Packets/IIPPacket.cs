@@ -121,7 +121,13 @@ class IIPPacket : Packet
         ClearAllAttributes,
         GetAttributes,
         UpdateAttributes,
-        ClearAttributes
+        ClearAttributes,
+
+
+        // Static calling
+        KeepAlive = 0x20,
+        ProcedureCall,
+        StaticCall
     }
 
     public enum IIPPacketReport : byte
@@ -199,6 +205,11 @@ class IIPPacket : Packet
     public DateTime ToDate { get; set; }
     public ulong FromAge { get; set; }
     public ulong ToAge { get; set; }
+
+    public DateTime CurrentTime { get; set; }
+    public uint Interval { get; set; }
+    public uint Jitter { get; set; }
+    public string Procedure { get; set; }
 
     private uint dataLengthNeeded;
     private uint originalOffset;
@@ -313,7 +324,7 @@ class IIPPacket : Packet
 
                 MethodIndex = data[offset++];
 
-                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
 
                 //var dt = (DataType)data[offset++];
@@ -583,7 +594,7 @@ class IIPPacket : Packet
 
                 MethodIndex = data[offset++];
 
-                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;
@@ -615,6 +626,60 @@ class IIPPacket : Packet
                 //Content = data.Clip(offset, cl);
                 offset += cl;
             }
+
+            else if (Action == IIPPacketAction.KeepAlive)
+            {
+                if (NotEnough(offset, ends, 12))
+                    return -dataLengthNeeded;
+
+                CurrentTime = data.GetDateTime(offset, Endian.Little);
+                offset += 8;
+                Interval = data.GetUInt32(offset, Endian.Little);
+                offset += 4;
+
+            }
+            else if (Action == IIPPacketAction.ProcedureCall)
+            {
+                if (NotEnough(offset, ends, 2))
+                    return -dataLengthNeeded;
+
+                var cl = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+                if (NotEnough(offset, ends, cl))
+                    return -dataLengthNeeded;
+                
+                Procedure = data.GetString(offset, cl);
+                offset += cl;
+
+                if (NotEnough(offset, ends, 1))
+                    return -dataLengthNeeded;
+
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+
+                if (DataType == null)
+                    return -(int)size;
+
+                offset += (uint)size;
+
+            } else if (Action == IIPPacketAction.StaticCall)
+            {
+                if (NotEnough(offset, ends, 18))
+                    return -dataLengthNeeded;
+
+                ClassId = data.GetGuid(offset);//, Endian.Little);
+                offset += 16;
+
+                MethodIndex = data[offset++];
+
+
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+
+                if (DataType == null)
+                    return -(int)size;
+
+                offset += (uint)size;
+            }
         }
         else if (Command == IIPPacketCommand.Reply)
         {
@@ -641,10 +706,10 @@ class IIPPacket : Packet
                 offset += cl;
 
                 //if (NotEnough(offset, ends, 4))
-                  //  return -dataLengthNeeded;
+                //  return -dataLengthNeeded;
 
 
-                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;
@@ -690,7 +755,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                (var size, DataType) = TransmissionType.Parse(data, offset, ends );
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;
@@ -706,14 +771,14 @@ class IIPPacket : Packet
                 //Content = data.Clip(offset, cl);
                 //offset += cl;
             }
-            else if (Action == IIPPacketAction.InvokeFunction)
-            //|| Action == IIPPacketAction.GetProperty
-            //|| Action == IIPPacketAction.GetPropertyIfModified)
+            else if (Action == IIPPacketAction.InvokeFunction
+                || Action == IIPPacketAction.ProcedureCall
+                || Action == IIPPacketAction.StaticCall)
             {
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                 (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;
@@ -727,6 +792,16 @@ class IIPPacket : Packet
                 || Action == IIPPacketAction.Unlisten)
             {
                 // nothing to do
+            }
+            else if (Action == IIPPacketAction.KeepAlive)
+            {
+                if (NotEnough(offset, ends, 12))
+                    return -dataLengthNeeded;
+
+                CurrentTime = data.GetDateTime(offset, Endian.Little);
+                offset += 8;
+                Jitter = data.GetUInt32(offset, Endian.Little);
+                offset += 4;
             }
         }
         else if (Command == IIPPacketCommand.Report)
@@ -775,7 +850,7 @@ class IIPPacket : Packet
                     return -dataLengthNeeded;
 
 
-                 (var size, DataType) = TransmissionType.Parse(Data, offset, ends );
+                (var size, DataType) = TransmissionType.Parse(Data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;
