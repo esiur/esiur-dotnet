@@ -37,19 +37,21 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
+using Esiur.Misc;
 
 namespace Esiur.Net.IIP;
 
 partial class DistributedConnection
 {
-    KeyList<uint, DistributedResource> resources = new KeyList<uint, DistributedResource>();
+    KeyList<uint, DistributedResource> neededResources = new KeyList<uint, DistributedResource>();
+    KeyList<uint, WeakReference<DistributedResource>> attachedResources = new KeyList<uint, WeakReference<DistributedResource>>();
+    KeyList<uint, WeakReference<DistributedResource>> suspendedResources = new KeyList<uint, WeakReference<DistributedResource>>();
+
     KeyList<uint, AsyncReply<DistributedResource>> resourceRequests = new KeyList<uint, AsyncReply<DistributedResource>>();
     KeyList<Guid, AsyncReply<TypeTemplate>> templateRequests = new KeyList<Guid, AsyncReply<TypeTemplate>>();
 
     KeyList<string, AsyncReply<TypeTemplate>> templateByNameRequests = new KeyList<string, AsyncReply<TypeTemplate>>();
 
-
-    KeyList<string, AsyncReply<IResource>> pathRequests = new KeyList<string, AsyncReply<IResource>>();
 
     Dictionary<Guid, TypeTemplate> templates = new Dictionary<Guid, TypeTemplate>();
 
@@ -57,10 +59,9 @@ partial class DistributedConnection
 
     volatile uint callbackCounter = 0;
 
-    //List<IResource> subscriptions = new List<IResource>();
-    Dictionary<IResource, List<byte>> subscriptions = new Dictionary<IResource, List<byte>>();// new List<IResource>();
+    Dictionary<IResource, List<byte>> subscriptions = new Dictionary<IResource, List<byte>>();
 
-
+    // resources might get attched by the client
     internal KeyList<IResource, DateTime> cache = new();
 
     object subscriptionsLock = new object();
@@ -217,6 +218,24 @@ partial class DistributedConnection
         }
     }
 
+    public async void DetachResource(uint instanceId)
+    {
+        try
+        {
+            if (attachedResources.ContainsKey(instanceId))
+                attachedResources.Remove(instanceId);
+
+            if (suspendedResources.ContainsKey(instanceId))
+                suspendedResources.Remove(instanceId);
+
+            await SendDetachRequest(instanceId);
+        }
+        catch 
+        {
+
+        }
+    }
+
     void SendError(ErrorType type, uint callbackId, ushort errorCode, string errorMessage = "")
     {
         var msg = DC.ToBytes(errorMessage);
@@ -306,11 +325,19 @@ partial class DistributedConnection
 
     void IIPEventResourceDestroyed(uint resourceId)
     {
-        if (resources.Contains(resourceId))
+        if (attachedResources.Contains(resourceId))
         {
-            var r = resources[resourceId];
-            resources.Remove(resourceId);
-            r.Destroy();
+            DistributedResource r;
+
+            if (attachedResources[resourceId].TryGetTarget(out r))
+                r.Destroy();
+
+            attachedResources.Remove(resourceId);
+        }
+        else if (neededResources.Contains(resourceId))
+        {
+            // @TODO: handle this mess
+            neededResources.Remove(resourceId);
         }
     }
 
@@ -1229,9 +1256,6 @@ partial class DistributedConnection
 
     }
 
-    [Attribute]
-    public ExceptionLevel ExceptionLevel { get; set; }
-        = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
     private Tuple<ushort, string> SummerizeException(Exception ex)
     {
@@ -2115,18 +2139,18 @@ partial class DistributedConnection
         */
     }
 
-    /// <summary>
-    /// Retrive a resource by its instance Id.
-    /// </summary>
-    /// <param name="iid">Instance Id</param>
-    /// <returns>Resource</returns>
-    public AsyncReply<IResource> Retrieve(uint iid)
-    {
-        foreach (var r in resources.Values)
-            if (r.Instance.Id == iid)
-                return new AsyncReply<IResource>(r);
-        return new AsyncReply<IResource>(null);
-    }
+    ///// <summary>
+    ///// Retrive a resource by its instance Id.
+    ///// </summary>
+    ///// <param name="iid">Instance Id</param>
+    ///// <returns>Resource</returns>
+    //public AsyncReply<IResource> Retrieve(uint iid)
+    //{
+    //    foreach (var r in resources.Values)
+    //        if (r.Instance.Id == iid)
+    //            return new AsyncReply<IResource>(r);
+    //    return new AsyncReply<IResource>(null);
+    //}
 
 
     public AsyncReply<TypeTemplate[]> GetLinkTemplates(string link)
@@ -2173,7 +2197,15 @@ partial class DistributedConnection
     /// <returns>DistributedResource</returns>
     public AsyncReply<DistributedResource> Fetch(uint id, uint[] requestSequence)
     {
-        var resource = resources[id];
+        DistributedResource resource = null;
+
+        attachedResources[id]?.TryGetTarget(out resource);
+
+        if (resource != null)
+            return new AsyncReply<DistributedResource>(resource);
+
+        resource = neededResources[id];
+
         var request = resourceRequests[id];
 
         if (request != null)
@@ -2185,7 +2217,10 @@ partial class DistributedConnection
         }
         else if (resource != null && !resource.Suspended)
         {
+            // @REVIEW: this should never happen
+            Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
             return new AsyncReply<DistributedResource>(resource);
+
         }
 
 
@@ -2220,7 +2255,10 @@ partial class DistributedConnection
                                 dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
                         }
                         else
+                        {
                             dr = resource;
+                            template = resource.Instance.Template;
+                        }
 
                         var transmissionType = (TransmissionType)rt[3];
                         var content = (byte[])rt[4];
@@ -2239,6 +2277,9 @@ partial class DistributedConnection
 
                                 dr._Attach(pvs.ToArray());// (PropertyValue[])pvs);
                                 resourceRequests.Remove(id);
+                                // move from needed to attached.
+                                neededResources.Remove(id);
+                                attachedResources[id] = new WeakReference<DistributedResource>(dr);
                                 reply.Trigger(dr);
                             }).Error(ex => reply.TriggerError(ex));
 

@@ -34,6 +34,7 @@ using Esiur.Core;
 using System.Net;
 using Esiur.Resource;
 using Esiur.Security.Membership;
+using System.Threading.Tasks;
 
 namespace Esiur.Net.IIP;
 public class DistributedServer : NetworkServer<DistributedConnection>, IResource
@@ -148,11 +149,20 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
     //    base.AddConnection(connection);
     //}
 
-
+    bool one = false;
 
     protected override void ClientConnected(DistributedConnection connection)
     {
+       // if (!one)
         //connection.OnReady += ConnectionReadyEventReceiver;
+        Task.Delay(10000).ContinueWith((x) =>
+        {
+            Console.WriteLine("By bye");
+            // Remove me from here
+            connection.Close();
+            one = true;
+        });
+
     }
 
     public override void Add(DistributedConnection connection)
@@ -178,9 +188,10 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 
     public KeyList<string, Delegate> Calls { get; } = new KeyList<string, Delegate>();
 
-    public void MapCall(string call, Delegate handler)
+    public DistributedServer MapCall(string call, Delegate handler)
     {
         Calls.Add(call, handler);
+        return this;
     }
 
 }

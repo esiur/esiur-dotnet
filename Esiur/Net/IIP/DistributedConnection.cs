@@ -41,6 +41,7 @@ using System.Diagnostics;
 using static Esiur.Net.Packets.IIPPacket;
 using Esiur.Net.HTTP;
 using System.Timers;
+using System.Threading.Tasks;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
@@ -374,7 +375,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                     Jitter = (uint)x[1];
                     keepAliveTimer.Start();
-                        //Console.WriteLine($"Keep Alive Received {Jitter}");
+                    //Console.WriteLine($"Keep Alive Received {Jitter}");
                 }).Error(ex =>
                 {
                     keepAliveTimer.Stop();
@@ -1001,7 +1002,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 var r = new Random();
                                 session.Id = new byte[32];
                                 r.NextBytes(session.Id);
-                                //SendParams((byte)0x28, session.Id);
+                                
                                 SendParams().AddUInt8(0x28)
                                             .AddUInt8Array(session.Id)
                                             .Done();
@@ -1012,6 +1013,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     {
                                         ready = true;
                                         openReply?.Trigger(true);
+                                        openReply = null;
                                         OnReady?.Invoke(this);
 
                                         Server?.Membership?.Login(session);
@@ -1020,12 +1022,16 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     }).Error(x =>
                                     {
                                         openReply?.TriggerError(x);
+                                        openReply = null;
+
                                     });
                                 }
                                 else
                                 {
                                     ready = true;
                                     openReply?.Trigger(true);
+                                    openReply = null;
+
                                     OnReady?.Invoke(this);
                                     Server?.Membership?.Login(session);
                                 }
@@ -1125,12 +1131,20 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 {
                                     openReply?.Trigger(true);
                                     OnReady?.Invoke(this);
+                                    openReply = null;
 
-                                }).Error(x => openReply?.TriggerError(x));
+
+                                }).Error(x =>
+                                {
+                                    openReply?.TriggerError(x);
+                                    openReply = null;
+                                });
                             }
                             else
                             {
                                 openReply?.Trigger(true);
+                                openReply = null;
+
                                 OnReady?.Invoke(this);
                             }
 
@@ -1140,7 +1154,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     }
                     else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
                     {
+                        invalidCredentials = true;
                         openReply?.TriggerError(new AsyncException(ErrorType.Management, authPacket.ErrorCode, authPacket.ErrorMessage));
+                        openReply = null;
                         OnError?.Invoke(this, authPacket.ErrorCode, authPacket.ErrorMessage);
                         Close();
                     }
@@ -1187,6 +1203,15 @@ public partial class DistributedConnection : NetworkConnection, IStore
         }
     }
 
+    [Attribute]
+    public ExceptionLevel ExceptionLevel { get; set; }
+    = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
+
+
+    bool invalidCredentials = false;
+
+    [Attribute]
+    public bool AutoReconnect { get; set; } = false;
 
     [Attribute]
     public string Username { get; set; }
@@ -1261,6 +1286,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
             session.LocalAuthentication.Domain = domain;
             session.LocalAuthentication.Username = username;
             localPasswordOrToken = passwordOrToken;
+
+            invalidCredentials = false;
             //localPassword = password;
         }
 
@@ -1275,42 +1302,97 @@ public partial class DistributedConnection : NetworkConnection, IStore
         if (hostname != null)
             this._hostname = hostname;
 
+        connectSocket(socket);
+
+        return openReply;
+    }
+
+    void connectSocket(ISocket socket)
+    {
         socket.Connect(this._hostname, this._port).Then(x =>
         {
             Assign(socket);
         }).Error((x) =>
         {
-            openReply.TriggerError(x);
-            openReply = null;
+            if (AutoReconnect)
+            {
+                Console.Write("Reconnecting socket...");
+                Task.Delay(5000).ContinueWith((x) => connectSocket(socket));
+            }
+            else
+            {
+                openReply.TriggerError(x);
+                openReply = null;
+            }
         });
 
-        return openReply;
     }
 
     public async AsyncReply<bool> Reconnect()
     {
         try
         {
-            if (await Connect())
+            if (!await Connect())
+                return false;
+
+            try
             {
-                try
-                {
-                    var bag = new AsyncBag<IResource>();
 
-                    for (var i = 0; i < resources.Keys.Count; i++)
+                var toBeRestored = new List<DistributedResource>();
+                foreach (KeyValuePair<uint, WeakReference<DistributedResource>> kv in suspendedResources)
+                {
+                    DistributedResource r;
+                    if (kv.Value.TryGetTarget(out r))
+                        toBeRestored.Add(r);
+                }
+
+                foreach (var r in toBeRestored)
+                {
+
+                    var link = DC.ToBytes(r.Link);
+
+                    Console.WriteLine("Restoreing " + r.Link);
+
+                    try
                     {
-                        var index = resources.Keys.ElementAt(i);
-                        bag.Add(Fetch(index, null));
-                    }
+                        var ar = await SendRequest(IIPPacket.IIPPacketAction.QueryLink)
+                                            .AddUInt16((ushort)link.Length)
+                                            .AddUInt8Array(link)
+                                            .Done();
 
-                    bag.Seal();
-                    await bag;
+                        var dataType = (TransmissionType)ar[0];
+                        var data = ar[1] as byte[];
+
+                        if (dataType.Identifier == TransmissionTypeIdentifier.ResourceList)
+                        {
+                            // parse them as int
+                            var id = data.GetUInt32(8, Endian.Little);
+                            if (id != r.Id)
+                                r.Id = id;
+
+                            neededResources[id] = r;
+                            suspendedResources.Remove(id);
+
+                            await Fetch(id, null);
+
+                        }
+                    }
+                    catch (AsyncException ex)
+                    {
+                        if (ex.Code == ExceptionCode.ResourceNotFound)
+                        {
+                            // skip this resource
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Global.Log(ex);
-                    //print(ex.toString());
-                }
+            }
+            catch (Exception ex)
+            {
+                Global.Log(ex);
             }
         }
         catch
@@ -1331,7 +1413,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public AsyncReply<bool> Put(IResource resource)
     {
         if (Codec.IsLocalResource(resource, this))
-            resources.Add((resource as DistributedResource).Id, (DistributedResource)resource);
+            neededResources.Add((resource as DistributedResource).Id, (DistributedResource)resource);
         // else ... send it to the peer
         return new AsyncReply<bool>(true);
     }
@@ -1394,6 +1476,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
     {
         if (session.LocalAuthentication.Type == AuthenticationType.Client)
             Declare();
+
     }
 
     protected override void Disconencted()
@@ -1403,6 +1486,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         keepAliveTimer.Stop();
 
+        // @TODO: lock requests
 
         foreach (var x in requests.Values)
         {
@@ -1445,17 +1529,39 @@ public partial class DistributedConnection : NetworkConnection, IStore
         templateRequests.Clear();
 
 
+        foreach (var x in attachedResources.Values)
+        {
+            DistributedResource r;
+            if (x.TryGetTarget(out r))
+            {
+                r.Suspend();
+                suspendedResources[r.Id] = x;
+            }
+        }
 
-        if (Server != null) {
-            foreach (var x in resources.Values)
-                x.Suspend();
+        if (Server != null)
+        {
+            suspendedResources.Clear();
+
             UnsubscribeAll();
             Warehouse.Remove(this);
 
             if (ready)
                 Server.Membership?.Logout(session);
-        };
 
+        }
+        else if (AutoReconnect && !invalidCredentials)
+        {
+            // reconnect
+            Task.Delay(5000).ContinueWith((x) => Reconnect());
+        }
+        else
+        {
+            suspendedResources.Clear();
+        }
+
+
+        attachedResources.Clear();
 
         ready = false;
     }

@@ -132,14 +132,12 @@ public static class DataDeserializer
     {
         fixed (byte* ptr = &data[offset])
             return connection.Fetch(*(uint*)ptr, requestSequence);
-
     }
 
     public static unsafe AsyncReply LocalResourceParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return Warehouse.GetById(*(uint*)ptr);
-
     }
 
 

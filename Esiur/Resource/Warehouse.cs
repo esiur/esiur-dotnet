@@ -873,7 +873,7 @@ public static class Warehouse
             resources.TryRemove(resource.Instance.Id, out resourceReference);
         else
             return false;
-        //}
+        
 
         if (resource != resource.Instance.Store)
         {
@@ -884,29 +884,15 @@ public static class Warehouse
                 lock (((ICollection)list).SyncRoot)
                     list.Remove(resourceReference);
 
-                //list.TryTake(resourceReference);
-            }//.Remove(resourceReference);
+            }
         }
         if (resource is IStore)
         {
             var store = resource as IStore;
 
-            List<WeakReference<IResource>> toBeRemoved;// = stores[store];
+            List<WeakReference<IResource>> toBeRemoved;
 
             stores.TryRemove(store, out toBeRemoved);
-
-            //lock (resourcesLock)
-            //{
-            //    // remove all objects associated with the store
-            //    toBeRemoved = resources.Values.Where(x =>
-            //   {
-            //       IResource r;
-            //       if (x.TryGetTarget(out r))
-            //           return r.Instance.Store == resource;
-            //       else
-            //           return false;
-            //   }).ToArray();
-            //}
 
 
             foreach (var o in toBeRemoved)

@@ -38,7 +38,7 @@ namespace Esiur.Core;
 [AsyncMethodBuilder(typeof(AsyncReplyBuilder))]
 public class AsyncReply
 {
-    public bool Debug = false;
+    //public bool Debug = false;
 
     protected List<Action<object>> callbacks = new List<Action<object>>();
     protected object result;
@@ -75,14 +75,14 @@ public class AsyncReply
         if (resultReady)
             return result;
 
-        if (Debug)
-            Console.WriteLine($"AsyncReply: {Id} Wait");
+        //if (Debug)
+        //    Console.WriteLine($"AsyncReply: {Id} Wait");
 
         //mutex = new AutoResetEvent(false);
         mutex.WaitOne();
 
-        if (Debug)
-            Console.WriteLine($"AsyncReply: {Id} Wait ended");
+        //if (Debug)
+        //    Console.WriteLine($"AsyncReply: {Id} Wait ended");
 
         if (exception != null)
             throw exception;
@@ -90,12 +90,19 @@ public class AsyncReply
         return result;
     }
 
-    public AsyncReply Timeout(int milliseconds, Action callback)
+
+    public AsyncReply Timeout(int milliseconds, Action callback = null)
     {
+        
         Task.Delay(milliseconds).ContinueWith(x =>
         {
             if (!resultReady && exception == null)
-                callback();
+            {
+                TriggerError(new AsyncException(ErrorType.Management,
+                   (ushort)ExceptionCode.Timeout, "Execution timeout expired."));
+
+                callback?.Invoke();
+            }
         });
 
         return this;
@@ -106,8 +113,8 @@ public class AsyncReply
         if (resultReady)
             return result;
 
-        if (Debug)
-            Console.WriteLine($"AsyncReply: {Id} Wait");
+        //if (Debug)
+        //    Console.WriteLine($"AsyncReply: {Id} Wait");
 
         if (!mutex.WaitOne(millisecondsTimeout))
         {
@@ -116,8 +123,8 @@ public class AsyncReply
             throw e;
         }
 
-        if (Debug)
-            Console.WriteLine($"AsyncReply: {Id} Wait ended");
+        //if (Debug)
+        //    Console.WriteLine($"AsyncReply: {Id} Wait ended");
 
         return result;
     }
@@ -138,8 +145,8 @@ public class AsyncReply
 
             if (resultReady)
             {
-                if (Debug)
-                    Console.WriteLine($"AsyncReply: {Id} Then ready");
+                //if (Debug)
+                //    Console.WriteLine($"AsyncReply: {Id} Then ready");
 
                 callback(result);
                 return this;
@@ -159,8 +166,8 @@ public class AsyncReply
             //}, null, 15000, 0);
 
 
-            if (Debug)
-                Console.WriteLine($"AsyncReply: {Id} Then pending");
+            //if (Debug)
+            //    Console.WriteLine($"AsyncReply: {Id} Then pending");
 
 
 
@@ -210,8 +217,11 @@ public class AsyncReply
         {
             //timeout?.Dispose();
 
-            if (Debug)
-                Console.WriteLine($"AsyncReply: {Id} Trigger");
+            if (exception != null)
+                return this;
+
+            //if (Debug)
+            //    Console.WriteLine($"AsyncReply: {Id} Trigger");
 
             if (resultReady)
                 return this;
@@ -227,8 +237,8 @@ public class AsyncReply
                 cb(result);
 
 
-            if (Debug)
-                Console.WriteLine($"AsyncReply: {Id} Trigger ended");
+            //if (Debug)
+            //    Console.WriteLine($"AsyncReply: {Id} Trigger ended");
 
         }
 

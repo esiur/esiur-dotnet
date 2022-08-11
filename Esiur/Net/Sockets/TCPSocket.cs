@@ -158,8 +158,8 @@ public class TCPSocket : ISocket
                 {
 
                     state = SocketState.Established;
-                        //OnConnect?.Invoke();
-                        Receiver?.NetworkConnect(this);
+                    //OnConnect?.Invoke();
+                    Receiver?.NetworkConnect(this);
                     Begin();
                     rt.Trigger(true);
                 }
@@ -396,31 +396,31 @@ public class TCPSocket : ISocket
 
     public void Close()
     {
-        if (state != SocketState.Closed)// && state != SocketState.Terminated)
+        if (state == SocketState.Closed)
+            return; // && state != SocketState.Terminated)
+
+        state = SocketState.Closed;
+
+        if (sock.Connected)
         {
-            state = SocketState.Closed;
-
-            if (sock.Connected)
-            {
-                try
-                {
-                    sock.Shutdown(SocketShutdown.Both);
-                }
-                catch
-                {
-
-                }
-            }
-
             try
             {
-                sendBufferQueue?.Clear();
-                Receiver?.NetworkClose(this);
+                sock.Shutdown(SocketShutdown.Both);
             }
-            catch (Exception ex)
+            catch
             {
-                Global.Log(ex);
+
             }
+        }
+
+        try
+        {
+            sendBufferQueue?.Clear();
+            Receiver?.NetworkClose(this);
+        }
+        catch (Exception ex)
+        {
+            Global.Log(ex);
         }
     }
 
@@ -543,7 +543,7 @@ public class TCPSocket : ISocket
 
     public void Destroy()
     {
- 
+
         Close();
 
         receiveNetworkBuffer = null;
@@ -560,7 +560,7 @@ public class TCPSocket : ISocket
         OnDestroy?.Invoke(this);
         OnDestroy = null;
 
-     }
+    }
 
     public ISocket Accept()
     {

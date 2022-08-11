@@ -30,7 +30,7 @@ using Esiur.Net.Sockets;
 using Esiur.Resource;
 using Esiur.Security.Permissions;
 using Esiur.Stores;
- using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -50,7 +50,7 @@ namespace Test
 
     class Program
     {
-        
+
         static async Task Main(string[] args)
         {
 
@@ -58,19 +58,20 @@ namespace Test
             var system = await Warehouse.Put("sys", new MemoryStore());
             var server = await Warehouse.Put("sys/server", new DistributedServer());
 
-            server.MapCall("Hello", (string msg, DateTime time, DistributedConnection sender) =>
-            {
-                Console.WriteLine(msg);
-                return "Hi " + DateTime.UtcNow;
-            });
 
-            var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8088});
+            var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8088 });
 
             var service = await Warehouse.Put("sys/service", new MyService());
             var res1 = await Warehouse.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
             var res2 = await Warehouse.Put("sys/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
             var res3 = await Warehouse.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
+            var res4 = await Warehouse.Put("sys/service/c2", new MyChildResource() { ChildName = "Child 2 Destroy", Description = "Testing Destroy Handler", CategoryId = 12 });
 
+            server.MapCall("Hello", (string msg, DateTime time, DistributedConnection sender) =>
+            {
+                Console.WriteLine(msg);
+                return "Hi " + DateTime.UtcNow;
+            }).MapCall("temp", () => res4);
 
             service.Resource = res1;
             service.ChildResource = res3;
@@ -84,7 +85,8 @@ namespace Test
             //    sender.Send("Not found");
             //});
 
-            web.MapGet("/", (HTTPConnection sender) => {
+            web.MapGet("/", (HTTPConnection sender) =>
+            {
                 sender.Send("Hello");
             });
 
@@ -92,18 +94,25 @@ namespace Test
 
             // Start testing
             TestClient(service);
-           // TestClient(service);
+            // TestClient(service);
         }
 
 
- 
+
         private static async void TestClient(IResource local)
         {
-            dynamic remote = await Warehouse.Get<IResource>("iip://localhost/sys/service");
+            var con = await Warehouse.Get<DistributedConnection>("iip://localhost", new { AutoReconnect = true });
 
-            var con = remote.Connection as DistributedConnection;
+            //dynamic remote = await Warehouse.Get<IResource>("iip://localhost/sys/service", new { AutoReconnect = true });
+
+            //var con = remote.Connection as DistributedConnection;
+
+            dynamic remote = await con.Get("sys/service");
 
             var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);
+
+            var temp = await con.Call("temp");
+            Console.WriteLine("Temp: " + temp.GetHashCode());
 
             var template = await con.GetTemplateByClassName("Test.MyResource");
 
@@ -141,30 +150,44 @@ namespace Test
 
             await remote.InvokeEvents("Hello");
 
-            //var childTemplate = remote.Child.Instance.Template;
 
 
-            var path = TemplateGenerator.GetTemplate("iip://localhost/sys/service", "Generated");
+            //var path = TemplateGenerator.GetTemplate("iip://localhost/sys/service", "Generated");
 
-            Console.WriteLine(path);
+            //Console.WriteLine(path);
 
+            perodicTimer = new Timer(new TimerCallback(perodicTimerElapsed), remote, 0, 1000);
         }
 
-        
+        static async void perodicTimerElapsed(object state)
+        {
+            GC.Collect();
+            try
+            {
+                dynamic remote = state;
+                Console.WriteLine("Perodic : " + await remote.AsyncHello());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Perodic : " + ex.ToString());
+            }
+        }
+
+        static Timer perodicTimer;
 
         static void TestObjectProps(IResource local, DistributedResource remote)
         {
 
-            foreach(var pt in local.Instance.Template.Properties)
+            foreach (var pt in local.Instance.Template.Properties)
             {
 
                 var lv = pt.PropertyInfo.GetValue(local);
                 object v;
                 var rv = remote.TryGetPropertyValue(pt.Index, out v);
                 if (!rv)
-                    Console.WriteLine($" ** {pt.Name } Failed");
+                    Console.WriteLine($" ** {pt.Name} Failed");
                 else
-                    Console.WriteLine($"{pt.Name } {GetString(lv)} == {GetString(v)}");
+                    Console.WriteLine($"{pt.Name} {GetString(lv)} == {GetString(v)}");
             }
 
         }
@@ -189,15 +212,16 @@ namespace Test
                 rt += GetString(ar.GetValue(ar.Length - 1)) + "]";
 
                 return rt;
-            } else if (value is IRecord)
-            {
-                return "{" + String.Join(", ",  t.GetProperties().Select(x => x.Name + ": " + x.GetValue(value))) + "}";
             }
-            
+            else if (value is IRecord)
+            {
+                return "{" + String.Join(", ", t.GetProperties().Select(x => x.Name + ": " + x.GetValue(value))) + "}";
+            }
+
             else
                 return value.ToString();
         }
-     
+
     }
 
 

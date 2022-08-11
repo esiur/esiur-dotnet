@@ -36,8 +36,7 @@ using Esiur.Security.Authority;
 namespace Esiur.Resource;
 public interface IStore : IResource
 {
-    AsyncReply<IResource> Get(string path);//, Func<IResource, bool> filter = null);
-                                           //AsyncReply<IResource> Retrieve(uint iid);
+    AsyncReply<IResource> Get(string path); 
     AsyncReply<bool> Put(IResource resource);
     string Link(IResource resource);
     bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);

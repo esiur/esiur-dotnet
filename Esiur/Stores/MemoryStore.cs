@@ -27,17 +27,30 @@ public class MemoryStore : IStore
     public string Link(IResource resource)
     {
         if (resource.Instance.Store == this)
-            return this.Instance.Name + "/" + resource.Instance.Id;
+            return this.Instance.Name + "/$" + resource.Instance.Id;
 
         return null;
     }
 
     public AsyncReply<IResource> Get(string path)
     {
-        foreach (var r in resources)
-            if (r.Value.Instance.Name == path)
-                return new AsyncReply<IResource>(r.Value);
 
+        if (path.StartsWith("$"))
+        {
+            uint id;
+            if (uint.TryParse(path.Substring(1), out id))
+            {
+                foreach (var r in resources)
+                    if (r.Value.Instance.Id == id)
+                        return new AsyncReply<IResource>(r.Value);
+            }
+        }
+        else
+        {
+            foreach (var r in resources)
+                if (r.Value.Instance.Name == path)
+                    return new AsyncReply<IResource>(r.Value);
+        }
 
         return new AsyncReply<IResource>(null);
     }

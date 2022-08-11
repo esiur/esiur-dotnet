@@ -108,6 +108,7 @@ public class DistributedResource : DynamicObject, IResource
     public uint Id
     {
         get { return instanceId; }
+        internal set { instanceId = value; }
     }
 
     /// <summary>
@@ -117,7 +118,7 @@ public class DistributedResource : DynamicObject, IResource
     {
         destroyed = true;
         attached = false;
-        connection.SendDetachRequest(instanceId);
+        connection.DetachResource(instanceId);
         OnDestroy?.Invoke(this);
     }
 
@@ -223,13 +224,13 @@ public class DistributedResource : DynamicObject, IResource
     public AsyncReply<object> _Invoke(byte index, Map<byte, object> args)
     {
         if (destroyed)
-            throw new Exception("Trying to access a destroyed object");
+            throw new Exception("Trying to access a destroyed object.");
 
         if (suspended)
-            throw new Exception("Trying to access suspended object");
+            throw new Exception("Trying to access a suspended object.");
 
         if (index >= Instance.Template.Functions.Length)
-            throw new Exception("Function index is incorrect");
+            throw new Exception("Function index is incorrect.");
 
         var ft = Instance.Template.GetFunctionTemplateByIndex(index);
 
@@ -282,6 +283,12 @@ public class DistributedResource : DynamicObject, IResource
 
     public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
     {
+        if (destroyed)
+            throw new Exception("Trying to access a destroyed object.");
+
+        if (suspended)
+            throw new Exception("Trying to access a suspended object.");
+
         var ft = Instance.Template.GetFunctionTemplateByName(binder.Name);
 
         var reply = new AsyncReply<object>();
@@ -361,7 +368,7 @@ public class DistributedResource : DynamicObject, IResource
     public override bool TryGetMember(GetMemberBinder binder, out object result)
     {
         if (destroyed)
-            throw new Exception("Trying to access destroyed object");
+            throw new Exception("Trying to access a destroyed object.");
 
 
         result = null;
@@ -430,10 +437,10 @@ public class DistributedResource : DynamicObject, IResource
     public override bool TrySetMember(SetMemberBinder binder, object value)
     {
         if (destroyed)
-            throw new Exception("Trying to access destroyed object");
+            throw new Exception("Trying to access a destroyed object.");
 
         if (suspended)
-            throw new Exception("Trying to access suspended object");
+            throw new Exception("Trying to access a suspended object.");
 
         if (!attached)
             return false;
@@ -518,5 +525,10 @@ public class DistributedResource : DynamicObject, IResource
 
         // do nothing.
         return new AsyncReply<bool>(true);
+    }
+
+    ~DistributedResource()
+    {
+        Destroy();
     }
 }
