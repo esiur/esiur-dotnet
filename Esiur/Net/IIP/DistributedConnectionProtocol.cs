@@ -708,13 +708,11 @@ partial class DistributedConnection
         {
             if (res != null)
             {
-                //var r = res as IResource;
-                //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                //r.Instance.ResourceModified -= Instance_PropertyModified;
-                //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-
+                
+                // unsubscribe
                 Unsubscribe(res);
+                // remove from cache
+                cache.Remove(res);
 
                 // remove from attached resources
                 //attachedResources.Remove(res);

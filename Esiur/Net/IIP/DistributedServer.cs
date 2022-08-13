@@ -149,19 +149,16 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
     //    base.AddConnection(connection);
     //}
 
-    bool one = false;
 
     protected override void ClientConnected(DistributedConnection connection)
     {
-       // if (!one)
-        //connection.OnReady += ConnectionReadyEventReceiver;
-        Task.Delay(10000).ContinueWith((x) =>
-        {
-            Console.WriteLine("By bye");
-            // Remove me from here
-            connection.Close();
-            one = true;
-        });
+        //Task.Delay(10000).ContinueWith((x) =>
+        //{
+        //    Console.WriteLine("By bye");
+        //    // Remove me from here
+        //    connection.Close();
+        //    one = true;
+        //});
 
     }
 

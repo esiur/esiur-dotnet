@@ -1214,6 +1214,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public bool AutoReconnect { get; set; } = false;
 
     [Attribute]
+    public uint ReconnectInterval { get; set; } = 5;
+
+    [Attribute]
     public string Username { get; set; }
 
     [Attribute]
@@ -1317,7 +1320,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             if (AutoReconnect)
             {
                 Console.Write("Reconnecting socket...");
-                Task.Delay(5000).ContinueWith((x) => connectSocket(socket));
+                Task.Delay((int)ReconnectInterval).ContinueWith((x) => connectSocket(socket));
             }
             else
             {
@@ -1553,7 +1556,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         else if (AutoReconnect && !invalidCredentials)
         {
             // reconnect
-            Task.Delay(5000).ContinueWith((x) => Reconnect());
+            Task.Delay((int)ReconnectInterval).ContinueWith((x) => Reconnect());
         }
         else
         {

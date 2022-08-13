@@ -1,4 +1,2 @@
-﻿1- Change branch to main
-2- Generic Records/Resources
-3- Static functions calls
-4- Scan assembly for child classes
+﻿1- Scan assembly for child classes
+2- Auto reconnect id
