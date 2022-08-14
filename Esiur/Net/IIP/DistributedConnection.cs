@@ -111,6 +111,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
     /// </summary>
     public DistributedServer Server { get; internal set; }
 
+
+    [Public] public virtual ConnectionStatus Status { get; set; }
+
     public bool Remove(IResource resource)
     {
         // nothing to do
@@ -1012,6 +1015,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     Warehouse.Put(this.RemoteUsername, this, null, Server).Then(x =>
                                     {
                                         ready = true;
+                                        Status = ConnectionStatus.Connected;
                                         openReply?.Trigger(true);
                                         openReply = null;
                                         OnReady?.Invoke(this);
@@ -1029,6 +1033,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 else
                                 {
                                     ready = true;
+                                    Status = ConnectionStatus.Connected;
+
                                     openReply?.Trigger(true);
                                     openReply = null;
 
@@ -1123,6 +1129,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             session.Id = authPacket.SessionId;
 
                             ready = true;
+                            Status = ConnectionStatus.Connected;
+
                             // put it in the warehouse
 
                             if (this.Instance == null)
@@ -1276,6 +1284,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
     {
         if (openReply != null)
             throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
+
+        Status = ConnectionStatus.Connecting;
 
         openReply = new AsyncReply<bool>();
 
@@ -1485,7 +1495,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
     protected override void Disconencted()
     {
         // clean up
+        ready = false;
         readyToEstablish = false;
+        Status = ConnectionStatus.Closed;
 
         keepAliveTimer.Stop();
 
@@ -1566,7 +1578,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         attachedResources.Clear();
 
-        ready = false;
     }
 
     /*
