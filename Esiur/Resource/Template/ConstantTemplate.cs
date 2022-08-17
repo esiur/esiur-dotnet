@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Esiur.Data;
 
@@ -12,7 +14,9 @@ public class ConstantTemplate : MemberTemplate
     public readonly string Annotation;
     public readonly RepresentationType ValueType;
 
-    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType valueType, object value, string annotation) 
+    public  FieldInfo FieldInfo { get; set; }
+
+    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType valueType, object value, string annotation)
         : base(template, index, name, inherited)
     {
         Annotation = annotation;
@@ -29,7 +33,7 @@ public class ConstantTemplate : MemberTemplate
         //}
     }
 
-   public override byte[] Compose()
+    public override byte[] Compose()
     {
         var name = base.Compose();
 
@@ -63,5 +67,29 @@ public class ConstantTemplate : MemberTemplate
                     .ToArray();
         }
     }
+
+
+    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, PublicAttribute publicAttr, byte index = 0, TypeTemplate typeTemplate = null)
+    {
+        var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
+        var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
+
+        var valueType = RepresentationType.FromType(ci.FieldType);
+
+        if (valueType == null)
+            throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
+
+        var value = ci.GetValue(null);
+
+        if (typeTemplate?.Type == TemplateType.Enum)
+            value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
+
+        var ct = new ConstantTemplate(typeTemplate, index, publicAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
+        ct.FieldInfo = ci;
+
+        return ct;
+
+    }
+
 }
 

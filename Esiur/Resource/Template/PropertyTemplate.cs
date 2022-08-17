@@ -1,8 +1,10 @@
 ﻿using Esiur.Data;
+using Esiur.Net.IIP;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -144,4 +146,70 @@ public class PropertyTemplate : MemberTemplate
         this.WriteAnnotation = writeAnnotation;
         this.ValueType = valueType;
     }
+
+
+
+    public static PropertyTemplate MakePropertyTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    {
+        var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
+
+        var propType = genericPropType == typeof(DistributedPropertyContext<>) ?
+                RepresentationType.FromType(pi.PropertyType.GetGenericArguments()[0]) :
+                RepresentationType.FromType(pi.PropertyType);
+
+        if (propType == null)
+            throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
+
+        var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
+        var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+
+        var nullableContextAttr = pi.GetCustomAttribute<NullableContextAttribute>(true);
+        var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+
+        var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+        if (flags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
+            flags.RemoveAt(0);
+
+        if (nullableContextAttr?.Flag == 2)
+        {
+            if (flags.Count == 1)
+                propType.SetNotNull(flags.FirstOrDefault());
+            else
+                propType.SetNotNull(flags);
+        }
+        else
+        {
+            if (flags.Count == 1)
+                propType.SetNull(flags.FirstOrDefault());
+            else
+                propType.SetNull(flags);
+        }
+
+        var pt = new PropertyTemplate(typeTemplate, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
+
+        if (storageAttr != null)
+            pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
+
+        if (annotationAttr != null)
+            pt.ReadAnnotation = annotationAttr.Annotation;
+        else
+            pt.ReadAnnotation = GetTypeAnnotationName(pi.PropertyType);
+
+        pt.PropertyInfo = pi;
+
+        return pt;
+    }
+
+
+    public static string GetTypeAnnotationName(Type type)
+    {
+        var nullType = Nullable.GetUnderlyingType(type);
+        if (nullType == null)
+            return type.Name;
+        else
+            return type.Name + "?";
+    }
+
+
 }

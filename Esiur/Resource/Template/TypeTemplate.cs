@@ -351,14 +351,6 @@ public class TypeTemplate
         return list.ToArray();
     }
 
-    public string GetTypeAnnotationName(Type type)
-    {
-        var nullType = Nullable.GetUnderlyingType(type);
-        if (nullType == null)
-            return type.Name;
-        else
-            return type.Name + "?";
-    }
 
     public static string GetTypeClassName(Type type, string separator = ".")
     {
@@ -376,6 +368,31 @@ public class TypeTemplate
             return $"{type.Namespace}{separator}{type.Name}";
     }
 
+
+    
+
+    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, PublicAttribute publicAttr, byte index = 0, TypeTemplate typeTemplate = null)
+    {
+        var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
+        var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
+
+        var valueType = RepresentationType.FromType(ci.FieldType);
+
+        if (valueType == null)
+            throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
+
+        var value = ci.GetValue(null);
+
+        if (typeTemplate.Type == TemplateType.Enum)
+            value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
+
+        var ct = new ConstantTemplate(typeTemplate, index, publicAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
+
+        return ct;
+
+    }
+
+ 
     public TypeTemplate(Type type, bool addToWarehouse = false)
     {
         if (Codec.InheritsClass(type, typeof(DistributedResource)))
@@ -411,133 +428,16 @@ public class TypeTemplate
 
         PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);
-        MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static); 
+        MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
         FieldInfo[] constantsInfo = type.GetFields(BindingFlags.Public | BindingFlags.Static);
 
 
         bool classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
 
-        var addConstant = (FieldInfo ci, PublicAttribute publicAttr) =>
-        {
+     
+       
 
-            var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
-            var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
-
-            var valueType = RepresentationType.FromType(ci.FieldType);
-
-            if (valueType == null)
-                throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
-
-            var value = ci.GetValue(null);
-
-            if (templateType == TemplateType.Enum)
-                value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
-
-            var ct = new ConstantTemplate(this, (byte)constants.Count, publicAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
-
-            constants.Add(ct);
-        };
-
-        var addProperty = (PropertyInfo pi, PublicAttribute publicAttr) =>
-        {
-
-            var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
-
-            var propType = genericPropType == typeof(DistributedPropertyContext<>) ?
-                    RepresentationType.FromType(pi.PropertyType.GetGenericArguments()[0]) :
-                    RepresentationType.FromType(pi.PropertyType);
-
-            if (propType == null)
-                throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
-
-            var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
-            var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
-
-            var nullableContextAttr = pi.GetCustomAttribute<NullableContextAttribute>(true);
-            var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
-
-            var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
-
-            if (flags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
-                flags.RemoveAt(0);
-
-            if (nullableContextAttr?.Flag == 2)
-            {
-                if (flags.Count == 1)
-                    propType.SetNotNull(flags.FirstOrDefault());
-                else
-                    propType.SetNotNull(flags);
-            }
-            else
-            {
-                if (flags.Count == 1)
-                    propType.SetNull(flags.FirstOrDefault());
-                else
-                    propType.SetNull(flags);
-            }
-
-            var pt = new PropertyTemplate(this, (byte)properties.Count, publicAttr?.Name ?? pi.Name, pi.DeclaringType != type, propType);
-
-            if (storageAttr != null)
-                pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
-
-            if (annotationAttr != null)
-                pt.ReadAnnotation = annotationAttr.Annotation;
-            else
-                pt.ReadAnnotation = GetTypeAnnotationName(pi.PropertyType);
-
-            pt.PropertyInfo = pi;
-
-            properties.Add(pt);
-
-        };
-
-        var addEvent = (EventInfo ei, PublicAttribute publicAttr) =>
-        {
-            var argType = ei.EventHandlerType.GenericTypeArguments[0];
-            var evtType = RepresentationType.FromType(argType);
-
-            if (evtType == null)
-                throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
-
-            var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
-            var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
-            var nullableAttr = ei.GetCustomAttribute<NullableAttribute>(true);
-            var nullableContextAttr = ei.GetCustomAttribute<NullableContextAttribute>(true);
-
-            var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
-
-            // skip the eventHandler class
-            if (flags.Count > 1)
-                flags = flags.Skip(1).ToList();
-
-            if (nullableContextAttr?.Flag == 2)
-            {
-                if (flags.Count == 1)
-                    evtType.SetNotNull(flags.FirstOrDefault());
-                else
-                    evtType.SetNotNull(flags);
-            }
-            else
-            {
-                if (flags.Count == 1)
-                    evtType.SetNull(flags.FirstOrDefault());
-                else
-                    evtType.SetNull(flags);
-            }
-
-            var et = new EventTemplate(this, (byte)events.Count, publicAttr?.Name ?? ei.Name, ei.DeclaringType != type, evtType);
-            et.EventInfo = ei;
-
-            if (annotationAttr != null)
-                et.Annotation = annotationAttr.Annotation;
-
-            if (listenableAttr != null)
-                et.Listenable = true;
-
-            events.Add(et);
-        };
-
+       
         var addAttribute = (PropertyInfo pi, AttributeAttribute attributeAttr) =>
         {
             var an = attributeAttr.Name ?? pi.Name;
@@ -547,111 +447,6 @@ public class TypeTemplate
         };
 
 
-        var addFunction = (MethodInfo mi, PublicAttribute publicAttr) =>
-        {
-            var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
-
-            var rtType = genericRtType == typeof(AsyncReply<>) ?
-                    RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]) :
-                    RepresentationType.FromType(mi.ReturnType);
-
-            if (rtType == null)
-                throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
-
-            var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
-            var nullableAttr = mi.GetCustomAttribute<NullableAttribute>(true);
-            var nullableContextAttr = mi.GetCustomAttribute<NullableContextAttribute>(true);
-
-            var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
-
-            var rtNullableAttr = mi.ReturnTypeCustomAttributes.GetCustomAttributes(typeof(NullableAttribute), true).FirstOrDefault() as NullableAttribute;
-            var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
-                                            .GetCustomAttributes(typeof(NullableContextAttribute), true)
-                                            .FirstOrDefault() as NullableContextAttribute
-                                            ?? nullableContextAttr;
-
-            var rtFlags = rtNullableAttr?.Flags?.ToList() ?? new List<byte>();
-
-            if (rtFlags.Count > 0 && genericRtType == typeof(AsyncReply<>))
-                rtFlags.RemoveAt(0);
-
-            if (rtNullableContextAttr?.Flag == 2)
-            {
-                if (rtFlags.Count == 1)
-                    rtType.SetNotNull(rtFlags.FirstOrDefault());
-                else
-                    rtType.SetNotNull(rtFlags);
-            }
-            else
-            {
-                if (rtFlags.Count == 1)
-                    rtType.SetNull(rtFlags.FirstOrDefault());
-                else
-                    rtType.SetNull(rtFlags);
-            }
-
-            var args = mi.GetParameters();
-
-            if (args.Length > 0)
-            {
-                if (args.Last().ParameterType == typeof(DistributedConnection))
-                    args = args.Take(args.Count() - 1).ToArray();
-            }
-
-            var arguments = args.Select(x =>
-            {
-                var argType = RepresentationType.FromType(x.ParameterType);
-
-                if (argType == null)
-                    throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
-
-
-                var argNullableAttr = x.GetCustomAttribute<NullableAttribute>(true);
-                var argNullableContextAttr = x.GetCustomAttribute<NullableContextAttribute>(true) ?? nullableContextAttr;
-
-                var argFlags = argNullableAttr?.Flags?.ToList() ?? new List<byte>();
-
-
-                if (argNullableContextAttr?.Flag == 2)
-                {
-                    if (argFlags.Count == 1)
-                        argType.SetNotNull(argFlags.FirstOrDefault());
-                    else
-                        argType.SetNotNull(argFlags);
-                }
-                else
-                {
-                    if (rtFlags.Count == 1)
-                        argType.SetNull(argFlags.FirstOrDefault());
-                    else
-                        argType.SetNull(argFlags);
-                }
-
-                return new ArgumentTemplate()
-                {
-                    Name = x.Name,
-                    Type = argType,
-                    ParameterInfo = x,
-                    Optional = x.IsOptional
-                };
-            })
-            .ToArray();
-
-            var fn = publicAttr.Name ?? mi.Name;
-
-            var ft = new FunctionTemplate(this, (byte)functions.Count, fn, mi.DeclaringType != type,
-                mi.IsStatic,
-                arguments, rtType);
-
-            if (annotationAttr != null)
-                ft.Annotation = annotationAttr.Annotation;
-            else
-                ft.Annotation = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
-
-            ft.MethodInfo = mi;
-            functions.Add(ft);
-
-        };
 
 
 
@@ -667,7 +462,8 @@ public class TypeTemplate
 
                 var publicAttr = ci.GetCustomAttribute<PublicAttribute>(true);
 
-                addConstant(ci, publicAttr);
+                var ct = MakeConstantTemplate(type, ci, publicAttr, (byte)constants.Count, this);
+                constants.Add(ct);
             }
 
 
@@ -678,7 +474,8 @@ public class TypeTemplate
                 if (privateAttr == null)
                 {
                     var publicAttr = pi.GetCustomAttribute<PublicAttribute>(true);
-                    addProperty(pi, publicAttr);
+                    var pt = PropertyTemplate.MakePropertyTemplate(type, pi, (byte)properties.Count, publicAttr?.Name, this);
+                    properties.Add(pt);
                 }
                 else
                 {
@@ -701,8 +498,8 @@ public class TypeTemplate
                         continue;
 
                     var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true);
-
-                    addEvent(ei, publicAttr);
+                    var et = EventTemplate.MakeEventTemplate(type, ei, (byte)events.Count, publicAttr?.Name, this);
+                    events.Add(et);
                 }
 
                 foreach (MethodInfo mi in methodsInfo)
@@ -712,7 +509,9 @@ public class TypeTemplate
                         continue;
 
                     var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
-                    addFunction(mi, publicAttr);
+                    var ft = FunctionTemplate.MakeFunctionTemplate(type, mi, (byte)functions.Count, publicAttr?.Name, this);
+                    functions.Add(ft);
+                    //addFunction(mi, publicAttr);
                 }
 
             }
@@ -726,7 +525,8 @@ public class TypeTemplate
                 if (publicAttr == null)
                     continue;
 
-                addConstant(ci, publicAttr);
+                var ct = MakeConstantTemplate(type, ci, publicAttr, (byte)constants.Count, this);
+                constants.Add(ct);
             }
 
 
@@ -736,7 +536,8 @@ public class TypeTemplate
 
                 if (publicAttr != null)
                 {
-                    addProperty(pi, publicAttr);
+                    var pt = PropertyTemplate.MakePropertyTemplate(type, pi, (byte)properties.Count, publicAttr?.Name, this);
+                    properties.Add(pt);
                 }
                 else
                 {
@@ -759,7 +560,8 @@ public class TypeTemplate
                     if (publicAttr == null)
                         continue;
 
-                    addEvent(ei, publicAttr);
+                    var et = EventTemplate.MakeEventTemplate(type, ei, (byte)events.Count, publicAttr?.Name, this);
+                    events.Add(et);
                 }
 
                 foreach (MethodInfo mi in methodsInfo)
@@ -768,7 +570,9 @@ public class TypeTemplate
                     if (publicAttr == null)
                         continue;
 
-                    addFunction(mi, publicAttr);
+                    var ft = FunctionTemplate.MakeFunctionTemplate(type, mi, (byte)functions.Count, publicAttr?.Name, this);
+                    functions.Add(ft);
+                    //addFunction(mi, publicAttr);
                 }
             }
         }

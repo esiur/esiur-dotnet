@@ -35,6 +35,7 @@ using System.Net;
 using Esiur.Resource;
 using Esiur.Security.Membership;
 using System.Threading.Tasks;
+using Esiur.Resource.Template;
 
 namespace Esiur.Net.IIP;
 public class DistributedServer : NetworkServer<DistributedConnection>, IResource
@@ -183,11 +184,18 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 
     }
 
-    public KeyList<string, Delegate> Calls { get; } = new KeyList<string, Delegate>();
+    public KeyList<string, CallInfo?> Calls { get; } = new KeyList<string, CallInfo?>();
+
+    public struct CallInfo
+    {
+        public FunctionTemplate Template;
+        public Delegate Delegate;
+    }
 
     public DistributedServer MapCall(string call, Delegate handler)
     {
-        Calls.Add(call, handler);
+        var ft = FunctionTemplate.MakeFunctionTemplate(null, handler.Method);
+        Calls.Add(call, new CallInfo(){ Delegate = handler, Template = ft});
         return this;
     }
 

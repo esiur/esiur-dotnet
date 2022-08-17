@@ -230,7 +230,7 @@ partial class DistributedConnection
 
             await SendDetachRequest(instanceId);
         }
-        catch 
+        catch
         {
 
         }
@@ -708,7 +708,7 @@ partial class DistributedConnection
         {
             if (res != null)
             {
-                
+
                 // unsubscribe
                 Unsubscribe(res);
                 // remove from cache
@@ -1302,7 +1302,7 @@ partial class DistributedConnection
             //    return;
             //}
 
-            InvokeFunction(call.Method, callback, arguments, IIPPacket.IIPPacketAction.ProcedureCall, call.Target);
+            InvokeFunction(call.Value.Template, callback, arguments, IIPPacket.IIPPacketAction.ProcedureCall, call.Value.Delegate.Target);
 
         }).Error(x =>
         {
@@ -1355,7 +1355,7 @@ partial class DistributedConnection
             //    return;
             //}
 
-            InvokeFunction(fi, callback, arguments, IIPPacket.IIPPacketAction.StaticCall, null);
+            InvokeFunction(ft, callback, arguments, IIPPacket.IIPPacketAction.StaticCall, null);
 
         }).Error(x =>
         {
@@ -1415,14 +1415,14 @@ partial class DistributedConnection
                 else
                 {
 
-                    var fi = r.GetType().GetMethod(ft.Name);
+                    //var fi = r.GetType().GetMethod(ft.Name);
 
-                    if (fi == null)
-                    {
-                        // ft found, fi not found, this should never happen
-                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                        return;
-                    }
+                    //if (fi == null)
+                    //{
+                    //    // ft found, fi not found, this should never happen
+                    //    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                    //    return;
+                    //}
 
 
                     if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
@@ -1432,7 +1432,7 @@ partial class DistributedConnection
                         return;
                     }
 
-                    InvokeFunction(fi, callback, arguments, IIPPacket.IIPPacketAction.InvokeFunction, r);
+                    InvokeFunction(ft, callback, arguments, IIPPacket.IIPPacketAction.InvokeFunction, r);
                 }
             });
         });
@@ -1440,11 +1440,11 @@ partial class DistributedConnection
 
 
 
-    void InvokeFunction(MethodInfo fi, uint callback, Map<byte, object> arguments, IIPPacket.IIPPacketAction actionType, object target = null)
+    void InvokeFunction(FunctionTemplate ft, uint callback, Map<byte, object> arguments, IIPPacket.IIPPacketAction actionType, object target = null)
     {
 
         // cast arguments
-        ParameterInfo[] pis = fi.GetParameters();
+        ParameterInfo[] pis = ft.MethodInfo.GetParameters();
 
         object[] args = new object[pis.Length];
 
@@ -1453,15 +1453,30 @@ partial class DistributedConnection
             if (pis.Last().ParameterType == typeof(DistributedConnection))
             {
                 for (byte i = 0; i < pis.Length - 1; i++)
-                    args[i] = arguments.ContainsKey(i) ?
-                                DC.CastConvert(arguments[i], pis[i].ParameterType) : Type.Missing;
+                {
+                    if (arguments.ContainsKey(i))
+                        args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
+                    else if (ft.Arguments[i].Type.Nullable)// Nullable.GetUnderlyingType(pis[i].ParameterType) != null)
+                        args[i] = null;
+                    else
+                        args[i] = Type.Missing;
+
+                }
+                //args[i] = arguments.ContainsKey(i) ?
+                //                DC.CastConvert(arguments[i], pis[i].ParameterType) : Type.Missing;
                 args[args.Length - 1] = this;
             }
             else
             {
                 for (byte i = 0; i < pis.Length; i++)
-                    args[i] = arguments.ContainsKey(i) ?
-                                DC.CastConvert(arguments[i], pis[i].ParameterType) : Type.Missing;
+                {
+                    if (arguments.ContainsKey(i))
+                        args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
+                    else if (ft.Arguments[i].Type.Nullable) //Nullable.GetUnderlyingType(pis[i].ParameterType) != null)
+                        args[i] = null;
+                    else
+                        args[i] = Type.Missing;
+                }
             }
         }
 
@@ -1469,7 +1484,7 @@ partial class DistributedConnection
 
         try
         {
-            rt = fi.Invoke(target, args);
+            rt = ft.MethodInfo.Invoke(target, args);
         }
         catch (Exception ex)
         {
