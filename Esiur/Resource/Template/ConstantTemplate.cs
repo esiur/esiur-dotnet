@@ -69,7 +69,7 @@ public class ConstantTemplate : MemberTemplate
     }
 
 
-    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, PublicAttribute publicAttr, byte index = 0, TypeTemplate typeTemplate = null)
+    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
         var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
         var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
@@ -84,7 +84,7 @@ public class ConstantTemplate : MemberTemplate
         if (typeTemplate?.Type == TemplateType.Enum)
             value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
 
-        var ct = new ConstantTemplate(typeTemplate, index, publicAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
+        var ct = new ConstantTemplate(typeTemplate, index, customName ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
         ct.FieldInfo = ci;
 
         return ct;

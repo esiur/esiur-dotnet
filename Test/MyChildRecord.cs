@@ -11,5 +11,6 @@ namespace Test
     public class MyChildRecord : MyRecord
     {
         public string ChildName { get; set; }
+
     }
 }

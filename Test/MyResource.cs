@@ -13,5 +13,11 @@ namespace Test
     {
         [Public][Annotation("Comment")] string description;
         [Public] int categoryId;
+
+
+        [Public] public string Hello() => "Hi";
+
+        [Public] public string HelloParent() => "Hi from Parent";
+
     }
 }

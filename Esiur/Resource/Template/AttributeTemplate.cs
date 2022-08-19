@@ -21,4 +21,11 @@ public class AttributeTemplate : MemberTemplate
     {
 
     }
+
+    public static AttributeTemplate MakeAttributeTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    {
+        var at = new AttributeTemplate(typeTemplate, index, customName, pi.DeclaringType != type);
+        at.PropertyInfo = pi;
+        return at;
+    }
 }

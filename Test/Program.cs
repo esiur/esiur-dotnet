@@ -42,6 +42,7 @@ using System.Runtime.CompilerServices;
 using Esiur.Proxy;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Test
 {
@@ -53,6 +54,10 @@ namespace Test
 
         static async Task Main(string[] args)
         {
+
+            var ppp = GetOrderedProperties(typeof(MyChildResource)).ToArray();
+            var childMethods = typeof(MyChildResource).GetMembers( BindingFlags.Public | BindingFlags.DeclaredOnly | BindingFlags.Instance);
+            var parentMethods = typeof(MyResource).GetMethods(BindingFlags.Public | BindingFlags.DeclaredOnly | BindingFlags.Instance);
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
@@ -220,6 +225,28 @@ namespace Test
 
             else
                 return value.ToString();
+        }
+
+
+
+ 
+
+        public static IEnumerable<PropertyInfo> GetOrderedProperties(Type type)
+        {
+            Dictionary<Type, int> lookup = new Dictionary<Type, int>();
+
+            int count = 0;
+            lookup[type] = count++;
+            Type parent = type.BaseType;
+            while (parent != null)
+            {
+                lookup[parent] = count;
+                count++;
+                parent = parent.BaseType;
+            }
+
+            return type.GetProperties()
+                .OrderByDescending(prop => lookup[prop.DeclaringType]);
         }
 
     }

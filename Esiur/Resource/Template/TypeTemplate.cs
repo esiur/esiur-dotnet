@@ -369,7 +369,7 @@ public class TypeTemplate
     }
 
 
-    
+
 
     public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, PublicAttribute publicAttr, byte index = 0, TypeTemplate typeTemplate = null)
     {
@@ -392,7 +392,7 @@ public class TypeTemplate
 
     }
 
- 
+
     public TypeTemplate(Type type, bool addToWarehouse = false)
     {
         if (Codec.InheritsClass(type, typeof(DistributedResource)))
@@ -426,158 +426,71 @@ public class TypeTemplate
 
 
 
-        PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);
-        MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-        FieldInfo[] constantsInfo = type.GetFields(BindingFlags.Public | BindingFlags.Static);
+        //PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        //EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);
+        //MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+        //FieldInfo[] constantsInfo = type.GetFields(BindingFlags.Public | BindingFlags.Static);
 
 
-        bool classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
+        //bool classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
 
-     
-       
 
-       
-        var addAttribute = (PropertyInfo pi, AttributeAttribute attributeAttr) =>
+        var hierarchy = GetHierarchy(type);
+
+        if (hierarchy.ContainsKey(MemberTypes.Field))
         {
-            var an = attributeAttr.Name ?? pi.Name;
-            var at = new AttributeTemplate(this, 0, an, pi.DeclaringType != type);
-            at.PropertyInfo = pi;
-            attributes.Add(at);
-        };
-
-
-
-
-
-        if (classIsPublic)
-        {
-
-            foreach (var ci in constantsInfo)
+            foreach (var cd in hierarchy[MemberTypes.Field])
             {
-                var privateAttr = ci.GetCustomAttribute<PrivateAttribute>(true);
-
-                if (privateAttr != null)
-                    continue;
-
-                var publicAttr = ci.GetCustomAttribute<PublicAttribute>(true);
-
-                var ct = MakeConstantTemplate(type, ci, publicAttr, (byte)constants.Count, this);
-                constants.Add(ct);
-            }
-
-
-            foreach (var pi in propsInfo)
-            {
-                var privateAttr = pi.GetCustomAttribute<PrivateAttribute>(true);
-
-                if (privateAttr == null)
-                {
-                    var publicAttr = pi.GetCustomAttribute<PublicAttribute>(true);
-                    var pt = PropertyTemplate.MakePropertyTemplate(type, pi, (byte)properties.Count, publicAttr?.Name, this);
-                    properties.Add(pt);
-                }
-                else
-                {
-                    var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
-                    if (attributeAttr != null)
-                    {
-                        addAttribute(pi, attributeAttr);
-                    }
-                }
-            }
-
-            if (templateType == TemplateType.Resource
-                || templateType == TemplateType.Wrapper)
-            {
-
-                foreach (var ei in eventsInfo)
-                {
-                    var privateAttr = ei.GetCustomAttribute<PrivateAttribute>(true);
-                    if (privateAttr != null)
-                        continue;
-
-                    var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true);
-                    var et = EventTemplate.MakeEventTemplate(type, ei, (byte)events.Count, publicAttr?.Name, this);
-                    events.Add(et);
-                }
-
-                foreach (MethodInfo mi in methodsInfo)
-                {
-                    var privateAttr = mi.GetCustomAttribute<PrivateAttribute>(true);
-                    if (privateAttr != null)
-                        continue;
-
-                    var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
-                    var ft = FunctionTemplate.MakeFunctionTemplate(type, mi, (byte)functions.Count, publicAttr?.Name, this);
-                    functions.Add(ft);
-                    //addFunction(mi, publicAttr);
-                }
-
-            }
-        }
-        else
-        {
-            foreach (var ci in constantsInfo)
-            {
-                var publicAttr = ci.GetCustomAttribute<PublicAttribute>(true);
-
-                if (publicAttr == null)
-                    continue;
-
-                var ct = MakeConstantTemplate(type, ci, publicAttr, (byte)constants.Count, this);
-                constants.Add(ct);
-            }
-
-
-            foreach (var pi in propsInfo)
-            {
-                var publicAttr = pi.GetCustomAttribute<PublicAttribute>(true);
-
-                if (publicAttr != null)
-                {
-                    var pt = PropertyTemplate.MakePropertyTemplate(type, pi, (byte)properties.Count, publicAttr?.Name, this);
-                    properties.Add(pt);
-                }
-                else
-                {
-                    var attributeAttr = pi.GetCustomAttribute<AttributeAttribute>(true);
-                    if (attributeAttr != null)
-                    {
-                        addAttribute(pi, attributeAttr);
-                    }
-                }
-            }
-
-            if (templateType == TemplateType.Resource
-                || templateType == TemplateType.Wrapper)
-            {
-
-                foreach (var ei in eventsInfo)
-                {
-                    var publicAttr = ei.GetCustomAttribute<PublicAttribute>(true);
-
-                    if (publicAttr == null)
-                        continue;
-
-                    var et = EventTemplate.MakeEventTemplate(type, ei, (byte)events.Count, publicAttr?.Name, this);
-                    events.Add(et);
-                }
-
-                foreach (MethodInfo mi in methodsInfo)
-                {
-                    var publicAttr = mi.GetCustomAttribute<PublicAttribute>(true);
-                    if (publicAttr == null)
-                        continue;
-
-                    var ft = FunctionTemplate.MakeFunctionTemplate(type, mi, (byte)functions.Count, publicAttr?.Name, this);
-                    functions.Add(ft);
-                    //addFunction(mi, publicAttr);
-                }
+                constants.Add(ConstantTemplate.MakeConstantTemplate
+                    (type, (FieldInfo)cd.GetMemberInfo(), cd.Index, cd.Name, this));
             }
         }
 
-        // append signals
+        if (hierarchy.ContainsKey(MemberTypes.Property))
+        {
+            foreach (var pd in hierarchy[MemberTypes.Property])
+            {
+                properties.Add(PropertyTemplate.MakePropertyTemplate
+                    (type, (PropertyInfo)pd.GetMemberInfo(), pd.Index, pd.Name, this));
+            }
+        }
+
+        if (templateType == TemplateType.Resource
+            || templateType == TemplateType.Wrapper)
+        {
+            if (hierarchy.ContainsKey(MemberTypes.Method))
+            {
+                foreach (var fd in hierarchy[MemberTypes.Method])
+                {
+                    functions.Add(FunctionTemplate.MakeFunctionTemplate
+                        (type, (MethodInfo)fd.GetMemberInfo(), fd.Index, fd.Name, this));
+                }
+            }
+
+            if (hierarchy.ContainsKey(MemberTypes.Event))
+            {
+                foreach (var ed in hierarchy[MemberTypes.Event])
+                {
+                    events.Add(EventTemplate.MakeEventTemplate
+                        (type, (EventInfo)ed.GetMemberInfo(), ed.Index, ed.Name, this));
+                }
+            }
+
+        }
+
+        // add attributes
+        var attrs = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(x => x.GetCustomAttribute<AttributeAttribute>() != null);
+
+        foreach (var attr in attrs)
+        {
+            var attrAttr = attr.GetCustomAttribute<AttributeAttribute>();
+
+            attributes.Add(AttributeTemplate
+                .MakeAttributeTemplate(type, attr, 0, attrAttr?.Name ?? attr.Name, this));
+        }
+
+        // append signals)
         for (var i = 0; i < events.Count; i++)
             members.Add(events[i]);
         // append slots
@@ -645,21 +558,145 @@ public class TypeTemplate
     {
         var parent = type.BaseType;
 
-        if (parent == typeof(Resource)
-            || parent == typeof(Record)
-            || parent == typeof(EntryPoint))
-            return false;
 
         while (parent != null)
         {
+            if (parent == typeof(Resource)
+                || parent == typeof(Record)
+                || parent == typeof(EntryPoint))
+                return false;
+
             if (parent.GetInterfaces().Contains(typeof(IResource))
                 || parent.GetInterfaces().Contains(typeof(IRecord)))
                 return true;
+
             parent = parent.BaseType;
         }
 
         return false;
     }
+
+
+
+    public static Dictionary<MemberTypes, List<MemberData>> GetHierarchy(Type type)
+    {
+        var members = new List<MemberData>();
+
+        var order = 0;
+
+        while (type != null)
+        {
+            var classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
+
+            if (classIsPublic)
+            {
+                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
+                            || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
+                    .Where(x => !(x is FieldInfo c && !c.IsStatic))
+                    .Where(x => x.GetCustomAttribute<PrivateAttribute>() == null)
+                    .Where(x => !(x is MethodInfo m && m.IsSpecialName))
+                    .Select(x => new MemberData()
+                    {
+                        Name = x.GetCustomAttribute<PublicAttribute>()?.Name ?? x.Name,
+                        Info = x,
+                        Order = order
+                    })
+                    .OrderBy(x => x.Name);
+
+                members.AddRange(mis.ToArray());
+
+            }
+            else
+            {
+                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance
+                    | BindingFlags.DeclaredOnly | BindingFlags.Static)
+                    .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
+                            || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
+                    .Where(x => !(x is FieldInfo c && !c.IsStatic))
+                    .Where(x => x.GetCustomAttribute<PublicAttribute>() != null)
+                    .Where(x => !(x is MethodInfo m && m.IsSpecialName))
+                    .Select(x => new MemberData
+                    {
+                        Name = x.GetCustomAttribute<PublicAttribute>()?.Name ?? x.Name,
+                        Info = x,
+                        Order = order
+                    })
+                    .OrderBy(x => x.Name);
+
+                members.AddRange(mis.ToArray());
+
+            }
+
+            type = type.BaseType;
+
+            if (type == typeof(Resource)
+                || type == typeof(Record)
+                || type == typeof(EntryPoint))
+                break;
+
+            if (type.GetInterfaces().Contains(typeof(IResource))
+                || type.GetInterfaces().Contains(typeof(IRecord)))
+            {
+                order++;
+                continue;
+            }
+
+            break;
+        }
+
+        // round 2: check for duplicates
+        for (var i = 0; i < members.Count; i++)
+        {
+            var mi = members[i];
+            for (var j = i + 1; j < members.Count; j++)
+            {
+                var pi = members[j];
+                if (pi.Info.MemberType != mi.Info.MemberType)
+                    continue;
+
+                //if (ci.Info.Name == mi.Info.Name && ci.Order == mi.Order)
+                //    throw new Exception($"Method overload is not supported. Method '{ci.Info.Name}'.");
+
+                if (pi.Name == mi.Name)
+                {
+                    if (pi.Order == mi.Order)
+                        throw new Exception($"Duplicate definitions for members public name '{mi.Info.DeclaringType.Name}:{mi.Info.Name}' and '{pi.Info.DeclaringType.Name}:{pi.Info.Name}'.");
+                    else
+                    {
+                        // @TODO: check for return type and parameters they must match
+                        if (pi.Info.Name != mi.Info.Name)
+                            throw new Exception($"Duplicate definitions for members public name '{mi.Info.DeclaringType.Name}:{mi.Info.Name}' and '{pi.Info.DeclaringType.Name}:{pi.Info.Name}'.");
+                    }
+
+                    mi.Parent = pi;
+                    pi.Child = mi;
+                }
+
+            }
+        }
+
+
+        // assign indexies
+        var groups = members.Where(x => x.Parent == null)
+                            .OrderBy(x => x.Name).OrderByDescending(x => x.Order)
+                            .GroupBy(x => x.Info.MemberType);
+
+        foreach (var group in groups)
+        {
+            byte index = 0;
+            foreach (var mi in group)
+            {
+                //if (mi.Parent == null)
+                mi.Index = index++;
+            }
+        }
+
+        var rt = groups.ToDictionary(g => g.Key, g => g.ToList());
+
+        return rt;
+    }
+
 
     public static TypeTemplate Parse(byte[] data)
     {
