@@ -55,10 +55,6 @@ namespace Test
         static async Task Main(string[] args)
         {
 
-            var ppp = GetOrderedProperties(typeof(MyChildResource)).ToArray();
-            var childMethods = typeof(MyChildResource).GetMembers( BindingFlags.Public | BindingFlags.DeclaredOnly | BindingFlags.Instance);
-            var parentMethods = typeof(MyResource).GetMethods(BindingFlags.Public | BindingFlags.DeclaredOnly | BindingFlags.Instance);
-
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
             var server = await Warehouse.Put("sys/server", new DistributedServer());
@@ -106,11 +102,9 @@ namespace Test
 
         private static async void TestClient(IResource local)
         {
+
+
             var con = await Warehouse.Get<DistributedConnection>("iip://localhost", new { AutoReconnect = true });
-
-            //dynamic remote = await Warehouse.Get<IResource>("iip://localhost/sys/service", new { AutoReconnect = true });
-
-            //var con = remote.Connection as DistributedConnection;
 
             dynamic remote = await con.Get("sys/service");
 
@@ -228,26 +222,6 @@ namespace Test
         }
 
 
-
- 
-
-        public static IEnumerable<PropertyInfo> GetOrderedProperties(Type type)
-        {
-            Dictionary<Type, int> lookup = new Dictionary<Type, int>();
-
-            int count = 0;
-            lookup[type] = count++;
-            Type parent = type.BaseType;
-            while (parent != null)
-            {
-                lookup[parent] = count;
-                count++;
-                parent = parent.BaseType;
-            }
-
-            return type.GetProperties()
-                .OrderByDescending(prop => lookup[prop.DeclaringType]);
-        }
 
     }
 

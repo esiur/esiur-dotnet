@@ -590,7 +590,8 @@ public class TypeTemplate
 
             if (classIsPublic)
             {
-                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance 
+                                        | BindingFlags.DeclaredOnly | BindingFlags.Static)
                     .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
                             || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))

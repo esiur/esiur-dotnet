@@ -176,7 +176,8 @@ public static class DataDeserializer
                     {
                         try
                         {
-                            var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+                            //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+                            var v = DC.CastConvert(ar[i], template.Properties[i].PropertyInfo.PropertyType);
                             template.Properties[i].PropertyInfo.SetValue(record, v);
                         }
                         catch (Exception ex)
