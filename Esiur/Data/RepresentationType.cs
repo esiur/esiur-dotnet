@@ -167,13 +167,13 @@ namespace Esiur.Data
                 (RepresentationTypeIdentifier.Float32) => Nullable ? typeof(float?) : typeof(float),
                 (RepresentationTypeIdentifier.Float64) => Nullable ? typeof(double?) : typeof(double),
                 (RepresentationTypeIdentifier.Decimal) => Nullable ? typeof(decimal?) : typeof(decimal),
-                (RepresentationTypeIdentifier.String) => typeof(string), //Nullable ? typeof(Nullable<string>) : typeof(string),
+                (RepresentationTypeIdentifier.String) => typeof(string),
                 (RepresentationTypeIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
                 (RepresentationTypeIdentifier.Resource) => typeof(IResource),
                 (RepresentationTypeIdentifier.Record) => typeof(IRecord),
-                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Record).DefinedType,
-                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Unspecified).DefinedType,
-                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Enum).DefinedType,
+                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Record)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Unspecified)?.DefinedType,
+                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Enum)?.DefinedType,
 
                 _ => null
             };

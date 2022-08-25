@@ -55,6 +55,7 @@ namespace Test
         static async Task Main(string[] args)
         {
 
+
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
             var server = await Warehouse.Put("sys/server", new DistributedServer());
