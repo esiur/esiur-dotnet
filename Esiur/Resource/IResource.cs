@@ -43,11 +43,8 @@ public interface IResource : IDestructible///, INotifyPropertyChanged
     AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
     [NotMapped]
-    Instance Instance
-    {
-        get;
-        set;
-    }
+    [JsonIgnore]
+    Instance Instance { get; set; }
 
-    
+
 }

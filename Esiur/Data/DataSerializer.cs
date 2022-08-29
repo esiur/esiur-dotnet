@@ -321,7 +321,7 @@ public static class DataSerializer
         {
 
             fixed (byte* ptr = rt)
-                *((uint*)ptr) = (resource as DistributedResource).Id;
+                *((uint*)ptr) = (resource as DistributedResource).DistributedResourceInstanceId;
 
             return (TransmissionTypeIdentifier.ResourceLocal, rt);
         }

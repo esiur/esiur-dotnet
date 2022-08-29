@@ -344,6 +344,7 @@ public static class TemplateGenerator
             rt.AppendLine("return rt; }");
         }
 
+
         foreach (var p in template.Properties)
         {
             if (p.Inherited)
@@ -352,7 +353,7 @@ public static class TemplateGenerator
             var ptTypeName = GetTypeName(p.ValueType, templates);
             rt.AppendLine($"[Public] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
-            rt.AppendLine($"set =>  _Set({p.Index}, value);");
+            rt.AppendLine($"set => _SetSync({p.Index}, value);");
             rt.AppendLine("}");
         }
 

@@ -638,8 +638,8 @@ partial class DistributedConnection
     public bool RemoveChild(IResource parent, IResource child)
     {
         SendEvent(IIPPacket.IIPPacketEvent.ChildRemoved)
-            .AddUInt32((parent as DistributedResource).Id)
-            .AddUInt32((child as DistributedResource).Id)
+            .AddUInt32((parent as DistributedResource).DistributedResourceInstanceId)
+            .AddUInt32((child as DistributedResource).DistributedResourceInstanceId)
             .Done();
 
         return true;
@@ -648,8 +648,8 @@ partial class DistributedConnection
     public bool AddChild(IResource parent, IResource child)
     {
         SendEvent(IIPPacket.IIPPacketEvent.ChildAdded)
-            .AddUInt32((parent as DistributedResource).Id)
-            .AddUInt32((child as DistributedResource).Id)
+            .AddUInt32((parent as DistributedResource).DistributedResourceInstanceId)
+            .AddUInt32((child as DistributedResource).DistributedResourceInstanceId)
             .Done();
 
         return true;
@@ -2228,7 +2228,7 @@ partial class DistributedConnection
             else
                 return request;
         }
-        else if (resource != null && !resource.Suspended)
+        else if (resource != null && !resource.DistributedResourceSuspended)
         {
             // @REVIEW: this should never happen
             Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
@@ -2496,13 +2496,13 @@ partial class DistributedConnection
         {
             var dr = resource as DistributedResource;
 
-            if (dr.Connection != this)
+            if (dr.DistributedResourceConnection != this)
                 return new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>(null);
 
             var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
 
             SendRequest(IIPPacket.IIPPacketAction.ResourceHistory)
-                .AddUInt32(dr.Id)
+                .AddUInt32(dr.DistributedResourceInstanceId)
                 .AddDateTime(fromDate)
                 .AddDateTime(toDate)
                 .Done()

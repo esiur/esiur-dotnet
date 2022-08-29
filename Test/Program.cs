@@ -96,7 +96,6 @@ namespace Test
 
             // Start testing
             TestClient(service);
-            // TestClient(service);
         }
 
 

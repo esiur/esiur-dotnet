@@ -1,4 +1,5 @@
-﻿using Esiur.Resource;
+﻿using Esiur.Core;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +14,6 @@ namespace Test
     {
         [Public][Annotation("Comment")] string description;
         [Public] int categoryId;
-
 
         [Public] public string Hello() => "Hi";
 

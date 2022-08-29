@@ -154,7 +154,7 @@ public static class Codec
     public static bool IsLocalResource(IResource resource, DistributedConnection connection)
     {
         if (resource is DistributedResource)
-            if ((resource as DistributedResource).Connection == connection)
+            if ((resource as DistributedResource).DistributedResourceConnection == connection)
                 return true;
 
         return false;

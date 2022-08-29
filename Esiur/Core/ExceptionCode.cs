@@ -6,6 +6,7 @@ namespace Esiur.Core;
 
 public enum ExceptionCode : ushort
 {
+    RuntimeException,
     HostNotReachable,
     AccessDenied,
     UserOrTokenNotFound,

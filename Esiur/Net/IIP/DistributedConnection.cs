@@ -321,7 +321,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         {
             var r = resource as DistributedResource;
             if (r.Instance.Store == this)
-                return this.Instance.Name + "/" + r.Id;
+                return this.Instance.Name + "/" + r.DistributedResourceInstanceId;
         }
 
         return null;
@@ -1362,9 +1362,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 foreach (var r in toBeRestored)
                 {
 
-                    var link = DC.ToBytes(r.Link);
+                    var link = DC.ToBytes(r.DistributedResourceLink);
 
-                    Console.WriteLine("Restoreing " + r.Link);
+                    Console.WriteLine("Restoreing " + r.DistributedResourceLink);
 
                     try
                     {
@@ -1380,8 +1380,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         {
                             // parse them as int
                             var id = data.GetUInt32(8, Endian.Little);
-                            if (id != r.Id)
-                                r.Id = id;
+                            if (id != r.DistributedResourceInstanceId)
+                                r.DistributedResourceInstanceId = id;
 
                             neededResources[id] = r;
                             suspendedResources.Remove(id);
@@ -1426,7 +1426,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public AsyncReply<bool> Put(IResource resource)
     {
         if (Codec.IsLocalResource(resource, this))
-            neededResources.Add((resource as DistributedResource).Id, (DistributedResource)resource);
+            neededResources.Add((resource as DistributedResource).DistributedResourceInstanceId, (DistributedResource)resource);
         // else ... send it to the peer
         return new AsyncReply<bool>(true);
     }
@@ -1550,7 +1550,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             if (x.TryGetTarget(out r))
             {
                 r.Suspend();
-                suspendedResources[r.Id] = x;
+                suspendedResources[r.DistributedResourceInstanceId] = x;
             }
         }
 

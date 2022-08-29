@@ -45,14 +45,15 @@ using Esiur.Resource.Template;
 namespace Esiur.Net.IIP;
 
 //[System.Runtime.InteropServices.ComVisible(true)]
-public class DistributedResource : DynamicObject, IResource
+public class DistributedResource : DynamicObject, IResource, INotifyPropertyChanged
 {
 
     /// <summary>
     /// Raised when the distributed resource is destroyed.
     /// </summary>
     public event DestroyedEvent OnDestroy;
-    public event PropertyModifiedEvent PropertyModified;
+    //public event PropertyModifiedEvent PropertyModified;
+    public event PropertyChangedEventHandler PropertyChanged;
 
     uint instanceId;
     DistributedConnection connection;
@@ -84,12 +85,12 @@ public class DistributedResource : DynamicObject, IResource
     //}
 
 
-    
+
 
     /// <summary>
     /// Connection responsible for the distributed resource.
     /// </summary>
-    public DistributedConnection Connection
+    public DistributedConnection DistributedResourceConnection
     {
         get { return connection; }
     }
@@ -97,7 +98,7 @@ public class DistributedResource : DynamicObject, IResource
     /// <summary>
     /// Resource link
     /// </summary>
-    public string Link
+    public string DistributedResourceLink
     {
         get { return link; }
     }
@@ -105,7 +106,7 @@ public class DistributedResource : DynamicObject, IResource
     /// <summary>
     /// Instance Id given by the other end.
     /// </summary>
-    public uint Id
+    public uint DistributedResourceInstanceId
     {
         get { return instanceId; }
         internal set { instanceId = value; }
@@ -136,9 +137,9 @@ public class DistributedResource : DynamicObject, IResource
     /// <summary>
     /// Resource is attached when all its properties are received.
     /// </summary>
-    internal bool Attached => attached;
+    public bool DistributedResourceAttached => attached;
 
-    internal bool Suspended => suspended;
+    public bool DistributedResourceSuspended => suspended;
 
 
     // public DistributedResourceStack Stack
@@ -292,7 +293,7 @@ public class DistributedResource : DynamicObject, IResource
         var ft = Instance.Template.GetFunctionTemplateByName(binder.Name);
 
         var reply = new AsyncReply<object>();
-        
+
         if (attached && ft != null)
         {
             var indexedArgs = new Map<byte, object>();
@@ -315,7 +316,7 @@ public class DistributedResource : DynamicObject, IResource
                             indexedArgs.Add(i, pi.GetValue(args[0]));
                     }
 
-                    result =_Invoke(ft.Index, indexedArgs);
+                    result = _Invoke(ft.Index, indexedArgs);
                 }
                 else
                 {
@@ -409,8 +410,44 @@ public class DistributedResource : DynamicObject, IResource
     /// <param name="index">Zero-based property index.</param>
     /// <param name="value">Value</param>
     /// <returns>Indicator when the property is set.</returns>
+    protected object _SetSync(byte index, object value)
+    {
+        if (destroyed)
+            throw new Exception("Trying to access a destroyed object.");
+
+        if (suspended)
+            throw new Exception("Trying to access a suspended object.");
+
+        if (!attached)
+            return null;
+
+        if (index >= properties.Length)
+            return null;
+
+        // Don't set the same current value
+        if (properties[index] == value)
+            return value;
+
+        return _Set(index, value).Wait();
+    }
+
+    /// <summary>
+    /// Set property value.
+    /// </summary>
+    /// <param name="index">Zero-based property index.</param>
+    /// <param name="value">Value</param>
+    /// <returns>Indicator when the property is set.</returns>
     protected internal AsyncReply<object> _Set(byte index, object value)
     {
+        if (destroyed)
+            throw new Exception("Trying to access a destroyed object.");
+
+        if (suspended)
+            throw new Exception("Trying to access a suspended object.");
+
+        if (!attached)
+            return null;
+
         if (index >= properties.Length)
             return null;
 
@@ -424,16 +461,15 @@ public class DistributedResource : DynamicObject, IResource
                     .Done()
                     .Then((res) =>
                     {
-                            // not really needed, server will always send property modified, 
-                            // this only happens if the programmer forgot to emit in property setter
-                            properties[index] = value;
+                        // not really needed, server will always send property modified, 
+                        // this only happens if the programmer forgot to emit in property setter
+                        properties[index] = value;
                         reply.Trigger(null);
                     });
 
         return reply;
     }
 
-    
     public override bool TrySetMember(SetMemberBinder binder, object value)
     {
         if (destroyed)
@@ -521,10 +557,17 @@ public class DistributedResource : DynamicObject, IResource
     {
 
         if (trigger == ResourceTrigger.Initialize)
-            this.Instance.PropertyModified += this.PropertyModified;
-
+        {
+            this.Instance.PropertyModified += (x) =>
+                    this.PropertyChanged?.Invoke(this, new ResourcePropertyChangedEventArgs(x.Name));
+        }
         // do nothing.
         return new AsyncReply<bool>(true);
+    }
+
+    protected virtual void EmitPropertyChanged(string name)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)); 
     }
 
     ~DistributedResource()

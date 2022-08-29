@@ -55,7 +55,7 @@ public class ResourceGeneratorReceiver : ISyntaxContextReceiver
 
                 //if (!Debugger.IsAttached)
                 //{
-                //    if (cls.Name == "User")
+                //    if (cls.Name == "MyChildResource")
                 //        Debugger.Launch();
                 //}
 
@@ -68,11 +68,12 @@ public class ResourceGeneratorReceiver : ISyntaxContextReceiver
                 // Partial class check
                 if (Classes.ContainsKey(fullName))
                 {
+
                     // append fields
                     var c = Classes[fullName];
                     c.Fields.AddRange(fields);
                     if (!c.HasInterface)
-                        c.HasInterface = cls.Interfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource");
+                        c.HasInterface = cls.AllInterfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource");
                     if (!c.HasTrigger)
                         c.HasTrigger = hasTrigger;
                 }
@@ -84,9 +85,13 @@ public class ResourceGeneratorReceiver : ISyntaxContextReceiver
                         ClassDeclaration = cds,
                         ClassSymbol = cls,
                         Fields = fields.ToList(),
-                        HasInterface = cls.Interfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource"),
+                        HasInterface = cls.AllInterfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource"),
                         HasTrigger = hasTrigger
                     });
+
+                    
+
+
                 }
 
 

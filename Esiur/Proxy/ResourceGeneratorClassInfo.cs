@@ -16,4 +16,13 @@ public struct ResourceGeneratorClassInfo
 
     public ClassDeclarationSyntax ClassDeclaration { get; set; }
 
+    public bool IsInterfaceImplemented(Dictionary<string, ResourceGeneratorClassInfo> classes)
+    {
+        if (HasInterface)
+            return true;
+
+        // Are we going to generate the interface for the parent ?
+        var fullName = ClassSymbol.BaseType.ContainingAssembly + "." + ClassSymbol.BaseType.Name;
+        return classes.ContainsKey(fullName);
+    }
 }

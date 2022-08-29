@@ -154,21 +154,21 @@ using Esiur.Core;
 namespace { ci.ClassSymbol.ContainingNamespace.ToDisplayString() } {{
 ";
 
-                if (ci.HasInterface)
+                if (ci.IsInterfaceImplemented(receiver.Classes))
                     code += $"public partial class {ci.Name} {{\r\n";
                 else
                 {
                     code += 
 @$" public partial class {ci.Name} : IResource {{
-        public Instance Instance {{ get; set; }}
-        public event DestroyedEvent OnDestroy;
+    public virtual Instance Instance {{ get; set; }}
+    public virtual event DestroyedEvent OnDestroy;
 
-        public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
+    public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
 ";
 
                     if (!ci.HasTrigger)
-                        code += 
-"        public AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n";
+                        code +=
+"\tpublic virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n\r\n";
                 }
 
                 //Debugger.Launch();
@@ -183,8 +183,8 @@ namespace { ci.ClassSymbol.ContainingNamespace.ToDisplayString() } {{
                     //System.IO.File.AppendAllText("c:\\gen\\fields.txt", fn + " -> " + pn + "\r\n");
 
                     // copy attributes 
-                    var attrs = string.Join(" ", f.GetAttributes().Select(x => $"[{x.ToString()}]"));
-                    code += $"{attrs} public {f.Type} {pn} {{ get => {fn}; set {{ {fn} = value; Instance?.Modified(); }} }}\r\n";
+                    var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => $"[{x.ToString()}]"));
+                    code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t {fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
                 }
 
                 code += "}}\r\n";
