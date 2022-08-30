@@ -53,8 +53,7 @@ namespace Test
     {
 
         static async Task Main(string[] args)
-        {
-
+        {        
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());

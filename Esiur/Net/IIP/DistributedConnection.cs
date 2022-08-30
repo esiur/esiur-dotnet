@@ -42,6 +42,7 @@ using static Esiur.Net.Packets.IIPPacket;
 using Esiur.Net.HTTP;
 using System.Timers;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
@@ -1005,7 +1006,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 var r = new Random();
                                 session.Id = new byte[32];
                                 r.NextBytes(session.Id);
-                                
+
                                 SendParams().AddUInt8(0x28)
                                             .AddUInt8Array(session.Id)
                                             .Done();
@@ -1228,6 +1229,12 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public string Username { get; set; }
 
     [Attribute]
+    public bool UseWebSocket { get; set; }
+
+    [Attribute]
+    public bool SecureWebSocket { get; set; }
+
+    [Attribute]
     public string Password { get; set; }
 
     [Attribute]
@@ -1308,7 +1315,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
             throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
 
         if (socket == null)
-            socket = new TCPSocket();
+        {
+            var os = RuntimeInformation.FrameworkDescription;
+            if (UseWebSocket || RuntimeInformation.OSDescription == "Browser")
+                socket = new ClientWSocket();
+            else
+                socket = new TCPSocket();
+        }
 
         if (port > 0)
             this._port = port;
@@ -1378,16 +1391,22 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                         if (dataType.Identifier == TransmissionTypeIdentifier.ResourceList)
                         {
+
+                            // remove from suspended.
+                            suspendedResources.Remove(r.DistributedResourceInstanceId);
+
                             // parse them as int
                             var id = data.GetUInt32(8, Endian.Little);
+
+                            // id changed ?
                             if (id != r.DistributedResourceInstanceId)
                                 r.DistributedResourceInstanceId = id;
 
                             neededResources[id] = r;
-                            suspendedResources.Remove(id);
 
                             await Fetch(id, null);
 
+                            Console.WriteLine("Restored " + id);
                         }
                     }
                     catch (AsyncException ex)
@@ -1398,6 +1417,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         }
                         else
                         {
+                            Global.Log(ex);
                             break;
                         }
                     }

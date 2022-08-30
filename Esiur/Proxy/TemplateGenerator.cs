@@ -170,7 +170,7 @@ public static class TemplateGenerator
         return (representationType.Nullable) ? name + "?" : name;
     }
 
-    public static string GetTemplate(string url, string dir = null, string username = null, string password = null)
+    public static string GetTemplate(string url, string dir = null, string username = null, string password = null, bool asyncSetters = false)
     {
         try
         {
@@ -209,7 +209,7 @@ public static class TemplateGenerator
             {
                 if (tmp.Type == TemplateType.Resource)
                 {
-                    var source = GenerateClass(tmp, templates);
+                    var source = GenerateClass(tmp, templates, asyncSetters);
                     File.WriteAllText(tempDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
                 }
                 else if (tmp.Type == TemplateType.Record)
@@ -253,7 +253,7 @@ public static class TemplateGenerator
         }
     }
 
-    internal static string GenerateClass(TypeTemplate template, TypeTemplate[] templates)
+    internal static string GenerateClass(TypeTemplate template, TypeTemplate[] templates, bool asyncSetters)
     {
         var cls = template.ClassName.Split('.');
 
@@ -353,7 +353,10 @@ public static class TemplateGenerator
             var ptTypeName = GetTypeName(p.ValueType, templates);
             rt.AppendLine($"[Public] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
-            rt.AppendLine($"set => _SetSync({p.Index}, value);");
+            if (asyncSetters)
+                rt.AppendLine($"set => _Set({p.Index}, value);");
+            else
+                rt.AppendLine($"set => _SetSync({p.Index}, value);");
             rt.AppendLine("}");
         }
 

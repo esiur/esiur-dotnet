@@ -43,7 +43,7 @@ public class ResourceGenerator : ISourceGenerator
         {
             if (tmp.Type == TemplateType.Resource)
             {
-                var source = TemplateGenerator.GenerateClass(tmp, templates);
+                var source = TemplateGenerator.GenerateClass(tmp, templates, false);
                 // File.WriteAllText($@"C:\gen\{tmp.ClassName}.cs", source);
                 context.AddSource(tmp.ClassName + ".Generated.cs", source);
             }
@@ -100,7 +100,6 @@ public class ResourceGenerator : ISourceGenerator
                 continue;
 
 
-            //File.WriteAllLines("C:\\gen\\ref.log", context.Compilation.ReferencedAssemblyNames.Select(x => x.ToString()));
 
             if (cache.Contains(path))
             {
@@ -131,7 +130,6 @@ public class ResourceGenerator : ISourceGenerator
             catch (Exception ex)
             {
                 ReportError(context, ex.Source, ex.Message, "Esiur");
-                //System.IO.File.AppendAllText("c:\\gen\\error.log", ex.ToString() + "\r\n");
             }
 
             //inProgress.Remove(path);

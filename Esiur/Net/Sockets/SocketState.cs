@@ -36,5 +36,4 @@ public enum SocketState
     Connecting,
     Established,
     Closed,
-    //Terminated
 }

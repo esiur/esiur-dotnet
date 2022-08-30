@@ -1798,6 +1798,10 @@ partial class DistributedConnection
 
     void IIPRequestSetProperty(uint callback, uint resourceId, byte index, TransmissionType transmissionType, byte[] content)
     {
+
+        // un hold the socket to send data immediately
+        this.Socket.Unhold();
+
         Warehouse.GetById(resourceId).Then((r) =>
         {
             if (r != null)
@@ -1863,6 +1867,7 @@ partial class DistributedConnection
 
                                 try
                                 {
+
                                     pi.SetValue(r, value);
                                     SendReply(IIPPacket.IIPPacketAction.SetProperty, callback).Done();
                                 }

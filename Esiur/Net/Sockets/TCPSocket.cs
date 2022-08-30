@@ -172,118 +172,7 @@ public class TCPSocket : ISocket
 
         return rt;
     }
-
-
-    //private void DataReceived(Task<int> task)
-    //{
-    //    try
-    //    {
-    //        // SocketError err;
-
-    //        if (state == SocketState.Closed || state == SocketState.Terminated)
-    //            return;
-
-    //        if (task.Result <= 0)
-    //        {
-    //            Close();
-    //            return;
-    //        }
-
-    //        receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)task.Result);
-    //        //OnReceive?.Invoke(receiveNetworkBuffer);
-    //        Receiver?.NetworkReceive(this, receiveNetworkBuffer);
-    //        if (state == SocketState.Established)
-    //            sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
-
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        if (state != SocketState.Closed && !sock.Connected)
-    //        {
-    //            state = SocketState.Terminated;
-    //            Close();
-    //        }
-
-    //        Global.Log("TCPSocket", LogType.Error, ex.ToString());
-    //    }
-    //}
-
-    //private void SocketArgs_Completed(object sender, SocketAsyncEventArgs e)
-    //{
-    //    try
-    //    {
-    //        if (state != SocketState.Established)
-    //            return;
-
-    //        if (e.BytesTransferred <= 0)
-    //        {
-    //            Close();
-    //            return;
-    //        }
-    //        else if (e.SocketError != SocketError.Success)
-    //        {
-    //            Close();
-    //            return;
-
-    //        }
-
-    //        var recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
-    //        receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
-
-    //        //OnReceive?.Invoke(receiveNetworkBuffer);
-    //        Receiver?.NetworkReceive(this, receiveNetworkBuffer);
-
-    //        if (state == SocketState.Established)
-    //            while (!sock.ReceiveAsync(e))
-    //            {
-    //                if (e.SocketError != SocketError.Success)
-    //                {
-    //                    Close();
-    //                    return;
-    //                }
-
-    //                if (State != SocketState.Established)
-    //                    return;
-
-    //                //if (e.BytesTransferred < 0)
-    //                //    Console.WriteLine("BytesTransferred is less than zero");
-
-    //                if (e.BytesTransferred <= 0)
-    //                {
-    //                    Close();
-    //                    return;
-    //                }
-    //                else if (e.SocketError != SocketError.Success)
-    //                {
-    //                    Close();
-    //                    return;
-    //                }
-
-
-    //                //if (e.BytesTransferred > 100000)
-    //                //    Console.WriteLine("BytesTransferred is large " + e.BytesTransferred);
-
-    //                recCount = e.BytesTransferred > e.Count ? e.Count : e.BytesTransferred;
-
-    //                receiveNetworkBuffer.Write(receiveBuffer, 0, (uint)recCount);
-
-    //                //OnReceive?.Invoke(receiveNetworkBuffer);
-    //                Receiver?.NetworkReceive(this, receiveNetworkBuffer);
-    //            }
-
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        if (state != SocketState.Closed && !sock.Connected)
-    //        {
-    //            state = SocketState.Terminated;
-    //            Close();
-    //        }
-
-    //        Global.Log("TCPSocket", LogType.Error, ex.ToString());
-    //    }
-    //}
-
+     
     public IPEndPoint LocalEndPoint
     {
         get { return (IPEndPoint)sock.LocalEndPoint; }
@@ -312,40 +201,7 @@ public class TCPSocket : ISocket
         Connect(hostname, port);
 
     }
-
-    //private void DataSent(Task<int> task)
-    //{
-    //    try
-    //    {
-    //        lock (sendLock)
-    //        {
-
-    //            if (sendBufferQueue.Count > 0)
-    //            {
-    //                byte[] data = sendBufferQueue.Dequeue();
-    //                //Console.WriteLine(Encoding.UTF8.GetString(data));
-    //                sock.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ContinueWith(DataSent);
-    //            }
-
-    //            else
-    //            {
-    //                asyncSending = false;
-    //            }
-    //        }
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        if (state != SocketState.Closed && !sock.Connected)
-    //        {
-    //            state = SocketState.Terminated;
-    //            Close();
-    //        }
-
-    //        asyncSending = false;
-
-    //        Global.Log("TCPSocket", LogType.Error, ex.ToString());
-    //    }
-    //}
+     
 
     public TCPSocket(IPEndPoint localEndPoint)
     {
@@ -367,9 +223,6 @@ public class TCPSocket : ISocket
 
 
     }
-
-
-
 
     public IPEndPoint RemoteEndPoint
     {
@@ -616,14 +469,14 @@ public class TCPSocket : ISocket
     public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
     {
 
-        if (state == SocketState.Closed)// || state == SocketState.Terminated)
+        if (state == SocketState.Closed) 
             return new AsyncReply<bool>(false);
 
         var msg = message.Clip((uint)offset, (uint)length);
 
         lock (sendLock)
         {
-            if (state == SocketState.Closed)// || state == SocketState.Terminated)
+            if (state == SocketState.Closed) 
                 return new AsyncReply<bool>(false);
 
             if (!sock.Connected)
@@ -641,13 +494,12 @@ public class TCPSocket : ISocket
                 try
                 {
                     currentReply = rt;
-                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, sendCallback, this);// null);
+                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, sendCallback, this); 
                 }
                 catch (Exception ex)
                 {
                     rt.TriggerError(ex);
                     asyncSending = false;
-                    //state = SocketState.Terminated;
                     Close();
                 }
                 //sock.SendAsync(new ArraySegment<byte>(msg), SocketFlags.None).ContinueWith(DataSent);

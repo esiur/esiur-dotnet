@@ -56,7 +56,7 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
     long totalSent, totalReceived;
 
-    bool processing = false;
+
 
     public IPEndPoint LocalEndPoint
     {
@@ -254,14 +254,12 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
     public void NetworkReceive(ISocket sender, NetworkBuffer buffer)
     {
 
-        if (sock.State == SocketState.Closed)// || sock.State == SocketState.Terminated)
+        if (sock.State == SocketState.Closed)
             return;
 
         if (buffer.Protected)
             return;
 
-        if (processing)
-            return;
 
 
         var msg = buffer.Read();
@@ -270,7 +268,6 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
             return;
 
         var wsPacketLength = pkt_receive.Parse(msg, 0, (uint)msg.Length);
-        //Console.WriteLine("WSP: " + wsPacketLength);
 
         if (wsPacketLength < 0)
         {
@@ -289,12 +286,14 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
             }
             else if (pkt_receive.Opcode == WebsocketPacket.WSOpcode.Ping)
             {
-                var pkt_pong = new WebsocketPacket();
+                var pkt_pong = new WebsocketPacket()
+                {
+                    FIN = true,
+                    Mask = false,
+                    Opcode = WebsocketPacket.WSOpcode.Pong,
+                    Message = pkt_receive.Message
+                };
 
-                pkt_pong.FIN = true;
-                pkt_pong.Mask = false;
-                pkt_pong.Opcode = WebsocketPacket.WSOpcode.Pong;
-                pkt_pong.Message = pkt_receive.Message;
                 offset += (uint)wsPacketLength;
 
                 Send(pkt_pong);
@@ -322,7 +321,6 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
             if (offset == msg.Length)
             {
 
-                //OnReceive?.Invoke(receiveNetworkBuffer);
                 Receiver?.NetworkReceive(this, receiveNetworkBuffer);
                 return;
             }
@@ -330,25 +328,20 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
             wsPacketLength = pkt_receive.Parse(msg, offset, (uint)msg.Length);
         }
 
-        if (wsPacketLength < 0)//(offset < msg.Length) && (offset > 0))
+        if (wsPacketLength < 0)
         {
-            //receiveNetworkBuffer.HoldFor(msg, offset, (uint)(msg.Length - offset), (uint)msg.Length + (uint)-wsPacketLength);
             // save the incomplete packet to the heldBuffer queue
-
             buffer.HoldFor(msg, offset, (uint)(msg.Length - offset), (uint)(msg.Length - offset) + (uint)-wsPacketLength);
 
         }
 
         //Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
 
-        //OnReceive?.Invoke(receiveNetworkBuffer);
         Receiver?.NetworkReceive(this, receiveNetworkBuffer);
 
-        processing = false;
 
         if (buffer.Available > 0 && !buffer.Protected)
-            Receiver?.NetworkReceive(this, buffer);
-        //Sock_OnReceive(buffer);
+            NetworkReceive(this, buffer);
     }
 
 

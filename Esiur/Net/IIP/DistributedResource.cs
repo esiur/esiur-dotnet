@@ -412,6 +412,8 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     /// <returns>Indicator when the property is set.</returns>
     protected object _SetSync(byte index, object value)
     {
+        Console.WriteLine("Setting..." + index + " " + value);
+
         if (destroyed)
             throw new Exception("Trying to access a destroyed object.");
 
@@ -428,7 +430,10 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         if (properties[index] == value)
             return value;
 
-        return _Set(index, value).Wait();
+        var rt = _Set(index, value).Wait();
+
+        Console.WriteLine("Done Setting");
+        return rt;
     }
 
     /// <summary>
