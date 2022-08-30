@@ -220,17 +220,13 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
 
     public virtual void Remove(TConnection connection)
     {
-        //connection.OnDataReceived -= OnDataReceived;
-        //connection.OnConnect -= OnClientConnect;
         connection.OnClose -= ClientDisconnectedEventReceiver;
         Connections.Remove(connection);
     }
 
     public virtual void Add(TConnection connection)
     {
-        //connection.OnDataReceived += OnDataReceived;
-        //connection.OnConnect += OnClientConnect;
-        connection.OnClose += ClientDisconnectedEventReceiver;// OnClientClose;
+        connection.OnClose += ClientDisconnectedEventReceiver;
         Connections.Add(connection);
     }
 
@@ -283,19 +279,12 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
         {
             var con = connection as TConnection;
             con.Destroy();
-            //                con.OnClose -= ClientDisconnectedEventReceiver;
-
             Remove(con);
-
-            //Connections.Remove(con);
             ClientDisconnected(con);
-            //RemoveConnection((TConnection)sender);
-            //connections.Remove(sender)
-            //ClientDisconnected((TConnection)sender);
         }
         catch (Exception ex)
         {
-            Global.Log("NetworkServer:OnClientDisconnect", LogType.Error, ex.ToString());
+            Global.Log(ex);
         }
     }
 

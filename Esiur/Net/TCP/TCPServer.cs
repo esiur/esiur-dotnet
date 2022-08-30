@@ -105,6 +105,10 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
 
     internal bool Execute(TCPConnection sender, NetworkBuffer data)
     {
+
+        if (filters == null)
+            return false;
+
         var msg = data.Read();
 
         foreach (var filter in filters)
@@ -123,6 +127,8 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
 
     protected override void ClientDisconnected(TCPConnection connection)
     {
+        if (filters == null)
+            return;
 
         foreach (var filter in filters)
         {
@@ -144,6 +150,9 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
 
     protected override void ClientConnected(TCPConnection connection)
     {
+        if (filters == null)
+            return;
+
         foreach (var filter in filters)
         {
             filter.Connected(connection);
