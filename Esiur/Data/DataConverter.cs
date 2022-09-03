@@ -464,7 +464,7 @@ public static class DC // Data Converter
     public static string ToHex(this byte[] ba)
     {
         if (ba == null)
-            return "NULL";
+            return "";
         return ToHex(ba, 0, (uint)ba.Length);
     }
 

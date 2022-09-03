@@ -74,6 +74,8 @@ public static class TemplateGenerator
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
+
+        rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Public] public class {className} : IRecord {{");
 
 
@@ -104,6 +106,7 @@ public static class TemplateGenerator
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
+        rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Public] public enum {className} {{");
 
         rt.AppendLine(String.Join(",\r\n", template.Constants.Select(x => $"{x.Name}={x.Value}")));
@@ -267,6 +270,9 @@ public static class TemplateGenerator
 
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
+
+
+        rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
 
         // extends
         if (template.ParentId == null)

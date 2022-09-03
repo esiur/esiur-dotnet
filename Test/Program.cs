@@ -43,17 +43,16 @@ using Esiur.Proxy;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Test
 {
 
-
-
     class Program
     {
-
         static async Task Main(string[] args)
-        {        
+        {
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());

@@ -1342,7 +1342,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         {
             if (AutoReconnect)
             {
-                Console.Write("Reconnecting socket...");
+                Global.Log("DistributedConnection", LogType.Debug, "Reconnecting socket...");
                 Task.Delay((int)ReconnectInterval).ContinueWith((x) => connectSocket(socket));
             }
             else

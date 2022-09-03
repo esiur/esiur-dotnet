@@ -159,16 +159,18 @@ public class TypeTemplate
 
     }
 
-    public static Guid GetTypeGuid(Type type) => GetTypeGuid(GetTypeClassName(type));
-
-    public static Guid GetTypeGuid(string typeName)
+    public static Guid GetTypeGuid(Type type)
     {
-        var tn = Encoding.UTF8.GetBytes(typeName);
+        var attr = type.GetCustomAttribute<ClassIdAttribute>();
+        if (attr != null)
+            return attr.ClassId;
+
+        var tn = Encoding.UTF8.GetBytes(GetTypeClassName(type));
         var hash = SHA256.Create().ComputeHash(tn).Clip(0, 16);
-
-        return new Guid(hash);
+        var rt = new Guid(hash);
+        return rt;
     }
-
+    
     static Type[] GetDistributedTypes(Type type)
     {
         if (type.IsArray)
@@ -419,7 +421,7 @@ public class TypeTemplate
         className = GetTypeClassName(type);
 
         // set guid
-        classId = GetTypeGuid(className);
+        classId = GetTypeGuid(type);
 
         if (addToWarehouse)
             Warehouse.PutTemplate(this);

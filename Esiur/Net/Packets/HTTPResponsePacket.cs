@@ -115,14 +115,14 @@ public class HTTPResponsePacket : Packet
         }
     }
 
-    public StringKeyList Headers = new StringKeyList(true);
-    public string Version = "HTTP/1.1";
+    public StringKeyList Headers { get; } = new StringKeyList(true);
+    public string Version { get; set; } = "HTTP/1.1";
 
     public byte[] Message;
-    public ResponseCode Number;
+    public ResponseCode Number { get; set; } = ResponseCode.OK;
     public string Text;
 
-    public List<HTTPCookie> Cookies = new List<HTTPCookie>();
+    public List<HTTPCookie> Cookies { get; } = new List<HTTPCookie>();
     public bool Handled;
 
     public override string ToString()
@@ -206,8 +206,6 @@ public class HTTPResponsePacket : Packet
         if (headerSize == 0)
             return -1;
 
-        //Cookies = new DStringDictionary();
-        //Headers = new DStringDictionary(true);
 
         sMethod = sLines[0].Split(' ');
 
