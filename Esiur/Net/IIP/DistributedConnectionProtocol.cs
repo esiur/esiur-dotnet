@@ -2266,8 +2266,8 @@ partial class DistributedConnection
 
                         if (resource == null)
                         {
-                            template = Warehouse.GetTemplateByClassId(classId, TemplateType.Wrapper);
-                            if (template?.DefinedType != null)
+                            template = Warehouse.GetTemplateByClassId(classId, TemplateType.Resource);
+                            if (template?.DefinedType != null && template.IsWrapper)
                                 dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
                             else
                                 dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
