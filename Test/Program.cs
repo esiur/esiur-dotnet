@@ -111,7 +111,7 @@ namespace Test
             var temp = await con.Call("temp");
             Console.WriteLine("Temp: " + temp.GetHashCode());
 
-            var template = await con.GetTemplateByClassName("Test.MyResource");
+            //var template = await con.GetTemplateByClassName("Test.MyResource");
 
 
             TestObjectProps(local, remote);

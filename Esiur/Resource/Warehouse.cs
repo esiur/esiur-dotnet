@@ -53,14 +53,14 @@ public static class Warehouse
 
     static uint resourceCounter = 0;
 
- 
+
     static KeyList<TemplateType, KeyList<Guid, TypeTemplate>> templates
         = new KeyList<TemplateType, KeyList<Guid, TypeTemplate>>()
         {
-            [TemplateType.Unspecified] = new KeyList<Guid, TypeTemplate>(),
+            //[TemplateType.Unspecified] = new KeyList<Guid, TypeTemplate>(),
             [TemplateType.Resource] = new KeyList<Guid, TypeTemplate>(),
             [TemplateType.Record] = new KeyList<Guid, TypeTemplate>(),
-            [TemplateType.Wrapper] = new KeyList<Guid, TypeTemplate>(),
+            //[TemplateType.Wrapper] = new KeyList<Guid, TypeTemplate>(),
             [TemplateType.Enum] = new KeyList<Guid, TypeTemplate>(),
         };
 
@@ -595,7 +595,7 @@ public static class Warehouse
         resource.Instance = new Instance(resourceCounter++, instanceName, resource, store, customTemplate, age);
 
         if (attributes != null)
-            resource.Instance.SetAttributes(Map<string,object>.FromObject(attributes));
+            resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
 
         if (manager != null)
             resource.Instance.Managers.Add(manager);
@@ -691,7 +691,7 @@ public static class Warehouse
 
         if (properties != null)
         {
-            var ps = Map<string,object>.FromObject(properties);
+            var ps = Map<string, object>.FromObject(properties);
 
             foreach (var p in ps)
             {
@@ -753,6 +753,9 @@ public static class Warehouse
     /// <param name="template">Resource template.</param>
     public static void PutTemplate(TypeTemplate template)
     {
+        if (templates[template.Type].ContainsKey(template.ClassId))
+            throw new Exception($"Template with same class Id already exists. {templates[template.Type][template.ClassId].ClassName} -> {template.ClassName}");
+
         templates[template.Type][template.ClassId] = template;
     }
 
@@ -765,10 +768,12 @@ public static class Warehouse
     public static TypeTemplate GetTemplateByType(Type type)
     {
 
-        TemplateType templateType = TemplateType.Unspecified;
+        //TemplateType templateType = TemplateType.Unspecified;
 
-        if (Codec.InheritsClass(type, typeof(DistributedResource)))
-            templateType = TemplateType.Wrapper;
+        //if (Codec.InheritsClass(type, typeof(DistributedResource)))
+        //    templateType = TemplateType.Wrapper;
+
+        TemplateType templateType;
         if (Codec.ImplementsInterface(type, typeof(IResource)))
             templateType = TemplateType.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
@@ -801,32 +806,33 @@ public static class Warehouse
     /// </summary>
     /// <param name="classId">Class Id.</param>
     /// <returns>Resource template.</returns>
-    public static TypeTemplate GetTemplateByClassId(Guid classId, TemplateType templateType = TemplateType.Unspecified)
+    public static TypeTemplate GetTemplateByClassId(Guid classId, TemplateType? templateType = null)
     {
-        if (templateType == TemplateType.Unspecified)
+        if (templateType == null)
         {
-            // look in resources
+            // look into resources
             var template = templates[TemplateType.Resource][classId];
             if (template != null)
                 return template;
 
-            // look in records
+            // look into records
             template = templates[TemplateType.Record][classId];
             if (template != null)
                 return template;
 
-            // look in enums
+            // look into enums
             template = templates[TemplateType.Enum][classId];
-            if (template != null)
-                return template;
-
-
-            // look in wrappers
-            template = templates[TemplateType.Wrapper][classId];
             return template;
+            //if (template != null)
+
+
+            //// look in wrappers
+            //template = templates[TemplateType.Wrapper][classId];
+            //return template;
         }
         else
-            return templates[templateType][classId];
+            return templates[templateType.Value][classId];
+
     }
 
     /// <summary>
@@ -834,27 +840,32 @@ public static class Warehouse
     /// </summary>
     /// <param name="className">Class name.</param>
     /// <returns>Resource template.</returns>
-    public static TypeTemplate GetTemplateByClassName(string className, TemplateType templateType = TemplateType.Unspecified)
+    public static TypeTemplate GetTemplateByClassName(string className, TemplateType? templateType = null)
     {
-        if (templateType == TemplateType.Unspecified)
+        if (templateType == null)
         {
-            // look in resources
+            // look into resources
             var template = templates[TemplateType.Resource].Values.FirstOrDefault(x => x.ClassName == className);
             if (template != null)
                 return template;
 
-            // look in records
+            // look into records
             template = templates[TemplateType.Record].Values.FirstOrDefault(x => x.ClassName == className);
             if (template != null)
                 return template;
 
-            // look in wrappers
-            template = templates[TemplateType.Wrapper].Values.FirstOrDefault(x => x.ClassName == className);
+            // look into enums
+            template = templates[TemplateType.Enum].Values.FirstOrDefault(x => x.ClassName == className);
+            //if (template != null)
             return template;
+
+            //// look in wrappers
+            //template = templates[TemplateType.Wrapper].Values.FirstOrDefault(x => x.ClassName == className);
+            //return template;
         }
         else
         {
-            return templates[templateType].Values.FirstOrDefault(x => x.ClassName == className);
+            return templates[templateType.Value].Values.FirstOrDefault(x => x.ClassName == className);
         }
     }
 
@@ -873,7 +884,7 @@ public static class Warehouse
             resources.TryRemove(resource.Instance.Id, out resourceReference);
         else
             return false;
-        
+
 
         if (resource != resource.Instance.Store)
         {

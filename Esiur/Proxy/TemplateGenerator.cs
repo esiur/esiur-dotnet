@@ -122,7 +122,7 @@ public static class TemplateGenerator
         string name;
 
         if (representationType.Identifier == RepresentationTypeIdentifier.TypedResource)// == DataType.Resource)
-            name = templates.First(x => x.ClassId == representationType.GUID && (x.Type == TemplateType.Resource || x.Type == TemplateType.Wrapper)).ClassName;
+            name = templates.First(x => x.ClassId == representationType.GUID && (x.Type == TemplateType.Resource)).ClassName;
         else if (representationType.Identifier == RepresentationTypeIdentifier.TypedRecord)
             name = templates.First(x => x.ClassId == representationType.GUID && x.Type == TemplateType.Record).ClassName;
         else if (representationType.Identifier == RepresentationTypeIdentifier.Enum)

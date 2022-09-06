@@ -35,8 +35,8 @@ public class Instance
 
     public event PropertyModifiedEvent PropertyModified;
 
- 
- 
+
+
     public event EventOccurredEvent EventOccurred;
     public event CustomEventOccurredEvent CustomEventOccurred;
     public event ResourceDestroyedEvent Destroyed;
@@ -46,7 +46,7 @@ public class Instance
     //KeyList<string, object> attributes;
 
     List<ulong?> ages = new();
-    List<DateTime?> modificationDates = new ();
+    List<DateTime?> modificationDates = new();
     private ulong instanceAge;
     private DateTime instanceModificationDate;
 
@@ -97,10 +97,10 @@ public class Instance
         */
     }
 
-    public Map<string,object> GetAttributes(string[] attributes = null)
+    public Map<string, object> GetAttributes(string[] attributes = null)
     {
         // @TODO
-        var rt = new Map<string,object>();
+        var rt = new Map<string, object>();
 
         if (attributes != null)
         {
@@ -169,7 +169,7 @@ public class Instance
         */
     }
 
-    public bool SetAttributes(Map<string,object> attributes, bool clearAttributes = false)
+    public bool SetAttributes(Map<string, object> attributes, bool clearAttributes = false)
     {
 
         // @ TODO
@@ -305,7 +305,7 @@ public class Instance
         {
             modificationDates[index] = value;
             if (value > instanceModificationDate)
-                instanceModificationDate = (DateTime) value;
+                instanceModificationDate = (DateTime)value;
         }
     }
 
@@ -616,8 +616,8 @@ public class Instance
             var eventTemplate = template.GetEventTemplateByIndex(eventIndex);
             EventOccurred?.Invoke(new EventOccurredInfo(res, eventTemplate, value));
         }
-    }    
-    
+    }
+
     internal void EmitCustomResourceEventByIndex(object issuer, Func<Session, bool> receivers, byte eventIndex, object value)
     {
         IResource res;
@@ -866,13 +866,6 @@ public class Instance
     /// </summary>
     public AutoList<IPermissionsManager, Instance> Managers => managers;
 
-
-    public void CallMeTest(Instance ins, int? val) =>
-        ins.EmitResourceEventByIndex(201, val);
-
-    public void CallMeTest2(Instance instance, object issuer, Func<Session, bool> receivers, int? val) =>
-        instance.EmitCustomResourceEventByIndex(issuer, receivers, 201, val);
-
     /// <summary>
     /// Create new instance.
     /// </summary>
@@ -911,110 +904,77 @@ public class Instance
             modificationDates.Add(DateTime.MinValue);
         }
 
+
         // connect events
-        Type t = ResourceProxy.GetBaseType(resource);
-
-#if NETSTANDARD
-        var events = t.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
-
-#else
-            var events = t.GetEvents(BindingFlags.Public | BindingFlags.Instance);// | BindingFlags.DeclaredOnly);
-#endif
-
-
-        var emitEventByIndexMethod = GetType().GetMethod("EmitResourceEventByIndex", BindingFlags.Instance | BindingFlags.NonPublic);
-        var emitCustomEventByIndexMethod = GetType().GetMethod("EmitCustomResourceEventByIndex", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        foreach (var evt in template.Events)
+        if (!(resource is DistributedResource))
         {
 
-            if (evt.EventInfo == null)
-                continue;
+            Type t = ResourceProxy.GetBaseType(resource);
 
-            var eventGenericType = evt.EventInfo.EventHandlerType.GetGenericTypeDefinition();
+            var events = t.GetTypeInfo().GetEvents(BindingFlags.Public | BindingFlags.Instance);
 
-            if (eventGenericType == typeof(ResourceEventHandler<>))
+            var emitEventByIndexMethod = GetType().GetMethod("EmitResourceEventByIndex", BindingFlags.Instance | BindingFlags.NonPublic);
+            var emitCustomEventByIndexMethod = GetType().GetMethod("EmitCustomResourceEventByIndex", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            foreach (var evt in template.Events)
             {
 
-                var dm = new DynamicMethod("_", null,
-                   new Type[] {typeof(Instance), evt.EventInfo.EventHandlerType.GenericTypeArguments[0] }, 
-                   typeof(Instance).Module, true);
+                if (evt.EventInfo == null)
+                    continue;
+
+                var eventGenericType = evt.EventInfo.EventHandlerType.GetGenericTypeDefinition();
+
+                if (eventGenericType == typeof(ResourceEventHandler<>))
+                {
+
+                    var dm = new DynamicMethod("_", null,
+                       new Type[] { typeof(Instance), evt.EventInfo.EventHandlerType.GenericTypeArguments[0] },
+                       typeof(Instance).Module, true);
 
 
-                var il = dm.GetILGenerator();
-                il.Emit(OpCodes.Ldarg_0);
-                il.Emit(OpCodes.Ldc_I4, (int)evt.Index);
-                il.Emit(OpCodes.Ldarg_1);
-                il.Emit(OpCodes.Box, evt.EventInfo.EventHandlerType.GenericTypeArguments[0]);
-                il.Emit(OpCodes.Callvirt, emitEventByIndexMethod);
-                il.Emit(OpCodes.Nop);
-                il.Emit(OpCodes.Ret);
+                    var il = dm.GetILGenerator();
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldc_I4, (int)evt.Index);
+                    il.Emit(OpCodes.Ldarg_1);
+                    il.Emit(OpCodes.Box, evt.EventInfo.EventHandlerType.GenericTypeArguments[0]);
+                    il.Emit(OpCodes.Callvirt, emitEventByIndexMethod);
+                    il.Emit(OpCodes.Nop);
+                    il.Emit(OpCodes.Ret);
 
 
-                var proxyDelegate= dm.CreateDelegate(evt.EventInfo.EventHandlerType, this);
+                    var proxyDelegate = dm.CreateDelegate(evt.EventInfo.EventHandlerType, this);
 
-                //ResourceEventHandler<object> proxyDelegate = new ResourceEventHandler<object>((args) => EmitResourceEvent(evt, args));
-                evt.EventInfo.AddEventHandler(resource, proxyDelegate);
+                    //ResourceEventHandler<object> proxyDelegate = new ResourceEventHandler<object>((args) => EmitResourceEvent(evt, args));
+                    evt.EventInfo.AddEventHandler(resource, proxyDelegate);
 
 
-            }
-            else if (eventGenericType == typeof(CustomResourceEventHandler<>))
-            {
-                var dm = new DynamicMethod("_", null,
-                   new Type[] { typeof(Instance), typeof(object), typeof(Func<Session, bool>),
+                }
+                else if (eventGenericType == typeof(CustomResourceEventHandler<>))
+                {
+                    var dm = new DynamicMethod("_", null,
+                       new Type[] { typeof(Instance), typeof(object), typeof(Func<Session, bool>),
                        evt.EventInfo.EventHandlerType.GenericTypeArguments[0] },
-                   typeof(Instance).Module, true);
+                       typeof(Instance).Module, true);
 
 
-                var il = dm.GetILGenerator();
-                il.Emit(OpCodes.Ldarg_0);
-                il.Emit(OpCodes.Ldarg_1);
-                il.Emit(OpCodes.Ldarg_2);
-                il.Emit(OpCodes.Ldc_I4, (int)evt.Index);
-                il.Emit(OpCodes.Ldarg_3);
-                il.Emit(OpCodes.Box, evt.EventInfo.EventHandlerType.GenericTypeArguments[0]);
-                il.Emit(OpCodes.Callvirt, emitCustomEventByIndexMethod);
-                il.Emit(OpCodes.Nop);
-                il.Emit(OpCodes.Ret);
+                    var il = dm.GetILGenerator();
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldarg_1);
+                    il.Emit(OpCodes.Ldarg_2);
+                    il.Emit(OpCodes.Ldc_I4, (int)evt.Index);
+                    il.Emit(OpCodes.Ldarg_3);
+                    il.Emit(OpCodes.Box, evt.EventInfo.EventHandlerType.GenericTypeArguments[0]);
+                    il.Emit(OpCodes.Callvirt, emitCustomEventByIndexMethod);
+                    il.Emit(OpCodes.Nop);
+                    il.Emit(OpCodes.Ret);
 
 
-                var proxyDelegate = dm.CreateDelegate(evt.EventInfo.EventHandlerType, this);
+                    var proxyDelegate = dm.CreateDelegate(evt.EventInfo.EventHandlerType, this);
 
-                //CustomResourceEventHandler<object> proxyDelegate = (issuer, receivers, args) => EmitCustomResourceEvent(issuer, receivers, evt, args);
-                evt.EventInfo.AddEventHandler(resource, proxyDelegate);
-            }
-
-
-            /*
-            else if (evt.EventHandlerType == typeof(CustomUsersEventHanlder))
-            {
-                var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
-                if (ca.Length == 0)
-                    continue;
-
-                CustomUsersEventHanlder proxyDelegate = (users, args) => EmitResourceEvent(evt.Name, users, null, args);
-                evt.AddEventHandler(resource, proxyDelegate);
-            }
-            else if (evt.EventHandlerType == typeof(CustomConnectionsEventHanlder))
-            {
-                var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
-                if (ca.Length == 0)
-                    continue;
-
-                CustomConnectionsEventHanlder proxyDelegate = (connections, args) => EmitResourceEvent(evt.Name, null, connections, args);
-                evt.AddEventHandler(resource, proxyDelegate);
-            }
-            else if (evt.EventHandlerType == typeof(CustomReceiversEventHanlder))
-            {
-                var ca = (ResourceEvent[])evt.GetCustomAttributes(typeof(ResourceEvent), true);
-                if (ca.Length == 0)
-                    continue;
-
-                CustomReceiversEventHanlder proxyDelegate = (users, connections, args) => EmitResourceEvent(evt.Name, users, connections, args);
-                evt.AddEventHandler(resource, proxyDelegate);
+                    evt.EventInfo.AddEventHandler(resource, proxyDelegate);
+                }
 
             }
-            */
 
         }
     }

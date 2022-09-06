@@ -350,7 +350,7 @@ public class TypeTemplate
         };
 
         getDependenciesFunc(template, list);
-        return list.ToArray();
+        return list.Distinct().ToArray();
     }
 
 
@@ -394,12 +394,12 @@ public class TypeTemplate
 
     }
 
+    public bool IsWrapper { get; private set; }
 
     public TypeTemplate(Type type, bool addToWarehouse = false)
     {
-        if (Codec.InheritsClass(type, typeof(DistributedResource)))
-            templateType = TemplateType.Wrapper;
-        else if (Codec.ImplementsInterface(type, typeof(IResource)))
+
+        if (Codec.ImplementsInterface(type, typeof(IResource)))
             templateType = TemplateType.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             templateType = TemplateType.Record;
@@ -407,6 +407,8 @@ public class TypeTemplate
             templateType = TemplateType.Enum;
         else
             throw new Exception("Type must implement IResource, IRecord or inherit from DistributedResource.");
+
+        IsWrapper = Codec.InheritsClass(type, typeof(DistributedResource));
 
         //if (isRecord && isResource)
         //  throw new Exception("Type can't have both IResource and IRecord interfaces");
@@ -457,8 +459,7 @@ public class TypeTemplate
             }
         }
 
-        if (templateType == TemplateType.Resource
-            || templateType == TemplateType.Wrapper)
+        if (templateType == TemplateType.Resource)
         {
             if (hierarchy.ContainsKey(MemberTypes.Method))
             {

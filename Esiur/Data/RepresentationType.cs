@@ -172,7 +172,7 @@ namespace Esiur.Data
                 (RepresentationTypeIdentifier.Resource) => typeof(IResource),
                 (RepresentationTypeIdentifier.Record) => typeof(IRecord),
                 (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Record)?.DefinedType,
-                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Unspecified)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Resource)?.DefinedType,
                 (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Enum)?.DefinedType,
 
                 _ => null
