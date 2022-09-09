@@ -76,6 +76,7 @@ namespace Test
             service.Resource = res1;
             service.ChildResource = res3;
             service.Resources = new MyResource[] { res1, res2, res1, res3 };
+            service.MyResources = new MyResource[] { res1, res2, res3, res4 };
 
             //web.MapGet("/{action}/{age}", (int age, string action, HTTPConnection sender) =>
             //{
