@@ -1013,7 +1013,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                                 if (this.Instance == null)
                                 {
-                                    Warehouse.Put(this.RemoteUsername, this, null, Server).Then(x =>
+                                    Warehouse.Put(this.RemoteUsername.Replace("/", "_"), this, null, Server).Then(x =>
                                     {
                                         ready = true;
                                         Status = ConnectionStatus.Connected;
@@ -1136,7 +1136,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                             if (this.Instance == null)
                             {
-                                Warehouse.Put(this.LocalUsername, this, null, Server).Then(x =>
+                                Warehouse.Put(this.LocalUsername.Replace("/", "_"), this, null, Server).Then(x =>
                                 {
                                     openReply?.Trigger(true);
                                     OnReady?.Invoke(this);

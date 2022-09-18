@@ -22,6 +22,8 @@ public static class TemplateGenerator
 
     static string ToLiteral(string input)
     {
+        if (input == null) return "null";
+
         var literal = new StringBuilder();
         literal.Append("\"");
         foreach (var c in input)
@@ -82,6 +84,7 @@ public static class TemplateGenerator
         foreach (var p in template.Properties)
         {
             var ptTypeName = GetTypeName(p.ValueType, templates);
+            rt.AppendLine($"[Annotation[{ToLiteral(p.ReadAnnotation)}]");
             rt.AppendLine($"public {ptTypeName} {p.Name} {{ get; set; }}");
             rt.AppendLine();
         }
@@ -294,9 +297,11 @@ public static class TemplateGenerator
             var positionalArgs = f.Arguments.Where((x) => !x.Optional).ToArray();
             var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
 
+            rt.AppendLine($"[Annotation[{ToLiteral(f.Annotation)}]");
 
             if (f.IsStatic)
             {
+
                 rt.Append($"[Public] public static AsyncReply<{rtTypeName}> {f.Name}(DistributedConnection connection");
 
                 if (positionalArgs.Length > 0)
@@ -356,6 +361,8 @@ public static class TemplateGenerator
             if (p.Inherited)
                 continue;
 
+            rt.AppendLine($"[Annotation[{ToLiteral(p.ReadAnnotation)}]");
+
             var ptTypeName = GetTypeName(p.ValueType, templates);
             rt.AppendLine($"[Public] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
@@ -370,6 +377,8 @@ public static class TemplateGenerator
         {
             if (c.Inherited)
                 continue;
+
+            rt.AppendLine($"[Annotation[{ToLiteral(c.Annotation)}]");
 
             var ctTypeName = GetTypeName(c.ValueType, templates);
             rt.AppendLine($"[Public] public const {ctTypeName} {c.Name} = {c.Value};");
@@ -388,6 +397,8 @@ public static class TemplateGenerator
             {
                 var etTypeName = GetTypeName(e.ArgumentType, templates);
                 rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
+
+                eventsList.AppendLine($"[Annotation[{ToLiteral(e.Annotation)}]");
                 eventsList.AppendLine($"[Public] public event ResourceEventHandler<{etTypeName}> {e.Name};");
             }
 

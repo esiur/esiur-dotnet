@@ -767,11 +767,11 @@ public static class Warehouse
     /// <returns>Resource template.</returns>
     public static TypeTemplate GetTemplateByType(Type type)
     {
+        var baseType = ResourceProxy.GetBaseType(type);
 
-        //TemplateType templateType = TemplateType.Unspecified;
-
-        //if (Codec.InheritsClass(type, typeof(DistributedResource)))
-        //    templateType = TemplateType.Wrapper;
+        if (baseType == typeof(IResource)
+            || baseType == typeof(IRecord))
+            return null;
 
         TemplateType templateType;
         if (Codec.ImplementsInterface(type, typeof(IResource)))
@@ -783,20 +783,13 @@ public static class Warehouse
         else
             return null;
 
-        var baseType = ResourceProxy.GetBaseType(type);
+        var template = templates[templateType].Values.FirstOrDefault(x => x.DefinedType == baseType);
+        if (template != null)
+            return template;
 
-        if (baseType == typeof(IResource)
-            || baseType == typeof(IRecord))
-            return null;
-
-        var template = templates[templateType].Values.FirstOrDefault(x => x.DefinedType == type);
-
-        // loaded ?
-        if (template == null)
-        {
-            template = new TypeTemplate(baseType, true);
-            TypeTemplate.GetDependencies(template);
-        }
+        // create new template for type
+        template = new TypeTemplate(baseType, true);
+        TypeTemplate.GetDependencies(template);
 
         return template;
     }

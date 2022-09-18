@@ -354,7 +354,7 @@ public class TypeTemplate
     }
 
 
-    public static string GetTypeClassName(Type type, string separator = ".")
+    public static string GetTypeClassName(Type type, char separator = '.')
     {
 
         if (type.IsGenericType)
@@ -362,12 +362,12 @@ public class TypeTemplate
             var index = type.Name.IndexOf("`");
             var name = $"{type.Namespace}{separator}{((index > -1) ? type.Name.Substring(0, index) : type.Name)}Of";
             foreach (var t in type.GenericTypeArguments)
-                name += GetTypeClassName(t, "_");
+                name += GetTypeClassName(t, '_');
 
             return name;
         }
         else
-            return $"{type.Namespace}{separator}{type.Name}";
+            return $"{type.Namespace.Replace('.', separator)}{separator}{type.Name}";
     }
 
 

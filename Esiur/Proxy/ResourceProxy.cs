@@ -28,6 +28,9 @@ public static class ResourceProxy
 
     public static Type GetBaseType(Type type)
     {
+        if (type == null)
+            throw new NullReferenceException("Type can't be null.");
+
         if (type.Assembly.IsDynamic)
             return type.GetTypeInfo().BaseType;
         else
