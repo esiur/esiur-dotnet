@@ -45,6 +45,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using Esiur.Analysis.Signals;
+using Esiur.Analysis.Units;
 
 namespace Test
 {
@@ -53,6 +55,17 @@ namespace Test
     {
         static async Task Main(string[] args)
         {
+
+
+            var outage = Capacity.ComputeOutage(20000000, new Capacity.CSI[]
+            {
+                new Capacity.CSI(PowerUnit.FromDb(20), 0.1),
+                new Capacity.CSI(PowerUnit.FromDb(15), 0.15),
+                new Capacity.CSI(PowerUnit.FromDb(10), 0.25),
+                new Capacity.CSI(PowerUnit.FromDb(5), 0.25),
+                new Capacity.CSI(PowerUnit.FromDb(0), 0.15),
+                new Capacity.CSI(PowerUnit.FromDb(-5), 0.1),
+            });
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());

@@ -7,5 +7,7 @@ public interface IUserType
 {
     object Get();
     void Set(object value);
+
+    object SetAndGet(object value);
 }
 
