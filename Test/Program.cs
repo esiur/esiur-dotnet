@@ -47,6 +47,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Esiur.Analysis.Signals;
 using Esiur.Analysis.Units;
+using Esiur.Analysis.Fuzzy;
 
 namespace Test
 {
@@ -55,8 +56,6 @@ namespace Test
     {
         static async Task Main(string[] args)
         {
-
-
             //var outage = Capacity.ComputeOutage(20000000, new Capacity.CSI[]
             //{
             //    new Capacity.CSI(PowerUnit.FromDb(20), 0.1),
@@ -73,6 +72,34 @@ namespace Test
                 new Capacity.CSI(PowerUnit.FromDb(10), 0.3),
                 new Capacity.CSI(PowerUnit.FromDb(0), 0.2),
              });
+
+
+            var low = new ContinuousSet(MembershipFunctions.Descending(20, 40));
+            var mid = new ContinuousSet(MembershipFunctions.Triangular(20, 40, 60));
+            var high = new ContinuousSet(MembershipFunctions.Ascending(40, 60));
+
+            var bad = new ContinuousSet(MembershipFunctions.Descending(0, 30));
+            var ok = new ContinuousSet(MembershipFunctions.Triangular(20, 50, 80));
+            var excelent = new ContinuousSet(MembershipFunctions.Ascending(70, 100));
+
+            var small = new ContinuousSet(MembershipFunctions.Descending(100, 200));
+            var avg = new ContinuousSet(MembershipFunctions.Triangular(150, 200, 250));
+            var big = new ContinuousSet(MembershipFunctions.Ascending(200, 300));
+
+            //var speedIsLowThenSmall = new FuzzyRule("Low=>Small", low, small);
+
+            double temp = 34;
+            double rating = 70;
+
+            var v = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
+            {
+                temp.Is(low).Or(rating.Is(bad)).Then(small),
+                temp.Is(mid).Or(rating.Is(ok)).Then(avg),
+                temp.Is(high).Or(rating.Is(excelent)).Then(big),
+            }, MamdaniDefuzzifierMethod.FirstMaxima, 0, 600, 1);
+
+
+            Console.WriteLine(v);
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
@@ -111,7 +138,7 @@ namespace Test
                 sender.Send("Hello");
             });
 
-            var ok = await Warehouse.Open();
+            await Warehouse.Open();
 
             // Start testing
             TestClient(service);

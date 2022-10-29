@@ -38,7 +38,7 @@ namespace Esiur.Analysis.Statistics
 
         public static double Correlation(this double[] x, double[] y)
         {
-            return x.Covariance(y) / (x.StdDiv() * y.StdDiv());
+            return Covariance(x, y) / (StdDiv(x) * StdDiv(y));
         }
     }
 }

@@ -6,8 +6,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Fuzzy\FuzzyRule.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Processing\" />
     <Folder Include="Signals\Modulation\" />
     <Folder Include="Optimization\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fuzzy\FuzzyRule.cs" />
   </ItemGroup>
 
 </Project>
