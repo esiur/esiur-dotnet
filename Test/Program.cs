@@ -83,23 +83,25 @@ namespace Test
             var excelent = new ContinuousSet(MembershipFunctions.Ascending(70, 100));
 
             var small = new ContinuousSet(MembershipFunctions.Descending(100, 200));
-            var avg = new ContinuousSet(MembershipFunctions.Triangular(150, 200, 250));
+            var avg = new ContinuousSet(MembershipFunctions.Triangular(100, 200, 300));
             var big = new ContinuousSet(MembershipFunctions.Ascending(200, 300));
 
             //var speedIsLowThenSmall = new FuzzyRule("Low=>Small", low, small);
 
-            double temp = 34;
-            double rating = 70;
+             double rating = 80;
 
-            var v = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
+            for (double temp = 60; temp < 100; temp++)
             {
-                temp.Is(low).Or(rating.Is(bad)).Then(small),
-                temp.Is(mid).Or(rating.Is(ok)).Then(avg),
-                temp.Is(high).Or(rating.Is(excelent)).Then(big),
-            }, MamdaniDefuzzifierMethod.FirstMaxima, 0, 600, 1);
+                var v = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
+                {
+                temp.Is(low).And(rating.Is(bad)).Then(small),
+                temp.Is(mid).And(rating.Is(ok)).Then(avg),
+                temp.Is(high).And(rating.Is(excelent)).Then(big),
+                }, MamdaniDefuzzifierMethod.CenterOfGravity, 100, 300, 1);
 
 
-            Console.WriteLine(v);
+                Console.WriteLine(temp + " " + v);
+            }
 
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());

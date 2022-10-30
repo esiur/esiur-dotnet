@@ -10,7 +10,6 @@ namespace Esiur.Analysis.Fuzzy
         CenterOfGravity,
         FirstMaxima,
         LastMaxima,
-        Bisector,
         MeanOfMaxima,
     }
     public class MamdaniDefuzzifier
@@ -21,9 +20,20 @@ namespace Esiur.Analysis.Fuzzy
 
             var union = sets.FuzzyUnion();
             var output = union.ToDiscrete(from, to, step);
-            var max = output.Maximas;
-            return max[0].Key;
 
+            if (method == MamdaniDefuzzifierMethod.CenterOfGravity)
+                return output.Centroid(from, to);
+            else if (method == MamdaniDefuzzifierMethod.FirstMaxima)
+                return output.Maximas.First().Key;
+            else if (method == MamdaniDefuzzifierMethod.LastMaxima)
+                return output.Maximas.Last().Key;
+            else if (method == MamdaniDefuzzifierMethod.MeanOfMaxima)
+            {
+                var max = output.Maximas;
+                return max.First().Key + ((max.Last().Key - max.First().Key) / 2);
+            }
+            else
+                throw new Exception("Unknown method");
          }
 
     }

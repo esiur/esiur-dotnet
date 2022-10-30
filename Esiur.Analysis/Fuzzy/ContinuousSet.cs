@@ -9,7 +9,7 @@ namespace Esiur.Analysis.Fuzzy
     {
         public MembershipFunction Function { get; set; }
 
-        public double AlphaCut { get; set; } = double.MinValue;
+        public double AlphaCut { get; set; } = double.MaxValue;
 
 
 
@@ -35,7 +35,7 @@ namespace Esiur.Analysis.Fuzzy
 
                 var results = Function(input);
 
-                return results < AlphaCut ? 0 : results;
+                return results > AlphaCut ? AlphaCut : results;
             }
         }
 

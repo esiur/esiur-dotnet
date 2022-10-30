@@ -19,7 +19,7 @@ namespace Esiur.Analysis.Fuzzy
 
         public INumericalSet<double>[] Sets { get; internal set; }
 
-        public double AlphaCut { get; set; }
+        public double AlphaCut { get; set; } = double.MaxValue;
 
         public double this[double index]
         {
@@ -32,7 +32,7 @@ namespace Esiur.Analysis.Fuzzy
                     x = Sets.Min(x => x[index]);
 
                 // Alpha might be changed for this instance
-                return x < AlphaCut ? 0 : x;
+                return x > AlphaCut ? AlphaCut : x;
             }
         }
 
@@ -42,7 +42,7 @@ namespace Esiur.Analysis.Fuzzy
 
             if (operation == Operation.Intersection)
                 AlphaCut = sets.Min(x => x.AlphaCut);
-            else if (Operation == Operation.Union)
+            else if (operation == Operation.Union)
                 AlphaCut = sets.Max(x => x.AlphaCut);
 
             Operation = operation;

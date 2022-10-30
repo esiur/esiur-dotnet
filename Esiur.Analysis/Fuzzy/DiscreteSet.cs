@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 
@@ -48,10 +49,24 @@ namespace Esiur.Analysis.Fuzzy
 
         public KeyValuePair<double, double>[] Maximas
         {
-            get {
+            get
+            {
                 var max = vector.Values.Max();
                 return vector.Where(x => x.Value == max).ToArray();
             }
+        }
+
+
+        public double Integral(double from, double to)
+        {
+            return vector.Where(x => x.Key >= from && x.Key <= to).Sum(x => x.Value);
+        }
+
+        public double Centroid(double from, double to)
+        {
+            var r = vector.Where(x => x.Key >= from && x.Key <= to).ToArray();
+
+            return r.Sum(x => x.Key * x.Value ) / r.Sum(x=>x.Value);
         }
 
         public KeyValuePair<double, double>[] Minimas
@@ -62,6 +77,7 @@ namespace Esiur.Analysis.Fuzzy
                 return vector.Where(x => x.Value == min).ToArray();
             }
         }
+
 
     }
 }
