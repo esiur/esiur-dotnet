@@ -33,7 +33,13 @@ namespace Esiur.Analysis.Statistics
         }
 
 
-        public static double RMS(this double[] x) => Math.Sqrt(x.Sum(x => x * x) / x.Length);
+        public static double RMS(this double[] x)
+        {
+            var r = Math.Sqrt(x.Sum(x => x * x) / x.Length);
+            if (double.IsNaN(r))
+                Console.WriteLine();
+            return r;
+        }
 
 
         public static double Correlation(this double[] x, double[] y)

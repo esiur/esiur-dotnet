@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,11 +13,14 @@
   <ItemGroup>
     <Folder Include="Processing\" />
     <Folder Include="Signals\Modulation\" />
-    <Folder Include="Optimization\" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="Fuzzy\FuzzyRule.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Esiur\Esiur.csproj" />
   </ItemGroup>
 
 </Project>

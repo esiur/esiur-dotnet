@@ -10,7 +10,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Stores.EntityCore", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{331F82B6-6B90-4533-9718-F7C8090D8F19}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Analysis", "Esiur.Analysis\Esiur.Analysis.csproj", "{8D52DEEA-B7E8-4C93-9B6C-EDB9C2D25211}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Analysis", "Esiur.Analysis\Esiur.Analysis.csproj", "{8D52DEEA-B7E8-4C93-9B6C-EDB9C2D25211}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Analysis.Test", "Esiur.Analysis.Test\Esiur.Analysis.Test.csproj", "{72115ABD-BD54-4E88-8DB6-B2A953F57F0A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,6 +40,10 @@ Global
 		{8D52DEEA-B7E8-4C93-9B6C-EDB9C2D25211}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8D52DEEA-B7E8-4C93-9B6C-EDB9C2D25211}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8D52DEEA-B7E8-4C93-9B6C-EDB9C2D25211}.Release|Any CPU.Build.0 = Release|Any CPU
+		{72115ABD-BD54-4E88-8DB6-B2A953F57F0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72115ABD-BD54-4E88-8DB6-B2A953F57F0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72115ABD-BD54-4E88-8DB6-B2A953F57F0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72115ABD-BD54-4E88-8DB6-B2A953F57F0A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

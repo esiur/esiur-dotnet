@@ -56,53 +56,6 @@ namespace Test
     {
         static async Task Main(string[] args)
         {
-            //var outage = Capacity.ComputeOutage(20000000, new Capacity.CSI[]
-            //{
-            //    new Capacity.CSI(PowerUnit.FromDb(20), 0.1),
-            //    new Capacity.CSI(PowerUnit.FromDb(15), 0.15),
-            //    new Capacity.CSI(PowerUnit.FromDb(10), 0.25),
-            //    new Capacity.CSI(PowerUnit.FromDb(5), 0.25),
-            //    new Capacity.CSI(PowerUnit.FromDb(0), 0.15),
-            //    new Capacity.CSI(PowerUnit.FromDb(-5), 0.1),
-            //});
-            var outage = Capacity.ComputeOutage(1, new Capacity.CSI[]
-            {
-                new Capacity.CSI(PowerUnit.FromDb(30), 0.2),
-                new Capacity.CSI(PowerUnit.FromDb(20), 0.3),
-                new Capacity.CSI(PowerUnit.FromDb(10), 0.3),
-                new Capacity.CSI(PowerUnit.FromDb(0), 0.2),
-             });
-
-
-            var low = new ContinuousSet(MembershipFunctions.Descending(20, 40));
-            var mid = new ContinuousSet(MembershipFunctions.Triangular(20, 40, 60));
-            var high = new ContinuousSet(MembershipFunctions.Ascending(40, 60));
-
-            var bad = new ContinuousSet(MembershipFunctions.Descending(0, 30));
-            var ok = new ContinuousSet(MembershipFunctions.Triangular(20, 50, 80));
-            var excelent = new ContinuousSet(MembershipFunctions.Ascending(70, 100));
-
-            var small = new ContinuousSet(MembershipFunctions.Descending(100, 200));
-            var avg = new ContinuousSet(MembershipFunctions.Triangular(100, 200, 300));
-            var big = new ContinuousSet(MembershipFunctions.Ascending(200, 300));
-
-            //var speedIsLowThenSmall = new FuzzyRule("Low=>Small", low, small);
-
-             double rating = 80;
-
-            for (double temp = 60; temp < 100; temp++)
-            {
-                var v = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
-                {
-                temp.Is(low).And(rating.Is(bad)).Then(small),
-                temp.Is(mid).And(rating.Is(ok)).Then(avg),
-                temp.Is(high).And(rating.Is(excelent)).Then(big),
-                }, MamdaniDefuzzifierMethod.CenterOfGravity, 100, 300, 1);
-
-
-                Console.WriteLine(temp + " " + v);
-            }
-
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
             var server = await Warehouse.Put("sys/server", new DistributedServer());

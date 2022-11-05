@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Analysis.Signals
+namespace Esiur.Analysis.DSP
 {
-    public static class DSP
+    public static class Functions
     {
         public static double[] ConvolveMany(params double[][] signals)
         {
@@ -27,9 +27,11 @@ namespace Esiur.Analysis.Signals
 
             for (var i = 0; i < length; i++)
             {
-                for (var j = 0; j < signal.Length && i - j >= 0 && i - j < filter.Length; j++)
+
+                for (var j = 0; j < signal.Length; j++)
                 {
-                    rt[i] = signal[j] * filter[i - j];
+                    if (i - j >= 0 && i - j < filter.Length)
+                        rt[i] += signal[j] * filter[i - j];
                 }
             }
 
