@@ -88,22 +88,24 @@ namespace Esiur.Analysis.Optimization
 
         }
 
-        public T Evaluate(int maxIterations)
+        public IEnumerable<(int, double, T)> Evaluate(int maxIterations)
         {
             GeneratePopultation();
 
             var generation = 0;
 
-            T best;
+            KeyValuePair<T, double> best;
 
             do
             {
                 var ordered = GetFitness().OrderBy(x => x.Value).ToArray();
 
-                best = ordered[0].Key;
-
-                if (ordered[0].Value == 0)
+                best = ordered[0];
+                
+                if (best.Value == 0)
                     break;
+
+                yield return (generation, best.Value, best.Key);
 
                 // Elitism selection ( 10% of fittest population )
 
@@ -124,12 +126,14 @@ namespace Esiur.Analysis.Optimization
                 Population = newGeneration;
 
                 Debug.WriteLine($"Gen {generation} Fittest: {ordered.First().Value} {ordered.First().Key.ToString()} ");
+
+                
             } while (generation++ < maxIterations);
 
             Debug.WriteLine($"Gen {generation} Best: {best.ToString()} ");
 
-            return best;
+            yield return (generation, best.Value, best.Key);
         }
-         
+
     }
 }

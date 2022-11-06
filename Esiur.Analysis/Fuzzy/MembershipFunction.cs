@@ -23,7 +23,7 @@ namespace Esiur.Analysis.Fuzzy
         {
             return new MembershipFunction(x =>
             {
-                if (x <= peak) return 1;
+                if (x <= peak) return 0;
                 if (x > peak && x < end) return (end - x) / (end - peak);
                 return 0;
             });
@@ -33,7 +33,7 @@ namespace Esiur.Analysis.Fuzzy
         {
             return new MembershipFunction(x =>
             {
-                if (x >= peak) return 1;
+                if (x >= peak) return 0;
                 if (x < peak && x > start) return (x - start) / (peak - start);
                 return 0;
             });

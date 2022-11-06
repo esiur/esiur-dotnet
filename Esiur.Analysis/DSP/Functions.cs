@@ -15,7 +15,6 @@ namespace Esiur.Analysis.DSP
 
             return rt;
         }
-
         public static double[] Convolve(this double[] signal, double[] filter)
         {
             var length = signal.Length + filter.Length - 1;

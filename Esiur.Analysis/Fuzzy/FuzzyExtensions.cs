@@ -41,5 +41,42 @@ namespace Esiur.Analysis.Fuzzy
 
             return rt;
         }
+
+        public static double[] Sample(this INumericalSet<double> set, double[] time)
+        {
+            var rt = new double[time.Length];
+            for (var i = 0; i < time.Length; i++)
+                rt[i] = set[time[i]];
+            return rt;
+        }
+
+        public static double[] Sample(this INumericalSet<double> set, double from, double to, double step)
+        {
+            var size = (int)((to - from) / step);
+
+            var rt = new double[size];
+            var s = 0;
+            for (var i = from; i < to && s < size; i+=step)
+                rt[s++] = set[i];
+            return rt;
+
+        }
+
+        public static double[] Range(double from, double to, double step)
+        {
+            var size = (int)((to - from) / step);
+
+            if (size == 0)
+                return new double[] { from };
+
+            var rt = new double[size];
+            var s = 0;
+            for (var i = from; i < to && s < size; i += step)
+                rt[s++] = i;
+            return rt;
+
+        }
+
+
     }
 }

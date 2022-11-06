@@ -66,7 +66,11 @@ namespace Esiur.Analysis.Fuzzy
         {
             var r = vector.Where(x => x.Key >= from && x.Key <= to).ToArray();
 
-            return r.Sum(x => x.Key * x.Value ) / r.Sum(x=>x.Value);
+            var total = r.Sum(x => x.Value);
+            if (total == 0)
+                return 0;
+            else
+                return r.Sum(x => x.Key * x.Value ) / total;
         }
 
         public KeyValuePair<double, double>[] Minimas
@@ -78,6 +82,6 @@ namespace Esiur.Analysis.Fuzzy
             }
         }
 
-
+        public double[] ToArray() => vector.Values.ToArray();
     }
 }
