@@ -1,21 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Esiur.Analysis.DSP;
 
 namespace Esiur.Analysis.DSP
 {
     public static class Functions
     {
-        public static double[] ConvolveMany(params double[][] signals)
+        public static double[] MultipleConvolution(params double[][] signals)
         {
             var rt = signals[0];
 
             for (var i = 1; i < signals.Length; i++)
-                rt = rt.Convolve(signals[i]);
+                rt = rt.Convolution(signals[i]);
 
             return rt;
         }
-        public static double[] Convolve(this double[] signal, double[] filter)
+        public static double[] Convolution(this double[] signal, double[] filter)
         {
             var length = signal.Length + filter.Length - 1;
             var rt = new double[length];
@@ -37,20 +38,46 @@ namespace Esiur.Analysis.DSP
             return rt;
         }
 
-        public static double[] CrossCorrelate(this double[] signal, double[] filter)
+        public static double[] CrossCorrelation(this double[] signal, double[] filter, bool cyclic = false)
         {
-            var length = signal.Length + filter.Length - 1;
-            var rt = new double[length];
-            for (var i = 0; i < length; i++)
-            {
-                for (var j = 0; j < signal.Length && j + i < filter.Length; j++)
-                {
-                    rt[i] = signal[j] * filter[i + j];
-                }
-            }
 
-            return rt;
+            if (cyclic)
+            {
+                var length = signal.Length + filter.Length - 1;
+                var rt = new double[length];
+
+                for (var i = 0; i < length; i++)
+                {
+                    for (var j = 0; j < signal.Length; j++)
+                    {
+                       rt[i] += signal[j] * filter[(i + j) % filter.Length];
+                    }
+                }
+
+                return rt;
+
+            }
+            else
+            {
+                var length = signal.Length + filter.Length - 1;
+                var rt = new double[length];
+
+                for (var i = 0; i < length; i++)
+                {
+                    for (var j = 0; j < signal.Length; j++)
+                    {
+                        if (i + j < filter.Length)
+                            rt[i] += signal[j] * filter[i + j];
+                    }
+                }
+
+                return rt;
+            }
         }
 
+        public static double[] AutoCorrelation(this double[] signal, bool cyclic = false)
+        {
+            return signal.CrossCorrelation(signal, cyclic);
+        }
     }
 }
