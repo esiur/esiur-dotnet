@@ -73,142 +73,7 @@ namespace Esiur.Analysis.Test
 
         private void FMain_Load(object sender, EventArgs e)
         {
-            //Ki -29:69 Kp -54:121 Kd 29:112
-            var config = new FuzzyChromosome() { KiStart = -29, KiLength = 69, KpStart = -54, KpLength = 121, KdStart = 29, KdLength = 112 };
-
-            double errStart = -0.412312, errEnd = 1, errAccStart = 0.011, errAccEnd = 0.1;
-
-            var lowErr = new ContinuousSet(MembershipFunctions.Descending(errStart, errEnd / 2.0));
-            var midErr = new ContinuousSet(MembershipFunctions.Triangular(errStart, errEnd / 2, errEnd));
-            var highErr = new ContinuousSet(MembershipFunctions.Ascending(errEnd / 2.0, errEnd));
-
-            var lowAccErr = new ContinuousSet(MembershipFunctions.Descending(errAccStart, errAccEnd / 2.0));
-            var midAccErr = new ContinuousSet(MembershipFunctions.Triangular(errAccStart, errAccEnd / 2.0, errAccEnd));
-            var highAccErr = new ContinuousSet(MembershipFunctions.Ascending(errEnd / 2.0, errAccEnd));
-
-
-            var kiSmall = new ContinuousSet(MembershipFunctions.Descending(config.KiStart * 0.1, (config.KiStart + (config.KiLength * 0.5)) * 0.1));
-            var kiAvg = new ContinuousSet(MembershipFunctions.Triangular(config.KiStart * 0.1, (config.KiStart + (config.KiLength * 0.5)) * 0.1, (config.KiStart + config.KiLength) * 0.1));
-            var kiBig = new ContinuousSet(MembershipFunctions.Ascending((config.KiStart + (config.KiLength * 0.5)) * 0.1, (config.KiStart + config.KiLength) * 0.1));
-
-            var kdSmall = new ContinuousSet(MembershipFunctions.Descending(config.KdStart * 0.1, (config.KdStart + (config.KdLength * 0.5)) * 0.1));
-            var kdAvg = new ContinuousSet(MembershipFunctions.Triangular(config.KdStart * 0.1, (config.KdStart + (config.KdLength * 0.5)) * 0.1, (config.KdStart + config.KdLength) * 0.1));
-            var kdBig = new ContinuousSet(MembershipFunctions.Ascending((config.KdStart + (config.KdLength * 0.5)) * 0.1, (config.KdStart + config.KdLength) * 0.1));
-
-            var kpSmall = new ContinuousSet(MembershipFunctions.Descending(config.KpStart * 0.1, (config.KpStart + (config.KpLength * 0.5)) * 0.1));
-            var kpAvg = new ContinuousSet(MembershipFunctions.Triangular(config.KpStart * 0.1, (config.KpStart + (config.KpLength * 0.5)) * 0.1, (config.KpStart + config.KpLength) * 0.1));
-            var kpBig = new ContinuousSet(MembershipFunctions.Ascending((config.KpStart + (config.KpLength * 0.5)) * 0.1, (config.KpStart + config.KpLength) * 0.1));
-
-
-            var x = Enumerable.Range(0, interval).Select(x => x * 0.01).ToArray();
-
-
-            var step = Enumerable.Repeat(1, interval).Select(x => (double)x).ToArray();
-            step[0] = 0;
-
-            var motor = new TransferFunction(num, denum, 0.01);
-            var motorPID = new TransferFunction(num, denum, 0.01);
-            var motorFuzzyPID = new TransferFunction(num, denum, 0.01);
-
-            //double Kp = 2, Ki = 0.4, Kd = 0.4;
-
-            double Ki = -1.9181372, Kp = 18.625, Kd = 0.38281253;
-
-
-            var pid = new TransferFunction(new double[] { Kd, Kp, Ki }, new double[] { 1, 1 }, 0.01);
-            var fuzzyPID = new TransferFunction(new double[] { Kd, Kp, Ki }, new double[] { 1, 1 }, 0.01);
-
-
-            var sysOut = new double[step.Length];
-            var sysOutFuzzyPID = new double[step.Length];
-            var sysOutPID = new double[step.Length];
-
-            var pidOut = new double[step.Length];
-            var pidOutFuzzy = new double[step.Length];
-            var errorOutPID = new double[step.Length];
-
-            var errOut = new double[step.Length];
-            var errAccOut = new double[step.Length];
-
-            //var errorAccOut = new double[step.Length];
-
-            var errorOutFuzzy = new double[step.Length];
-            var errorOutAccFuzzy = new double[step.Length];
-
-            for (var i = 0; i < step.Length; i++)
-            {
-                sysOut[i] = motor.Evaluate(step[i]);
-                errOut[i] = stability - sysOut[i];
-                errAccOut[i] = errOut[i] - (i == 0 ? 0 : errOut[i - 1]);
-
-                sysOutPID[i] = motorPID.Evaluate(step[i] + (i == 0 ? 0 : pidOut[i - 1]));
-                sysOutFuzzyPID[i] = motorFuzzyPID.Evaluate(step[i] + (i == 0 ? 0 : pidOutFuzzy[i - 1]));
-
-
-                errorOutPID[i] = (stability - sysOutPID[i]);
-                errorOutFuzzy[i] = (stability - sysOutFuzzyPID[i]);
-                errorOutAccFuzzy[i] = (errorOutFuzzy[i] - (i == 0 ? 0 : errorOutFuzzy[i - 1]));
-
-                pidOut[i] = pid.Evaluate(errorOutPID[i]);
-                pidOutFuzzy[i] = fuzzyPID.Evaluate(errorOutFuzzy[i]);
-
-
-                var ki = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
-{
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kiSmall),
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kiSmall),
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kiAvg),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kiSmall),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kiAvg),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kiBig),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kiAvg),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kiBig),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kiBig),
-}, MamdaniDefuzzifierMethod.CenterOfGravity, -20, 20, 0.5);
-
-                var kp = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
-                 {
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kpSmall),
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kpSmall),
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kpAvg),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kpSmall),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kpAvg),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kpBig),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kpAvg),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kpBig),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kpBig),
-                    }, MamdaniDefuzzifierMethod.CenterOfGravity, -20, 20, 0.5);
-
-                var kd = MamdaniDefuzzifier.Evaluate(new INumericalSet<double>[]
-                {
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kdSmall),
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kdSmall),
-                    errorOutFuzzy[i].Is(lowErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kdAvg),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kdSmall),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kdAvg),
-                    errorOutFuzzy[i].Is(midErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kdBig),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kdAvg),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kdBig),
-                    errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kdBig),
-                }, MamdaniDefuzzifierMethod.CenterOfGravity, -20, 20, 0.5);
-
-                fuzzyPID.InputCoefficients[0] = ki;
-                fuzzyPID.InputCoefficients[1] = kp;
-                fuzzyPID.InputCoefficients[1] = kd;
-
-
-
-            }
-
-            Debug.WriteLine($"Error Values Min: {errOut.Min()} Max: {errOut.Max()} ");
-            Debug.WriteLine($"Error Acc Values Min: {errAccOut.Min()} Max: {errAccOut.Max()} ");
-
-            formsPlot1.Plot.AddScatter(x, sysOut, Color.Red);
-            formsPlot1.Plot.AddScatter(x, sysOutPID, Color.Blue);
-            formsPlot1.Plot.AddScatter(x, sysOutFuzzyPID, Color.Green);
-
-            formsPlot1.Refresh();
-
+            button3_Click(sender, e);
         }
 
 
@@ -312,7 +177,7 @@ namespace Esiur.Analysis.Test
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kiAvg),
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kiBig),
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kiBig),
-                }, MamdaniDefuzzifierMethod.CenterOfGravity, -20, 20, 0.5);
+                }, MamdaniDefuzzifierMethod.CenterOfGravity, config.KiStart  * 0.1, (config.KiStart + config.KiLength) * 0.1, 0.5);
 
                 if (double.IsNaN(ki))
                     return double.MaxValue;
@@ -328,7 +193,7 @@ namespace Esiur.Analysis.Test
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kpAvg),
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kpBig),
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kpBig),
-                    }, MamdaniDefuzzifierMethod.CenterOfGravity, -20, 20, 0.5);
+                    }, MamdaniDefuzzifierMethod.CenterOfGravity, config.KpStart * 0.1, (config.KpStart + config.KpLength) * 0.1, 0.5);
 
                 if (double.IsNaN(kp))
                     return double.MaxValue;
@@ -344,7 +209,7 @@ namespace Esiur.Analysis.Test
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(lowAccErr)).Then(kdAvg),
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(midAccErr)).Then(kdBig),
                     errorOutFuzzy[i].Is(highAccErr).And(errorOutAccFuzzy[i].Is(highAccErr)).Then(kdBig),
-                }, MamdaniDefuzzifierMethod.CenterOfGravity, -20, 20, 0.5);
+                }, MamdaniDefuzzifierMethod.CenterOfGravity, config.KdStart * 0.1, (config.KdStart + config.KdLength) * 0.1, 0.5);
 
                 if (double.IsNaN(kd))
                     return double.MaxValue;
@@ -457,10 +322,7 @@ namespace Esiur.Analysis.Test
 
         private void button1_Click(object sender, EventArgs e)
         {
-
-
-
-            var genetic = new Genetic<FuzzyChromosome>(100, k =>
+            var genetic = new Genetic<FuzzyChromosome>(10, k =>
             {
                 if (float.IsNaN(k.KiStart)
                 || float.IsNaN(k.KiLength)
