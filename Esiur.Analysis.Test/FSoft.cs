@@ -343,8 +343,20 @@ namespace Esiur.Analysis.Test
 
 
             foreach (var (generation, fitness, k) in genetic.Evaluate(100))
-                CalculateFuzzyPIDStepError(k, -(stability / 2), stability / 2, -(stability / 2), stability / 2, true, $"Fuzzy PID: Generation {generation} Fitness {fitness}\r\n{k}");
+            {
+                if (float.IsNaN(k.KiStart)
+                || float.IsNaN(k.KiLength)
+                || float.IsNaN(k.KpStart)
+                || float.IsNaN(k.KiLength)
+                || float.IsNaN(k.KdStart)
+                || float.IsNaN(k.KiLength))
+                    continue;
 
+                if (k.KiLength < 0 || k.KpLength < 0 || k.KdLength < 0)// k.KiStart > k.KiEnd || k.KpStart > k.KpEnd || k.KdStart > k.KdEnd)
+                    continue;
+
+                CalculateFuzzyPIDStepError(k, -(stability / 2), stability / 2, -(stability / 2), stability / 2, true, $"Fuzzy PID: Generation {generation} Fitness {fitness}\r\n{k}");
+            }
 
             // Console.WriteLine(best);
         }
