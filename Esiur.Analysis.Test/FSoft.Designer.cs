@@ -89,7 +89,7 @@
             this.button2.Name = "button2";
             this.button2.Size = new System.Drawing.Size(193, 31);
             this.button2.TabIndex = 5;
-            this.button2.Text = "Fuzzy PID";
+            this.button2.Text = "Genetic PID";
             this.button2.UseVisualStyleBackColor = true;
             this.button2.Click += new System.EventHandler(this.button2_Click);
             // 
@@ -130,7 +130,7 @@
             this.textBox2.Text = "100";
             this.textBox2.TextChanged += new System.EventHandler(this.textBox2_TextChanged);
             // 
-            // FMain
+            // FSoft
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -145,7 +145,7 @@
             this.Controls.Add(this.formsPlot2);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.formsPlot1);
-            this.Name = "FMain";
+            this.Name = "FSoft";
             this.Text = "PID Controller with Fuzzy";
             this.Load += new System.EventHandler(this.FMain_Load);
             this.ResumeLayout(false);

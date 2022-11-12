@@ -1,12 +1,14 @@
 ﻿using Esiur.Data;
 using Esiur.Resource;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Esiur.Analysis.Optimization
 {
@@ -57,10 +59,18 @@ namespace Esiur.Analysis.Optimization
 
         KeyValuePair<T, double>[] GetFitness()
         {
-            var rt = new List<KeyValuePair<T, double>>();
+            //var rt = new List<KeyValuePair<T, double>>();
+            var rt = new ConcurrentBag<KeyValuePair<T, double>>();
 
-            foreach (var record in Population)
-                rt.Add(new KeyValuePair<T, double>( record, FitnessFunction(record)));
+
+            Parallel.ForEach(Population, record =>
+            {
+                rt.Add(new KeyValuePair<T, double>(record, FitnessFunction(record)));
+
+            });
+
+            //foreach (var record in Population)
+            //    rt.Add(new KeyValuePair<T, double>( record, FitnessFunction(record)));
 
             return rt.ToArray();
         }

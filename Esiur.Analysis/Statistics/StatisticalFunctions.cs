@@ -35,9 +35,9 @@ namespace Esiur.Analysis.Statistics
 
         public static double RMS(this double[] x)
         {
-            var r = Math.Sqrt(x.Sum(x => x * x) / x.Length);
-            if (double.IsNaN(r))
-                Console.WriteLine();
+            var r = Math.Sqrt(x.Sum(x =>(float) x * (float) x) / x.Length);
+            //if (double.IsNaN(r) || double.IsInfinity(r))
+              //  Console.WriteLine();
             return r;
         }
 
