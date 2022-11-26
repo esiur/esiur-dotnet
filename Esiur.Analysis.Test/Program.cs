@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Esiur.Analysis.DSP;
+using Esiur.Analysis.Signals.Codes;
 
 namespace Esiur.Analysis.Test
 {
@@ -18,6 +19,9 @@ namespace Esiur.Analysis.Test
              var cor = signalA.CrossCorrelation(signalB, true);
             Debug.WriteLine(cor);
 
+            var seq = Generators.GenerateSequence(1, 7);
+
+            
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
