@@ -38,6 +38,7 @@
             this.button3 = new System.Windows.Forms.Button();
             this.button4 = new System.Windows.Forms.Button();
             this.textBox2 = new System.Windows.Forms.TextBox();
+            this.label1 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // formsPlot1
@@ -51,7 +52,7 @@
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(545, 753);
+            this.button1.Location = new System.Drawing.Point(687, 757);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(183, 31);
             this.button1.TabIndex = 1;
@@ -85,7 +86,7 @@
             // 
             // button2
             // 
-            this.button2.Location = new System.Drawing.Point(734, 753);
+            this.button2.Location = new System.Drawing.Point(876, 757);
             this.button2.Name = "button2";
             this.button2.Size = new System.Drawing.Size(193, 31);
             this.button2.TabIndex = 5;
@@ -95,7 +96,7 @@
             // 
             // textBox1
             // 
-            this.textBox1.Location = new System.Drawing.Point(116, 753);
+            this.textBox1.Location = new System.Drawing.Point(258, 757);
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(176, 27);
             this.textBox1.TabIndex = 6;
@@ -103,7 +104,7 @@
             // 
             // button3
             // 
-            this.button3.Location = new System.Drawing.Point(314, 753);
+            this.button3.Location = new System.Drawing.Point(456, 757);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(143, 31);
             this.button3.TabIndex = 7;
@@ -123,18 +124,29 @@
             // 
             // textBox2
             // 
-            this.textBox2.Location = new System.Drawing.Point(472, 755);
+            this.textBox2.Location = new System.Drawing.Point(614, 759);
             this.textBox2.Name = "textBox2";
             this.textBox2.Size = new System.Drawing.Size(67, 27);
             this.textBox2.TabIndex = 9;
             this.textBox2.Text = "100";
             this.textBox2.TextChanged += new System.EventHandler(this.textBox2_TextChanged);
             // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(23, 730);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(205, 80);
+            this.label1.TabIndex = 10;
+            this.label1.Text = "Ahmed Zamil\r\nNahrain University\r\nSoft Computing Class of 2022\r\nDr. Osama Ali Awad" +
+    "";
+            // 
             // FSoft
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1291, 828);
+            this.Controls.Add(this.label1);
             this.Controls.Add(this.textBox2);
             this.Controls.Add(this.button4);
             this.Controls.Add(this.button3);
@@ -165,5 +177,6 @@
         private Button button3;
         private Button button4;
         private TextBox textBox2;
+        private Label label1;
     }
 }
