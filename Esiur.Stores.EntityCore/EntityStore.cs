@@ -71,6 +71,11 @@ public class EntityStore : IStore
         foreach (var rf in ent.References)
             rf.Load();
 
+        foreach(var nav in ent.Navigations)
+            nav.Load();
+
+        //var refs = ent.References.ToList();
+
         return new AsyncReply<IResource>(res as IResource);
     }
 
@@ -158,7 +163,21 @@ public class EntityStore : IStore
 
     public bool Remove(IResource resource)
     {
-        throw new NotImplementedException();
+        var type = ResourceProxy.GetBaseType(resource);
+
+        var eid = TypesByType[type].PrimaryKey.GetValue(resource);
+
+        lock (DBLock)
+        {
+            if (DB[type].ContainsKey(eid))
+            {
+                DB[type].Remove(eid);
+                return true;
+            }
+        }
+
+        return false;
+        //throw new NotImplementedException();
     }
 
     public AsyncReply<bool> AddChild(IResource parent, IResource child)

@@ -39,8 +39,8 @@ namespace Esiur.Analysis.Test
         [STAThread]
         static void Main()
         {
-            var signalA = new double[] { 1, 1, 1, V, 1, 1, V, V, 1, V, 1, V, V, V, V };
-            var signalB = new double[] { 1, V, V, V, V, 1, V, V, V, V, 1, V, V, V, V };
+            var signalA = new double[] { V,1, V, 1 , V, V, V };
+            var signalB = new double[] { V, V, 1, V, V, 1, V };
              var cor = signalA.CrossCorrelation(signalB, true);
             Debug.WriteLine(cor);
 

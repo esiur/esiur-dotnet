@@ -182,7 +182,7 @@ namespace { ci.ClassSymbol.ContainingNamespace.ToDisplayString() } {{
 
                     // copy attributes 
                     var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => $"[{x.ToString()}]"));
-                    code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t {fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
+                    code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
                 }
 
                 code += "}}\r\n";
