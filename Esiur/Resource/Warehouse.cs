@@ -396,7 +396,7 @@ public static class Warehouse
                 for (var i = 1; i < p.Length; i++)
                 {
                     var children = await resource.Instance.Children<IResource>(p[i]);
-                    if (children.Length > 0)
+                    if (children != null && children.Length > 0)
                     {
                         if (i == p.Length - 1)
                             return children;

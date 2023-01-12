@@ -66,6 +66,16 @@ public class EntityStore : IStore
         var db = Getter();
         var res = db.Find(ti.Type.ClrType, id);
 
+        if (res == null)
+        {
+            return new AsyncReply<IResource>(null);
+
+            //var rt = new AsyncReply<IResource>();
+            //rt.TriggerError(new AsyncException(ErrorType.Management,
+            //    (ushort)ExceptionCode.ResourceNotFound, "Resource not found."));
+            //return rt;
+        }
+
         // load navigation properties
         var ent = db.Entry(res);
         foreach (var rf in ent.References)
@@ -202,7 +212,7 @@ public class EntityStore : IStore
 
     public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
     {
-        throw new NotImplementedException();
+        return new AsyncBag<T>(null);
     }
 
     public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
