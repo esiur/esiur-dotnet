@@ -48,7 +48,7 @@ using System.Text;
 using Esiur.Analysis.Signals;
 using Esiur.Analysis.Units;
 using Esiur.Analysis.Fuzzy;
-
+ 
 namespace Test
 {
 
