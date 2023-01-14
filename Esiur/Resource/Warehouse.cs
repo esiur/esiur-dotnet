@@ -753,7 +753,6 @@ public static class Warehouse
     /// <param name="template">Resource template.</param>
     public static void PutTemplate(TypeTemplate template)
     {
-        Console.WriteLine(template.ClassName);
         if (templates[template.Type].ContainsKey(template.ClassId))
             throw new Exception($"Template with same class Id already exists. {templates[template.Type][template.ClassId].ClassName} -> {template.ClassName}");
 
