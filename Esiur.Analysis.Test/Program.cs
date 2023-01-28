@@ -39,6 +39,9 @@ namespace Esiur.Analysis.Test
         [STAThread]
         static void Main()
         {
+
+            var f = Esiur.Analysis.Algebra.Functions.Sigmoid;
+
             var signalA = new double[] { V,1, V, 1 , V, V, V };
             var signalB = new double[] { V, V, 1, V, V, 1, V };
              var cor = signalA.CrossCorrelation(signalB, true);
