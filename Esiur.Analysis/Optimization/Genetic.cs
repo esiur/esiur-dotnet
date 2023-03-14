@@ -124,6 +124,7 @@ namespace Esiur.Analysis.Optimization
 
                 var newGeneration = ordered.Select(x => x.Key).Take(eliteCount).ToList();
 
+                // The rest 90% will be generated from mating the top 50% of the current poplulation
                 for (var i = 0; i < neededCount; i++)
                 {
                     var p1 = Population[rand.Next(0, PopulationSize / 2)];
