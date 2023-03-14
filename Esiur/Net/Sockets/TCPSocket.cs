@@ -66,8 +66,8 @@ public class TCPSocket : ISocket
 
     //SocketAsyncEventArgs socketArgs = new SocketAsyncEventArgs();
 
-    private AsyncCallback receiveCallback;
-    private AsyncCallback sendCallback;
+    //private AsyncCallback receiveCallback;
+    //private AsyncCallback sendCallback;
 
     public AsyncReply<bool> BeginAsync()
     {
@@ -95,10 +95,10 @@ public class TCPSocket : ISocket
         if (!sock.ReceiveAsync(socketArgs))
             SocketArgs_Completed(null, socketArgs);
             */
-        receiveCallback = new AsyncCallback(ReceiveCallback);
-        sendCallback = new AsyncCallback(SendCallback);
+        //receiveCallback = new AsyncCallback(ReceiveCallback);
+        //sendCallback = new AsyncCallback(SendCallback);
 
-        sock.BeginReceive(receiveBuffer, 0, receiveBuffer.Length, SocketFlags.None, receiveCallback, this);
+        sock.BeginReceive(receiveBuffer, 0, receiveBuffer.Length, SocketFlags.None, ReceiveCallback, this);
         //sock.ReceiveAsync(receiveBufferSegment, SocketFlags.None).ContinueWith(DataReceived);
         return true;
     }
@@ -121,7 +121,7 @@ public class TCPSocket : ISocket
                 socket.Receiver?.NetworkReceive(socket, socket.receiveNetworkBuffer);
 
                 if (socket.state == SocketState.Established)
-                    socket.sock.BeginReceive(socket.receiveBuffer, 0, socket.receiveBuffer.Length, SocketFlags.None, socket.receiveCallback, socket);
+                    socket.sock.BeginReceive(socket.receiveBuffer, 0, socket.receiveBuffer.Length, SocketFlags.None, ReceiveCallback, socket);
             }
             else
             {
@@ -307,7 +307,7 @@ public class TCPSocket : ISocket
                 asyncSending = true;
                 try
                 {
-                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, sendCallback, this);
+                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, SendCallback, this);
                 }
                 catch
                 {
@@ -340,7 +340,7 @@ public class TCPSocket : ISocket
                 {
                     socket.currentReply = kv.Key;
                     socket.sock.BeginSend(kv.Value, 0, kv.Value.Length, SocketFlags.None,
-                                                socket.sendCallback, socket);
+                                                SendCallback, socket);
                 }
                 catch (Exception ex)
                 {
@@ -400,8 +400,8 @@ public class TCPSocket : ISocket
         Close();
 
         receiveNetworkBuffer = null;
-        receiveCallback = null;
-        sendCallback = null;
+        //receiveCallback = null;
+        //sendCallback = null;
         sock = null;
         receiveBuffer = null;
         receiveNetworkBuffer = null;
@@ -494,7 +494,7 @@ public class TCPSocket : ISocket
                 try
                 {
                     currentReply = rt;
-                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, sendCallback, this); 
+                    sock.BeginSend(msg, 0, msg.Length, SocketFlags.None, SendCallback, this); 
                 }
                 catch (Exception ex)
                 {
