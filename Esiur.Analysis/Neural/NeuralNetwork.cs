@@ -50,7 +50,7 @@ namespace Esiur.Analysis.Neural
 
            for(var i = 0; i < target.Length; i++)
             {
-                var z = -(target[i] - output[i]) * 
+                //var z = -(target[i] - output[i]) * 
             }
             //for (int i = 0; i < output.Length; i++) 
             //    totalError += (float)Math.Pow(output[i] - expected[i], 2);//calculated cost of network
@@ -59,43 +59,43 @@ namespace Esiur.Analysis.Neural
 
 
 
-            var gamma = neuralLayers.Select(x => x.Neurons.Select(n => n.Value).ToArray()).ToArray();
+            //var gamma = neuralLayers.Select(x => x.Neurons.Select(n => n.Value).ToArray()).ToArray();
 
  
-            int layer = layers.Length - 2;
+            //int layer = layers.Length - 2;
 
-            for (int i = 0; i < output.Length; i++) gamma[layers.Length - 1][i] = (output[i] - expected[i]) * activateDer(output[i], layer);//Gamma calculation
-            for (int i = 0; i < layers[layers.Length - 1]; i++)//calculates the w' and b' for the last layer in the network
-            {
-                biases[layers.Length - 2][i] -= gamma[layers.Length - 1][i] * learningRate;
-                for (int j = 0; j < layers[layers.Length - 2]; j++)
-                {
+            //for (int i = 0; i < output.Length; i++) gamma[layers.Length - 1][i] = (output[i] - expected[i]) * activateDer(output[i], layer);//Gamma calculation
+            //for (int i = 0; i < layers[layers.Length - 1]; i++)//calculates the w' and b' for the last layer in the network
+            //{
+            //    biases[layers.Length - 2][i] -= gamma[layers.Length - 1][i] * learningRate;
+            //    for (int j = 0; j < layers[layers.Length - 2]; j++)
+            //    {
 
-                    weights[layers.Length - 2][i][j] -= gamma[layers.Length - 1][i] * neurons[layers.Length - 2][j] * learningRate;//*learning 
-                }
-            }
+            //        weights[layers.Length - 2][i][j] -= gamma[layers.Length - 1][i] * neurons[layers.Length - 2][j] * learningRate;//*learning 
+            //    }
+            //}
 
-            for (int i = layers.Length - 2; i > 0; i--)//runs on all hidden layers
-            {
-                layer = i - 1;
-                for (int j = 0; j < layers[i]; j++)//outputs
-                {
-                    gamma[i][j] = 0;
-                    for (int k = 0; k < gamma[i + 1].Length; k++)
-                    {
-                        gamma[i][j] += gamma[i + 1][k] * weights[i][k][j];
-                    }
-                    gamma[i][j] *= activateDer(neurons[i][j], layer);//calculate gamma
-                }
-                for (int j = 0; j < layers[i]; j++)//itterate over outputs of layer
-                {
-                    biases[i - 1][j] -= gamma[i][j] * learningRate;//modify biases of network
-                    for (int k = 0; k < layers[i - 1]; k++)//itterate over inputs to layer
-                    {
-                        weights[i - 1][j][k] -= gamma[i][j] * neurons[i - 1][k] * learningRate;//modify weights of network
-                    }
-                }
-            }
+            //for (int i = layers.Length - 2; i > 0; i--)//runs on all hidden layers
+            //{
+            //    layer = i - 1;
+            //    for (int j = 0; j < layers[i]; j++)//outputs
+            //    {
+            //        gamma[i][j] = 0;
+            //        for (int k = 0; k < gamma[i + 1].Length; k++)
+            //        {
+            //            gamma[i][j] += gamma[i + 1][k] * weights[i][k][j];
+            //        }
+            //        gamma[i][j] *= activateDer(neurons[i][j], layer);//calculate gamma
+            //    }
+            //    for (int j = 0; j < layers[i]; j++)//itterate over outputs of layer
+            //    {
+            //        biases[i - 1][j] -= gamma[i][j] * learningRate;//modify biases of network
+            //        for (int k = 0; k < layers[i - 1]; k++)//itterate over inputs to layer
+            //        {
+            //            weights[i - 1][j][k] -= gamma[i][j] * neurons[i - 1][k] * learningRate;//modify weights of network
+            //        }
+            //    }
+            //}
         }
     }
 }
