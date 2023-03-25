@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Net.Sockets;
+using System.Text;
+using Esiur.Analysis.Coding;
 using Esiur.Analysis.DSP;
 using Esiur.Analysis.Signals;
 /*
@@ -26,6 +29,8 @@ SOFTWARE.
 */
 
 using Esiur.Analysis.Signals.Codes;
+using Esiur.Data;
+using Esiur.Resource;
 
 namespace Esiur.Analysis.Test
 {
@@ -39,6 +44,19 @@ namespace Esiur.Analysis.Test
         [STAThread]
         static void Main()
         {
+
+            var msg = Encoding.ASCII.GetBytes("A_DEAD_DAD_CEDED_A_BAD_BABE_A_BEADED_ABACA_BED");
+
+            var codec = new Huffman(msg, 0, (uint)msg.Length);
+
+            var enc = codec.Encode(msg, 0, (uint) msg.Length);
+
+            var dec = codec.Decode(enc, 0, (uint)enc.Length);
+
+            //var code = codec.Encode();
+            var ds = codec.DecisionTree.Decide(new bool[] { true, true, true, true }, 0);
+            
+            Console.WriteLine();
 
             var f = Esiur.Analysis.Algebra.Functions.Sigmoid;
 
