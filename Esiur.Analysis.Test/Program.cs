@@ -45,16 +45,17 @@ namespace Esiur.Analysis.Test
         static void Main()
         {
 
-            var msg = Encoding.ASCII.GetBytes("A_DEAD_DAD_CEDED_A_BAD_BABE_A_BEADED_ABACA_BED");
+            var msg = Encoding.ASCII.GetBytes("A_DEAD_DAD_CEDED_A_BAD_BABE_A_BEADED_ABACA_BED").Select(x => CodeWord<Base2>.FromByte(x)).ToArray();// <Base2>());
 
-            var codec = new Huffman(msg, 0, (uint)msg.Length);
+            // convert msg to codewords
+            var codec = new Huffman<Base2>(msg, 0, (uint)msg.Length);
 
             var enc = codec.Encode(msg, 0, (uint) msg.Length);
 
             var dec = codec.Decode(enc, 0, (uint)enc.Length);
 
             //var code = codec.Encode();
-            var ds = codec.DecisionTree.Decide(new bool[] { true, true, true, true }, 0);
+            //var ds = codec.DecisionTree.Decide(new bool[] { true, true, true, true }, 0);
             
             Console.WriteLine();
 

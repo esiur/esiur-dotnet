@@ -10,8 +10,10 @@ using System.Xml.Linq;
 
 namespace Esiur.Analysis.Coding
 {
-    public class Huffman : ICodec
+    public class Huffman<T> : IStreamCodec<T> where T : System.Enum
     {
+
+        public CodeSet<T> CodeSet { get; } = new CodeSet<T>();
 
         public class Node<TKey, TValue, TFrequency>
         {
@@ -103,20 +105,16 @@ namespace Esiur.Analysis.Coding
             }
         }
 
-        public class HuffmanTable
-        {
-            public Dictionary<byte, BitArray> ForwardMap { get; set; } = new Dictionary<byte, BitArray>();
-            public Dictionary<BitArray, byte> BackwardMap { get; set; } = new Dictionary<BitArray, byte>();
-        }
 
 
-        public Tree<bool, byte, int> DecisionTree { get; set; }
 
-        public Huffman(byte[] source, uint offset, uint length)
+        public Tree<T, CodeWord<T>, int> DecisionTree { get; set; }
+
+        public Huffman(CodeWord<T>[] source, uint offset, uint length)
         {
             //var freq = new int[byte.MaxValue + 1];
 
-            var freq = new Dictionary<byte, int>();
+            var freq = new Dictionary<CodeWord<T>, int>();
 
             // var root = new Branch<bool, KeyValuePair<byte, int>>();
 
@@ -128,28 +126,36 @@ namespace Esiur.Analysis.Coding
                 else
                     freq.Add(source[i], 1);
 
-            var nodes = freq.OrderBy(x => x.Value).Select(x => new Node<bool, byte, int>()
-            { Frequency = x.Value, Key = false, Value = x.Key }).ToList();
+            var nodes = freq.OrderBy(x => x.Value).Select(x => new Node<T, CodeWord<T>, int>()
+            { Frequency = x.Value, Key = default(T), Value = x.Key }).ToList();
 
 
             //var leafs = nodes.ToList();
 
             while (nodes.Count() > 1)
             {
-                var decision = nodes.Take(2).ToList();
+                var decision = nodes.Take(CodeSet.ElementsCount).ToList();
 
-                decision[1].Key = true;
+                //decision[1].Key = true;
 
-                var branch = new Node<bool, byte, int>
+                var branch = new Node<T, CodeWord<T>, int>
                 {
-                    Branches = new Dictionary<bool, Node<bool, byte, int>>()
-                    {
-                        [decision[0].Key] = decision[0],
-                        [decision[1].Key] = decision[1]
-                    },
-                    Key = false,
+                    Branches = new Dictionary<T, Node<T, CodeWord<T>, int>>(),
+                    //{
+                    //    [decision[0].Key] = decision[0],
+                    //    [decision[1].Key] = decision[1]
+                    //},
+                    Key = CodeSet.Elements.First(),
                     Frequency = decision[0].Frequency + decision[1].Frequency
                 };
+
+
+                // assign values
+                for (var i = 0; i < decision.Count; i++)
+                {
+                    branch.Branches.Add(CodeSet.Elements[i], decision[i]);
+                    decision[i].Key = CodeSet.Elements[i];
+                }
 
                 decision[0].Parent = branch;
                 decision[1].Parent = branch;
@@ -159,76 +165,104 @@ namespace Esiur.Analysis.Coding
 
             // create tree
 
-            DecisionTree = new Tree<bool, byte, int>(nodes[0]);
+            DecisionTree = new Tree<T, CodeWord<T>, int>(nodes[0]);
 
             Console.WriteLine();
 
         }
 
-        public byte[] Encode(byte[] source, uint offset, uint length)
+        public T[] Encode(CodeWord<T>[] source, uint offset, uint length)
         {
+            var rt = new List<T>();
             var end = offset + length;
 
-            var seq = new List<bool>();
-            for (var i = offset; i < end; i++)
+            for(var i = offset; i < end; i++)
             {
-                seq.AddRange(DecisionTree.Leafs[source[i]].Sequence);
-            }
-
-
-            var str = (String.Join("", seq.Select(x => x ? "1" : "0")));
-
-            // convert sequence to bytes
-            //var bits = new BitArray(seq.ToArray());
-
-
-            var rt = new byte[(seq.Count - 1) / 8 + 1];
-            var dst = 0;
-
-            for (var i = 0; i < rt.Length; i++)
-            {
-                for (var j = 7; j >= 0; j--)
-                {
-                    if (dst >= seq.Count)
-                        break;
-
-                    if (seq[dst++])
-                        rt[i] |= (byte)(0x1 << j);
-                }
-            }
-
-           // bits.CopyTo(rt, 0);
-            return rt;
-        }
-
-        public byte[] Decode(byte[] source, uint offset, uint length)
-        {
-
-            var rt = new List<byte>();
-
-            var bits = new bool[length * 8];
-            var end = offset + length;
-
-            
-
-            var dst = 0;
-            for (var i = offset; i < end; i++)
-            {
-                for (var j = 7; j >= 0; j--)
-                {
-                    bits[dst++] = ((source[i] >> j) & 0x1) > 0 ? true : false;
-                }
-            }
-
-            uint b = 0;
-            while (b < bits.Length)
-            {
-                var (len, value) = DecisionTree.Decide(bits, b);
-                rt.Add(value);
-                b += len;
+                rt.AddRange(DecisionTree.Leafs[source[i]].Sequence);
             }
 
             return rt.ToArray();
         }
+
+        public CodeWord<T>[] Decode(T[] source, uint offset, uint length)
+        {
+            var rt = new List<CodeWord<T>>();
+
+            uint processed = 0;
+            while (processed < length)
+            {
+                var (len, value) = DecisionTree.Decide(source, offset);
+                rt.Add(value);
+                processed += len;
+                offset += len;
+            }
+
+            return rt.ToArray();
+
+        }
+
+        //public byte[] Encode(byte[] source, uint offset, uint length)
+        //{
+        //    var end = offset + length;
+
+        //    var seq = new List<T>();
+        //    for (var i = offset; i < end; i++)
+        //    {
+        //        seq.AddRange(DecisionTree.Leafs[source[i]].Sequence);
+        //    }
+
+
+        //    //var str = (String.Join("", seq.Select(x => x ? "1" : "0")));
+
+        //    // convert sequence to bytes
+
+        //    var rt = new byte[(seq.Count - 1) / 8 + 1];
+        //    var dst = 0;
+
+        //    for (var i = 0; i < rt.Length; i++)
+        //    {
+        //        for (var j = 7; j >= 0; j--)
+        //        {
+        //            if (dst >= seq.Count)
+        //                break;
+
+        //            if (seq[dst++])
+        //                rt[i] |= (byte)(0x1 << j);
+        //        }
+        //    }
+
+        //    // bits.CopyTo(rt, 0);
+        //    return rt;
+        //}
+
+        //public T[] Decode(T[] source, uint offset, uint length)
+        //{
+
+        //    var rt = new List<byte>();
+
+        //    var bits = new bool[length * 8];
+        //    var end = offset + length;
+
+
+
+        //    var dst = 0;
+        //    for (var i = offset; i < end; i++)
+        //    {
+        //        for (var j = 7; j >= 0; j--)
+        //        {
+        //            bits[dst++] = ((source[i] >> j) & 0x1) > 0 ? true : false;
+        //        }
+        //    }
+
+        //    uint b = 0;
+        //    while (b < bits.Length)
+        //    {
+        //        var (len, value) = DecisionTree.Decide(bits, b);
+        //        rt.Add(value);
+        //        b += len;
+        //    }
+
+        //    return rt.ToArray();
+        //}
     }
 }
