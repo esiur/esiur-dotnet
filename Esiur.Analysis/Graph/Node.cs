@@ -10,5 +10,10 @@ namespace Esiur.Analysis.Graph
 
         public int X { get; set; }
         public int Y { get; set; }
+
+        public string Label { get; set; }
+        public List<Edge<T>> Destinations { get; } = new List<Edge<T>>();
+        public List<Edge<T>> Sources { get; } = new List<Edge<T>>();
+
     }
 }

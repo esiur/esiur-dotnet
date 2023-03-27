@@ -6,7 +6,11 @@ namespace Esiur.Analysis.Graph
 {
     public class Edge<T>
     {
-        public T SourceNode { get; set; }
-        public T DestinationNode { get; set; }
+        public Node<T> SourceNode { get; set; }
+        public Node<T> DestinationNode { get; set; }
+
+        public T Weight { get; set; }
+
+        public string Label { get; set; }
     }
 }

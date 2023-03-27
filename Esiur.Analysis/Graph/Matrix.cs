@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection.Metadata.Ecma335;
-using System.Security.Cryptography.X509Certificates;
+using System.Data.Common;
 using System.Text;
 
 namespace Esiur.Analysis.Graph
@@ -20,7 +19,34 @@ namespace Esiur.Analysis.Graph
             this.value = value;
         }
 
-        public static Matrix<T> Multiply<T>(Matrix<T> a, Matrix<T> b) where T:struct
+        public static Matrix<T> operator *(Matrix<T> a, Matrix<T> b)
+            => Multiply(a, b);
+
+        public  Matrix<T> Pow(int power)
+        {
+            var rt = this;
+            for (var i = 1; i < power; i++)
+                rt = rt * rt;
+            return rt;
+        }
+
+        public override string ToString()
+        {
+            var rt = "";
+            for (var i = 0; i < Rows; i++)
+            {
+                rt += "|";
+
+                for (var j = 0; j < Columns - 1; j++)
+                    rt += value[i, j] + ",";
+
+                rt += value[i, Columns - 1] + "|";
+            }
+
+            return rt;
+        }
+
+        public static Matrix<T> Multiply<T>(Matrix<T> a, Matrix<T> b) where T : struct
         {
 
 
@@ -36,7 +62,9 @@ namespace Esiur.Analysis.Graph
                 { // bColumn
                     for (int k = 0; k < a.Columns; k++)
                     { // aColumn
-                        rt[i, j] += a[i, k] * b[k, j];
+                        dynamic aValue = a[i, k];
+                        dynamic bValue = b[k, j];
+                        rt[i, j] += aValue * bValue;// a[i, k] * b[k, j];
                     }
                 }
             }

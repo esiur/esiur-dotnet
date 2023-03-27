@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using Esiur.Analysis.Coding;
 using Esiur.Analysis.DSP;
+using Esiur.Analysis.Graph;
 using Esiur.Analysis.Signals;
 /*
  
@@ -31,6 +32,7 @@ SOFTWARE.
 using Esiur.Analysis.Signals.Codes;
 using Esiur.Data;
 using Esiur.Resource;
+using ScottPlot.Statistics.Interpolation;
 
 namespace Esiur.Analysis.Test
 {
@@ -44,6 +46,28 @@ namespace Esiur.Analysis.Test
         [STAThread]
         static void Main()
         {
+
+
+            var graph = new DirectedGraph<double>();
+
+            var n1 = graph.AddNode(1, "1", 10, 10);
+            var n2 = graph.AddNode(2, "2", 20, 10);
+
+            graph.Link(n1, n2, 0.5, "1->2");
+            graph.Link(n1, n1, 0.5, "1->1");
+
+            graph.Link(n2, n1, 0.2, "2->1");
+            graph.Link(n2, n2, 0.8, "2->2");
+            
+
+            var matrix = new Matrix<double>(new double[,] { { 0.5, 0.5 }, { 0.2, 0.8 } });
+
+            var m = matrix;
+            for(var i = 0; i < 3; i++)
+            {
+                m = m * m;
+                Console.WriteLine(m);
+            }
 
             var msg = Encoding.ASCII.GetBytes("A_DEAD_DAD_CEDED_A_BAD_BABE_A_BEADED_ABACA_BED").Select(x => CodeWord<Base2>.FromByte(x)).ToArray();// <Base2>());
 
@@ -78,7 +102,7 @@ namespace Esiur.Analysis.Test
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new FSoft());
+            Application.Run(new FGraph());
         }
     }
 }
