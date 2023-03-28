@@ -35,9 +35,10 @@
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(468, 409);
+            this.button1.Location = new System.Drawing.Point(535, 545);
+            this.button1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
+            this.button1.Size = new System.Drawing.Size(86, 31);
             this.button1.TabIndex = 0;
             this.button1.Text = "Step";
             this.button1.UseVisualStyleBackColor = true;
@@ -46,21 +47,21 @@
             // pbDraw
             // 
             this.pbDraw.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pbDraw.Location = new System.Drawing.Point(36, 40);
+            this.pbDraw.Location = new System.Drawing.Point(12, 13);
+            this.pbDraw.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.pbDraw.Name = "pbDraw";
-            this.pbDraw.Size = new System.Drawing.Size(639, 345);
+            this.pbDraw.Size = new System.Drawing.Size(1194, 499);
             this.pbDraw.TabIndex = 1;
             this.pbDraw.TabStop = false;
             this.pbDraw.Paint += new System.Windows.Forms.PaintEventHandler(this.pbDraw_Paint);
             // 
             // FGraph
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(729, 459);
+            this.ClientSize = new System.Drawing.Size(1218, 612);
             this.Controls.Add(this.pbDraw);
             this.Controls.Add(this.button1);
-            this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "FGraph";
             this.Text = "FGraph";
             ((System.ComponentModel.ISupportInitialize)(this.pbDraw)).EndInit();
