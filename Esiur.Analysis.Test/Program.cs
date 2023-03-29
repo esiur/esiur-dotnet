@@ -48,26 +48,7 @@ namespace Esiur.Analysis.Test
         {
 
 
-            var graph = new DirectedGraph<double>();
 
-            var n1 = graph.AddNode(1, "1", 10, 10);
-            var n2 = graph.AddNode(2, "2", 20, 10);
-
-            graph.Link(n1, n2, 0.5, "1->2");
-            graph.Link(n1, n1, 0.5, "1->1");
-
-            graph.Link(n2, n1, 0.2, "2->1");
-            graph.Link(n2, n2, 0.8, "2->2");
-            
-
-            var matrix = new Matrix<double>(new double[,] { { 0.5, 0.5 }, { 0.2, 0.8 } });
-
-            var m = matrix;
-            for(var i = 0; i < 3; i++)
-            {
-                m = m * m;
-                Console.WriteLine(m);
-            }
 
             var msg = Encoding.ASCII.GetBytes("A_DEAD_DAD_CEDED_A_BAD_BABE_A_BEADED_ABACA_BED").Select(x => CodeWord<Base2>.FromByte(x)).ToArray();// <Base2>());
 

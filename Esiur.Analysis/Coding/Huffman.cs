@@ -160,7 +160,8 @@ namespace Esiur.Analysis.Coding
                 decision[0].Parent = branch;
                 decision[1].Parent = branch;
 
-                nodes = nodes.Skip(2).Append(branch).OrderBy(x => x.Frequency).ToList();
+                // remove processed branches, append the new branch and sort by probability
+                nodes = nodes.Skip(CodeSet.ElementsCount).Append(branch).OrderBy(x => x.Frequency).ToList();
             }
 
             // create tree
