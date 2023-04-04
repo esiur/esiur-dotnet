@@ -7,6 +7,5 @@ namespace Esiur.Analysis.Coding
     public class Arithmetic<T> where T : System.Enum
     {
 
-
     }
 }

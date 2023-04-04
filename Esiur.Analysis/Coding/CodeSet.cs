@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -39,6 +40,16 @@ namespace Esiur.Analysis.Coding
         Zero,
         One,
         Two
+    }
+
+
+
+    public interface BaseNumber<T>
+    {
+        public static T AdditiveIdentity { get; }
+        public static T MultiplicativeIdentity { get; }
+
+        //public
     }
 
     //public struct BinaryValue : IBaseValue<Base2>

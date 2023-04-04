@@ -23,7 +23,7 @@ namespace Esiur.Analysis.Coding
             return ToString().GetHashCode();
         }
 
-  
+        public int Length => Word.Length;
 
         public static CodeWord<Base2> FromByte(byte b)
         {

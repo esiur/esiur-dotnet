@@ -9,14 +9,35 @@ namespace Esiur.Analysis.Graph
     {
         internal T[,] value;
 
-        public int Rows => value.GetLength(0);
-        public int Columns => value.GetLength(1);
+        public int Rows { get; private set; }
+        public int Columns { get; private set; }
 
-        public T this[int x, int y] => value[x, y];
+        public T this[int x, int y] {
+            get => value [x, y];
+            set => this.value[x, y] = value;
+        }
+
+        public Matrix(int rows, int columns)
+        {
+            value = new T[rows, columns];
+        }
 
         public Matrix(T[,] value)
         {
             this.value = value;
+            Rows = value.GetLength(0);
+            Columns = value.GetLength(1); 
+        }
+
+        public Matrix<T> Transpose()
+        {
+            var rt = new T[Columns, Rows];
+
+            for(var i = 0; i < Rows; i++)
+                for(var j = 0; j < Columns; j++)
+                    rt[j, i] = value[i, j];
+
+            return new Matrix<T>(rt);
         }
 
         public static Matrix<T> operator *(Matrix<T> a, Matrix<T> b)
