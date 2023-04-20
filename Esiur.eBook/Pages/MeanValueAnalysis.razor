@@ -1,0 +1,103 @@
+﻿@page "/mva"
+@using Esiur.Analysis.Queueing
+@using Blazor.Extensions
+@using Blazor.Extensions.Canvas
+@using Blazor.Extensions.Canvas.Canvas2D
+@using Esiur.Analysis.Graph
+@using static Esiur.Analysis.Queueing.MeanValueAnalysis
+@inject IJSRuntime JsRuntime;
+
+<h1>
+    Topic 3: Mean Value Analysis
+</h1>
+<h3>
+    Prof. Dr. Emad Al-Hemiary - Al-Nahrain University
+</h3>
+
+<PageTitle>Topic 3: Mean Value Analysis</PageTitle>
+
+<img src="img/mva.png" />
+
+<table>
+</table>
+
+Customers:
+<input @bind="customers" type="number" />
+
+<button @onclick="Process">
+    Compute
+</button>
+
+
+<table class="table-results">
+    <thead>
+        <tr>
+            <td>Service Center</td>
+            @foreach (var n in mva.Nodes)
+            {
+                <td>#@(n.Label)</td>
+            }
+        </tr>
+    </thead>
+
+    <tbody>
+        <tr>
+            <td>Mean Number of Customers L(i)</td>
+            @foreach (var r in results)
+            {
+                <td>
+                    @(r.MeanNumberOfCustomers.ToString("N4"))
+                </td>
+            }
+        </tr>
+        <tr>
+            <td>Mean Response Time R(i)</td>
+            @foreach (var r in results)
+            {
+                <td>@(r.MeanResponseTime.ToString("N4"))</td>
+            }
+
+        </tr>
+        <tr>
+            <td>Throughput X(i)</td>
+            @foreach (var r in results)
+            {
+                <td>
+                    @(r.Throughput.ToString("N4"))
+                </td>
+            }
+        </tr>
+        <tr>
+            <td>Normalization Constant</td>
+            <td>
+                @(results.Length == 0 ? 0 : results[0].NormalizationConstant.ToString("N6"))
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+@code {
+    private Esiur.Analysis.Queueing.MeanValueAnalysis mva;
+
+    private int customers = 1;
+
+    private MVAResult[] results = new MVAResult[0];
+
+    protected override void OnInitialized()
+    {
+        var queues = new Queue[] { new Queue() {  ServiceRate = 2, VisitRatio = 1 , Label = "1"},
+                                     new Queue() { Servers = 1 , ServiceRate = 1, VisitRatio = 0.2, Label = "2" },
+                                     new Queue(){Servers = 1, ServiceRate = 2, VisitRatio = 0.3, Label = "3" },
+                                     new Queue(){Servers = 1, ServiceRate = 4, VisitRatio = 0.5, Label = "4"}};
+
+        mva = new Esiur.Analysis.Queueing.MeanValueAnalysis(queues);
+
+
+        base.OnInitialized();
+    }
+
+    private void Process()
+    {
+        results = mva.Process(customers++);
+    }
+}

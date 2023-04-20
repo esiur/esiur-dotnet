@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CsvHelper" Version="30.0.1" />
     <PackageReference Include="ScottPlot.WinForms" Version="4.1.58" />
   </ItemGroup>
 

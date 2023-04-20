@@ -1,0 +1,254 @@
+﻿@page "/markovchains"
+
+@using Blazor.Extensions
+@using Blazor.Extensions.Canvas
+@using Blazor.Extensions.Canvas.Canvas2D
+@using Esiur.Analysis.Graph
+@inject IJSRuntime JsRuntime;
+
+<h1>
+    Topic 1: Defining QS and MC
+</h1>
+<h3>
+    Prof. Dr. Emad Al-Hemiary - Al-Nahrain University
+</h3>
+
+
+<div id="canvasHolder">
+    <BECanvas Width="1000" Height="600" @ref="CanvasRef"></BECanvas>
+</div>
+
+<label>
+    Current step:
+    <input @bind="step" />
+</label>
+
+<button @onclick="Jump">
+    Jump Step
+</button>
+
+@code {
+
+    private Canvas2DContext ctx;
+    protected BECanvasComponent CanvasRef;
+    private DateTime LastRender;
+
+    private int step = 0;
+    private DirectedGraph<decimal> graph;
+
+    private void Jump()
+    {
+        graph.Step();
+        step++;
+
+    }
+
+    protected override void OnInitialized()
+    {
+
+        graph = new DirectedGraph<decimal>();
+
+        var n1 = graph.AddNode(1, "1", 100, 300);
+        var n2 = graph.AddNode(2, "2", 500, 300);
+        graph.Link(n1, n2, (decimal)0.5, "1->2");
+        graph.Link(n1, n1, (decimal)0.5, "1->1");
+
+        graph.Link(n2, n1, (decimal)0.2, "2->1");
+        graph.Link(n2, n2, (decimal)0.8, "2->2");
+
+        //var n0 = graph.AddNode(1, "0", 100, 300);
+        //var n1 = graph.AddNode(1, "1", 300, 300);
+        //var n2 = graph.AddNode(2, "2", 500, 300);
+        //var n3 = graph.AddNode(3, "3", 700, 300);
+        //var n4 = graph.AddNode(4, "4", 900, 300);
+        //var n5 = graph.AddNode(0, "5", 1100, 300);
+
+        //graph.Link(n0, n0, (decimal)0.2, "00");
+        //graph.Link(n0, n2, (decimal)0.2, "02");
+        //graph.Link(n0, n3, (decimal)0.2, "03");
+        //graph.Link(n0, n4, (decimal)0.2, "04");
+        //graph.Link(n0, n5, (decimal)0.2, "05");
+
+        //graph.Link(n1, n0, (decimal)0.1, "10");
+        //graph.Link(n1, n1, (decimal)0.1, "11");
+        //graph.Link(n1, n2, (decimal)0.2, "12");
+        //graph.Link(n1, n3, (decimal)0.2, "13");
+        //graph.Link(n1, n4, (decimal)0.2, "14");
+        //graph.Link(n1, n5, (decimal)0.2, "15");
+
+
+        //graph.Link(n2, n1, (decimal)0.2, "21");
+        //graph.Link(n2, n2, (decimal)0.2, "22");
+        //graph.Link(n2, n3, (decimal)0.2, "23");
+        //graph.Link(n2, n4, (decimal)0.2, "24");
+        //graph.Link(n2, n5, (decimal)0.2, "25");
+
+        //graph.Link(n3, n2, (decimal)0.2, "32");
+        //graph.Link(n3, n3, (decimal)0.2, "33");
+        //graph.Link(n3, n4, (decimal)0.3, "34");
+        //graph.Link(n3, n5, (decimal)0.3, "35");
+
+
+        //graph.Link(n4, n3, (decimal)0.4, "43");
+        //graph.Link(n4, n4, (decimal)0.3, "44");
+        //graph.Link(n4, n5, (decimal)0.3, "45");
+
+        //graph.Link(n5, n4, (decimal)0.5, "54");
+        //graph.Link(n5, n5, (decimal)0.5, "55");
+
+
+        graph.Build();
+
+        for (var i = 0; i < graph.Nodes.Count; i++)
+        {
+            decimal sum = 0;
+            for (var j = 0; j < graph.Nodes.Count; j++)
+            {
+                sum += graph.TransitionMatrix[i, j];
+            }
+
+            if (sum != 1)
+                throw new Exception("Sum must be 1");
+        }
+
+        base.OnInitialized();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        this.ctx = await CanvasRef.CreateCanvas2DAsync();
+        await JsRuntime.InvokeAsync<object>("initRenderJS", DotNetObjectReference.Create(this));
+        await base.OnInitializedAsync();
+    }
+
+
+
+    [JSInvokable]
+    public void ResizeInBlazor(double width, double height)
+    {
+        // do nothing
+    }
+
+    [JSInvokable]
+    public async ValueTask RenderInBlazor(float timeStamp)
+    {
+
+        double fps = 1.0 / (DateTime.Now - LastRender).TotalSeconds;
+        LastRender = DateTime.Now;
+
+        await this.ctx.BeginBatchAsync();
+        await this.ctx.ClearRectAsync(0, 0, 1000, 600);
+        await this.ctx.SetFillStyleAsync("#003366");
+        await this.ctx.FillRectAsync(0, 0, 1000, 600);
+        await this.ctx.SetFontAsync("26px Segoe UI");
+        await this.ctx.SetFillStyleAsync("#FFFFFF");
+        await this.ctx.FillTextAsync("Markov Chains: Example", 10, 30);
+        await this.ctx.SetFontAsync("16px consolas");
+        //await this.ctx.FillTextAsync($"FPS: {fps:0.000}", 10, 50);
+        await this.ctx.SetStrokeStyleAsync("#FFFFFF");
+
+        // update label
+        foreach (var edge in graph.Edges)
+        {
+            await DrawArcBetweenTwoPoints(this.ctx, new double[] { edge.SourceNode.X, edge.SourceNode.Y },
+                new double[] { edge.DestinationNode.X, edge.DestinationNode.Y }, edge.Label + " " + Math.Round(edge.Weight, 4));
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            await this.ctx.BeginPathAsync();
+            await this.ctx.ArcAsync(node.X, node.Y, 30, 0, 2 * Math.PI);
+            await this.ctx.SetFillStyleAsync("#FFFFFF");
+
+            await this.ctx.FillAsync();
+
+            //await this.ctx.StrokeAsync();
+
+            await this.ctx.SetFillStyleAsync("#000");
+            await this.ctx.FillTextAsync(node.Label, node.X, node.Y);
+        }
+
+        await this.ctx.EndBatchAsync();
+    }
+
+
+    private async Task DrawCurve2(Canvas2DContext ctx, double[] start, double[] control, double[] end)
+    {
+        await ctx.BeginPathAsync();
+        await ctx.MoveToAsync(start[0], start[1]);
+
+        await ctx.QuadraticCurveToAsync(control[0], control[1], end[0], end[1]);
+        await ctx.StrokeAsync();
+
+        if (start[0] > end[0])
+        {
+            var c = GetQuadraticCurveCenterPoint(start, control, end);
+            await DrawLines(ctx, new double[] { c[0] + 6, c[1] + 6 }, c, new double[] { c[0] + 6, c[1] - 6 });
+
+        }
+        else if (start[0] < end[0]){
+            var c = GetQuadraticCurveCenterPoint(start, control, end);
+            await DrawLines(ctx, new double[] { c[0] - 6, c[1] - 6 }, c, new double[] { c[0] - 6, c[1] + 6 });
+        }
+    }
+
+    double _getQBezierValue(double t, double p1, double p2, double p3)
+    {
+        var iT = 1 - t;
+        return (iT * iT * p1) + (2 * iT * t * p2) + (t * t * p3);
+    }
+
+    double[] GetQuadraticCurveCenterPoint(double[] start, double[] control, double[] end)
+    {
+        var pt = new double[] { _getQBezierValue(0.5, start[0], control[0], end[0]),
+            _getQBezierValue(0.5, start[1], control[1], end[1]) };
+
+        return pt;
+    }
+
+
+    private async Task DrawLines(Canvas2DContext ctx, double[] start, double[] control, double[] end)
+    {
+        await ctx.BeginPathAsync();
+        await ctx.MoveToAsync(start[0], start[1]);
+        await ctx.LineToAsync(control[0], control[1]);
+        await ctx.MoveToAsync(control[0], control[1]);
+        await ctx.LineToAsync(end[0], end[1]);
+        await ctx.StrokeAsync();
+    }
+ 
+
+    public async Task DrawArcBetweenTwoPoints(Canvas2DContext ctx, double[] a, double[] b, string label)
+    {
+
+
+        if (a[0] == b[0] && a[1] == b[1])
+        {
+            var c = new double[] { a[0], a[1] - 60 };
+            await ctx.StrokeTextAsync(label, c[0], c[1]);
+            await ctx.BeginPathAsync();
+            await ctx.ArcAsync(a[0], a[1] - 30, 20, 0, 2 * Math.PI);
+            await ctx.StrokeAsync();
+ 
+        }
+        else
+        {
+            var dis = (float)Math.Sqrt(Math.Pow(a[0] - b[0], 2) + Math.Pow(a[1] - b[1], 2));
+
+            if (b[0] > a[0])
+            {
+                var c = new double[] { a[0] + ((b[0] - a[0]) / 2), a[1] - 0.25f * dis };
+                await DrawCurve2(ctx, a, c, b);
+                await ctx.StrokeTextAsync(label, c[0] - 30, c[1]);
+             }
+            else
+            {
+                var c = new double[] { b[0] + ((a[0] - b[0]) / 2), b[1] + 0.25f * dis };
+                await DrawCurve2(ctx, a, c, b);
+                await ctx.StrokeTextAsync(label, c[0] - 30, c[1] + 5);
+            }
+        }
+    }
+
+
+}

@@ -28,8 +28,11 @@ namespace Esiur.Analysis.Statistics
             double rt = 0;
 
             for (var i = 0; i < n; i++)
+            {
                 rt += (x[i] - X) * (y[i] - Y);
-
+                rt += (x[i] * y[i] - Y * x[i] - X * y[i] + X * Y);//  - X) * (y[i] - Y);
+            }
+            
             return rt / n;
         }
 

@@ -1,10 +1,3 @@
-using System.Diagnostics;
-using System.Net.Sockets;
-using System.Text;
-using Esiur.Analysis.Coding;
-using Esiur.Analysis.DSP;
-using Esiur.Analysis.Graph;
-using Esiur.Analysis.Signals;
 /*
  
 Copyright (c) 2022 Ahmed Kh. Zamil
@@ -29,10 +22,23 @@ SOFTWARE.
 
 */
 
+using System.Diagnostics;
+using System.Formats.Asn1;
+using System.Globalization;
+using System.Net.Sockets;
+using System.Text;
+using CsvHelper;
+using Esiur.Analysis.Coding;
+using Esiur.Analysis.DSP;
+using Esiur.Analysis.Graph;
+using Esiur.Analysis.Scheduling;
+using Esiur.Analysis.Signals;
 using Esiur.Analysis.Signals.Codes;
 using Esiur.Data;
 using Esiur.Resource;
 using ScottPlot.Statistics.Interpolation;
+using Process = Esiur.Analysis.Scheduling.Process;
+using Esiur.Analysis.Queueing;
 
 namespace Esiur.Analysis.Test
 {
@@ -46,6 +52,46 @@ namespace Esiur.Analysis.Test
         [STAThread]
         static void Main()
         {
+
+
+            var queues = new Queue[] { new Queue() {  ServiceRate = 2, VisitRatio = 1 },
+                                     new Queue() { Servers = 1 , ServiceRate = 1, VisitRatio = 0.2 },
+                                     new Queue(){Servers = 1, ServiceRate = 2, VisitRatio = 0.3 },
+                                     new Queue(){Servers = 1, ServiceRate = 4, VisitRatio = 0.5}};
+
+            var mva = new MeanValueAnalysis(queues);
+
+            mva.Process(10);
+
+            //using (var reader = new StreamReader("c:\\cd\\s2.csv"))
+            //using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
+            //{
+            //    var records = csv.GetRecords<dynamic>();
+
+            //    var procs = records.Select(x =>
+            //    {
+            //        return new Process()
+            //        {
+            //            Arrival = Convert.ToInt32(x.arrival),
+            //            Burst = Convert.ToInt32(x.wc) * 0.5,
+            //            Priority = x.label == "high" ? 0 : 1,
+            //            Title = x.subject
+            //        };
+            //    }).ToArray();
+
+
+            //    var processes = Esiur.Analysis.Scheduling.SPF.ScheduleHybrid(procs);
+
+            //    var class0 = processes.Where(x => x.Priority == 0).ToArray();
+            //    var class1 = processes.Where(x => x.Priority == 1).ToArray();
+
+            //    var waitTime = processes.Sum(x => x.WaitTime) / processes.Length;
+            //    var class0Time = class0.Sum(x => x.WaitTime) / class0.Length;
+            //    var class1Time = class1.Sum(x => x.WaitTime) / class1.Length;
+
+            //    Console.WriteLine(waitTime.ToString());
+            //}
+
 
 
 

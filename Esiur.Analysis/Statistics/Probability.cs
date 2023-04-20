@@ -12,6 +12,7 @@ namespace Esiur.Analysis.Statistics
         public static implicit operator Probability(double v) => new Probability(v);
         public static implicit operator double(Probability v) => v.Value;
 
+        
         public Probability(double value)
         {
             if (value > 1 || value < 0)
@@ -26,6 +27,16 @@ namespace Esiur.Analysis.Statistics
         public override string ToString()
         {
             return (Math.Round(Value * 10000) / 100) + "%";
+        }
+
+        public Probability Power(double exponent)
+        {
+            return Math.Pow(Value, exponent);
+        }
+
+        public Probability Inverse()
+        {
+            return 1 - Value;
         }
     }
 }

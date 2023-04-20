@@ -26,8 +26,8 @@ namespace Esiur.Analysis.Coding
                 for(var j = 0; j < p.Columns; j++)
                     g[i, j] = p[i, j];
 
-            for (var i = 0; i < k; i++)
-                g[i, p.Columns + i] = (T)1;
+            //for (var i = 0; i < k; i++)
+            //    g[i, p.Columns + i] = (T)1;
 
         }
     }
