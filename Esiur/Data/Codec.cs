@@ -199,7 +199,7 @@ public static class Codec
         [typeof(List<byte>)] = DataSerializer.RawDataComposerFromList,
         //[typeof(List<byte?>)] = DataSerializer.RawDataComposerFromList,
         [typeof(string)] = DataSerializer.StringComposer,
-#pragma 
+ 
         // Special
         [typeof(object[])] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromArray,
         [typeof(List<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
