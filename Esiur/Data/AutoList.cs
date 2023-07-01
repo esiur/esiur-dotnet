@@ -97,7 +97,7 @@ public class AutoList<T, ST> : IEnumerable<T>, ICollection, ICollection<T>
     /// Create a new instance of AutoList
     /// </summary>
     /// <param name="state">State object to be included when an event is raised.</param>
-    public AutoList(ST state)
+    public AutoList(ST state = default(ST))
     {
         State = state;
 #if NETSTANDARD

@@ -232,7 +232,7 @@ namespace Esiur.Data
             else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
-                if (genericType == typeof(List<>))
+                if (genericType == typeof(List<>) || genericType == typeof(VarList<>))
                 {
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object))

@@ -61,8 +61,10 @@ public class EsiurProxyRewrite : IModelFinalizingConvention
 
         var cache = options.Store.GetById(entityType.ClrType, id);
 
-        if (cache != null)
+        if (cache != null && cache.Instance != null)
+        {
             return cache;
+        }
 
         if (Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
         {

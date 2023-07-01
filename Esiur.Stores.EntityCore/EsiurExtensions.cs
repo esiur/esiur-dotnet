@@ -47,6 +47,10 @@ public static class EsiurExtensions
 
     //}
 
+    public static DbSet<object> SetByType(this DbContext context, Type t)
+    {
+        return (DbSet<object>)context.GetType().GetMethod("Set").MakeGenericMethod(t).Invoke(context, new object[0]);
+    }
 
     public static T AddResource<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
         => AddResourceAsync(dbSet, resource).Wait();

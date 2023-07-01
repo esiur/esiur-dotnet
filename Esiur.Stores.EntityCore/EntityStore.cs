@@ -33,6 +33,8 @@ using Esiur.Proxy;
 using System.Linq;
 using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
+using Esiur.Security.Authority;
+using System.Collections;
 
 namespace Esiur.Stores.EntityCore;
 public class EntityStore : IStore
@@ -63,30 +65,42 @@ public class EntityStore : IStore
         var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);
 
         // Get db
-        var db = Getter();
-        var res = db.Find(ti.Type.ClrType, id);
-
-        if (res == null)
+        using (var db = Getter())
         {
-            return new AsyncReply<IResource>(null);
 
-            //var rt = new AsyncReply<IResource>();
-            //rt.TriggerError(new AsyncException(ErrorType.Management,
-            //    (ushort)ExceptionCode.ResourceNotFound, "Resource not found."));
-            //return rt;
+            var res = db.Find(ti.Type.ClrType, id) as IResource;
+
+
+            if (res == null)
+            {
+                return new AsyncReply<IResource>(null);
+
+                //var rt = new AsyncReply<IResource>();
+                //rt.TriggerError(new AsyncException(ErrorType.Management,
+                //    (ushort)ExceptionCode.ResourceNotFound, "Resource not found."));
+                //return rt;
+            }
+
+
+            // load navigation properties
+            var ent = db.Entry(res);
+
+            foreach (var rf in ent.References)
+            {
+                rf.Load();
+            }
+
+            foreach(var col in ent.Collections)
+            {
+                col.Load();               
+            }
+
+            //var refs = ent.References.ToList();
+
+            db.Dispose();
+
+            return new AsyncReply<IResource>(res);
         }
-
-        // load navigation properties
-        var ent = db.Entry(res);
-        foreach (var rf in ent.References)
-            rf.Load();
-
-        foreach(var nav in ent.Navigations)
-            nav.Load();
-
-        //var refs = ent.References.ToList();
-
-        return new AsyncReply<IResource>(res as IResource);
     }
 
     public AsyncReply<bool> Put(IResource resource)

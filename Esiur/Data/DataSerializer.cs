@@ -317,6 +317,11 @@ public static class DataSerializer
         var resource = (IResource)value;
         var rt = new byte[4];
 
+        if (resource.Instance  == null || resource.Instance.IsDestroyed)
+        {
+            return (TransmissionTypeIdentifier.Null, new byte[0]);
+        }
+
         if (Codec.IsLocalResource(resource, connection))
         {
 
@@ -327,8 +332,12 @@ public static class DataSerializer
         }
         else
         {
+           
             //rt.Append((value as IResource).Instance.Template.ClassId, (value as IResource).Instance.Id);
             connection.cache.Add(value as IResource, DateTime.UtcNow);
+
+       
+            Console.WriteLine("Adding to cache " + resource.Instance.Id);
 
             fixed (byte* ptr = rt)
                 *((uint*)ptr) = resource.Instance.Id;

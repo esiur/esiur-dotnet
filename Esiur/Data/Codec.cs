@@ -203,14 +203,19 @@ public static class Codec
         // Special
         [typeof(object[])] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromArray,
         [typeof(List<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
+        [typeof(VarList<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
         [typeof(IResource[])] = DataSerializer.ResourceListComposer,// (value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
         [typeof(IResource?[])] = DataSerializer.ResourceListComposer,// (value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
         [typeof(List<IResource>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
         [typeof(List<IResource?>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
+        [typeof(VarList<IResource>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
+        [typeof(VarList<IResource?>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
         [typeof(IRecord[])] = DataSerializer.RecordListComposer,// (value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
         [typeof(IRecord?[])] = DataSerializer.RecordListComposer,// (value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
         [typeof(List<IRecord>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
         [typeof(List<IRecord?>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(VarList<IRecord>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(VarList<IRecord?>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
         [typeof(Map<object, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object?, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object, object?>)] = DataSerializer.MapComposer,
@@ -297,7 +302,7 @@ public static class Codec
             else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
-                if (genericType == typeof(List<>))
+                if (genericType == typeof(List<>) || genericType == typeof(VarList<>))
                 {
                     var args = type.GetGenericArguments();
                     //if (Composers.ContainsKey(args[0]))

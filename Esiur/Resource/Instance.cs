@@ -704,6 +704,8 @@ public class Instance
         get { return store; }
     }
 
+    public bool IsDestroyed { get; private set; }
+
     /// <summary>
     /// List of children.
     /// </summary>
@@ -1009,6 +1011,7 @@ public class Instance
 
     private void Resource_OnDestroy(object sender)
     {
+        IsDestroyed = true;
         Destroyed?.Invoke((IResource)sender);
     }
 }

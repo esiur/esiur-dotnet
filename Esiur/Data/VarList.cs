@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public class VarList<T> : IEnumerable<T>, ICollection, ICollection<T>
+    public class VarList<T> :  IEnumerable<T>, ICollection, ICollection<T>
     {
         string propertyName;
         IResource resource;
@@ -19,6 +19,11 @@ namespace Esiur.Data
         {
             this.resource = resource;
             this.propertyName = propertyName;
+        }
+
+        public VarList()
+        {
+            Console.WriteLine("New varlist");
         }
 
         public int Count => list.Count;

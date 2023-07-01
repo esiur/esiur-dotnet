@@ -914,6 +914,8 @@ public static class Warehouse
 
         resource.Destroy();
 
+        resource.Instance = null;
+
         return true;
     }
 }
