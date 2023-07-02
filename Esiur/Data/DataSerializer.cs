@@ -337,8 +337,6 @@ public static class DataSerializer
             connection.cache.Add(value as IResource, DateTime.UtcNow);
 
        
-            Console.WriteLine("Adding to cache " + resource.Instance.Id);
-
             fixed (byte* ptr = rt)
                 *((uint*)ptr) = resource.Instance.Id;
 
