@@ -23,7 +23,7 @@ namespace Esiur.Data
 
         public VarList()
         {
-            Console.WriteLine("New varlist");
+
         }
 
         public int Count => list.Count;
