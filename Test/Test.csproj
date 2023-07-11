@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Esiur.Analysis\Esiur.Analysis.csproj" />
+    <ProjectReference Include="..\Esiur.Analysis\Esiur.Labs.csproj" />
     <ProjectReference Include="..\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
