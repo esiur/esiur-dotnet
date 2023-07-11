@@ -45,10 +45,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-using Esiur.Analysis.Signals;
-using Esiur.Analysis.Units;
-using Esiur.Analysis.Fuzzy;
- 
+  
 namespace Test
 {
 
