@@ -49,9 +49,16 @@ public partial class DistributedConnection : NetworkConnection, IStore
 {
     public delegate void ReadyEvent(DistributedConnection sender);
     public delegate void ErrorEvent(DistributedConnection sender, byte errorCode, string errorMessage);
+    public delegate void ResumedEvent(DistributedConnection sender);
 
 
     Timer keepAliveTimer;
+
+
+    /// <summary>
+    /// Ready event is raised when autoReconnect is enabled and the connection is restored.
+    /// </summary>
+    public event ResumedEvent OnResumed;
 
     /// <summary>
     /// Ready event is raised when the connection is fully established.
@@ -1432,6 +1439,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
         {
             return false;
         }
+
+        OnResumed?.Invoke(this);
 
         return true;
     }
