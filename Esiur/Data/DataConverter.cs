@@ -565,11 +565,52 @@ public static class DC // Data Converter
     }
 
 
+    public static int Mod(this int value, int divisor)
+    {
+        var rt = value % divisor;
+        if (rt < 0) return rt + divisor;
+        return rt;
+    }
 
-     
+    public static ulong RotateLeft(this ulong value, int shift)
+    {
+        return value << shift | value >> (64 - shift);
+    }
 
+    public static ulong RotateRight(this ulong value, int shift)
+    {
+        return value >> shift | value << (64 - shift);
+    }
 
+    public static uint RotateLeft(this uint value, int shift)
+    {
+        return value << shift | value >> (32 - shift);
+    }
 
+    public static uint RotateRight(this uint value, int shift)
+    {
+        return value >> shift | value << (32 - shift);
+    }
+
+    public static ushort RotateLeft(this ushort value, int shift)
+    {
+        return (ushort)(value << shift | value >> (16 - shift));
+    }
+
+    public static ushort RotateRight(this ushort value, int shift)
+    {
+        return (ushort)(value >> shift | value << (16 - shift));
+    }
+
+    public static byte RotateLeft(this byte value, int shift)
+    {
+        return (byte)(value << shift | value >> (8 - shift));
+    }
+
+    public static byte RotateRight(this byte value, int shift)
+    {
+        return (byte)(value >> shift | value << (8 - shift));
+    }
 
 
     public static byte GetUInt8(this byte[] data, uint offset)
