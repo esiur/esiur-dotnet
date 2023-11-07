@@ -73,7 +73,7 @@ public static class ResourceProxy
 
         var props = from p in typeInfo.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                     where p.CanWrite && p.SetMethod.IsVirtual && !p.SetMethod.IsFinal &&
-                    p.GetCustomAttribute<PublicAttribute>(false) != null
+                    p.GetCustomAttribute<ExportAttribute>(false) != null
                     select p;
 
 #else

@@ -373,7 +373,7 @@ public class TypeTemplate
 
 
 
-    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, PublicAttribute publicAttr, byte index = 0, TypeTemplate typeTemplate = null)
+    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, ExportAttribute exportAttr, byte index = 0, TypeTemplate typeTemplate = null)
     {
         var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
         var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
@@ -388,7 +388,7 @@ public class TypeTemplate
         if (typeTemplate.Type == TemplateType.Enum)
             value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
 
-        var ct = new ConstantTemplate(typeTemplate, index, publicAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
+        var ct = new ConstantTemplate(typeTemplate, index, exportAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
 
         return ct;
 
@@ -589,7 +589,7 @@ public class TypeTemplate
 
         while (type != null)
         {
-            var classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
+            var classIsPublic = type.IsEnum || (type.GetCustomAttribute<ExportAttribute>() != null);
 
             if (classIsPublic)
             {
@@ -598,11 +598,11 @@ public class TypeTemplate
                     .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
                             || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))
-                    .Where(x => x.GetCustomAttribute<PrivateAttribute>() == null)
+                    .Where(x => x.GetCustomAttribute<IgnoreAttribute>() == null)
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
                     .Select(x => new MemberData()
                     {
-                        Name = x.GetCustomAttribute<PublicAttribute>()?.Name ?? x.Name,
+                        Name = x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
                         Info = x,
                         Order = order
                     })
@@ -618,11 +618,11 @@ public class TypeTemplate
                     .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
                             || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))
-                    .Where(x => x.GetCustomAttribute<PublicAttribute>() != null)
+                    .Where(x => x.GetCustomAttribute<ExportAttribute>() != null)
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
                     .Select(x => new MemberData
                     {
-                        Name = x.GetCustomAttribute<PublicAttribute>()?.Name ?? x.Name,
+                        Name = x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
                         Info = x,
                         Order = order
                     })

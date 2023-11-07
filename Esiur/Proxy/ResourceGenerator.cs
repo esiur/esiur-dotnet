@@ -74,13 +74,12 @@ public class ResourceGenerator : ISourceGenerator
 
 
 
-    static string SuggestPropertyName(string propertyName)
+    public static string SuggestExportName(string fieldName)
     {
-        if (Char.IsUpper(propertyName[0]))
-            return propertyName.Substring(0, 1).ToLower() + propertyName.Substring(1);
+        if (Char.IsUpper(fieldName[0]))
+            return fieldName.Substring(0, 1).ToLower() + fieldName.Substring(1);
         else
-            return propertyName.Substring(0, 1).ToUpper() + propertyName.Substring(1);
-
+            return fieldName.Substring(0, 1).ToUpper() + fieldName.Substring(1);
     }
 
     public void Execute(GeneratorExecutionContext context)
@@ -173,16 +172,24 @@ namespace { ci.ClassSymbol.ContainingNamespace.ToDisplayString() } {{
 
                 foreach (var f in ci.Fields)
                 {
-                    var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "PublicAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value as string;
+                    var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "ExportAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value as string;
 
                     var fn = f.Name;
-                    var pn =string.IsNullOrEmpty(givenName) ? SuggestPropertyName(fn): givenName;
+                    var pn = string.IsNullOrEmpty(givenName) ? SuggestExportName(fn) : givenName;
 
                     //System.IO.File.AppendAllText("c:\\gen\\fields.txt", fn + " -> " + pn + "\r\n");
 
                     // copy attributes 
                     var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => $"[{x.ToString()}]"));
-                    code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
+                    //Debugger.Launch();
+                    if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
+                    {
+                        code += $"\t{attrs}\r\n\t public event {f.Type} {pn};\r\n";
+                    }
+                    else
+                    {
+                        code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
+                    }
                 }
 
                 code += "}}\r\n";

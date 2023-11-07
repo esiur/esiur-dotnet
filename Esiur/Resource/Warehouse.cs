@@ -375,8 +375,6 @@ public static class Warehouse
 
     public static async AsyncReply<IResource[]> Query(string path)
     {
-        var rt = new AsyncReply<IResource[]>();
-
         var p = path.Trim().Split('/');
         IResource resource;
 
@@ -512,7 +510,7 @@ public static class Warehouse
 
         var res = await Query(path);
 
-        if (res.Length == 0)
+        if (res == null || res.Length == 0)
             return default(T);
         else
             return (T)res.First();

@@ -120,7 +120,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public DistributedServer Server { get; internal set; }
 
 
-    [Public] public virtual ConnectionStatus Status { get; set; }
+    [Export] public virtual ConnectionStatus Status { get; set; }
 
     public bool Remove(IResource resource)
     {
@@ -356,7 +356,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         keepAliveTimer.Elapsed += KeepAliveTimer_Elapsed;
     }
 
-    [Public] public virtual uint Jitter { get; set; }
+    [Export] public virtual uint Jitter { get; set; }
 
     public uint KeepAliveTime { get; set; } = 10;
 

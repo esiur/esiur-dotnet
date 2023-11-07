@@ -588,6 +588,8 @@ public class Instance
         }
     }
 
+ 
+
     //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
 
     internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, EventTemplate eventTemplate, object value)

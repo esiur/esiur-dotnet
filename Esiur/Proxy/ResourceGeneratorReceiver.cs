@@ -50,7 +50,7 @@ public class ResourceGeneratorReceiver : ISyntaxContextReceiver
                 var fields = cds.Members.Where(x => x is FieldDeclarationSyntax)
                                         .Select(x => context.SemanticModel.GetDeclaredSymbol((x as FieldDeclarationSyntax).Declaration.Variables.First()) as IFieldSymbol)
                                         .Where(x => !x.IsConst)
-                                        .Where(x => x.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.PublicAttribute"))
+                                        .Where(x => x.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "Esiur.Resource.ExportAttribute"))
                                         .ToArray();
 
                 //if (!Debugger.IsAttached)
