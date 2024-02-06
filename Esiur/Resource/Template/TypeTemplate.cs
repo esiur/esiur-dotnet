@@ -170,7 +170,7 @@ public class TypeTemplate
         var rt = new Guid(hash);
         return rt;
     }
-    
+
     static Type[] GetDistributedTypes(Type type)
     {
         if (type.IsArray)
@@ -593,13 +593,20 @@ public class TypeTemplate
 
             if (classIsPublic)
             {
-                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance 
+                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance
                                         | BindingFlags.DeclaredOnly | BindingFlags.Static)
                     .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
                             || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))
                     .Where(x => x.GetCustomAttribute<IgnoreAttribute>() == null)
+                    .Where(x => x.Name != "Instance")
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
+                    .Where(x=> !(x is EventInfo e && 
+                            !(e.EventHandlerType.IsGenericType && 
+                                (e.EventHandlerType.GetGenericTypeDefinition() == typeof(ResourceEventHandler<>)
+                                || e.EventHandlerType.GetGenericTypeDefinition() == typeof(CustomResourceEventHandler<>))
+                             )
+                          ))
                     .Select(x => new MemberData()
                     {
                         Name = x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,

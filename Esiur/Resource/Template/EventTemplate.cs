@@ -1,4 +1,5 @@
-﻿using Esiur.Data;
+﻿using Esiur.Core;
+using Esiur.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +28,7 @@ public class EventTemplate : MemberTemplate
         var name = base.Compose();
 
         var hdr = Inherited ? (byte)0x80 : (byte)0;
-        
+
         if (Listenable)
             hdr |= 0x8;
 
@@ -46,16 +47,16 @@ public class EventTemplate : MemberTemplate
         }
         else
             hdr |= 0x40;
-            return new BinaryList()
-                    .AddUInt8(hdr)
-                    .AddUInt8((byte)name.Length)
-                    .AddUInt8Array(name)
-                    .AddUInt8Array(ArgumentType.Compose())
-                    .ToArray();
+        return new BinaryList()
+                .AddUInt8(hdr)
+                .AddUInt8((byte)name.Length)
+                .AddUInt8Array(name)
+                .AddUInt8Array(ArgumentType.Compose())
+                .ToArray();
     }
 
-     public EventTemplate(TypeTemplate template, byte index, string name,bool inherited, RepresentationType argumentType, string annotation = null, bool listenable = false)
-        : base(template, index, name, inherited)
+    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType argumentType, string annotation = null, bool listenable = false)
+       : base(template, index, name, inherited)
     {
         this.Annotation = annotation;
         this.Listenable = listenable;
@@ -64,6 +65,15 @@ public class EventTemplate : MemberTemplate
 
     public static EventTemplate MakeEventTemplate(Type type, EventInfo ei, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
+
+        if (!ei.EventHandlerType.IsGenericType)
+            throw new Exception($"Unsupported event handler type in event `{type.Name}.{ei.Name}`");
+
+        if (ei.EventHandlerType.GetGenericTypeDefinition() != typeof(ResourceEventHandler<>)
+            && ei.EventHandlerType.GetGenericTypeDefinition() != typeof(CustomResourceEventHandler<>))
+            throw new Exception($"Unsupported event handler type in event `{type.Name}.{ei.Name}`");
+
+
         var argType = ei.EventHandlerType.GenericTypeArguments[0];
         var evtType = RepresentationType.FromType(argType);
 
