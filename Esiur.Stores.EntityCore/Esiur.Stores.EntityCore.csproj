@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>Esiur.Stores.EntityCore</AssemblyName>
     <Authors>Ahmed Kh. Zamil</Authors>
     <Company>Esiur Foundation</Company>
@@ -9,7 +9,7 @@
     <Product>Esiur Entity Framework Extension</Product>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Esiur.Stores.EntityCore</PackageId>
-    <Version>1.3.2</Version>
+    <Version>1.3.3</Version>
 	<LangVersion>latest</LangVersion>
   </PropertyGroup>
 
@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.2" />
     <PackageReference Include="System.Collections" Version="4.3.0" />
   </ItemGroup>
 
