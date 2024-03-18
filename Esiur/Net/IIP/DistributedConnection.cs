@@ -781,7 +781,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 }
             }
 
-            //Console.WriteLine(msg.GetString(offset, ends - offset));
+
 
             var rt = authPacket.Parse(msg, offset, ends);
 
@@ -980,6 +980,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                             //SendParams((byte)0, localHash);
 
                                             var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
+
                                             SendParams().AddUInt8(0).AddUInt8Array(localHash).Done();
 
                                             readyToEstablish = true;

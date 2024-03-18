@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2017-2024 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -37,11 +37,17 @@ namespace Esiur.Security.Membership;
 
 public interface IMembership
 {
+    public event ResourceEventHandler<AuthorizationResponse> Authorization;
+
     AsyncReply<bool> UserExists(string username, string domain);
     AsyncReply<byte[]> GetPassword(string username, string domain);
     AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
+    AsyncReply<AuthorizationResults> Authorize(Session session);
     AsyncReply<bool> Login(Session session);
     AsyncReply<bool> Logout(Session session);
     bool GuestsAllowed { get; }
     AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
 }
+
+
+
