@@ -226,42 +226,94 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     private void Declare()
     {
-        var dmn = DC.ToBytes(session.LocalAuthentication.Domain);// domain);
+        var dmn = DC.ToBytes(session.LocalAuthentication.Domain);
 
-        if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
+        if (session.Encrypted)
         {
-            // declare (Credentials -> No Auth, No Enctypt)
+            // create key
+            //var ecdh = System.Security.Cryptography.ECAlgorithm.ECDiffieHellman.Create();
 
-            var un = DC.ToBytes(session.LocalAuthentication.Username);
+            if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
+            {
+                // declare (Credentials -> No Auth, No Enctypt)
 
-            SendParams()
-                .AddUInt8(0x60)
-                .AddUInt8((byte)dmn.Length)
-                .AddUInt8Array(dmn)
-                .AddUInt8Array(localNonce)
-                .AddUInt8((byte)un.Length)
-                .AddUInt8Array(un)
-                .Done();//, dmn, localNonce, (byte)un.Length, un);
+                var un = DC.ToBytes(session.LocalAuthentication.Username);
+
+                SendParams()
+                    .AddUInt8(0x60)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt8((byte)un.Length)
+                    .AddUInt8Array(un)
+                    .Done();//, dmn, localNonce, (byte)un.Length, un);
+            }
+            else if (session.LocalAuthentication.Method == AuthenticationMethod.Token)
+            {
+
+                SendParams()
+                    .AddUInt8(0x70)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt64(session.LocalAuthentication.TokenIndex)
+                    .Done();//, dmn, localNonce, token
+
+            }
+            else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
+            {
+                SendParams()
+                    .AddUInt8(0x40)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .Done();//, dmn, localNonce, token
+            }
+            else
+            {
+                throw new NotImplementedException("Authentication method is not implemented.");
+            }
         }
-        else if (session.LocalAuthentication.Method == AuthenticationMethod.Token)
+        else
         {
+            if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
+            {
+                // declare (Credentials -> No Auth, No Enctypt)
 
-            SendParams()
-                .AddUInt8(0x70)
-                .AddUInt8((byte)dmn.Length)
-                .AddUInt8Array(dmn)
-                .AddUInt8Array(localNonce)
-                .AddUInt64(session.LocalAuthentication.TokenIndex)
-                .Done();//, dmn, localNonce, token
+                var un = DC.ToBytes(session.LocalAuthentication.Username);
 
-        }
-        else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
-        {
-            SendParams()
-                .AddUInt8(0x40)
-                .AddUInt8((byte)dmn.Length)
-                .AddUInt8Array(dmn)
-                .Done();//, dmn, localNonce, token
+                SendParams()
+                    .AddUInt8(0x60)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt8((byte)un.Length)
+                    .AddUInt8Array(un)
+                    .Done();//, dmn, localNonce, (byte)un.Length, un);
+            }
+            else if (session.LocalAuthentication.Method == AuthenticationMethod.Token)
+            {
+
+                SendParams()
+                    .AddUInt8(0x70)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .AddUInt8Array(localNonce)
+                    .AddUInt64(session.LocalAuthentication.TokenIndex)
+                    .Done();//, dmn, localNonce, token
+
+            }
+            else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
+            {
+                SendParams()
+                    .AddUInt8(0x40)
+                    .AddUInt8((byte)dmn.Length)
+                    .AddUInt8Array(dmn)
+                    .Done();//, dmn, localNonce, token
+            }
+            else
+            {
+                throw new NotImplementedException("Authentication method is not implemented.");
+            }
         }
     }
 

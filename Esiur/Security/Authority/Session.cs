@@ -50,6 +50,9 @@ public class Session
     Authentication localAuth, remoteAuth;
     //string domain;
 
+    public bool Encrypted { get; set; }
+
+
     public Session(Authentication localAuthentication, Authentication remoteAuthentication)
     {
 
