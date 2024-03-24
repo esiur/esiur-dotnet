@@ -55,7 +55,6 @@ public class Session
 
     public Session(Authentication localAuthentication, Authentication remoteAuthentication)
     {
-
         this.localAuth = localAuthentication;
         this.remoteAuth = remoteAuthentication;
     }
