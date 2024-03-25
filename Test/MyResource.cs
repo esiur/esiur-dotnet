@@ -12,12 +12,12 @@ namespace Test
     [Annotation("A", "B", "C", "D")]
     public partial class MyResource
     {
-        [Public][Annotation("Comment")] string description;
-        [Public] int categoryId;
+        [Export][Annotation("Comment")] string description;
+        [Export] int categoryId;
 
-        [Public] public string Hello() => "Hi";
+        [Export] public string Hello() => "Hi";
 
-        [Public] public string HelloParent() => "Hi from Parent";
+        [Export] public string HelloParent() => "Hi from Parent";
 
     }
 }

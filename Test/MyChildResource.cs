@@ -10,11 +10,11 @@ namespace Test
     [Resource]
     public partial class MyChildResource : MyResource
     {
-        [Public] string childName;
-        [Public("Hell2o")] public int ChildMethod(string childName) => 111;
-        [Public] public new string Hello() => "Hi from Child";
+        [Export] string childName;
+        [Export("Hell2o")] public int ChildMethod(string childName) => 111;
+        [Export] public new string Hello() => "Hi from Child";
 
-        [Public] public string HelloChild() => "Hi from Child";
+        [Export] public string HelloChild() => "Hi from Child";
 
     }
 }

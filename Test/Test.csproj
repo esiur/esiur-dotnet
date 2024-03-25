@@ -2,10 +2,11 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Esiur.Generator\Esiur.Security.Cryptography.csproj" />
     <ProjectReference Include="..\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 

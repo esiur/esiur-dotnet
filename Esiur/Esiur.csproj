@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Distributed Resources Platform</Description>
     <Copyright>Ahmed Kh. Zamil</Copyright>
      <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
@@ -18,6 +17,7 @@
     <Product>Esiur</Product>
     <LangVersion>latest</LangVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -83,10 +83,10 @@
 
 
   <ItemGroup>
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	   <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- Package the Newtonsoft.Json dependency alongside the generator assembly -->
-    <None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="Tools/*" Pack="true" PackagePath="tools/" />
+	   <None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	   <None Include="Tools/*" Pack="true" PackagePath="tools/" />
   </ItemGroup>
 
 

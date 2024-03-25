@@ -10,10 +10,10 @@ namespace Test
 {
     public class MyGenericRecord<T> : IRecord where T : IResource
     {
-        [Public] public int Start { get; set; }
-        [Public] public int Needed { get; set; }
-        [Public] public int Total { get; set; }
-        [Public] public T[] Results { get; set; }
+        [Export] public int Start { get; set; }
+        [Export] public int Needed { get; set; }
+        [Export] public int Total { get; set; }
+        [Export] public T[] Results { get; set; }
     }
 
 }

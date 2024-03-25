@@ -30,6 +30,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Esiur.Security.Cryptography;
 
 namespace Esiur.Security.Authority;
 public class Session
@@ -50,7 +51,9 @@ public class Session
     Authentication localAuth, remoteAuth;
     //string domain;
 
-    public bool Encrypted { get; set; }
+
+    public IKeyExchanger KeyExchanger { get; set; } = null;
+    public ISymetricCipher SymetricCipher { get; set; } = null;
 
 
     public Session(Authentication localAuthentication, Authentication remoteAuthentication)

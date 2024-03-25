@@ -35,7 +35,7 @@ namespace Esiur.Stores.MongoDB
 {
     public class MongoDBStore<T> : MongoDBStore where T:IResource
     {
-        [Public]
+        [Export]
         public async AsyncReply<T> New(string name = null, object properties = null)
         {
             var resource = await Warehouse.New<T>(name, this, null, null, null, properties);
@@ -43,7 +43,7 @@ namespace Esiur.Stores.MongoDB
             return resource;
         }
 
-        [Public]
+        [Export]
         public async AsyncReply<IResource[]> Slice(int index, int limit)
         {
             var list = await this.Instance.Children<IResource>();

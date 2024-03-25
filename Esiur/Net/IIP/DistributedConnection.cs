@@ -228,10 +228,10 @@ public partial class DistributedConnection : NetworkConnection, IStore
     {
         var dmn = DC.ToBytes(session.LocalAuthentication.Domain);
 
-        if (session.Encrypted)
+        if (session.KeyExchanger != null)
         {
             // create key
-            //var ecdh = System.Security.Cryptography.ECAlgorithm.ECDiffieHellman.Create();
+            var key = session.KeyExchanger.GetPublicKey();
 
             if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
             {
@@ -240,9 +240,12 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 var un = DC.ToBytes(session.LocalAuthentication.Username);
 
                 SendParams()
-                    .AddUInt8(0x60)
+                    .AddUInt8(0x60 | 0x2)
                     .AddUInt8((byte)dmn.Length)
                     .AddUInt8Array(dmn)
+                    .AddUInt16(session.KeyExchanger.Identifier)
+                    .AddUInt16((ushort)key.Length)
+                    .AddUInt8Array(key)
                     .AddUInt8Array(localNonce)
                     .AddUInt8((byte)un.Length)
                     .AddUInt8Array(un)
@@ -252,9 +255,12 @@ public partial class DistributedConnection : NetworkConnection, IStore
             {
 
                 SendParams()
-                    .AddUInt8(0x70)
+                    .AddUInt8(0x70 | 0x2)
                     .AddUInt8((byte)dmn.Length)
                     .AddUInt8Array(dmn)
+                    .AddUInt16(session.KeyExchanger.Identifier)
+                    .AddUInt16((ushort)key.Length)
+                    .AddUInt8Array(key)
                     .AddUInt8Array(localNonce)
                     .AddUInt64(session.LocalAuthentication.TokenIndex)
                     .Done();//, dmn, localNonce, token
@@ -262,10 +268,14 @@ public partial class DistributedConnection : NetworkConnection, IStore
             }
             else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
             {
+                // @REVIEW: MITM Attack can still occure
                 SendParams()
-                    .AddUInt8(0x40)
+                    .AddUInt8(0x40 | 0x2)
                     .AddUInt8((byte)dmn.Length)
                     .AddUInt8Array(dmn)
+                    .AddUInt16(session.KeyExchanger.Identifier)
+                    .AddUInt16((ushort)key.Length)
+                    .AddUInt8Array(key)
                     .Done();//, dmn, localNonce, token
             }
             else

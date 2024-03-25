@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Test
 {
-    [Public]
+    [Export]
     public class MyChildRecord : MyRecord
     {
         public string ChildName { get; set; }

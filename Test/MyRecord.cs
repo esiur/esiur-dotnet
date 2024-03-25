@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Test
 {
-    [Public]
+    [Export]
     public class MyRecord:IRecord
     {
         public string Name { get; set; }

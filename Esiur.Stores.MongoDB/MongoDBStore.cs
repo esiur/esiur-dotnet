@@ -51,15 +51,15 @@ public class MongoDBStore : IStore
     KeyList<string, WeakReference> resources = new KeyList<string, WeakReference>();
 
 
-    [Public]
+    [Export]
     public event ResourceEventHandler<IResource> ResourceAdded;
 
-    [Public]
+    [Export]
     public event ResourceEventHandler<IResource> ResourceRemoved;
 
     int count = 0;
 
-    [Public]
+    [Export]
     public virtual int Count
     {
         get
@@ -109,7 +109,7 @@ public class MongoDBStore : IStore
         return true;
     }
 
-    [Public]
+    [Export]
     public bool Remove(IResource resource)
     {
         var objectId = resource.Instance.Variables["objectId"].ToString();

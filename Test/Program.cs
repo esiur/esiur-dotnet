@@ -45,7 +45,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-  
+using Esiur.Security.Cryptography;
+
 namespace Test
 {
 
@@ -53,6 +54,19 @@ namespace Test
     {
         static async Task Main(string[] args)
         {
+
+            var a = new ECDH();
+            var b = new ECDH();
+
+            var apk = a.GetPublicKey();
+            var bpk = b.GetPublicKey();
+
+            var ska = a.ComputeSharedKey(bpk);
+            var skb = b.ComputeSharedKey(apk);
+
+            Console.WriteLine(ska.ToHex());
+            Console.WriteLine(skb.ToHex());
+
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
             var server = await Warehouse.Put("sys/server", new DistributedServer());
