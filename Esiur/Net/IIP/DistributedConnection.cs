@@ -892,22 +892,25 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     }
                                     else
                                     {
-                                        //Console.WriteLine("User not found");
+                                        // Send user not found error
                                         SendParams().AddUInt8(0xc0)
                                                     .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
                                                     .AddUInt16(14)
-                                                    .AddString("User not found").Done();
+                                                    .AddString("User not found")
+                                                    .Done();
                                     }
                                 });
                             }
                             catch (Exception ex)
                             {
+                                // Send the server side error
                                 var errMsg = DC.ToBytes(ex.Message);
 
                                 SendParams().AddUInt8(0xc0)
                                     .AddUInt8((byte)ExceptionCode.GeneralFailure)
                                     .AddUInt16((ushort)errMsg.Length)
-                                    .AddUInt8Array(errMsg).Done();
+                                    .AddUInt8Array(errMsg)
+                                    .Done();
                             }
                         }
                         else if (authPacket.RemoteMethod == AuthenticationMethod.Token && authPacket.LocalMethod == AuthenticationMethod.None)
@@ -941,7 +944,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                         }
                                         else
                                         {
-                                            //Console.WriteLine("User not found");
+                                            // Send token not found error.
                                             SendParams()
                                                         .AddUInt8(0xc0)
                                                         .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
@@ -954,6 +957,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             }
                             catch (Exception ex)
                             {
+                                // Sender server side error.
+
                                 var errMsg = DC.ToBytes(ex.Message);
 
                                 SendParams()
@@ -980,6 +985,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                 }
                                 else
                                 {
+                                    // Send access denied error because the server does not allow guests.
                                     SendParams()
                                                 .AddUInt8(0xc0)
                                                 .AddUInt8((byte)ExceptionCode.AccessDenied)
@@ -990,6 +996,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             }
                             catch (Exception ex)
                             {
+                                // Send the server side error.
                                 var errMsg = DC.ToBytes(ex.Message);
 
                                 SendParams().AddUInt8(0xc0)
@@ -1035,26 +1042,35 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                                                             .AddUInt8Array(remoteNonce)
                                                                             .AddUInt8Array(localNonce)
                                                                             .ToArray());
+
                                         if (hash.SequenceEqual(remoteHash))
                                         {
                                             // send our hash
                                             //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
                                             //SendParams((byte)0, localHash);
 
-                                            var localHash = hashFunc.ComputeHash((new BinaryList()).AddUInt8Array(localNonce).AddUInt8Array(remoteNonce).AddUInt8Array(pw).ToArray());
+                                            var localHash = hashFunc.ComputeHash((new BinaryList())
+                                                                .AddUInt8Array(localNonce)
+                                                                .AddUInt8Array(remoteNonce)
+                                                                .AddUInt8Array(pw)
+                                                                .ToArray());
 
-                                            SendParams().AddUInt8(0).AddUInt8Array(localHash).Done();
+                                            SendParams()
+                                                .AddUInt8(0)
+                                                .AddUInt8Array(localHash)
+                                                .Done();
 
                                             readyToEstablish = true;
                                         }
                                         else
                                         {
                                             //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
-                                            SendParams().AddUInt8(0xc0)
-                                                            .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                                            .AddUInt16(13)
-                                                            .AddString("Access Denied")
-                                                            .Done();
+                                            SendParams()
+                                                .AddUInt8(0xc0)
+                                                .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                                .AddUInt16(13)
+                                                .AddString("Access Denied")
+                                                .Done();
                                         }
                                     }
                                 });
