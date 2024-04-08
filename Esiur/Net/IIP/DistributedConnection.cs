@@ -1036,23 +1036,19 @@ public partial class DistributedConnection : NetworkConnection, IStore
                                     if (pw != null)
                                     {
                                         var hashFunc = SHA256.Create();
-                                        //var hash = hashFunc.ComputeHash(BinaryList.ToBytes(pw, remoteNonce, localNonce));
                                         var hash = hashFunc.ComputeHash((new BinaryList())
-                                                                            .AddUInt8Array(pw)
                                                                             .AddUInt8Array(remoteNonce)
+                                                                            .AddUInt8Array(pw)
                                                                             .AddUInt8Array(localNonce)
                                                                             .ToArray());
 
                                         if (hash.SequenceEqual(remoteHash))
                                         {
                                             // send our hash
-                                            //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localNonce, remoteNonce, pw));
-                                            //SendParams((byte)0, localHash);
-
                                             var localHash = hashFunc.ComputeHash((new BinaryList())
                                                                 .AddUInt8Array(localNonce)
-                                                                .AddUInt8Array(remoteNonce)
                                                                 .AddUInt8Array(pw)
+                                                                .AddUInt8Array(remoteNonce)
                                                                 .ToArray());
 
                                             SendParams()
@@ -1163,10 +1159,10 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                             // send our hash
                             var hashFunc = SHA256.Create();
-                            //var localHash = hashFunc.ComputeHash(BinaryList.ToBytes(localPassword, localNonce, remoteNonce));
+                            // local nonce + password or token + remote nonce
                             var localHash = hashFunc.ComputeHash(new BinaryList()
-                                                                .AddUInt8Array(localPasswordOrToken)
                                                                 .AddUInt8Array(localNonce)
+                                                                .AddUInt8Array(localPasswordOrToken)
                                                                 .AddUInt8Array(remoteNonce)
                                                                 .ToArray());
 
