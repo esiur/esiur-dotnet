@@ -273,8 +273,11 @@ class IIPAuthPacket : Packet
 
             offset += domainLength;
 
+            if (RemoteMethod == AuthenticationMethod.Certificate)
+            {
 
-            if (RemoteMethod == AuthenticationMethod.Credentials)
+            }
+            else if (RemoteMethod == AuthenticationMethod.Credentials)
             {
                 if (LocalMethod == AuthenticationMethod.None)
                 {
