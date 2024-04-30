@@ -37,22 +37,21 @@ class IIPAuthPacket : Packet
     public enum IIPAuthPacketCommand : byte
     {
         Action = 0,
-        Declare,
-        Acknowledge,
-        Error,
+        Declare = 0x1,
+        Acknowledge = 0x2,
+        Report = 0x3,
+        DeclareEncrypted = 0x5,
+        AcknowledgeEncrypted = 0x6
     }
 
     public enum IIPAuthPacketAction : byte
     {
-        // Authenticate
-        AuthenticateHash,
-
-
-        //Challenge,
-        //CertificateRequest,
-        //CertificateReply,
-        //EstablishRequest,
-        //EstablishReply
+        AuthenticateHash = 0x0,
+        AuthenticatePublicHash = 0x1,
+        AuthenticatePrivateHash
+        EstablishRequest,
+        EstablishReply,
+        TwoFactorAuthtenticate
 
         NewConnection = 0x20,
         ResumeConnection,

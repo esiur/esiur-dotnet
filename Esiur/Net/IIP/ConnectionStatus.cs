@@ -10,5 +10,4 @@ namespace Esiur.Net.IIP
         Connecting,
         Connected
     }
-
 }
