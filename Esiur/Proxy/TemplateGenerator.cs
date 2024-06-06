@@ -78,7 +78,7 @@ public static class TemplateGenerator
 
 
         rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
-        rt.AppendLine($"[Public] public class {className} : IRecord {{");
+        rt.AppendLine($"[Export] public class {className} : IRecord {{");
 
 
         foreach (var p in template.Properties)
@@ -110,7 +110,7 @@ public static class TemplateGenerator
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
         rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
-        rt.AppendLine($"[Public] public enum {className} {{");
+        rt.AppendLine($"[Export] public enum {className} {{");
 
         rt.AppendLine(String.Join(",\r\n", template.Constants.Select(x => $"{x.Name}={x.Value}")));
 
@@ -302,7 +302,7 @@ public static class TemplateGenerator
             if (f.IsStatic)
             {
 
-                rt.Append($"[Public] public static AsyncReply<{rtTypeName}> {f.Name}(DistributedConnection connection");
+                rt.Append($"[Export] public static AsyncReply<{rtTypeName}> {f.Name}(DistributedConnection connection");
 
                 if (positionalArgs.Length > 0)
                     rt.Append(", " +
@@ -315,7 +315,7 @@ public static class TemplateGenerator
             }
             else
             {
-                rt.Append($"[Public] public AsyncReply<{rtTypeName}> {f.Name}(");
+                rt.Append($"[Export] public AsyncReply<{rtTypeName}> {f.Name}(");
 
                 if (positionalArgs.Length > 0)
                     rt.Append(
@@ -364,7 +364,7 @@ public static class TemplateGenerator
             rt.AppendLine($"[Annotation({ToLiteral(p.ReadAnnotation)})]");
 
             var ptTypeName = GetTypeName(p.ValueType, templates);
-            rt.AppendLine($"[Public] public {ptTypeName} {p.Name} {{");
+            rt.AppendLine($"[Export] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
             if (asyncSetters)
                 rt.AppendLine($"set => _Set({p.Index}, value);");
@@ -381,7 +381,7 @@ public static class TemplateGenerator
             rt.AppendLine($"[Annotation({ToLiteral(c.Annotation)})]");
 
             var ctTypeName = GetTypeName(c.ValueType, templates);
-            rt.AppendLine($"[Public] public const {ctTypeName} {c.Name} = {c.Value};");
+            rt.AppendLine($"[Export] public const {ctTypeName} {c.Name} = {c.Value};");
         }
 
 
@@ -399,7 +399,7 @@ public static class TemplateGenerator
                 rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
 
                 eventsList.AppendLine($"[Annotation({ToLiteral(e.Annotation)})]");
-                eventsList.AppendLine($"[Public] public event ResourceEventHandler<{etTypeName}> {e.Name};");
+                eventsList.AppendLine($"[Export] public event ResourceEventHandler<{etTypeName}> {e.Name};");
             }
 
             rt.AppendLine("}}");
