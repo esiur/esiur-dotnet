@@ -10,7 +10,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Stores.EntityCore", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{331F82B6-6B90-4533-9718-F7C8090D8F19}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Security.Cryptography", "Esiur.Security.Cryptography\Esiur.Security.Cryptography.csproj", "{C0C55C1A-7C48-41EB-9A65-27BC99D82F6D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Security.Cryptography", "Esiur.Security.Cryptography\Esiur.Security.Cryptography.csproj", "{C0C55C1A-7C48-41EB-9A65-27BC99D82F6D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Examples.StandaloneWebServerDemo", "Esiur.Examples.StandaloneWebServerDemo\Esiur.Examples.StandaloneWebServerDemo.csproj", "{A00BBD34-601D-4803-94AE-B807DC75D53A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,6 +40,10 @@ Global
 		{C0C55C1A-7C48-41EB-9A65-27BC99D82F6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C0C55C1A-7C48-41EB-9A65-27BC99D82F6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C0C55C1A-7C48-41EB-9A65-27BC99D82F6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A00BBD34-601D-4803-94AE-B807DC75D53A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A00BBD34-601D-4803-94AE-B807DC75D53A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A00BBD34-601D-4803-94AE-B807DC75D53A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A00BBD34-601D-4803-94AE-B807DC75D53A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
