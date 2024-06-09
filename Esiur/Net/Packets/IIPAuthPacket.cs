@@ -48,10 +48,10 @@ class IIPAuthPacket : Packet
     {
         AuthenticateHash = 0x0,
         AuthenticatePublicHash = 0x1,
-        AuthenticatePrivateHash
+        AuthenticatePrivateHash,
         EstablishRequest,
         EstablishReply,
-        TwoFactorAuthtenticate
+        TwoFactorAuthtenticate,
 
         NewConnection = 0x20,
         ResumeConnection,

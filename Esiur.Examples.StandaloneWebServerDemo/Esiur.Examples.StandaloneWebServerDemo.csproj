@@ -9,6 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="Esiur" Version="2.4.0" />
+    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Web\js\" />
+    <Folder Include="Web\img\" />
   </ItemGroup>
 
 </Project>

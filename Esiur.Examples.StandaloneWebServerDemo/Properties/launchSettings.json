@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Esiur.Examples.StandaloneWebServerDemo": {
+      "commandName": "Project",
+      "workingDirectory": "."
+    }
+  }
+}
