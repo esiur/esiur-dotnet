@@ -38,42 +38,22 @@
 <body>
 
     <i-app onload="init()">
-        <div class="loading-panel" style="">
-            <div class="loading">
-                <div class="delta" style="width: 140px; height: 140px">
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                </div>
-                <h1>Esiur</h1>
-            </div>
-        </div>
-
-
-        <div id="sidebar" class="side-bar">
-            <i-navbar id="navbar">
-            </i-navbar>
-        </div>
-
-
+ 
         <div class="footer">
             Esiur Foundation
+            <br />
+            Nahrain University, College of Information Technology Engineering
         </div>
 
         <div class="title-bar">
-            <i-button css-class="ripple" onclick="toggleNav()">
+            <!--<i-button css-class="ripple" onclick="toggleNav()">
                 <img src="img/menu.png" style="height: 40px" />
-            </i-button>
+            </i-button>-->
 
 
-            <img src="img/coie.png" class="logo desktop">
+            <img src="img/coie.jpg" class="logo desktop">
 
-            <h1 class="desktop">Nahrain University, College of Information Technology Engineering </h1>
+            <h1 class="desktop">Esiur Demo</h1>
             <h3 class="desktop">${FORMAT_CONNECTION_STATUS(d?.status ?? 0)}</h3>
 
 
@@ -84,18 +64,20 @@
             <!--<i-link href="tasks" class="inbox"><img src="img/icon/inbox.png"> <span id="spnInbox">0</span></i-link>-->
 
 
-            <div class="profile desktop">
+            <!--<div class="profile desktop">
                 <div class="profile-type"></div>
                 <i-link class="profile-username" href="/profile"></i-link>
                 <i-link onclick="logout()" style="padding: 0px 10px"><img style="width: 30px" src="img/icon/logout.png" /></i-link>
-            </div>
+            </div>-->
 
             <div ::class="`logo connection-${(d?.status ?? 0)}`"></div>
 
 
         </div>
 
-
+        <div :data="conection.get('/sys/demo')">
+            <i-input auto ""
+        </div>
     </i-app>
 </body>
 </html>

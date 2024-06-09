@@ -19,6 +19,10 @@ i-app {
     height: 100%;
 }
 
+.logo {
+    height: 50px;
+}
+
 i-router {
     padding: 10px 35px;
     height: calc(100vh - 150px);

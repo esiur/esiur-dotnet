@@ -7,6 +7,8 @@ async function init() {
 
         window.demo = await connection.get("sys/demo");
 
+        await app.setData(connection);
+        console.log(connection);
     }
     catch (ex)
     {
