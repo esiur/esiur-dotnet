@@ -13,24 +13,41 @@ namespace Esiur.Examples.StandaloneWebServerDemo
     {
         [Export] int color;
         [Export] string label = "Hello World";
-        [Export] public ResourceEventHandler<int> Cleared;
-        [Export] public ResourceEventHandler<Point> Drawn;
+        [Export] public event ResourceEventHandler<int> Cleared;
+        [Export] public event ResourceEventHandler<Point> Drawn;
 
-        [Export] List<List<int>> points;
+        [Export] List<List<byte>> points;
 
-        [Export] public void Draw(int x, int y, int color)
+        [Export] public void Draw(int x, int y, byte color)
         {
-            Drawn?.Invoke(new Point() { X = x, Y = y, Color = color });
+            try
+            {
+                points[x][y] = color;
+                Drawn?.Invoke(new Point() { X = x, Y = y, Color = color });
+            }
+            catch  
+            {
+
+            }
+        }
+        
+        [Export] public void Clear()
+        {
+            foreach (var pa in points)
+                for (var i = 0; i < pa.Count; i++)
+                    pa[i] = 0;
+                    
+            Cleared?.Invoke(0);
         }
 
         public Demo()
         {
-            points = new List<List<int>>();
-            for (var x = 0; x < 400; x++)
+            points = new List<List<byte>>();
+            for (var x = 0; x < 100; x++)
             {
-                var p = new List<int>();
+                var p = new List<byte>();
                 points.Add(p);
-                for (var y = 0; y < 300; y++)
+                for (var y = 0; y < 80; y++)
                     p.Add(0);
             }
 

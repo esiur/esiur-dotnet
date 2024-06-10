@@ -45,38 +45,65 @@
             Nahrain University, College of Information Technology Engineering
         </div>
 
-        <div class="title-bar">
-            <!--<i-button css-class="ripple" onclick="toggleNav()">
-            <img src="img/menu.png" style="height: 40px" />
-        </i-button>-->
-
-
+        <div class="title-bar" >
             <img src="img/coie.jpg" class="logo desktop">
-
             <h1 class="desktop">Esiur Demo</h1>
             <h3 class="desktop">${FORMAT_CONNECTION_STATUS(d?.status ?? 0)}</h3>
-
-
-            <input class="search-button" required type="search" autocomplete="off" />
-
-            <div class="location desktop" id="location"></div>
-
-            <!--<i-link href="tasks" class="inbox"><img src="img/icon/inbox.png"> <span id="spnInbox">0</span></i-link>-->
-            <!--<div class="profile desktop">
-            <div class="profile-type"></div>
-            <i-link class="profile-username" href="/profile"></i-link>
-            <i-link onclick="logout()" style="padding: 0px 10px"><img style="width: 30px" src="img/icon/logout.png" /></i-link>
-        </div>-->
-
             <div ::class="`logo connection-${(d?.status ?? 0)}`"></div>
-
-
         </div>
 
         
         <div class="content" async:data="d?.get('sys/demo')">
-            <i-input auto field="Label"></i-input>
+            <div id="label" contenteditable="true" oninput="this.data.Label = this.innerText" class="label">
+                ${d.Label}
+
+            </div>
+            <!--<div>
+                <input type="range" id="volume" name="volume" min="0" max="100" :value="d.Color" @input="this.data.Color = this.value" />
+            </div>-->
+            
+            <canvas id="canvas" width="400" height="320"></canvas>
+            <div style="padding: 10px; background: #e3e3e3; border-radius: 10px">
+
+                <input type="radio" name="color" id="black" value="1" checked/>
+                <label for="black"><span class="black"></span></label>
+
+                <input type="radio" name="color" id="white" value="0" />
+                <label for="white"><span class="white"></span></label>
+
+                <input type="radio" name="color" id="red" value="2" />
+                <label for="red"><span class="red"></span></label>
+
+                <input type="radio" name="color" id="green" value="3"/>
+                <label for="green"><span class="green"></span></label>
+
+                <input type="radio" name="color" id="yellow" value="4"/>
+                <label for="yellow"><span class="yellow"></span></label>
+
+                <input type="radio" name="color" id="olive" value="5"/>
+                <label for="olive"><span class="olive"></span></label>
+
+                <input type="radio" name="color" id="orange" value="6"/>
+                <label for="orange"><span class="orange"></span></label>
+
+                <input type="radio" name="color" id="teal" value="7"/>
+                <label for="teal"><span class="teal"></span></label>
+
+                <input type="radio" name="color" id="blue" value="8"/>
+                <label for="blue"><span class="blue"></span></label>
+
+                <input type="radio" name="color" id="violet" value="9"/>
+                <label for="violet"><span class="violet"></span></label>
+
+                <input type="radio" name="color" id="purple" value="10"/>
+                <label for="purple"><span class="purple"></span></label>
+
+                <input type="radio" name="color" id="pink" value="11"/>
+                <label for="pink"><span class="pink"></span></label>
+            </div>
+
+            <i-button style="margin: 10px" onclick="demo.Clear();">Clear</i-button>
         </div>
-    </i-app>
+</i-app>
 </body>
 </html>
