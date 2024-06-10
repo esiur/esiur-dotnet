@@ -29,6 +29,13 @@ i-router {
     overflow: auto;
 }
 
+.content {
+
+}
+
+.iui-error {
+    display: none;
+}
 
 /* row */
 .row label {

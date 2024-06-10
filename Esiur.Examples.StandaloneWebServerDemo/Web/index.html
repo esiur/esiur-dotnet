@@ -38,7 +38,7 @@
 <body>
 
     <i-app onload="init()">
- 
+
         <div class="footer">
             Esiur Foundation
             <br />
@@ -47,8 +47,8 @@
 
         <div class="title-bar">
             <!--<i-button css-class="ripple" onclick="toggleNav()">
-                <img src="img/menu.png" style="height: 40px" />
-            </i-button>-->
+            <img src="img/menu.png" style="height: 40px" />
+        </i-button>-->
 
 
             <img src="img/coie.jpg" class="logo desktop">
@@ -62,21 +62,20 @@
             <div class="location desktop" id="location"></div>
 
             <!--<i-link href="tasks" class="inbox"><img src="img/icon/inbox.png"> <span id="spnInbox">0</span></i-link>-->
-
-
             <!--<div class="profile desktop">
-                <div class="profile-type"></div>
-                <i-link class="profile-username" href="/profile"></i-link>
-                <i-link onclick="logout()" style="padding: 0px 10px"><img style="width: 30px" src="img/icon/logout.png" /></i-link>
-            </div>-->
+            <div class="profile-type"></div>
+            <i-link class="profile-username" href="/profile"></i-link>
+            <i-link onclick="logout()" style="padding: 0px 10px"><img style="width: 30px" src="img/icon/logout.png" /></i-link>
+        </div>-->
 
             <div ::class="`logo connection-${(d?.status ?? 0)}`"></div>
 
 
         </div>
 
-        <div :data="conection.get('/sys/demo')">
-            <i-input auto ""
+        
+        <div class="content" async:data="d?.get('sys/demo')">
+            <i-input auto field="Label"></i-input>
         </div>
     </i-app>
 </body>

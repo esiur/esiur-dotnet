@@ -8,12 +8,11 @@ using System.Threading.Tasks;
 
 namespace Esiur.Examples.StandaloneWebServerDemo
 {
-    [Export]
     [Resource]
     public partial class Demo
     {
-        [Export] int color { get; set; }
-        [Export] string label { get; set;}
+        [Export] int color;
+        [Export] string label = "Hello World";
         [Export] public ResourceEventHandler<int> Cleared;
         [Export] public ResourceEventHandler<Point> Drawn;
 
@@ -21,7 +20,6 @@ namespace Esiur.Examples.StandaloneWebServerDemo
 
         [Export] public void Draw(int x, int y, int color)
         {
-
             Drawn?.Invoke(new Point() { X = x, Y = y, Color = color });
         }
 
@@ -35,6 +33,7 @@ namespace Esiur.Examples.StandaloneWebServerDemo
                 for (var y = 0; y < 300; y++)
                     p.Add(0);
             }
+
         }
     }
 
