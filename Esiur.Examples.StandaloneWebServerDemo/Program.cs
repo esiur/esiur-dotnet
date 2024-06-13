@@ -20,7 +20,7 @@ internal class Program
         // Add your object to the store
         var service = await Warehouse.Put("sys/demo", new Demo());
 
-        var http = await Warehouse.Put<HTTPServer>("sys/http", new HTTPServer() { Port = 8080 });
+        var http = await Warehouse.Put<HTTPServer>("sys/http", new HTTPServer() { Port = 8888 });
 
 
         http.MapGet("{url}", (string url, HTTPConnection sender) =>

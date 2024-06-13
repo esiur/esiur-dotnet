@@ -49,13 +49,22 @@ async function init() {
             colorId = document.querySelector('input[name="color"]:checked').value;
         }, false);
 
+        canvas.addEventListener("touchstart", (e) => {
+            drawing = true;
+            colorId = document.querySelector('input[name="color"]:checked').value;
+        });
+
         canvas.addEventListener("mouseup", function (e) {
             drawing = false;
         }, false);
 
-        canvas.addEventListener("mousemove", function (e) {
-            //console.log(e);
+        canvas.addEventListener("touchend", function (e) {
+            drawing = false;
+        }, false);
 
+
+        canvas.addEventListener("mousemove", function (e) {
+ 
             var rect = canvas.getBoundingClientRect();
 
             let x = e.clientX - rect.left;
@@ -68,9 +77,26 @@ async function init() {
                 ctx.arc(x, y, 4, 0, 2 * Math.PI);
                 ctx.fill();
                 demo.Draw(x / 4, y / 4, colorId);
-                //ctx.fillRect(x, y, 10, 10);
             }
         });
+
+        canvas.addEventListener("touchmove", function (e) {
+
+            var rect = canvas.getBoundingClientRect();
+
+            let x = e.touches[0].clientX - rect.left;
+            let y = e.touches[0].clientY - rect.top;
+
+            if (drawing) {
+                ctx.fillStyle = colors[colorId];
+
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+                demo.Draw(x / 4, y / 4, colorId);
+            }
+        });
+
 
         demo.on("Drawn", (pt) => {
             ctx.fillStyle = colors[pt.Color];
