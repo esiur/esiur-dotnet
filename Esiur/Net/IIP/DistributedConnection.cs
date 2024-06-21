@@ -859,6 +859,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 offset += (uint)rt;
 
                 if (session.LocalAuthentication.Type == AuthenticationType.Host)
+                else if (session.AuthenticationType == AuthenticationType.Client)
                 {
                     if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Declare)
                     {
