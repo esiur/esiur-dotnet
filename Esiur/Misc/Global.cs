@@ -318,7 +318,6 @@ public static class Global
     }
 
 
-
     public static byte[] GenerateBytes(int length)
     {
         var b = new byte[length];

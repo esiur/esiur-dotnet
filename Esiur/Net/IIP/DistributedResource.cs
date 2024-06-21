@@ -41,6 +41,7 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Esiur.Resource;
 using Esiur.Resource.Template;
+using Esiur.Net.Packets;
 
 namespace Esiur.Net.IIP;
 
@@ -459,7 +460,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         var reply = new AsyncReply<object>();
 
         var parameters = Codec.Compose(value, connection);
-        connection.SendRequest(Packets.IIPPacket.IIPPacketAction.SetProperty)
+        connection.SendRequest(IIPPacketAction.SetProperty)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
                     .AddUInt8Array(parameters)

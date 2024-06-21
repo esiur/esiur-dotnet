@@ -5,9 +5,9 @@ using System.Text;
 
 namespace Esiur.Security.Membership
 {
-    public class AuthorizationResponse
+    public class AuthorizationIndication
     {
         public Session Session { get; set; }
-        public bool Succeeded { get; set; }
+        public AuthorizationResults Results { get; set; }
     }
 }

@@ -63,15 +63,22 @@ public interface IMap
 public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
 {
 
-    //public struct StructureMetadata
-    //{
-    //    public KT[] Keys;
-    //    public VT[] Types;
-    //}
-
-    private Dictionary<KT, VT> dic = new Dictionary<KT, VT>();// StringComparer.OrdinalIgnoreCase);
+    private Dictionary<KT, VT> dic = new Dictionary<KT, VT>();
     private object syncRoot = new object();
 
+    // Change map types
+    public Map<NewKeyType, NewValueType> Select<NewKeyType, NewValueType>
+                                        (Func<KeyValuePair<KT, VT>, KeyValuePair<NewKeyType, NewValueType>> selector)
+    {
+        var rt = new Map<NewKeyType, NewValueType>();
+        foreach(var kv in dic)
+        {
+            var nt = selector(kv);
+            rt.dic.Add(nt.Key, nt.Value);
+        }
+
+        return rt;
+    }
 
     public bool ContainsKey(KT key)
     {

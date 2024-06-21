@@ -7,7 +7,7 @@ namespace Esiur.Security.Authority;
 public enum AuthenticationMethod : byte
 {
     None,
-    Certificate,
     Credentials,
-    Token
+    Token,
+    Certificate
 }

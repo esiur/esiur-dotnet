@@ -28,98 +28,15 @@ using System.Text;
 using Esiur.Misc;
 using Esiur.Data;
 
-namespace Esiur.Net.Packets;
+namespace Esiur.Net.Packets.HTTP;
 public class HTTPResponsePacket : Packet
 {
-
-    public enum ComposeOptions : int
-    {
-        AllCalculateLength,
-        AllDontCalculateLength,
-        SpecifiedHeadersOnly,
-        DataOnly
-    }
-
-    public enum ResponseCode : int
-    {
-        Switching = 101,
-        OK = 200,
-        Created = 201,
-        Accepted = 202,
-        NoContent = 204,
-        MovedPermanently = 301,
-        Found = 302,
-        SeeOther = 303,
-        NotModified = 304,
-        TemporaryRedirect = 307,
-        BadRequest = 400,
-        Unauthorized = 401,
-        Forbidden = 403,
-        NotFound = 404,
-        MethodNotAllowed = 405,
-        NotAcceptable = 406,
-        PreconditionFailed = 412,
-        UnsupportedMediaType = 415,
-        InternalServerError = 500,
-        NotImplemented = 501,
-    }
-
-    public struct HTTPCookie
-    {
-        public string Name;
-        public string Value;
-        public DateTime Expires;
-        public string Path;
-        public bool HttpOnly;
-        public string Domain;
-
-        public HTTPCookie(string name, string value)
-        {
-            this.Name = name;
-            this.Value = value;
-            this.Path = null;
-            this.Expires = DateTime.MinValue;
-            this.HttpOnly = false;
-            this.Domain = null;
-        }
-
-        public HTTPCookie(string name, string value, DateTime expires)
-        {
-            this.Name = name;
-            this.Value = value;
-            this.Expires = expires;
-            this.HttpOnly = false;
-            this.Domain = null;
-            this.Path = null;
-        }
-
-        public override string ToString()
-        {
-            //Set-Cookie: ckGeneric=CookieBody; expires=Sun, 30-Dec-2001 21:00:00 GMT; domain=.com.au; path=/
-            //Set-Cookie: SessionID=another; expires=Fri, 29 Jun 2006 20:47:11 UTC; path=/
-            var cookie = Name + "=" + Value;
-
-            if (Expires.Ticks != 0)
-                cookie += "; expires=" + Expires.ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
-
-            if (Domain != null)
-                cookie += "; domain=" + Domain;
-
-            if (Path != null)
-                cookie += "; path=" + Path;
-
-            if (HttpOnly)
-                cookie += "; HttpOnly";
-
-            return cookie;
-        }
-    }
 
     public StringKeyList Headers { get; } = new StringKeyList(true);
     public string Version { get; set; } = "HTTP/1.1";
 
     public byte[] Message;
-    public ResponseCode Number { get; set; } = ResponseCode.OK;
+    public HTTPResponseCode Number { get; set; } = HTTPResponseCode.OK;
     public string Text;
 
     public List<HTTPCookie> Cookies { get; } = new List<HTTPCookie>();
@@ -134,11 +51,11 @@ public class HTTPResponsePacket : Packet
             + "\n\tMessage: " + (Message != null ? Message.Length.ToString() : "NULL");
     }
 
-    private string MakeHeader(ComposeOptions options)
+    private string MakeHeader(HTTPComposeOption options)
     {
         string header = $"{Version} {(int)Number} {Text}\r\nServer: Esiur {Global.Version}\r\nDate: {DateTime.Now.ToUniversalTime().ToString("r")}\r\n";
 
-        if (options == ComposeOptions.AllCalculateLength)
+        if (options == HTTPComposeOption.AllCalculateLength)
             Headers["Content-Length"] = Message?.Length.ToString() ?? "0";
 
         foreach (var kv in Headers)
@@ -158,16 +75,16 @@ public class HTTPResponsePacket : Packet
     }
 
 
-    public bool Compose(ComposeOptions options)
+    public bool Compose(HTTPComposeOption options)
     {
         List<byte> msg = new List<byte>();
 
-        if (options != ComposeOptions.DataOnly)
+        if (options != HTTPComposeOption.DataOnly)
         {
             msg.AddRange(Encoding.UTF8.GetBytes(MakeHeader(options)));
         }
 
-        if (options != ComposeOptions.SpecifiedHeadersOnly)
+        if (options != HTTPComposeOption.SpecifiedHeadersOnly)
         {
             if (Message != null)
                 msg.AddRange(Message);
@@ -180,7 +97,7 @@ public class HTTPResponsePacket : Packet
 
     public override bool Compose()
     {
-        return Compose(ComposeOptions.AllDontCalculateLength);
+        return Compose(HTTPComposeOption.AllDontCalculateLength);
     }
 
     public override long Parse(byte[] data, uint offset, uint ends)
@@ -212,7 +129,7 @@ public class HTTPResponsePacket : Packet
         if (sMethod.Length == 3)
         {
             Version = sMethod[0].Trim();
-            Number = (ResponseCode)(Convert.ToInt32(sMethod[1].Trim()));
+            Number = (HTTPResponseCode)Convert.ToInt32(sMethod[1].Trim());
             Text = sMethod[2];
         }
 
@@ -220,7 +137,7 @@ public class HTTPResponsePacket : Packet
 
         for (int i = 1; i < sLines.Length; i++)
         {
-            if (sLines[i] == String.Empty)
+            if (sLines[i] == string.Empty)
             {
                 // Invalid header
                 return 0;
@@ -279,7 +196,7 @@ public class HTTPResponsePacket : Packet
         try
         {
 
-            uint contentLength = uint.Parse((string)Headers["content-length"]);
+            uint contentLength = uint.Parse(Headers["content-length"]);
 
             // check limit
             if (contentLength > data.Length - headerSize)
@@ -287,7 +204,7 @@ public class HTTPResponsePacket : Packet
                 return contentLength - (data.Length - headerSize);
             }
 
-            Message = DC.Clip(data, offset, contentLength);
+            Message = data.Clip(offset, contentLength);
 
             return headerSize + contentLength;
 

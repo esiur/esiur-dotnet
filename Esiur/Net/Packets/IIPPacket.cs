@@ -25,7 +25,6 @@ SOFTWARE.
 using Esiur.Data;
 using Esiur.Core;
 using Esiur.Misc;
-using Esiur.Net.Packets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -62,81 +61,6 @@ class IIPPacket : Packet
         return rt;
     }
 
-    public enum IIPPacketCommand : byte
-    {
-        Event = 0,
-        Request,
-        Reply,
-        Report,
-    }
-
-    public enum IIPPacketEvent : byte
-    {
-        // Event Manage
-        ResourceReassigned = 0,
-        ResourceDestroyed,
-        ChildAdded,
-        ChildRemoved,
-        Renamed,
-        // Event Invoke
-        PropertyUpdated = 0x10,
-        EventOccurred,
-
-        // Attribute
-        AttributesUpdated = 0x18
-    }
-
-    public enum IIPPacketAction : byte
-    {
-        // Request Manage
-        AttachResource = 0,
-        ReattachResource,
-        DetachResource,
-        CreateResource,
-        DeleteResource,
-        AddChild,
-        RemoveChild,
-        RenameResource,
-
-        // Request Inquire
-        TemplateFromClassName = 0x8,
-        TemplateFromClassId,
-        TemplateFromResourceId,
-        QueryLink,
-        ResourceHistory,
-        ResourceChildren,
-        ResourceParents,
-        LinkTemplates,
-
-        // Request Invoke
-        InvokeFunction = 0x10,
-        Reserved,
-        Listen,
-        Unlisten,
-        SetProperty,
-
-        // Request Attribute
-        GetAllAttributes = 0x18,
-        UpdateAllAttributes,
-        ClearAllAttributes,
-        GetAttributes,
-        UpdateAttributes,
-        ClearAttributes,
-
-
-        // Static calling
-        KeepAlive = 0x20,
-        ProcedureCall,
-        StaticCall
-    }
-
-    public enum IIPPacketReport : byte
-    {
-        ManagementError,
-        ExecutionError,
-        ProgressReport = 0x8,
-        ChunkStream = 0x9
-    }
 
 
     public IIPPacketReport Report
@@ -648,7 +572,7 @@ class IIPPacket : Packet
 
                 if (NotEnough(offset, ends, cl))
                     return -dataLengthNeeded;
-                
+
                 Procedure = data.GetString(offset, cl);
                 offset += cl;
 
@@ -662,7 +586,8 @@ class IIPPacket : Packet
 
                 offset += (uint)size;
 
-            } else if (Action == IIPPacketAction.StaticCall)
+            }
+            else if (Action == IIPPacketAction.StaticCall)
             {
                 if (NotEnough(offset, ends, 18))
                     return -dataLengthNeeded;

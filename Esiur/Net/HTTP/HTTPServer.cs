@@ -35,12 +35,12 @@ using Esiur.Net.Sockets;
 using Esiur.Data;
 using Esiur.Misc;
 using Esiur.Core;
-using Esiur.Net.Packets;
 using System.Security.Cryptography.X509Certificates;
 using Esiur.Resource;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Reflection;
+using Esiur.Net.Packets.HTTP;
 
 namespace Esiur.Net.HTTP;
 public class HTTPServer : NetworkServer<HTTPConnection>, IResource
@@ -48,17 +48,17 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     Dictionary<string, HTTPSession> sessions = new Dictionary<string, HTTPSession>();
     HTTPFilter[] filters = new HTTPFilter[0];
 
-    Dictionary<HTTPRequestPacket.HTTPMethod, List<RouteInfo>> routes = new()
+    Dictionary<HTTPMethod, List<RouteInfo>> routes = new()
     {
-        [HTTPRequestPacket.HTTPMethod.GET] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.POST] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.HEAD] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.OPTIONS] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.UNKNOWN] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.DELETE] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.TRACE] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.CONNECT] = new List<RouteInfo>(),
-        [HTTPRequestPacket.HTTPMethod.PUT] = new List<RouteInfo>()
+        [HTTPMethod.GET] = new List<RouteInfo>(),
+        [HTTPMethod.POST] = new List<RouteInfo>(),
+        [HTTPMethod.HEAD] = new List<RouteInfo>(),
+        [HTTPMethod.OPTIONS] = new List<RouteInfo>(),
+        [HTTPMethod.UNKNOWN] = new List<RouteInfo>(),
+        [HTTPMethod.DELETE] = new List<RouteInfo>(),
+        [HTTPMethod.TRACE] = new List<RouteInfo>(),
+        [HTTPMethod.CONNECT] = new List<RouteInfo>(),
+        [HTTPMethod.PUT] = new List<RouteInfo>()
     };
 
     //List<RouteInfo> GetRoutes = new List<RouteInfo>();
@@ -243,14 +243,14 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     public void MapGet(string pattern, Delegate handler)
     {
         var regex = Global.GetRouteRegex(pattern);
-        var list = routes[HTTPRequestPacket.HTTPMethod.GET];
+        var list = routes[HTTPMethod.GET];
         list.Add(new RouteInfo(handler, regex));
     }
 
     public void MapPost(string pattern, Delegate handler)
     {
         var regex = Global.GetRouteRegex(pattern);
-        var list = routes[HTTPRequestPacket.HTTPMethod.POST];
+        var list = routes[HTTPMethod.POST];
         list.Add(new RouteInfo(handler, regex));
     }
 

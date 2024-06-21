@@ -31,34 +31,34 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Esiur.Security.Cryptography;
+using static System.Collections.Specialized.BitVector32;
+using Esiur.Net.Packets;
 
 namespace Esiur.Security.Authority;
 public class Session
 {
-    public Authentication LocalAuthentication => localAuth;
-    public Authentication RemoteAuthentication => remoteAuth;
-
-    // public Source Source { get; }
     public byte[] Id { get; set; }
     public DateTime Creation { get; }
     public DateTime Modification { get; }
     public KeyList<string, object> Variables { get; } = new KeyList<string, object>();
 
-    //KeyList<string, object> Variables { get; }
-    //IStore Store { get; }
-
-    //string id;
-    Authentication localAuth, remoteAuth;
-    //string domain;
 
 
     public IKeyExchanger KeyExchanger { get; set; } = null;
     public ISymetricCipher SymetricCipher { get; set; } = null;
 
 
-    public Session(Authentication localAuthentication, Authentication remoteAuthentication)
-    {
-        this.localAuth = localAuthentication;
-        this.remoteAuth = remoteAuthentication;
-    }
+    public Map<IIPAuthPacketHeader, object> LocalHeaders { get; set; } = new Map<IIPAuthPacketHeader, object>();
+    public Map<IIPAuthPacketHeader, object> RemoteHeaders { get; set; } = new Map<IIPAuthPacketHeader, object>();
+
+    public AuthenticationMethod LocalMethod { get; set; }
+    public AuthenticationMethod RemoteMethod { get; set; }
+
+    public AuthenticationType AuthenticationType { get; set; }
+
+
+    public string AuthorizedAccount { get; set; }
+
+ 
+
 }

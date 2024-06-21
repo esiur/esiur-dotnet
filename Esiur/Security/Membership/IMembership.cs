@@ -32,21 +32,28 @@ using Esiur.Net.IIP;
 using Esiur.Core;
 using Esiur.Security.Authority;
 using Esiur.Resource;
+using Esiur.Net.Packets;
 
 namespace Esiur.Security.Membership;
 
 public interface IMembership
 {
-    public event ResourceEventHandler<AuthorizationResponse> Authorization;
+    public event ResourceEventHandler<AuthorizationIndication> Authorization;
 
-    AsyncReply<bool> UserExists(string username, string domain);
+    AsyncReply<string> UserExists(string username, string domain);
+    AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
+
     AsyncReply<byte[]> GetPassword(string username, string domain);
     AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
     AsyncReply<AuthorizationResults> Authorize(Session session);
+    AsyncReply<AuthorizationResults> AuthorizePlain(Session session, uint reference, object value);
+    AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, IIPAuthPacketHashAlgorithm algorithm, byte[] value);
+    AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, IIPAuthPacketPublicKeyAlgorithm algorithm, byte[] value);
+
     AsyncReply<bool> Login(Session session);
     AsyncReply<bool> Logout(Session session);
     bool GuestsAllowed { get; }
-    AsyncReply<string> TokenExists(ulong tokenIndex, string domain);
+
 }
 
 

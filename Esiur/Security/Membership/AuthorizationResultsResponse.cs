@@ -7,7 +7,11 @@ namespace Esiur.Security.Membership
     public enum AuthorizationResultsResponse
     {
         Success,
+        Failed,
+        Expired,
         ServiceUnavailable,
-        TwoFactoryAuthorization,
+        IAuthPlain,
+        IAuthHashed,
+        IAuthEncrypted
     }
 }

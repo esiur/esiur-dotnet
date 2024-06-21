@@ -32,22 +32,10 @@ using Esiur.Data;
 using System.Net;
 using System.Text.Json.Serialization;
 
-namespace Esiur.Net.Packets;
+namespace Esiur.Net.Packets.HTTP;
 public class HTTPRequestPacket : Packet
 {
 
-    public enum HTTPMethod : byte
-    {
-        GET,
-        POST,
-        HEAD,
-        PUT,
-        DELETE,
-        OPTIONS,
-        TRACE,
-        CONNECT,
-        UNKNOWN
-    }
 
     public StringKeyList Query;
     public HTTPMethod Method;
@@ -59,12 +47,12 @@ public class HTTPRequestPacket : Packet
     public StringKeyList Cookies; // String
     public string URL; /// With query
     public string Filename; /// Without query
-    //public byte[] PostContents;
+
     public KeyList<string, object> PostForms;
     public byte[] Message;
 
 
-    private HTTPMethod getMethod(string method)
+    private HTTPMethod GetMethod(string method)
     {
         switch (method.ToLower())
         {
@@ -127,7 +115,7 @@ public class HTTPRequestPacket : Packet
         Headers = new StringKeyList();
 
         sMethod = sLines[0].Split(' ');
-        Method = getMethod(sMethod[0].Trim());
+        Method = GetMethod(sMethod[0].Trim());
 
         if (sMethod.Length == 3)
         {
@@ -163,7 +151,7 @@ public class HTTPRequestPacket : Packet
 
         for (int i = 1; i < sLines.Length; i++)
         {
-            if (sLines[i] == String.Empty)
+            if (sLines[i] == string.Empty)
             {
                 // Invalid header
                 return 0;
@@ -191,14 +179,14 @@ public class HTTPRequestPacket : Packet
                         string[] splitCookie = cookie.Split('=');
                         splitCookie[0] = splitCookie[0].Trim();
                         splitCookie[1] = splitCookie[1].Trim();
-                        if (!(Cookies.ContainsKey(splitCookie[0].Trim())))
+                        if (!Cookies.ContainsKey(splitCookie[0].Trim()))
                             Cookies.Add(splitCookie[0], splitCookie[1]);
                     }
                     else
                     {
-                        if (!(Cookies.ContainsKey(cookie.Trim())))
+                        if (!Cookies.ContainsKey(cookie.Trim()))
                         {
-                            Cookies.Add(cookie.Trim(), String.Empty);
+                            Cookies.Add(cookie.Trim(), string.Empty);
                         }
                     }
                 }
@@ -222,7 +210,7 @@ public class HTTPRequestPacket : Packet
                 }
                 else
                 {
-                    if (!(Query.ContainsKey(WebUtility.UrlDecode(S))))
+                    if (!Query.ContainsKey(WebUtility.UrlDecode(S)))
                     {
                         Query.Add(WebUtility.UrlDecode(S), null);
                     }
@@ -236,7 +224,7 @@ public class HTTPRequestPacket : Packet
             try
             {
 
-                uint postSize = uint.Parse((string)Headers["content-length"]);
+                uint postSize = uint.Parse(Headers["content-length"]);
 
                 // check limit
                 if (postSize > data.Length - headerSize)
@@ -298,7 +286,7 @@ public class HTTPRequestPacket : Packet
                 else
                 {
                     //PostForms.Add(Headers["content-type"], Encoding.Default.GetString( ));
-                    Message = DC.Clip(data, headerSize, postSize);
+                    Message = data.Clip(headerSize, postSize);
                 }
 
                 return headerSize + postSize;

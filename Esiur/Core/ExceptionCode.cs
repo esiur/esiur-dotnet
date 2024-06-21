@@ -43,5 +43,7 @@ public enum ExceptionCode : ushort
     AlreadyUnlistened,
     NotListenable,
     ParseError,
-    Timeout
+    Timeout,
+    NotSupported,
+    NotImplemented
 }

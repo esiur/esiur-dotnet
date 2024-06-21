@@ -33,10 +33,11 @@ using System.Collections;
 using System.Collections.Generic;
 using Esiur.Net.Sockets;
 using Esiur.Data;
-using Esiur.Net.Packets;
 using Esiur.Misc;
 using System.Security.Cryptography;
 using Esiur.Core;
+using Esiur.Net.Packets.WebSocket;
+using Esiur.Net.Packets.HTTP;
 
 namespace Esiur.Net.HTTP;
 public class HTTPConnection : NetworkConnection
@@ -131,7 +132,7 @@ public class HTTPConnection : NetworkConnection
                 response.Headers["Sec-WebSocket-Protocol"] = request.Headers["Sec-WebSocket-Protocol"];
 
 
-            response.Number = HTTPResponsePacket.ResponseCode.Switching;
+            response.Number = HTTPResponseCode.Switching;
             response.Text = "Switching Protocols";
 
             return true;
@@ -172,7 +173,7 @@ public class HTTPConnection : NetworkConnection
         Send();
     }
 
-    public void Send(HTTPResponsePacket.ComposeOptions Options = HTTPResponsePacket.ComposeOptions.AllCalculateLength)
+    public void Send(HTTPComposeOption Options = HTTPComposeOption.AllCalculateLength)
     {
         if (Response.Handled)
             return;
@@ -210,7 +211,7 @@ public class HTTPConnection : NetworkConnection
             // Create a new one
             session = Server.CreateSession(Global.GenerateCode(12), 60 * 20);
 
-            HTTPResponsePacket.HTTPCookie cookie = new HTTPResponsePacket.HTTPCookie("SID", session.Id);
+            HTTPCookie cookie = new HTTPCookie("SID", session.Id);
             cookie.Expires = DateTime.MaxValue;
             cookie.Path = "/";
             cookie.HttpOnly = true;
@@ -253,7 +254,7 @@ public class HTTPConnection : NetworkConnection
 
         if (BL == 0)
         {
-            if (Request.Method == HTTPRequestPacket.HTTPMethod.UNKNOWN)
+            if (Request.Method == HTTPMethod.UNKNOWN)
             {
                 Close();
                 return;
@@ -312,7 +313,7 @@ public class HTTPConnection : NetworkConnection
         {
             if (!Server.Execute(this))
             {
-                Response.Number = HTTPResponsePacket.ResponseCode.InternalServerError;
+                Response.Number = HTTPResponseCode.InternalServerError;
                 Send("Bad Request");
                 Close();
             }
@@ -361,7 +362,7 @@ public class HTTPConnection : NetworkConnection
 
             if (!File.Exists(filename))
             {
-                Response.Number = HTTPResponsePacket.ResponseCode.NotFound;
+                Response.Number = HTTPResponseCode.NotFound;
                 Send("File Not Found");
                 return true;
             }
@@ -375,10 +376,10 @@ public class HTTPConnection : NetworkConnection
                     var ims = DateTime.Parse(Request.Headers["if-modified-since"]);
                     if ((fileEditTime - ims).TotalSeconds < 2)
                     {
-                        Response.Number = HTTPResponsePacket.ResponseCode.NotModified;
+                        Response.Number = HTTPResponseCode.NotModified;
                         Response.Headers.Clear();
                         //Response.Text = "Not Modified";
-                        Send(HTTPResponsePacket.ComposeOptions.SpecifiedHeadersOnly);
+                        Send(HTTPComposeOption.SpecifiedHeadersOnly);
                         return true;
                     }
                 }
@@ -390,12 +391,12 @@ public class HTTPConnection : NetworkConnection
 
 
 
-            Response.Number = HTTPResponsePacket.ResponseCode.OK;
+            Response.Number = HTTPResponseCode.OK;
             // Fri, 30 Oct 2007 14:19:41 GMT
             Response.Headers["Last-Modified"] = fileEditTime.ToString("ddd, dd MMM yyyy HH:mm:ss");
             FileInfo fi = new FileInfo(filename);
             Response.Headers["Content-Length"] = fi.Length.ToString();
-            Send(HTTPResponsePacket.ComposeOptions.SpecifiedHeadersOnly);
+            Send(HTTPComposeOption.SpecifiedHeadersOnly);
 
             //var fd = File.ReadAllBytes(filename);
 

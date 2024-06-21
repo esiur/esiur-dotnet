@@ -28,13 +28,13 @@ using System.Linq;
 using System.Text;
 using System.Net.Sockets;
 using System.Net;
-using Esiur.Net.Packets;
 using Esiur.Misc;
 using System.IO;
 using Esiur.Core;
 using Esiur.Resource;
 using Esiur.Data;
 using System.Globalization;
+using Esiur.Net.Packets.WebSocket;
 
 namespace Esiur.Net.Sockets;
 public class WSocket : ISocket, INetworkReceiver<ISocket>

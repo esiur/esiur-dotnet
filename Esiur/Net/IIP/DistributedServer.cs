@@ -41,7 +41,6 @@ namespace Esiur.Net.IIP;
 public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 {
 
-    
 
     [Attribute]
     public string IP
@@ -50,11 +49,30 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
         set;
     }
 
+    IMembership membership;
+
     [Attribute]
     public IMembership Membership
     {
-        get;
-        set;
+        get => membership;
+        set
+        {
+            if (membership != null)
+                membership.Authorization -= Membership_Authorization;
+
+            membership = value;
+
+            if (membership != null)
+                membership.Authorization += Membership_Authorization;
+        }
+    }
+
+    private void Membership_Authorization(AuthorizationIndication indication)
+    {
+        lock (Connections.SyncRoot)
+            foreach (var connection in Connections)
+                if (connection.Session == indication.Session)
+                    connection.ProcessAuthorization(indication.Results);
     }
 
     [Attribute]
@@ -116,41 +134,6 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 
 
 
-    //protected override void DataReceived(DistributedConnection sender, NetworkBuffer data)
-    //{
-    //    //throw new NotImplementedException();
-
-    //}
-
-
-
-    //protected override void ClientConnected(DistributedConnection sender)
-    //{
-    //    //Console.WriteLine("DistributedConnection Client Connected");
-    //}
-
-    //private void ConnectionReadyEventReceiver(DistributedConnection sender)
-    //{
-    //    sender.OnReady -= ConnectionReadyEventReceiver;
-    //    Warehouse.Put(sender, sender.LocalUsername, null, this);
-    //}
-
-
-    //public override void RemoveConnection(DistributedConnection connection)
-    //{
-    //    connection.OnReady -= Sender_OnReady;
-    //    //connection.Server = null;
-    //    base.RemoveConnection(connection);
-    //}
-
-    //public override void AddConnection(DistributedConnection connection)
-    //{
-    //    connection.OnReady += Sender_OnReady;
-    //    connection.Server = this;
-    //    base.AddConnection(connection);
-    //}
-
-
     protected override void ClientConnected(DistributedConnection connection)
     {
         //Task.Delay(10000).ContinueWith((x) =>
@@ -180,8 +163,6 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
     {
         //connection.OnReady -= ConnectionReadyEventReceiver;
         //Warehouse.Remove(connection);
-
-
     }
 
     public KeyList<string, CallInfo?> Calls { get; } = new KeyList<string, CallInfo?>();
@@ -195,7 +176,7 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
     public DistributedServer MapCall(string call, Delegate handler)
     {
         var ft = FunctionTemplate.MakeFunctionTemplate(null, handler.Method);
-        Calls.Add(call, new CallInfo(){ Delegate = handler, Template = ft});
+        Calls.Add(call, new CallInfo() { Delegate = handler, Template = ft });
         return this;
     }
 

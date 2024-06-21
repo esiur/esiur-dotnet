@@ -32,7 +32,6 @@ using Esiur.Net.Sockets;
 using Esiur.Data;
 using Esiur.Misc;
 using Esiur.Core;
-using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Resource.Template;
@@ -43,17 +42,24 @@ using Esiur.Net.HTTP;
 using System.Timers;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
+using Esiur.Net.Packets.HTTP;
+using System.ComponentModel.DataAnnotations;
+using static System.Collections.Specialized.BitVector32;
+using Esiur.Security.Membership;
+using Esiur.Net.Packets;
+using System.Reflection.PortableExecutable;
+using System.Net.Http.Headers;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
 {
+
+    // Delegates
     public delegate void ReadyEvent(DistributedConnection sender);
     public delegate void ErrorEvent(DistributedConnection sender, byte errorCode, string errorMessage);
     public delegate void ResumedEvent(DistributedConnection sender);
 
-
-    Timer keepAliveTimer;
-
+    // Events
 
     /// <summary>
     /// Ready event is raised when autoReconnect is enabled and the connection is restored.
@@ -71,17 +77,23 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public event ErrorEvent OnError;
 
 
+    // Fields
+    bool invalidCredentials = false;
+
+    Timer keepAliveTimer;
+    DateTime? lastKeepAliveSent;
+    DateTime? lastKeepAliveReceived;
+
 
     IIPPacket packet = new IIPPacket();
     IIPAuthPacket authPacket = new IIPAuthPacket();
+
 
     Session session;
 
     AsyncReply<bool> openReply;
 
     byte[] localPasswordOrToken;
-    byte[] localNonce, remoteNonce;
-
     bool ready, readyToEstablish;
 
     string _hostname;
@@ -89,30 +101,10 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     bool initialPacket = true;
 
-    DateTime loginDate;
 
+    // Properties
 
-
-    /// <summary>
-    /// Local username to authenticate ourselves.  
-    /// </summary>
-    public string LocalUsername => session.LocalAuthentication.Username;// { get; set; }
-
-    /// <summary>
-    /// Peer's username.
-    /// </summary>
-    public string RemoteUsername => session.RemoteAuthentication.Username;// { get; set; }
-
-    /// <summary>
-    /// Working domain.
-    /// </summary>
-    //public string Domain { get { return domain; } }
-
-
-    /// <summary>
-    /// The session related to this connection.
-    /// </summary>
-    public Session Session => session;
+    public DateTime LoginDate { get; private set; }
 
     /// <summary>
     /// Distributed server responsible for this connection, usually for incoming connections.
@@ -120,7 +112,55 @@ public partial class DistributedConnection : NetworkConnection, IStore
     public DistributedServer Server { get; internal set; }
 
 
-    [Export] public virtual ConnectionStatus Status { get; set; }
+    /// <summary>
+    /// The session related to this connection.
+    /// </summary>
+    public Session Session => session;
+
+    [Export] 
+    public virtual ConnectionStatus Status { get; private set; }
+
+    [Export] 
+    public virtual uint Jitter { get; private set; }
+
+    // Attributes
+
+    [Attribute]
+    public uint KeepAliveTime { get; set; } = 10;
+
+    [Attribute]
+    public ExceptionLevel ExceptionLevel { get; set; }
+                = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
+
+    [Attribute]
+    public Func<Map<IIPAuthPacketIAuthHeader, object>, AsyncReply<object>> Authenticator { get; set; }
+
+    [Attribute]
+    public bool AutoReconnect { get; set; } = false;
+
+    [Attribute]
+    public uint ReconnectInterval { get; set; } = 5;
+
+    [Attribute]
+    public string Username { get; set; }
+
+    [Attribute]
+    public bool UseWebSocket { get; set; }
+
+    [Attribute]
+    public bool SecureWebSocket { get; set; }
+
+    [Attribute]
+    public string Password { get; set; }
+
+    [Attribute]
+    public string Token { get; set; }
+
+    [Attribute]
+    public ulong TokenIndex { get; set; }
+
+    [Attribute]
+    public string Domain { get; set; }
 
     public bool Remove(IResource resource)
     {
@@ -132,50 +172,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
     /// Send data to the other end as parameters
     /// </summary>
     /// <param name="values">Values will be converted to bytes then sent.</param>
-    internal SendList SendParams(AsyncReply<object[]> reply = null)//params object[] values)
+    internal SendList SendParams(AsyncReply<object[]> reply = null)
     {
         return new SendList(this, reply);
-
-        /*
-        var data = BinaryList.ToBytes(values);
-
-        if (ready)
-        {
-            var cmd = (IIPPacketCommand)(data[0] >> 6);
-
-            if (cmd == IIPPacketCommand.Event)
-            {
-                var evt = (IIPPacketEvent)(data[0] & 0x3f);
-                //Console.Write("Sent: " + cmd.ToString() + " " + evt.ToString());
-            }
-            else if (cmd == IIPPacketCommand.Report)
-            {
-                var r = (IIPPacketReport)(data[0] & 0x3f);
-                //Console.Write("Sent: " + cmd.ToString() + " " + r.ToString());
-
-            }
-            else
-            {
-                var act = (IIPPacketAction)(data[0] & 0x3f);
-                //Console.Write("Sent: " + cmd.ToString() + " " + act.ToString());
-
-            }
-
-            //foreach (var param in values)
-            //    Console.Write(", " + param);
-
-            //Console.WriteLine();
-        }
-
-
-        Send(data);
-
-        //StackTrace stackTrace = new StackTrace(;
-
-        // Get calling method name
-
-        //Console.WriteLine("TX " + hostType + " " + ar.Length + " " + stackTrace.GetFrame(1).GetMethod().ToString());
-        */
     }
 
     /// <summary>
@@ -212,13 +211,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
     {
         base.Assign(socket);
 
-        session.RemoteAuthentication.Source.Attributes[SourceAttributeType.IPv4] = socket.RemoteEndPoint.Address;
-        session.RemoteAuthentication.Source.Attributes[SourceAttributeType.Port] = socket.RemoteEndPoint.Port;
-        session.LocalAuthentication.Source.Attributes[SourceAttributeType.IPv4] = socket.LocalEndPoint.Address;
-        session.LocalAuthentication.Source.Attributes[SourceAttributeType.Port] = socket.LocalEndPoint.Port;
-
+        session.LocalHeaders[IIPAuthPacketHeader.IPv4] = socket.RemoteEndPoint.Address.Address;
         if (socket.State == SocketState.Established &&
-            session.LocalAuthentication.Type == AuthenticationType.Client)
+            session.AuthenticationType == AuthenticationType.Client)
         {
             Declare();
         }
@@ -226,105 +221,56 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     private void Declare()
     {
-        var dmn = DC.ToBytes(session.LocalAuthentication.Domain);
 
         if (session.KeyExchanger != null)
         {
             // create key
             var key = session.KeyExchanger.GetPublicKey();
+            session.LocalHeaders[IIPAuthPacketHeader.CipherKey] = key;
+        }
 
-            if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
-            {
-                // declare (Credentials -> No Auth, No Enctypt)
 
-                var un = DC.ToBytes(session.LocalAuthentication.Username);
+        if (session.LocalMethod == AuthenticationMethod.Credentials
+            && session.RemoteMethod == AuthenticationMethod.None)
+        {
+            // change to Map<byte, object> for compatibility
+            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
 
-                SendParams()
-                    .AddUInt8(0x60 | 0x2)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .AddUInt16(session.KeyExchanger.Identifier)
-                    .AddUInt16((ushort)key.Length)
-                    .AddUInt8Array(key)
-                    .AddUInt8Array(localNonce)
-                    .AddUInt8((byte)un.Length)
-                    .AddUInt8Array(un)
-                    .Done();//, dmn, localNonce, (byte)un.Length, un);
-            }
-            else if (session.LocalAuthentication.Method == AuthenticationMethod.Token)
-            {
+            // declare (Credentials -> No Auth, No Enctypt)
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketInitialize.CredentialsNoAuth)
+                .AddUInt8Array(headers)
+                .Done();
 
-                SendParams()
-                    .AddUInt8(0x70 | 0x2)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .AddUInt16(session.KeyExchanger.Identifier)
-                    .AddUInt16((ushort)key.Length)
-                    .AddUInt8Array(key)
-                    .AddUInt8Array(localNonce)
-                    .AddUInt64(session.LocalAuthentication.TokenIndex)
-                    .Done();//, dmn, localNonce, token
+        }
+        else if (session.LocalMethod == AuthenticationMethod.Token
+            && session.RemoteMethod == AuthenticationMethod.None)
+        {
+            // change to Map<byte, object> for compatibility
+            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
 
-            }
-            else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
-            {
-                // @REVIEW: MITM Attack can still occure
-                SendParams()
-                    .AddUInt8(0x40 | 0x2)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .AddUInt16(session.KeyExchanger.Identifier)
-                    .AddUInt16((ushort)key.Length)
-                    .AddUInt8Array(key)
-                    .Done();//, dmn, localNonce, token
-            }
-            else
-            {
-                throw new NotImplementedException("Authentication method is not implemented.");
-            }
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketInitialize.TokenNoAuth)
+                .AddUInt8Array(headers)
+                .Done();
+        }
+        else if (session.LocalMethod == AuthenticationMethod.None
+            && session.RemoteMethod == AuthenticationMethod.None)
+        {
+            // change to Map<byte, object> for compatibility
+            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
+
+            // @REVIEW: MITM Attack can still occure
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketInitialize.NoAuthNoAuth)
+                .AddUInt8Array(headers)
+                .Done();
         }
         else
         {
-            if (session.LocalAuthentication.Method == AuthenticationMethod.Credentials)
-            {
-                // declare (Credentials -> No Auth, No Enctypt)
-
-                var un = DC.ToBytes(session.LocalAuthentication.Username);
-
-                SendParams()
-                    .AddUInt8(0x60)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .AddUInt8Array(localNonce)
-                    .AddUInt8((byte)un.Length)
-                    .AddUInt8Array(un)
-                    .Done();//, dmn, localNonce, (byte)un.Length, un);
-            }
-            else if (session.LocalAuthentication.Method == AuthenticationMethod.Token)
-            {
-
-                SendParams()
-                    .AddUInt8(0x70)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .AddUInt8Array(localNonce)
-                    .AddUInt64(session.LocalAuthentication.TokenIndex)
-                    .Done();//, dmn, localNonce, token
-
-            }
-            else if (session.LocalAuthentication.Method == AuthenticationMethod.None)
-            {
-                SendParams()
-                    .AddUInt8(0x40)
-                    .AddUInt8((byte)dmn.Length)
-                    .AddUInt8Array(dmn)
-                    .Done();//, dmn, localNonce, token
-            }
-            else
-            {
-                throw new NotImplementedException("Authentication method is not implemented.");
-            }
+            throw new NotImplementedException("Authentication method is not implemented.");
         }
+
     }
 
     /// <summary>
@@ -336,15 +282,15 @@ public partial class DistributedConnection : NetworkConnection, IStore
     /// <param name="password">Password.</param>
     public DistributedConnection(Sockets.ISocket socket, string domain, string username, string password)
     {
-        this.session = new Session(new ClientAuthentication()
-                                    , new HostAuthentication());
-        //Instance.Name = Global.GenerateCode(12);
-        //this.hostType = AuthenticationType.Client;
-        //this.domain = domain;
-        //this.localUsername = username;
-        session.LocalAuthentication.Domain = domain;
-        session.LocalAuthentication.Username = username;
-        session.LocalAuthentication.Method = AuthenticationMethod.Credentials;
+        this.session = new Session();
+
+        session.AuthenticationType = AuthenticationType.Client;
+        session.LocalHeaders[IIPAuthPacketHeader.Domain] = domain;
+        session.LocalHeaders[IIPAuthPacketHeader.Username] = username;
+        session.LocalMethod = AuthenticationMethod.Credentials;
+        session.RemoteMethod = AuthenticationMethod.None;
+
+
         this.localPasswordOrToken = DC.ToBytes(password);
 
         init();
@@ -354,16 +300,14 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     public DistributedConnection(Sockets.ISocket socket, string domain, ulong tokenIndex, string token)
     {
-        this.session = new Session(new ClientAuthentication()
-                                    , new HostAuthentication());
-        //Instance.Name = Global.GenerateCode(12);
-        //this.hostType = AuthenticationType.Client;
-        //this.domain = domain;
-        //this.localUsername = username;
-        session.LocalAuthentication.Domain = domain;
-        session.LocalAuthentication.TokenIndex = tokenIndex;
-        session.LocalAuthentication.Method = AuthenticationMethod.Token;
+        this.session = new Session();
 
+
+        session.AuthenticationType = AuthenticationType.Client;
+        session.LocalHeaders[IIPAuthPacketHeader.Domain] = domain;
+        session.LocalHeaders[IIPAuthPacketHeader.TokenIndex] = tokenIndex;
+        session.LocalMethod = AuthenticationMethod.Credentials;
+        session.RemoteMethod = AuthenticationMethod.None;
         this.localPasswordOrToken = DC.ToBytes(token);
 
         init();
@@ -377,9 +321,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
     /// </summary>
     public DistributedConnection()
     {
-        //myId = Global.GenerateCode(12);
-        // localParams.Host = DistributedParameters.HostType.Host;
-        session = new Session(new HostAuthentication(), new ClientAuthentication());
+        session = new Session();
+        session.AuthenticationType = AuthenticationType.Host;
+        session.LocalMethod = AuthenticationMethod.None;
         init();
     }
 
@@ -409,20 +353,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
         });
 
-
-        var r = new Random();
-        localNonce = new byte[32];
-        r.NextBytes(localNonce);
+        // set local nonce
+        session.LocalHeaders[IIPAuthPacketHeader.Nonce] = Global.GenerateBytes(32);
 
         keepAliveTimer = new Timer(KeepAliveInterval * 1000);
         keepAliveTimer.Elapsed += KeepAliveTimer_Elapsed;
     }
 
-    [Export] public virtual uint Jitter { get; set; }
-
-    public uint KeepAliveTime { get; set; } = 10;
-
-    DateTime? lastKeepAliveSent;
 
     private void KeepAliveTimer_Elapsed(object sender, ElapsedEventArgs e)
     {
@@ -477,37 +414,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     private uint processPacket(byte[] msg, uint offset, uint ends, NetworkBuffer data, int chunkId)
     {
-        //var packet = new IIPPacket();
-
-
-
-        // packets++;
-
         if (ready)
         {
             var rt = packet.Parse(msg, offset, ends);
-            //Console.WriteLine("Rec: " + chunkId + " " + packet.ToString());
-
-            /*
-            if (packet.Command == IIPPacketCommand.Event)
-                Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Event.ToString());
-            else if (packet.Command == IIPPacketCommand.Report)
-                Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Report.ToString());
-            else
-                Console.WriteLine("Rec: " + packet.Command.ToString() + " " + packet.Action.ToString() + " " + packet.ResourceId + " " + offset + "/" + ends);
-              */
-
-
-            //packs.Add(packet.Command.ToString() + " " + packet.Action.ToString() + " " + packet.Event.ToString());
-
-            //if (packs.Count > 1)
-            //  Console.WriteLine("P2");
-
-            //Console.WriteLine("");
 
             if (rt <= 0)
             {
-                //Console.WriteLine("Hold");
+
                 var size = ends - offset;
                 data.HoldFor(msg, offset, size, size + (uint)(-rt));
                 return ends;
@@ -515,25 +428,23 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else
             {
 
-                //Console.WriteLine($"CMD {packet.Command} {offset} {ends}");
-
                 offset += (uint)rt;
 
-                if (packet.Command == IIPPacket.IIPPacketCommand.Event)
+                if (packet.Command == IIPPacketCommand.Event)
                 {
                     switch (packet.Event)
                     {
-                        case IIPPacket.IIPPacketEvent.ResourceReassigned:
+                        case IIPPacketEvent.ResourceReassigned:
                             IIPEventResourceReassigned(packet.ResourceId, packet.NewResourceId);
                             break;
-                        case IIPPacket.IIPPacketEvent.ResourceDestroyed:
+                        case IIPPacketEvent.ResourceDestroyed:
                             IIPEventResourceDestroyed(packet.ResourceId);
                             break;
-                        case IIPPacket.IIPPacketEvent.PropertyUpdated:
-                            IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);// packet.Content);
+                        case IIPPacketEvent.PropertyUpdated:
+                            IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg); 
                             break;
-                        case IIPPacket.IIPPacketEvent.EventOccurred:
-                            IIPEventEventOccurred(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);//packet.Content);
+                        case IIPPacketEvent.EventOccurred:
+                            IIPEventEventOccurred(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
                         case IIPPacketEvent.ChildAdded:
@@ -551,25 +462,25 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
                     }
                 }
-                else if (packet.Command == IIPPacket.IIPPacketCommand.Request)
+                else if (packet.Command == IIPPacketCommand.Request)
                 {
                     switch (packet.Action)
                     {
                         // Manage
-                        case IIPPacket.IIPPacketAction.AttachResource:
+                        case IIPPacketAction.AttachResource:
                             IIPRequestAttachResource(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacket.IIPPacketAction.ReattachResource:
+                        case IIPPacketAction.ReattachResource:
                             IIPRequestReattachResource(packet.CallbackId, packet.ResourceId, packet.ResourceAge);
                             break;
-                        case IIPPacket.IIPPacketAction.DetachResource:
+                        case IIPPacketAction.DetachResource:
                             IIPRequestDetachResource(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacket.IIPPacketAction.CreateResource:
+                        case IIPPacketAction.CreateResource:
                             //@TODO : fix this
                             //IIPRequestCreateResource(packet.CallbackId, packet.StoreId, packet.ResourceId, packet.Content);
                             break;
-                        case IIPPacket.IIPPacketAction.DeleteResource:
+                        case IIPPacketAction.DeleteResource:
                             IIPRequestDeleteResource(packet.CallbackId, packet.ResourceId);
                             break;
                         case IIPPacketAction.AddChild:
@@ -583,13 +494,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
 
                         // Inquire
-                        case IIPPacket.IIPPacketAction.TemplateFromClassName:
+                        case IIPPacketAction.TemplateFromClassName:
                             IIPRequestTemplateFromClassName(packet.CallbackId, packet.ClassName);
                             break;
-                        case IIPPacket.IIPPacketAction.TemplateFromClassId:
+                        case IIPPacketAction.TemplateFromClassId:
                             IIPRequestTemplateFromClassId(packet.CallbackId, packet.ClassId);
                             break;
-                        case IIPPacket.IIPPacketAction.TemplateFromResourceId:
+                        case IIPPacketAction.TemplateFromResourceId:
                             IIPRequestTemplateFromResourceId(packet.CallbackId, packet.ResourceId);
                             break;
                         case IIPPacketAction.QueryLink:
@@ -603,7 +514,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPRequestResourceParents(packet.CallbackId, packet.ResourceId);
                             break;
 
-                        case IIPPacket.IIPPacketAction.ResourceHistory:
+                        case IIPPacketAction.ResourceHistory:
                             IIPRequestInquireResourceHistory(packet.CallbackId, packet.ResourceId, packet.FromDate, packet.ToDate);
                             break;
 
@@ -612,7 +523,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
 
                         // Invoke
-                        case IIPPacket.IIPPacketAction.InvokeFunction:
+                        case IIPPacketAction.InvokeFunction:
                             IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
@@ -627,15 +538,15 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         //    IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
                         //    break;
 
-                        case IIPPacket.IIPPacketAction.Listen:
+                        case IIPPacketAction.Listen:
                             IIPRequestListen(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                             break;
 
-                        case IIPPacket.IIPPacketAction.Unlisten:
+                        case IIPPacketAction.Unlisten:
                             IIPRequestUnlisten(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                             break;
 
-                        case IIPPacket.IIPPacketAction.SetProperty:
+                        case IIPPacketAction.SetProperty:
                             IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
@@ -679,28 +590,28 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                     }
                 }
-                else if (packet.Command == IIPPacket.IIPPacketCommand.Reply)
+                else if (packet.Command == IIPPacketCommand.Reply)
                 {
                     switch (packet.Action)
                     {
                         // Manage
-                        case IIPPacket.IIPPacketAction.AttachResource:
+                        case IIPPacketAction.AttachResource:
                             IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.DataType, msg);
                             break;
 
-                        case IIPPacket.IIPPacketAction.ReattachResource:
+                        case IIPPacketAction.ReattachResource:
                             IIPReply(packet.CallbackId, packet.ResourceAge, packet.DataType, msg);
 
                             break;
-                        case IIPPacket.IIPPacketAction.DetachResource:
+                        case IIPPacketAction.DetachResource:
                             IIPReply(packet.CallbackId);
                             break;
 
-                        case IIPPacket.IIPPacketAction.CreateResource:
+                        case IIPPacketAction.CreateResource:
                             IIPReply(packet.CallbackId, packet.ResourceId);
                             break;
 
-                        case IIPPacket.IIPPacketAction.DeleteResource:
+                        case IIPPacketAction.DeleteResource:
                         case IIPPacketAction.AddChild:
                         case IIPPacketAction.RemoveChild:
                         case IIPPacketAction.RenameResource:
@@ -709,9 +620,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                         // Inquire
 
-                        case IIPPacket.IIPPacketAction.TemplateFromClassName:
-                        case IIPPacket.IIPPacketAction.TemplateFromClassId:
-                        case IIPPacket.IIPPacketAction.TemplateFromResourceId:
+                        case IIPPacketAction.TemplateFromClassName:
+                        case IIPPacketAction.TemplateFromClassId:
+                        case IIPPacketAction.TemplateFromResourceId:
 
                             var content = msg.Clip(packet.DataType.Value.Offset, (uint)packet.DataType.Value.ContentLength);
                             IIPReply(packet.CallbackId, TypeTemplate.Parse(content));
@@ -779,7 +690,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPReportProgress(packet.CallbackId, ProgressType.Execution, packet.ProgressValue, packet.ProgressMax);
                             break;
                         case IIPPacketReport.ChunkStream:
-                            IIPReportChunk(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
+                            IIPReportChunk(packet.CallbackId, (TransmissionType)packet.DataType, msg); 
 
                             break;
                     }
@@ -815,7 +726,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             HTTPConnection.Upgrade(req, res);
 
 
-                            res.Compose(HTTPResponsePacket.ComposeOptions.AllCalculateLength);
+                            res.Compose(HTTPComposeOption.AllCalculateLength);
                             Send(res.Data);
                             // replace my socket with websockets
                             var tcpSocket = this.Unassign();
@@ -826,8 +737,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         {
 
                             var res = new HTTPResponsePacket();
-                            res.Number = HTTPResponsePacket.ResponseCode.BadRequest;
-                            res.Compose(HTTPResponsePacket.ComposeOptions.AllCalculateLength);
+                            res.Number = HTTPResponseCode.BadRequest;
+                            res.Compose(HTTPComposeOption.AllCalculateLength);
                             Send(res.Data);
                             //@TODO: kill the connection
                         }
@@ -847,7 +758,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             var rt = authPacket.Parse(msg, offset, ends);
 
-            //Console.WriteLine(session.LocalAuthentication.Type.ToString() + " " + offset + " " + ends + " " + rt + " " + authPacket.ToString());
 
             if (rt <= 0)
             {
@@ -858,400 +768,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
             {
                 offset += (uint)rt;
 
-                if (session.LocalAuthentication.Type == AuthenticationType.Host)
+                if (session.AuthenticationType == AuthenticationType.Host)
+                {
+                    ProcessHostAuth(msg);
+                }
                 else if (session.AuthenticationType == AuthenticationType.Client)
                 {
-                    if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Declare)
-                    {
-                        session.RemoteAuthentication.Method = authPacket.RemoteMethod;
-
-                        if (authPacket.RemoteMethod == AuthenticationMethod.Credentials && authPacket.LocalMethod == AuthenticationMethod.None)
-                        {
-                            try
-                            {
-                                if (Server.Membership == null)
-                                {
-                                    var errMsg = DC.ToBytes("Membership not set.");
-
-                                    SendParams().AddUInt8(0xc0)
-                                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                                        .AddUInt16((ushort)errMsg.Length)
-                                        .AddUInt8Array(errMsg).Done();
-                                }
-                                else Server.Membership.UserExists(authPacket.RemoteUsername, authPacket.Domain).Then(x =>
-                                {
-                                    if (x)
-                                    {
-                                        session.RemoteAuthentication.Username = authPacket.RemoteUsername;
-                                        remoteNonce = authPacket.RemoteNonce;
-                                        session.RemoteAuthentication.Domain = authPacket.Domain;
-                                        SendParams()
-                                                    .AddUInt8(0xa0)
-                                                    .AddUInt8Array(localNonce)
-                                                    .Done();
-                                        //SendParams((byte)0xa0, localNonce);
-                                    }
-                                    else
-                                    {
-                                        // Send user not found error
-                                        SendParams().AddUInt8(0xc0)
-                                                    .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                    .AddUInt16(14)
-                                                    .AddString("User not found")
-                                                    .Done();
-                                    }
-                                });
-                            }
-                            catch (Exception ex)
-                            {
-                                // Send the server side error
-                                var errMsg = DC.ToBytes(ex.Message);
-
-                                SendParams().AddUInt8(0xc0)
-                                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                                    .AddUInt16((ushort)errMsg.Length)
-                                    .AddUInt8Array(errMsg)
-                                    .Done();
-                            }
-                        }
-                        else if (authPacket.RemoteMethod == AuthenticationMethod.Token && authPacket.LocalMethod == AuthenticationMethod.None)
-                        {
-                            try
-                            {
-                                if (Server.Membership == null)
-                                {
-                                    SendParams()
-                                                        .AddUInt8(0xc0)
-                                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                        .AddUInt16(15)
-                                                        .AddString("Token not found")
-                                                        .Done();
-                                }
-                                // Check if user and token exists
-                                else
-                                {
-                                    Server.Membership.TokenExists(authPacket.RemoteTokenIndex, authPacket.Domain).Then(x =>
-                                    {
-                                        if (x != null)
-                                        {
-                                            session.RemoteAuthentication.Username = x;
-                                            session.RemoteAuthentication.TokenIndex = authPacket.RemoteTokenIndex;
-                                            remoteNonce = authPacket.RemoteNonce;
-                                            session.RemoteAuthentication.Domain = authPacket.Domain;
-                                            SendParams()
-                                                        .AddUInt8(0xa0)
-                                                        .AddUInt8Array(localNonce)
-                                                        .Done();
-                                        }
-                                        else
-                                        {
-                                            // Send token not found error.
-                                            SendParams()
-                                                        .AddUInt8(0xc0)
-                                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                                        .AddUInt16(15)
-                                                        .AddString("Token not found")
-                                                        .Done();
-                                        }
-                                    });
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                // Sender server side error.
-
-                                var errMsg = DC.ToBytes(ex.Message);
-
-                                SendParams()
-                                    .AddUInt8(0xc0)
-                                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                                    .AddUInt16((ushort)errMsg.Length)
-                                    .AddUInt8Array(errMsg)
-                                    .Done();
-                            }
-                        }
-                        else if (authPacket.RemoteMethod == AuthenticationMethod.None && authPacket.LocalMethod == AuthenticationMethod.None)
-                        {
-                            try
-                            {
-                                // Check if guests are allowed
-                                if (Server.Membership?.GuestsAllowed ?? true)
-                                {
-                                    session.RemoteAuthentication.Username = "g-" + Global.GenerateCode();
-                                    session.RemoteAuthentication.Domain = authPacket.Domain;
-                                    readyToEstablish = true;
-                                    SendParams()
-                                                .AddUInt8(0x80)
-                                                .Done();
-                                }
-                                else
-                                {
-                                    // Send access denied error because the server does not allow guests.
-                                    SendParams()
-                                                .AddUInt8(0xc0)
-                                                .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                                .AddUInt16(18)
-                                                .AddString("Guests not allowed")
-                                                .Done();
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                // Send the server side error.
-                                var errMsg = DC.ToBytes(ex.Message);
-
-                                SendParams().AddUInt8(0xc0)
-                                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                                    .AddUInt16((ushort)errMsg.Length)
-                                    .AddUInt8Array(errMsg).Done();
-                            }
-                        }
-
-                    }
-                    else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
-                    {
-                        if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.AuthenticateHash)
-                        {
-                            var remoteHash = authPacket.Hash;
-                            AsyncReply<byte[]> reply = null;
-
-                            try
-                            {
-                                if (session.RemoteAuthentication.Method == AuthenticationMethod.Credentials)
-                                {
-                                    reply = Server.Membership.GetPassword(session.RemoteAuthentication.Username,
-                                                                  session.RemoteAuthentication.Domain);
-                                }
-                                else if (session.RemoteAuthentication.Method == AuthenticationMethod.Token)
-                                {
-                                    reply = Server.Membership.GetToken(session.RemoteAuthentication.TokenIndex,
-                                                                  session.RemoteAuthentication.Domain);
-                                }
-                                else
-                                {
-                                    // Error
-                                }
-
-                                reply.Then((pw) =>
-                                {
-                                    if (pw != null)
-                                    {
-                                        var hashFunc = SHA256.Create();
-                                        var hash = hashFunc.ComputeHash((new BinaryList())
-                                                                            .AddUInt8Array(remoteNonce)
-                                                                            .AddUInt8Array(pw)
-                                                                            .AddUInt8Array(localNonce)
-                                                                            .ToArray());
-
-                                        if (hash.SequenceEqual(remoteHash))
-                                        {
-                                            // send our hash
-                                            var localHash = hashFunc.ComputeHash((new BinaryList())
-                                                                .AddUInt8Array(localNonce)
-                                                                .AddUInt8Array(pw)
-                                                                .AddUInt8Array(remoteNonce)
-                                                                .ToArray());
-
-                                            SendParams()
-                                                .AddUInt8(0)
-                                                .AddUInt8Array(localHash)
-                                                .Done();
-
-                                            readyToEstablish = true;
-                                        }
-                                        else
-                                        {
-                                            //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
-                                            SendParams()
-                                                .AddUInt8(0xc0)
-                                                .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                                .AddUInt16(13)
-                                                .AddString("Access Denied")
-                                                .Done();
-                                        }
-                                    }
-                                });
-                            }
-                            catch (Exception ex)
-                            {
-                                var errMsg = DC.ToBytes(ex.Message);
-
-                                SendParams().AddUInt8(0xc0)
-                                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                                    .AddUInt16((ushort)errMsg.Length)
-                                    .AddUInt8Array(errMsg).Done();
-                            }
-                        }
-                        else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.NewConnection)
-                        {
-                            if (readyToEstablish)
-                            {
-                                var r = new Random();
-                                session.Id = new byte[32];
-                                r.NextBytes(session.Id);
-
-                                SendParams().AddUInt8(0x28)
-                                            .AddUInt8Array(session.Id)
-                                            .Done();
-
-                                if (this.Instance == null)
-                                {
-                                    Warehouse.Put(this.RemoteUsername.Replace("/", "_"), this, null, Server).Then(x =>
-                                    {
-                                        ready = true;
-                                        Status = ConnectionStatus.Connected;
-                                        openReply?.Trigger(true);
-                                        openReply = null;
-                                        OnReady?.Invoke(this);
-
-                                        Server?.Membership?.Login(session);
-                                        loginDate = DateTime.Now;
-
-                                    }).Error(x =>
-                                    {
-                                        openReply?.TriggerError(x);
-                                        openReply = null;
-
-                                    });
-                                }
-                                else
-                                {
-                                    ready = true;
-                                    Status = ConnectionStatus.Connected;
-
-                                    openReply?.Trigger(true);
-                                    openReply = null;
-
-                                    OnReady?.Invoke(this);
-                                    Server?.Membership?.Login(session);
-                                }
-
-                                //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
-
-                            }
-                            else
-                            {
-                                SendParams()
-                                    .AddUInt8(0xc0)
-                                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                                    .AddUInt16(9)
-                                    .AddString("Not ready")
-                                    .Done();
-                            }
-                        }
-                    }
-                }
-                else if (session.LocalAuthentication.Type == AuthenticationType.Client)
-                {
-                    if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Acknowledge)
-                    {
-                        if (authPacket.RemoteMethod == AuthenticationMethod.None)
-                        {
-                            // send establish
-                            SendParams()
-                                        .AddUInt8(0x20)
-                                        .AddUInt16(0)
-                                        .Done();
-                        }
-                        else if (authPacket.RemoteMethod == AuthenticationMethod.Credentials
-                                || authPacket.RemoteMethod == AuthenticationMethod.Token)
-                        {
-                            remoteNonce = authPacket.RemoteNonce;
-
-                            // send our hash
-                            var hashFunc = SHA256.Create();
-                            // local nonce + password or token + remote nonce
-                            var localHash = hashFunc.ComputeHash(new BinaryList()
-                                                                .AddUInt8Array(localNonce)
-                                                                .AddUInt8Array(localPasswordOrToken)
-                                                                .AddUInt8Array(remoteNonce)
-                                                                .ToArray());
-
-                            SendParams()
-                                .AddUInt8(0)
-                                .AddUInt8Array(localHash)
-                                .Done();
-                        }
-                        //SendParams((byte)0, localHash);
-                    }
-                    else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Action)
-                    {
-                        if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.AuthenticateHash)
-                        {
-                            // check if the server knows my password
-                            var hashFunc = SHA256.Create();
-                            //var remoteHash = hashFunc.ComputeHash(BinaryList.ToBytes(remoteNonce, localNonce, localPassword));
-                            var remoteHash = hashFunc.ComputeHash(new BinaryList()
-                                                                    .AddUInt8Array(remoteNonce)
-                                                                    .AddUInt8Array(localNonce)
-                                                                    .AddUInt8Array(localPasswordOrToken)
-                                                                    .ToArray());
-
-
-                            if (remoteHash.SequenceEqual(authPacket.Hash))
-                            {
-                                // send establish request
-                                SendParams()
-                                            .AddUInt8(0x20)
-                                            .AddUInt16(0)
-                                            .Done();
-                            }
-                            else
-                            {
-                                SendParams()
-                                            .AddUInt8(0xc0)
-                                            .AddUInt8((byte)ExceptionCode.ChallengeFailed)
-                                            .AddUInt16(16)
-                                            .AddString("Challenge Failed")
-                                            .Done();
-
-                                //SendParams((byte)0xc0, 1, (ushort)5, DC.ToBytes("Error"));
-                            }
-                        }
-                        else if (authPacket.Action == IIPAuthPacket.IIPAuthPacketAction.ConnectionEstablished)
-                        {
-                            session.Id = authPacket.SessionId;
-
-                            ready = true;
-                            Status = ConnectionStatus.Connected;
-
-                            // put it in the warehouse
-
-                            if (this.Instance == null)
-                            {
-                                Warehouse.Put(this.LocalUsername.Replace("/", "_"), this, null, Server).Then(x =>
-                                {
-                                    openReply?.Trigger(true);
-                                    OnReady?.Invoke(this);
-                                    openReply = null;
-
-
-                                }).Error(x =>
-                                {
-                                    openReply?.TriggerError(x);
-                                    openReply = null;
-                                });
-                            }
-                            else
-                            {
-                                openReply?.Trigger(true);
-                                openReply = null;
-
-                                OnReady?.Invoke(this);
-                            }
-
-                            // start perodic keep alive timer
-                            keepAliveTimer.Start();
-                        }
-                    }
-                    else if (authPacket.Command == IIPAuthPacket.IIPAuthPacketCommand.Error)
-                    {
-                        invalidCredentials = true;
-                        openReply?.TriggerError(new AsyncException(ErrorType.Management, authPacket.ErrorCode, authPacket.ErrorMessage));
-                        openReply = null;
-                        OnError?.Invoke(this, authPacket.ErrorCode, authPacket.ErrorMessage);
-                        Close();
-                    }
+                    ProcessClientAuth(msg);
                 }
             }
         }
@@ -1259,7 +782,694 @@ public partial class DistributedConnection : NetworkConnection, IStore
         return offset;
 
         //if (offset < ends)
-        //  processPacket(msg, offset, ends, data, chunkId);
+        // processPacket(msg, offset, ends, data, chunkId);
+    }
+
+    private void ProcessClientAuth(byte[] data)
+    {
+        if (authPacket.Command == IIPAuthPacketCommand.Acknowledge)
+        {
+            // if there is a mismatch in authentication
+            if (session.LocalMethod != authPacket.RemoteMethod
+                || session.RemoteMethod != authPacket.LocalMethod)
+            {
+                openReply?.TriggerError(new Exception("Peer refused authentication method."));
+                openReply = null;
+            }
+
+            // Parse remote headers
+
+            var dataType = authPacket.DataType.Value;
+
+            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+
+            var rt = (Map<byte, object>)parsed.Wait();
+
+            session.RemoteHeaders = rt.Select(x => new KeyValuePair<IIPAuthPacketHeader, object>((IIPAuthPacketHeader)x.Key, x.Value));
+
+            if (session.LocalMethod == AuthenticationMethod.None)
+            {
+                // send establish
+                SendParams()
+                            .AddUInt8((byte)IIPAuthPacketAction.EstablishNewSession)
+                            .Done();
+            }
+            else if (session.LocalMethod == AuthenticationMethod.Credentials
+                    || session.LocalMethod == AuthenticationMethod.Token)
+            {
+                var remoteNonce = (byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce];
+                var localNonce = (byte[])session.LocalHeaders[IIPAuthPacketHeader.Nonce];
+
+                // send our hash
+                var hashFunc = SHA256.Create();
+                // local nonce + password or token + remote nonce
+                var challenge = hashFunc.ComputeHash(new BinaryList()
+                                                    .AddUInt8Array(localNonce)
+                                                    .AddUInt8Array(localPasswordOrToken)
+                                                    .AddUInt8Array(remoteNonce)
+                                                    .ToArray());
+
+                SendParams()
+                    .AddUInt8((byte)IIPAuthPacketAction.AuthenticateHash)
+                    .AddUInt8((byte)IIPAuthPacketHashAlgorithm.SHA256)
+                    .AddUInt16((ushort)challenge.Length)
+                    .AddUInt8Array(challenge)
+                    .Done();
+            }
+
+        }
+        else if (authPacket.Command == IIPAuthPacketCommand.Action)
+        {
+            if (authPacket.Action == IIPAuthPacketAction.AuthenticateHash)
+            {
+                var remoteNonce = (byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce];
+                var localNonce = (byte[])session.LocalHeaders[IIPAuthPacketHeader.Nonce];
+
+                // check if the server knows my password
+                var hashFunc = SHA256.Create();
+
+                var challenge = hashFunc.ComputeHash(new BinaryList()
+                                                        .AddUInt8Array(remoteNonce)
+                                                        .AddUInt8Array(localPasswordOrToken)
+                                                        .AddUInt8Array(localNonce)
+                                                        .ToArray());
+
+
+                if (challenge.SequenceEqual(authPacket.Challenge))
+                {
+                    // send establish request
+                    SendParams()
+                                .AddUInt8((byte)IIPAuthPacketAction.EstablishNewSession)
+                                .Done();
+                }
+                else
+                {
+                    SendParams()
+                                .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                .AddUInt8((byte)ExceptionCode.ChallengeFailed)
+                                .AddUInt16(16)
+                                .AddString("Challenge Failed")
+                                .Done();
+
+                }
+            }
+        }
+        else if (authPacket.Command == IIPAuthPacketCommand.Event)
+        {
+            if (authPacket.Event == IIPAuthPacketEvent.ErrorTerminate
+                || authPacket.Event == IIPAuthPacketEvent.ErrorMustEncrypt
+                || authPacket.Event == IIPAuthPacketEvent.ErrorRetry)
+            {
+                invalidCredentials = true;
+                openReply?.TriggerError(new AsyncException(ErrorType.Management, authPacket.ErrorCode, authPacket.Message));
+                openReply = null;
+                OnError?.Invoke(this, authPacket.ErrorCode, authPacket.Message);
+                Close();
+            }
+            else if (authPacket.Event == IIPAuthPacketEvent.IndicationEstablished)
+            {
+                session.Id = authPacket.SessionId;
+
+                ready = true;
+                Status = ConnectionStatus.Connected;
+
+                // put it in the warehouse
+
+                if (this.Instance == null)
+                {
+                    Warehouse.Put(this.GetHashCode().ToString().Replace("/", "_"), this, null, Server).Then(x =>
+                    {
+                        openReply?.Trigger(true);
+                        OnReady?.Invoke(this);
+                        openReply = null;
+
+
+                    }).Error(x =>
+                    {
+                        openReply?.TriggerError(x);
+                        openReply = null;
+                    });
+                }
+                else
+                {
+                    openReply?.Trigger(true);
+                    openReply = null;
+
+                    OnReady?.Invoke(this);
+                }
+
+                // start perodic keep alive timer
+                keepAliveTimer.Start();
+
+            }
+            else if (authPacket.Event == IIPAuthPacketEvent.IAuthPlain)
+            {
+                var dataType = authPacket.DataType.Value;
+                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+                var rt = (Map<byte, object>)parsed.Wait();
+
+                var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
+                //headers[IIPAuthPacketIAuthHeader.Reference] = rt;
+
+                if (Authenticator == null)
+                {
+                    SendParams()
+                     .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                     .AddUInt8((byte)ExceptionCode.NotSupported)
+                     .AddUInt16(13)
+                     .AddString("Not supported")
+                     .Done();
+                }
+                else
+                {
+                    Authenticator(headers).Then(response =>
+                    {
+                        SendParams()
+                            .AddUInt8((byte)IIPAuthPacketAction.IAuthPlain)
+                            .AddUInt32((uint)headers[IIPAuthPacketIAuthHeader.Reference])
+                            .AddUInt8Array(Codec.Compose(response, this))
+                            .Done();
+                    })
+                    .Timeout(headers.ContainsKey(IIPAuthPacketIAuthHeader.Timeout) ? 
+                        (ushort)headers[IIPAuthPacketIAuthHeader.Timeout] * 1000 : 30000,
+                        () => {
+                            SendParams()
+                                .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                .AddUInt8((byte)ExceptionCode.Timeout)
+                                .AddUInt16(7)
+                                .AddString("Timeout")
+                                .Done();
+                        });
+                }
+            }
+            else if (authPacket.Event == IIPAuthPacketEvent.IAuthHashed)
+            {
+                var dataType = authPacket.DataType.Value;
+                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+                var rt = (Map<byte, object>)parsed.Wait();
+
+
+                var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
+                //headers[IIPAuthPacketIAuthHeader.Reference] = rt;
+
+                if (Authenticator == null)
+                {
+                    SendParams()
+                     .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                     .AddUInt8((byte)ExceptionCode.NotSupported)
+                     .AddUInt16(13)
+                     .AddString("Not supported")
+                     .Done();
+                }
+                else
+                {
+
+                    Authenticator(headers).Then(response =>
+                    {
+                        var sha = SHA256.Create();
+                        var hash = sha.ComputeHash(new BinaryList()
+                            .AddUInt8Array((byte[])session.LocalHeaders[IIPAuthPacketHeader.Nonce])
+                            .AddUInt8Array(Codec.Compose(response, this))
+                            .AddUInt8Array((byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce])
+                            .ToArray());
+
+                        SendParams()
+                            .AddUInt8((byte)IIPAuthPacketAction.IAuthHashed)
+                            .AddUInt32((uint)headers[IIPAuthPacketIAuthHeader.Reference])
+                            .AddUInt8((byte)IIPAuthPacketHashAlgorithm.SHA256)
+                            .AddUInt16((ushort)hash.Length)
+                            .AddUInt8Array(hash)
+                            .Done();
+                    })
+                    .Timeout(headers.ContainsKey(IIPAuthPacketIAuthHeader.Timeout) ?
+                        (ushort)headers[IIPAuthPacketIAuthHeader.Timeout] * 1000 : 30000,
+                        () => {
+                        SendParams()
+                            .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                            .AddUInt8((byte)ExceptionCode.Timeout)
+                            .AddUInt16(7)
+                            .AddString("Timeout")
+                            .Done();
+                    });
+                }
+            }
+            else if (authPacket.Event == IIPAuthPacketEvent.IAuthEncrypted)
+            {
+                throw new NotImplementedException("IAuthEncrypted not implemented.");
+            }
+        }
+    }
+
+    private void ProcessHostAuth(byte[] data)
+    {
+        if (authPacket.Command == IIPAuthPacketCommand.Initialize)
+        {
+            // Parse headers
+
+            var dataType = authPacket.DataType.Value;
+
+            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+
+            var rt = (Map<byte, object>)parsed.Wait();
+
+
+            session.RemoteHeaders = rt.Select(x => new KeyValuePair<IIPAuthPacketHeader, object>((IIPAuthPacketHeader)x.Key, x.Value));
+
+            session.RemoteMethod = authPacket.LocalMethod;
+
+
+            if (authPacket.Initialization == IIPAuthPacketInitialize.CredentialsNoAuth)
+            {
+                try
+                {
+
+                    var username = (string)session.RemoteHeaders[IIPAuthPacketHeader.Username];
+                    var domain = (string)session.RemoteHeaders[IIPAuthPacketHeader.Domain];
+                    //var remoteNonce = (byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce];
+
+                    if (Server.Membership == null)
+                    {
+                        var errMsg = DC.ToBytes("Membership not set.");
+
+                        SendParams()
+                            .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                            .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                            .AddUInt16((ushort)errMsg.Length)
+                            .AddUInt8Array(errMsg)
+                            .Done();
+                    }
+                    else Server.Membership.UserExists(username, domain).Then(x =>
+                    {
+                        if (x != null)
+                        {
+                            session.AuthorizedAccount = x;
+
+                            var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+
+                            SendParams()
+                                        .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthCredentials)
+                                        .AddUInt8Array(Codec.Compose(localHeaders, this))
+                                        .Done();
+                        }
+                        else
+                        {
+                            // Send user not found error
+                            SendParams()
+                                        .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                        .AddUInt16(14)
+                                        .AddString("User not found")
+                                        .Done();
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    // Send the server side error
+                    var errMsg = DC.ToBytes(ex.Message);
+
+                    SendParams()
+                        .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                        .AddUInt16((ushort)errMsg.Length)
+                        .AddUInt8Array(errMsg)
+                        .Done();
+                }
+            }
+            else if (authPacket.Initialization == IIPAuthPacketInitialize.TokenNoAuth)
+            {
+                try
+                {
+                    if (Server.Membership == null)
+                    {
+                        SendParams()
+                                            .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                            .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                            .AddUInt16(15)
+                                            .AddString("Token not found")
+                                            .Done();
+                    }
+                    // Check if user and token exists
+                    else
+                    {
+                        var tokenIndex = (ulong)session.RemoteHeaders[IIPAuthPacketHeader.TokenIndex];
+                        var domain = (string)session.RemoteHeaders[IIPAuthPacketHeader.Domain];
+                        //var nonce = (byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce];
+
+                        Server.Membership.TokenExists(tokenIndex, domain).Then(x =>
+                        {
+                            if (x != null)
+                            {
+                                session.AuthorizedAccount = x;
+
+                                var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+
+                                SendParams()
+                                            .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthToken)
+                                            .AddUInt8Array(Codec.Compose(localHeaders, this))
+                                            .Done();
+
+                            }
+                            else
+                            {
+                                // Send token not found error.
+                                SendParams()
+                                            .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                            .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+                                            .AddUInt16(15)
+                                            .AddString("Token not found")
+                                            .Done();
+                            }
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Sender server side error.
+
+                    var errMsg = DC.ToBytes(ex.Message);
+
+                    SendParams()
+                        .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                        .AddUInt16((ushort)errMsg.Length)
+                        .AddUInt8Array(errMsg)
+                        .Done();
+                }
+            }
+            else if (authPacket.Initialization == IIPAuthPacketInitialize.NoAuthNoAuth)
+            {
+                try
+                {
+                    // Check if guests are allowed
+                    if (Server.Membership?.GuestsAllowed ?? true)
+                    {
+                        var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+
+                        session.AuthorizedAccount = "g-" + Global.GenerateCode();
+
+                        readyToEstablish = true;
+
+                        SendParams()
+                                    .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthNoAuth)
+                                    .AddUInt8Array(Codec.Compose(localHeaders, this))
+                                    .Done();
+                    }
+                    else
+                    {
+                        // Send access denied error because the server does not allow guests.
+                        SendParams()
+                                    .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                    .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                    .AddUInt16(18)
+                                    .AddString("Guests not allowed")
+                                    .Done();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Send the server side error.
+                    var errMsg = DC.ToBytes(ex.Message);
+
+                    SendParams()
+                        .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                        .AddUInt16((ushort)errMsg.Length)
+                        .AddUInt8Array(errMsg)
+                        .Done();
+                }
+            }
+
+        }
+        else if (authPacket.Command == IIPAuthPacketCommand.Action)
+        {
+            if (authPacket.Action == IIPAuthPacketAction.AuthenticateHash)
+            {
+                var remoteHash = authPacket.Challenge;
+                AsyncReply<byte[]> reply = null;
+
+                try
+                {
+                    if (session.RemoteMethod == AuthenticationMethod.Credentials)
+                    {
+                        reply = Server.Membership.GetPassword((string)session.RemoteHeaders[IIPAuthPacketHeader.Username],
+                                                      (string)session.RemoteHeaders[IIPAuthPacketHeader.Domain]);
+                    }
+                    else if (session.RemoteMethod == AuthenticationMethod.Token)
+                    {
+                        reply = Server.Membership.GetToken((ulong)session.RemoteHeaders[IIPAuthPacketHeader.TokenIndex],
+                                                      (string)session.RemoteHeaders[IIPAuthPacketHeader.Domain]);
+                    }
+                    else
+                    {
+                        // Error
+                    }
+
+                    reply.Then((pw) =>
+                    {
+                        if (pw != null)
+                        {
+                            var localNonce = (byte[])session.LocalHeaders[IIPAuthPacketHeader.Nonce];
+                            var remoteNonce = (byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce];
+
+                            var hashFunc = SHA256.Create();
+                            var hash = hashFunc.ComputeHash((new BinaryList())
+                                                                .AddUInt8Array(remoteNonce)
+                                                                .AddUInt8Array(pw)
+                                                                .AddUInt8Array(localNonce)
+                                                                .ToArray());
+
+                            if (hash.SequenceEqual(remoteHash))
+                            {
+                                // send our hash
+                                var localHash = hashFunc.ComputeHash((new BinaryList())
+                                                    .AddUInt8Array(localNonce)
+                                                    .AddUInt8Array(pw)
+                                                    .AddUInt8Array(remoteNonce)
+                                                    .ToArray());
+
+                                SendParams()
+                                    .AddUInt8((byte)IIPAuthPacketAction.AuthenticateHash)
+                                    .AddUInt8((byte)IIPAuthPacketHashAlgorithm.SHA256)
+                                    .AddUInt16((ushort)localHash.Length)
+                                    .AddUInt8Array(localHash)
+                                    .Done();
+
+                                readyToEstablish = true;
+                            }
+                            else
+                            {
+                                //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
+                                SendParams()
+                                    .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                    .AddUInt8((byte)ExceptionCode.AccessDenied)
+                                    .AddUInt16(13)
+                                    .AddString("Access Denied")
+                                    .Done();
+                            }
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    var errMsg = DC.ToBytes(ex.Message);
+
+                    SendParams()
+                        .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                        .AddUInt16((ushort)errMsg.Length)
+                        .AddUInt8Array(errMsg)
+                        .Done();
+                }
+            }
+            else if (authPacket.Action == IIPAuthPacketAction.IAuthPlain)
+            {
+                var reference = authPacket.Reference;
+                var dataType = authPacket.DataType.Value;
+
+                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+
+                var value = parsed.Wait();
+
+                Server.Membership.AuthorizePlain(session, reference, value)
+                    .Then(x => ProcessAuthorization(x));
+
+
+            }
+            else if (authPacket.Action == IIPAuthPacketAction.IAuthHashed)
+            {
+                var reference = authPacket.Reference;
+                var value = authPacket.Challenge;
+                var algorithm = authPacket.HashAlgorithm;
+
+                Server.Membership.AuthorizeHashed(session, reference, algorithm, value)
+                    .Then(x => ProcessAuthorization(x));
+
+            }
+            else if (authPacket.Action == IIPAuthPacketAction.IAuthEncrypted)
+            {
+                var reference = authPacket.Reference;
+                var value = authPacket.Challenge;
+                var algorithm = authPacket.PublicKeyAlgorithm;
+
+                Server.Membership.AuthorizeEncrypted(session, reference, algorithm, value)
+                    .Then(x => ProcessAuthorization(x));
+            }
+            else if (authPacket.Action == IIPAuthPacketAction.EstablishNewSession)
+            {
+                if (readyToEstablish)
+                {
+
+                    if (Server.Membership == null)
+                    {
+                        ProcessAuthorization(null);
+                    }
+                    else
+                    {
+                        Server.Membership?.Authorize(session).Then(x =>
+                        {
+                            ProcessAuthorization(x);
+                        });
+                    }
+
+                    //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
+
+                }
+                else
+                {
+                    SendParams()
+                        .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                        .AddUInt16(9)
+                        .AddString("Not ready")
+                        .Done();
+                }
+            }
+        }
+    }
+
+    internal void ProcessAuthorization(AuthorizationResults results)
+    {
+        if (results == null || results.Response == Security.Membership.AuthorizationResultsResponse.Success)
+        {
+            var r = new Random();
+            session.Id = new byte[32];
+            r.NextBytes(session.Id);
+
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.IndicationEstablished)
+                .AddUInt8((byte)session.Id.Length)
+                .AddUInt8Array(session.Id)
+                .Done();
+
+            if (this.Instance == null)
+            {
+                Warehouse.Put(this.GetHashCode().ToString().Replace("/", "_"), this, null, Server).Then(x =>
+                {
+                    ready = true;
+                    Status = ConnectionStatus.Connected;
+                    openReply?.Trigger(true);
+                    openReply = null;
+                    OnReady?.Invoke(this);
+
+                    Server?.Membership?.Login(session);
+                    LoginDate = DateTime.Now;
+
+                }).Error(x =>
+                {
+                    openReply?.TriggerError(x);
+                    openReply = null;
+
+                });
+            }
+            else
+            {
+                ready = true;
+                Status = ConnectionStatus.Connected;
+
+                openReply?.Trigger(true);
+                openReply = null;
+
+                OnReady?.Invoke(this);
+                Server?.Membership?.Login(session);
+            }
+        }
+        else if (results.Response == Security.Membership.AuthorizationResultsResponse.Failed)
+        {
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                .AddUInt8((byte)ExceptionCode.ChallengeFailed)
+                .AddUInt16(21)
+                .AddString("Authentication failed")
+                .Done();
+        }
+        else if (results.Response == Security.Membership.AuthorizationResultsResponse.Expired)
+        {
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                .AddUInt8((byte)ExceptionCode.Timeout)
+                .AddUInt16(22)
+                .AddString("Authentication expired")
+                .Done();
+        }
+        else if (results.Response == Security.Membership.AuthorizationResultsResponse.ServiceUnavailable)
+        {
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                .AddUInt8((byte)ExceptionCode.GeneralFailure)
+                .AddUInt16(19)
+                .AddString("Service unavailable")
+                .Done();
+        }
+        else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthPlain)
+        {
+            var args = new Map<IIPAuthPacketIAuthHeader, object>()
+            {
+                [IIPAuthPacketIAuthHeader.Reference] = results.Reference,
+                [IIPAuthPacketIAuthHeader.Destination] = results.Destination,
+                [IIPAuthPacketIAuthHeader.Timeout] = results.Timeout,
+                [IIPAuthPacketIAuthHeader.Clue] = results.Clue,
+                [IIPAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
+            }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
+
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.IAuthPlain)
+                .AddUInt8Array(Codec.Compose(args, this))
+                .Done();
+
+        }
+        else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthHashed)
+        {
+            var args = new Map<IIPAuthPacketIAuthHeader, object>()
+            {
+                [IIPAuthPacketIAuthHeader.Reference] = results.Reference,
+                [IIPAuthPacketIAuthHeader.Destination] = results.Destination,
+                [IIPAuthPacketIAuthHeader.Timeout] = results.Timeout,
+                [IIPAuthPacketIAuthHeader.Clue] = results.Clue,
+                [IIPAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
+            }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
+
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.IAuthHashed)
+                .AddUInt8Array(Codec.Compose(args, this))
+                .Done();
+
+        }
+        else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthEncrypted)
+        {
+            var args = new Map<IIPAuthPacketIAuthHeader, object>()
+            {
+                [IIPAuthPacketIAuthHeader.Destination] = results.Destination,
+                [IIPAuthPacketIAuthHeader.Timeout] = results.Timeout,
+                [IIPAuthPacketIAuthHeader.Clue] = results.Clue,
+                [IIPAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
+            }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
+
+            SendParams()
+                .AddUInt8((byte)IIPAuthPacketEvent.IAuthEncrypted)
+                .AddUInt8Array(Codec.Compose(args, this))
+                .Done();
+        }
     }
 
     protected override void DataReceived(NetworkBuffer data)
@@ -1295,39 +1505,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
         }
     }
 
-    [Attribute]
-    public ExceptionLevel ExceptionLevel { get; set; }
-    = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
-
-
-    bool invalidCredentials = false;
-
-    [Attribute]
-    public bool AutoReconnect { get; set; } = false;
-
-    [Attribute]
-    public uint ReconnectInterval { get; set; } = 5;
-
-    [Attribute]
-    public string Username { get; set; }
-
-    [Attribute]
-    public bool UseWebSocket { get; set; }
-
-    [Attribute]
-    public bool SecureWebSocket { get; set; }
-
-    [Attribute]
-    public string Password { get; set; }
-
-    [Attribute]
-    public string Token { get; set; }
-
-    [Attribute]
-    public ulong TokenIndex { get; set; }
-
-    [Attribute]
-    public string Domain { get; set; }
     /// <summary>
     /// Resource interface
     /// </summary>
@@ -1381,17 +1558,29 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         if (hostname != null)
         {
-            session = new Session(new ClientAuthentication()
-                                      , new HostAuthentication());
+            session = new Session();
+            session.AuthenticationType = AuthenticationType.Client;
+            session.LocalMethod = method;
+            session.RemoteMethod = AuthenticationMethod.None;
 
-            session.LocalAuthentication.Method = method;
-            session.LocalAuthentication.TokenIndex = tokenIndex;
-            session.LocalAuthentication.Domain = domain;
-            session.LocalAuthentication.Username = username;
+            session.LocalHeaders[IIPAuthPacketHeader.Domain] = domain;
+            session.LocalHeaders[IIPAuthPacketHeader.Nonce] = Global.GenerateBytes(32);
+
+            if (method == AuthenticationMethod.Credentials)
+            {
+                session.LocalHeaders[IIPAuthPacketHeader.Username] = username;
+            }
+            else if (method == AuthenticationMethod.Token)
+            {
+                session.LocalHeaders[IIPAuthPacketHeader.TokenIndex] = tokenIndex;
+            }
+            else
+            {
+                throw new NotImplementedException("Unsupported authentication method.");
+            }
+
             localPasswordOrToken = passwordOrToken;
-
             invalidCredentials = false;
-            //localPassword = password;
         }
 
         if (session == null)
@@ -1464,7 +1653,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                     try
                     {
-                        var ar = await SendRequest(IIPPacket.IIPPacketAction.QueryLink)
+                        var ar = await SendRequest(IIPPacketAction.QueryLink)
                                             .AddUInt16((ushort)link.Length)
                                             .AddUInt8Array(link)
                                             .Done();
@@ -1592,9 +1781,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     protected override void Connected()
     {
-        if (session.LocalAuthentication.Type == AuthenticationType.Client)
+        if (session.AuthenticationType == AuthenticationType.Client)
             Declare();
-
     }
 
     protected override void Disconencted()
@@ -1684,23 +1872,5 @@ public partial class DistributedConnection : NetworkConnection, IStore
         attachedResources.Clear();
 
     }
-
-    /*
-    public AsyncBag<T> Children<T>(IResource resource)
-    {
-        if (Codec.IsLocalReso turce(resource, this))
-            return (resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
-
-        return null;
-    }
-
-    public AsyncBag<T> Parents<T>(IResource resource)
-    {
-        if (Codec.IsLocalResource(resource, this))
-            return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
-
-        return null;
-    }
-    */
 
 }

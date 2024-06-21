@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Esiur.Generator\Esiur.Security.Cryptography.csproj" />
+    <ProjectReference Include="..\Esiur.Security.Cryptography\Esiur.Security.Cryptography.csproj" />
     <ProjectReference Include="..\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 

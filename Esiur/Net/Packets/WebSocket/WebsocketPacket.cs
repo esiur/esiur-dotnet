@@ -29,7 +29,7 @@ using System.Text;
 using Esiur.Misc;
 using Esiur.Data;
 
-namespace Esiur.Net.Packets;
+namespace Esiur.Net.Packets.WebSocket;
 public class WebsocketPacket : Packet
 {
     public enum WSOpcode : byte
@@ -84,17 +84,17 @@ public class WebsocketPacket : Packet
             (byte)Opcode));
 
         // calculate length
-        if (Message.Length > UInt16.MaxValue)
+        if (Message.Length > ushort.MaxValue)
         // 4 bytes
         {
             pkt.Add((byte)((Mask ? 0x80 : 0x0) | 127));
-            pkt.AddRange(DC.ToBytes((UInt64)Message.LongCount(), Endian.Big));
+            pkt.AddRange(((ulong)Message.LongCount()).ToBytes(Endian.Big));
         }
         else if (Message.Length > 125)
         // 2 bytes
         {
             pkt.Add((byte)((Mask ? 0x80 : 0x0) | 126));
-            pkt.AddRange(DC.ToBytes((UInt16)Message.Length, Endian.Big));
+            pkt.AddRange(((ushort)Message.Length).ToBytes(Endian.Big));
         }
         else
         {
@@ -118,7 +118,7 @@ public class WebsocketPacket : Packet
         try
         {
             long needed = 2;
-            var length = (ends - offset);
+            var length = ends - offset;
             if (length < needed)
             {
                 //Console.WriteLine("stage 1 " + needed);
@@ -126,13 +126,13 @@ public class WebsocketPacket : Packet
             }
 
             uint oOffset = offset;
-            FIN = ((data[offset] & 0x80) == 0x80);
-            RSV1 = ((data[offset] & 0x40) == 0x40);
-            RSV2 = ((data[offset] & 0x20) == 0x20);
-            RSV3 = ((data[offset] & 0x10) == 0x10);
+            FIN = (data[offset] & 0x80) == 0x80;
+            RSV1 = (data[offset] & 0x40) == 0x40;
+            RSV2 = (data[offset] & 0x20) == 0x20;
+            RSV3 = (data[offset] & 0x10) == 0x10;
             Opcode = (WSOpcode)(data[offset++] & 0xF);
-            Mask = ((data[offset] & 0x80) == 0x80);
-            PayloadLength = (long)(data[offset++] & 0x7F);
+            Mask = (data[offset] & 0x80) == 0x80;
+            PayloadLength = data[offset++] & 0x7F;
 
             if (Mask)
                 needed += 4;
@@ -192,23 +192,23 @@ public class WebsocketPacket : Packet
                     MaskKey[2] = data[offset++];
                     MaskKey[3] = data[offset++];
 
-                    Message = DC.Clip(data, offset, (uint)PayloadLength);
+                    Message = data.Clip(offset, (uint)PayloadLength);
 
                     //var aMask = BitConverter.GetBytes(MaskKey);
                     for (int i = 0; i < Message.Length; i++)
                         Message[i] = (byte)(Message[i] ^ MaskKey[i % 4]);
                 }
                 else
-                    Message = DC.Clip(data, offset, (uint)PayloadLength);
+                    Message = data.Clip(offset, (uint)PayloadLength);
 
 
-                return (offset - oOffset) + (int)PayloadLength;
+                return offset - oOffset + (int)PayloadLength;
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex.ToString());
-            Console.WriteLine(offset + "::" + DC.ToHex(data));
+            Console.WriteLine(offset + "::" + data.ToHex());
             throw ex;
         }
     }

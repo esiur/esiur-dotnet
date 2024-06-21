@@ -46,6 +46,8 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Esiur.Security.Cryptography;
+using Esiur.Security.Membership;
+using Esiur.Net.Packets;
 
 namespace Test
 {
@@ -67,9 +69,23 @@ namespace Test
             Console.WriteLine(ska.ToHex());
             Console.WriteLine(skb.ToHex());
 
+            // Simple membership provider
+            var membership = new SimpleMembership() { GuestsAllowed = true };
+
+            membership.AddUser("user", "123456", new SimpleMembership.QuestionAnswer[0]);
+            membership.AddUser("admin", "admin", new SimpleMembership.QuestionAnswer[]
+            {
+                new SimpleMembership.QuestionAnswer()
+                {
+                    Question = "What is 5+5",
+                    Answer = 10,
+                    Hashed = true,
+                }
+            });
+
             // Create stores to keep objects.
             var system = await Warehouse.Put("sys", new MemoryStore());
-            var server = await Warehouse.Put("sys/server", new DistributedServer());
+            var server = await Warehouse.Put("sys/server", new DistributedServer() { Membership = membership });
 
 
             var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8088 });
@@ -112,12 +128,33 @@ namespace Test
 
 
 
+        static AsyncReply<object> Authenticator(Map<IIPAuthPacketIAuthHeader, object> x)
+        {
+            Console.WriteLine($"Authenticator: {x[IIPAuthPacketIAuthHeader.Clue]}");
+
+            var format = (IIPAuthPacketIAuthFormat)x[IIPAuthPacketIAuthHeader.RequiredFormat];
+
+            if (format == IIPAuthPacketIAuthFormat.Number)
+                return new AsyncReply<object>(Convert.ToInt32(Console.ReadLine()));
+            else if (format == IIPAuthPacketIAuthFormat.Text)
+                return new AsyncReply<object>(Console.ReadLine().Trim());
+
+            throw new NotImplementedException("Not supported format.");
+        }
+
         private static async void TestClient(IResource local)
         {
 
 
-            var con = await Warehouse.Get<DistributedConnection>("iip://localhost", new { AutoReconnect = true });
+            var con = await Warehouse.Get<DistributedConnection>("iip://localhost", new DistributedConnectionConfig
+            {
+                AutoReconnect = true,
+                Username = "admin",
+                Password = "admin",
+                Authenticator = Authenticator
+            });
 
+          
             dynamic remote = await con.Get("sys/service");
 
             var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);

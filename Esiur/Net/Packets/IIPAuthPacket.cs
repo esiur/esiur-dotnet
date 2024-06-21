@@ -26,75 +26,49 @@ using Esiur.Data;
 using Esiur.Security.Authority;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Data.Common;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
 
 namespace Esiur.Net.Packets;
-class IIPAuthPacket : Packet
+
+public class IIPAuthPacket : Packet
 {
-    public enum IIPAuthPacketCommand : byte
-    {
-        Action = 0,
-        Declare = 0x1,
-        Acknowledge = 0x2,
-        Report = 0x3,
-        DeclareEncrypted = 0x5,
-        AcknowledgeEncrypted = 0x6
-    }
-
-    public enum IIPAuthPacketAction : byte
-    {
-        AuthenticateHash = 0x0,
-        AuthenticatePublicHash = 0x1,
-        AuthenticatePrivateHash,
-        EstablishRequest,
-        EstablishReply,
-        TwoFactorAuthtenticate,
-
-        NewConnection = 0x20,
-        ResumeConnection,
-
-        ConnectionEstablished = 0x28
-    }
-
-
-
 
     public IIPAuthPacketCommand Command
     {
         get;
         set;
     }
+    public IIPAuthPacketInitialize Initialization
+    {
+        get;
+        set;
+    }
+
+    public IIPAuthPacketAcknowledge Acknowledgement
+    {
+        get;
+        set;
+    }
+
     public IIPAuthPacketAction Action
     {
         get;
         set;
     }
 
-    public byte ErrorCode { get; set; }
-    public string ErrorMessage { get; set; }
+    public IIPAuthPacketEvent Event
+    {
+        get;
+        set;
+    }
 
     public AuthenticationMethod LocalMethod
-    {
-        get;
-        set;
-    }
-
-    public byte[] SourceInfo
-    {
-        get;
-        set;
-    }
-
-    public byte[] Hash
-    {
-        get;
-        set;
-    }
-
-    public byte[] SessionId
     {
         get;
         set;
@@ -106,47 +80,39 @@ class IIPAuthPacket : Packet
         set;
     }
 
-    public string Domain
+    public byte ErrorCode
     {
         get;
         set;
     }
 
-    public long CertificateId
-    {
-        get; set;
-    }
-
-    public string LocalUsername
+    public string Message
     {
         get;
         set;
     }
 
-    public string RemoteUsername
+
+    public IIPAuthPacketPublicKeyAlgorithm PublicKeyAlgorithm
     {
         get;
         set;
     }
 
-    public byte[] LocalPassword
-    {
-        get;
-        set;
-    }
-    public byte[] RemotePassword
+    public IIPAuthPacketHashAlgorithm HashAlgorithm
     {
         get;
         set;
     }
 
-    public byte[] LocalToken
+
+    public byte[] Certificate
     {
         get;
         set;
     }
 
-    public byte[] RemoteToken
+    public byte[] Challenge
     {
         get;
         set;
@@ -158,19 +124,27 @@ class IIPAuthPacket : Packet
         set;
     }
 
-    public byte[] LocalNonce
+
+    public byte[] SessionId
     {
         get;
         set;
     }
 
-    public byte[] RemoteNonce
+    public TransmissionType? DataType
     {
         get;
         set;
     }
 
-    public ulong RemoteTokenIndex { get; set; }
+    // IAuth Reference
+    public uint Reference
+    {
+        get;
+        set;
+    }
+
+
 
     private uint dataLengthNeeded;
 
@@ -199,174 +173,178 @@ class IIPAuthPacket : Packet
 
         Command = (IIPAuthPacketCommand)(data[offset] >> 6);
 
-        if (Command == IIPAuthPacketCommand.Action)
+        if (Command == IIPAuthPacketCommand.Initialize)
         {
-            Action = (IIPAuthPacketAction)(data[offset++] & 0x3f);
+            LocalMethod = (AuthenticationMethod)(data[offset] >> 4 & 0x3);
+            RemoteMethod = (AuthenticationMethod)(data[offset] >> 2 & 0x3);
 
-            if (Action == IIPAuthPacketAction.AuthenticateHash)
-            {
-                if (NotEnough(offset, ends, 32))
-                    return -dataLengthNeeded;
-
-                Hash = data.Clip(offset, 32);
-
-                //var hash = new byte[32];
-                //Buffer.BlockCopy(data, (int)offset, hash, 0, 32);
-                //Hash = hash;
-
-                offset += 32;
-            }
-            else if (Action == IIPAuthPacketAction.NewConnection)
-            {
-                if (NotEnough(offset, ends, 2))
-                    return -dataLengthNeeded;
-
-                var length = data.GetUInt16(offset, Endian.Little);
-
-                offset += 2;
-
-                if (NotEnough(offset, ends, length))
-                    return -dataLengthNeeded;
-
-                SourceInfo = data.Clip(offset, length);
-
-                //var sourceInfo = new byte[length];
-                //Buffer.BlockCopy(data, (int)offset, sourceInfo, 0, length);
-                //SourceInfo = sourceInfo;
-
-                offset += 32;
-            }
-            else if (Action == IIPAuthPacketAction.ResumeConnection
-                 || Action == IIPAuthPacketAction.ConnectionEstablished)
-            {
-                //var sessionId = new byte[32];
-
-                if (NotEnough(offset, ends, 32))
-                    return -dataLengthNeeded;
-
-                SessionId = data.Clip(offset, 32);
-
-                //Buffer.BlockCopy(data, (int)offset, sessionId, 0, 32);
-                //SessionId = sessionId;
-
-                offset += 32;
-            }
-        }
-        else if (Command == IIPAuthPacketCommand.Declare)
-        {
-            RemoteMethod = (AuthenticationMethod)((data[offset] >> 4) & 0x3);
-            LocalMethod = (AuthenticationMethod)((data[offset] >> 2) & 0x3);
-            var encrypt = ((data[offset++] & 0x2) == 0x2);
-
+            Initialization = (IIPAuthPacketInitialize)(data[offset++] & 0xFC); // remove last two reserved LSBs
 
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            var domainLength = data[offset++];
-            if (NotEnough(offset, ends, domainLength))
-                return -dataLengthNeeded;
+            (var size, DataType) = TransmissionType.Parse(data, offset, ends);
 
-            var domain = data.GetString(offset, domainLength);
-
-            Domain = domain;
-
-            offset += domainLength;
-
-            if (RemoteMethod == AuthenticationMethod.Certificate)
-            {
-
-            }
-            else if (RemoteMethod == AuthenticationMethod.Credentials)
-            {
-                if (LocalMethod == AuthenticationMethod.None)
-                {
-                    if (NotEnough(offset, ends, 33))
-                        return -dataLengthNeeded;
-
-                    //var remoteNonce = new byte[32];
-                    //Buffer.BlockCopy(data, (int)offset, remoteNonce, 0, 32);
-                    //RemoteNonce = remoteNonce;
-
-                    RemoteNonce = data.Clip(offset, 32);
-
-                    offset += 32;
-
-                    var length = data[offset++];
-
-                    if (NotEnough(offset, ends, length))
-                        return -dataLengthNeeded;
-
-                    RemoteUsername = data.GetString(offset, length);
+            if (DataType == null)
+                return -(int)size;
 
 
-                    offset += length;
-                }
-            }
-            else if (RemoteMethod == AuthenticationMethod.Token)
-            {
-                if (LocalMethod == AuthenticationMethod.None)
-                {
-                    if (NotEnough(offset, ends, 37))
-                        return -dataLengthNeeded;
+            offset += (uint)size;
 
-                    RemoteNonce = data.Clip(offset, 32);
-
-                    offset += 32;
-
-                    RemoteTokenIndex = data.GetUInt64(offset, Endian.Little);
-                    offset += 8;
-                }
-            }
-
-            if (encrypt)
-            {
-                if (NotEnough(offset, ends, 2))
-                    return -dataLengthNeeded;
-
-                var keyLength = data.GetUInt16(offset, Endian.Little);
-
-                offset += 2;
-
-                if (NotEnough(offset, ends, keyLength))
-                    return -dataLengthNeeded;
-
-                //var key = new byte[keyLength];
-                //Buffer.BlockCopy(data, (int)offset, key, 0, keyLength);
-                //AsymetricEncryptionKey = key;
-
-                AsymetricEncryptionKey = data.Clip(offset, keyLength);
-
-                offset += keyLength;
-            }
         }
         else if (Command == IIPAuthPacketCommand.Acknowledge)
         {
-            RemoteMethod = (AuthenticationMethod)((data[offset] >> 4) & 0x3);
-            LocalMethod = (AuthenticationMethod)((data[offset] >> 2) & 0x3);
-            var encrypt = ((data[offset++] & 0x2) == 0x2);
 
-            if (RemoteMethod == AuthenticationMethod.None)
+            LocalMethod = (AuthenticationMethod)(data[offset] >> 4 & 0x3);
+            RemoteMethod = (AuthenticationMethod)(data[offset] >> 2 & 0x3);
+
+            Acknowledgement = (IIPAuthPacketAcknowledge)(data[offset++] & 0xFC); // remove last two reserved LSBs
+
+            if (NotEnough(offset, ends, 1))
+                return -dataLengthNeeded;
+
+            (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+
+            if (DataType == null)
+                return -(int)size;
+
+
+            offset += (uint)size;
+        }
+        else if (Command == IIPAuthPacketCommand.Action)
+        {
+            Action = (IIPAuthPacketAction)data[offset++]; // (IIPAuthPacketAction)(data[offset++] & 0x3f);
+
+            if (Action == IIPAuthPacketAction.AuthenticateHash
+                || Action == IIPAuthPacketAction.AuthenticatePublicHash
+                || Action == IIPAuthPacketAction.AuthenticatePrivateHash
+                || Action == IIPAuthPacketAction.AuthenticatePublicPrivateHash)
             {
-                if (LocalMethod == AuthenticationMethod.None)
-                {
-                    // do nothing
-                }
+                if (NotEnough(offset, ends, 3))
+                    return -dataLengthNeeded;
+
+                HashAlgorithm = (IIPAuthPacketHashAlgorithm)data[offset++];
+
+                var hashLength = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+
+                if (NotEnough(offset, ends, hashLength))
+                    return -dataLengthNeeded;
+
+                Challenge = data.Clip(offset, hashLength);
+                offset += hashLength;
+
             }
-            else if (RemoteMethod == AuthenticationMethod.Credentials
-                   || RemoteMethod == AuthenticationMethod.Token)
+            else if (Action == IIPAuthPacketAction.AuthenticatePrivateHashCert
+                || Action == IIPAuthPacketAction.AuthenticatePublicPrivateHashCert)
             {
-                if (LocalMethod == AuthenticationMethod.None)
-                {
-                    if (NotEnough(offset, ends, 32))
-                        return -dataLengthNeeded;
+                if (NotEnough(offset, ends, 3))
+                    return -dataLengthNeeded;
 
-                    RemoteNonce = data.Clip(offset, 32);
-                    offset += 32;
+                HashAlgorithm = (IIPAuthPacketHashAlgorithm)data[offset++];
 
-                }
+                var hashLength = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+
+                if (NotEnough(offset, ends, hashLength))
+                    return -dataLengthNeeded;
+
+                Challenge = data.Clip(offset, hashLength);
+                offset += hashLength;
+
+                if (NotEnough(offset, ends, 2))
+                    return -dataLengthNeeded;
+
+                var certLength = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+                if (NotEnough(offset, ends, certLength))
+                    return -dataLengthNeeded;
+
+                Certificate = data.Clip(offset, certLength);
+
+                offset += certLength;
+            }
+            else if (Action == IIPAuthPacketAction.IAuthPlain)
+            {
+                if (NotEnough(offset, ends, 5))
+                    return -dataLengthNeeded;
+
+                Reference = data.GetUInt32(offset, Endian.Little);
+                offset += 4;
+
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+
+                if (DataType == null)
+                    return -(int)size;
+
+                offset += (uint)size;
+
+            }
+            else if (Action == IIPAuthPacketAction.IAuthHashed)
+            {
+                if (NotEnough(offset, ends, 7))
+                    return -dataLengthNeeded;
+
+                Reference = data.GetUInt32(offset, Endian.Little);
+                offset += 4;
+
+                HashAlgorithm = (IIPAuthPacketHashAlgorithm)data[offset++];
+
+                var cl = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+                if (NotEnough(offset, ends, cl))
+                    return -dataLengthNeeded;
+
+                Challenge = data.Clip(offset, cl);
+
+                offset += cl;
+
+            }
+            else if (Action == IIPAuthPacketAction.IAuthEncrypted)
+            {
+                if (NotEnough(offset, ends, 7))
+                    return -dataLengthNeeded;
+
+                Reference = data.GetUInt32(offset, Endian.Little);
+                offset += 4;
+
+                PublicKeyAlgorithm = (IIPAuthPacketPublicKeyAlgorithm)data[offset++];
+
+                var cl = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+                if (NotEnough(offset, ends, cl))
+                    return -dataLengthNeeded;
+
+                Challenge = data.Clip(offset, cl);
+
+                offset += cl;
+
+            }
+            else if (Action == IIPAuthPacketAction.EstablishNewSession)
+            {
+                // Nothing here
+            }
+            else if (Action == IIPAuthPacketAction.EstablishResumeSession)
+            {
+                if (NotEnough(offset, ends, 1))
+                    return -dataLengthNeeded;
+
+                var sessionLength = data[offset++];
+
+                if (NotEnough(offset, ends, sessionLength))
+                    return -dataLengthNeeded;
+
+                SessionId = data.Clip(offset, sessionLength);
+
+                offset += sessionLength;
             }
 
-            if (encrypt)
+            else if (Action == IIPAuthPacketAction.EncryptKeyExchange)
             {
                 if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
@@ -378,33 +356,86 @@ class IIPAuthPacket : Packet
                 if (NotEnough(offset, ends, keyLength))
                     return -dataLengthNeeded;
 
-                //var key = new byte[keyLength];
-                //Buffer.BlockCopy(data, (int)offset, key, 0, keyLength);
-                //AsymetricEncryptionKey = key;
-
                 AsymetricEncryptionKey = data.Clip(offset, keyLength);
 
                 offset += keyLength;
             }
+
+            else if (Action == IIPAuthPacketAction.RegisterEndToEndKey
+                || Action == IIPAuthPacketAction.RegisterHomomorphic)
+            {
+                if (NotEnough(offset, ends, 3))
+                    return -dataLengthNeeded;
+
+                PublicKeyAlgorithm = (IIPAuthPacketPublicKeyAlgorithm)data[offset++];
+
+                var keyLength = data.GetUInt16(offset, Endian.Little);
+
+                offset += 2;
+
+                if (NotEnough(offset, ends, keyLength))
+                    return -dataLengthNeeded;
+
+                AsymetricEncryptionKey = data.Clip(offset, keyLength);
+
+                offset += keyLength;
+
+            }
         }
-        else if (Command == IIPAuthPacketCommand.Error)
+        else if (Command == IIPAuthPacketCommand.Event)
         {
-            if (NotEnough(offset, ends, 4))
-                return -dataLengthNeeded;
 
-            offset++;
-            ErrorCode = data[offset++];
+            Event = (IIPAuthPacketEvent)data[offset++];
+
+            if (Event == IIPAuthPacketEvent.ErrorTerminate
+                || Event == IIPAuthPacketEvent.ErrorMustEncrypt
+                || Event == IIPAuthPacketEvent.ErrorRetry)
+            {
+                if (NotEnough(offset, ends, 3))
+                    return -dataLengthNeeded;
+
+                ErrorCode = data[offset++];
+                var msgLength = data.GetUInt16(offset, Endian.Little);
+                offset += 2;
+
+                if (NotEnough(offset, ends, msgLength))
+                    return -dataLengthNeeded;
 
 
-            var cl = data.GetUInt16(offset, Endian.Little);
-            offset += 2;
+                Message = data.GetString(offset, msgLength);
 
-            if (NotEnough(offset, ends, cl))
-                return -dataLengthNeeded;
+                offset += msgLength;
+            }
+            else if (Event == IIPAuthPacketEvent.IndicationEstablished)
+            {
+                if (NotEnough(offset, ends, 1))
+                    return -dataLengthNeeded;
 
-            ErrorMessage = data.GetString(offset, cl);
-            offset += cl;
+                var sessionLength = data[offset++];
 
+                if (NotEnough(offset, ends, sessionLength))
+                    return -dataLengthNeeded;
+
+                SessionId = data.Clip(offset, sessionLength);
+
+                offset += sessionLength;
+            }
+
+            else if (Event == IIPAuthPacketEvent.IAuthPlain
+                || Event == IIPAuthPacketEvent.IAuthHashed
+                || Event == IIPAuthPacketEvent.IAuthEncrypted)
+            {
+                if (NotEnough(offset, ends, 1))
+                    return -dataLengthNeeded;
+
+                (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+
+                if (DataType == null)
+                    return -(int)size;
+
+                offset += (uint)size;
+
+            }
         }
 
 

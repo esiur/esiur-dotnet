@@ -49,6 +49,7 @@
 
   <ItemGroup>
     <Folder Include="Net\DataLink\Sources\" />
+    <Folder Include="Net\Packets\IIP\" />
   </ItemGroup>
 
   <ItemGroup>
