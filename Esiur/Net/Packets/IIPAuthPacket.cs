@@ -131,6 +131,12 @@ public class IIPAuthPacket : Packet
         set;
     }
 
+    public byte[] AccountId
+    {
+        get;
+        set;
+    }
+
     public TransmissionType? DataType
     {
         get;
@@ -408,7 +414,7 @@ public class IIPAuthPacket : Packet
             }
             else if (Event == IIPAuthPacketEvent.IndicationEstablished)
             {
-                if (NotEnough(offset, ends, 1))
+                if (NotEnough(offset, ends, 2))
                     return -dataLengthNeeded;
 
                 var sessionLength = data[offset++];
@@ -419,6 +425,18 @@ public class IIPAuthPacket : Packet
                 SessionId = data.Clip(offset, sessionLength);
 
                 offset += sessionLength;
+
+                if (NotEnough(offset, ends, 1))
+                    return -dataLengthNeeded;
+
+                var accountLength = data[offset++];
+
+                if (NotEnough(offset, ends, accountLength))
+                    return -dataLengthNeeded;
+
+                AccountId = data.Clip(offset, accountLength);
+
+                offset += accountLength;
             }
 
             else if (Event == IIPAuthPacketEvent.IAuthPlain

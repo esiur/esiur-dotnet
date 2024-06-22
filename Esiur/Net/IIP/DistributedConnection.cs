@@ -889,15 +889,17 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else if (authPacket.Event == IIPAuthPacketEvent.IndicationEstablished)
             {
                 session.Id = authPacket.SessionId;
+                session.AuthorizedAccount = authPacket.AccountId.GetString(0, (uint)authPacket.AccountId.Length);
 
                 ready = true;
                 Status = ConnectionStatus.Connected;
 
+                
                 // put it in the warehouse
 
                 if (this.Instance == null)
                 {
-                    Warehouse.Put(this.GetHashCode().ToString().Replace("/", "_"), this, null, Server).Then(x =>
+                    Warehouse.Put(session.AuthorizedAccount.Replace("/", "_"), this, null, Server).Then(x =>
                     {
                         openReply?.Trigger(true);
                         OnReady?.Invoke(this);
@@ -1220,9 +1222,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         reply = Server.Membership.GetToken((ulong)session.RemoteHeaders[IIPAuthPacketHeader.TokenIndex],
                                                       (string)session.RemoteHeaders[IIPAuthPacketHeader.Domain]);
                     }
-                    else
+                    else 
                     {
-                        // Error
+                        throw new NotImplementedException("Authentication method unsupported.");
                     }
 
                     reply.Then((pw) =>
@@ -1355,11 +1357,14 @@ public partial class DistributedConnection : NetworkConnection, IStore
             var r = new Random();
             session.Id = new byte[32];
             r.NextBytes(session.Id);
-
+            var accountId = session.AuthorizedAccount.ToBytes();
+            
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketEvent.IndicationEstablished)
                 .AddUInt8((byte)session.Id.Length)
                 .AddUInt8Array(session.Id)
+                .AddUInt8((byte)accountId.Length)
+                .AddUInt8Array(accountId)
                 .Done();
 
             if (this.Instance == null)
@@ -1574,7 +1579,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             {
                 session.LocalHeaders[IIPAuthPacketHeader.TokenIndex] = tokenIndex;
             }
-            else
+            else if (method == AuthenticationMethod.Certificate)
             {
                 throw new NotImplementedException("Unsupported authentication method.");
             }
