@@ -38,6 +38,7 @@ using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using Esiur.Misc;
 using Esiur.Net.Packets;
+using System.Reflection.Metadata;
 
 namespace Esiur.Net.IIP;
 
@@ -76,13 +77,15 @@ partial class DistributedConnection
     /// <param name="action">Packet action.</param>
     /// <param name="args">Arguments to send.</param>
     /// <returns></returns>
-    internal SendList SendRequest(IIPPacketAction action)
+    SendList SendRequest(IIPPacketAction action)
     {
         var reply = new AsyncReply<object[]>();
         var c = callbackCounter++; // avoid thread racing
         requests.Add(c, reply);
 
-        return (SendList)SendParams(reply).AddUInt8((byte)(0x40 | (byte)action)).AddUInt32(c);
+        return (SendList)SendParams(reply)
+            .AddUInt8((byte)(0x40 | (byte)action))
+            .AddUInt32(c);
     }
 
     /*
@@ -205,19 +208,18 @@ partial class DistributedConnection
         return reply;
     }
 
-    internal AsyncReply<object[]> SendDetachRequest(uint instanceId)
+    internal AsyncReply<object[]> SendSetProperty(uint instanceId, byte index, object value)
     {
-        try
-        {
-            return SendRequest(IIPPacketAction.DetachResource).AddUInt32(instanceId).Done();
-        }
-        catch
-        {
-            return null;
-        }
+        var cv = Codec.Compose(value, this);
+
+        return SendRequest(IIPPacketAction.SetProperty)
+                .AddUInt32(instanceId)
+                .AddUInt8(index)
+                .AddUInt8Array(cv)
+                .Done();
     }
 
-    public async void DetachResource(uint instanceId)
+    internal AsyncReply<object[]> SendDetachRequest(uint instanceId)
     {
         try
         {
@@ -227,11 +229,13 @@ partial class DistributedConnection
             if (suspendedResources.ContainsKey(instanceId))
                 suspendedResources.Remove(instanceId);
 
-            await SendDetachRequest(instanceId);
+            return SendRequest(IIPPacketAction.DetachResource)
+                .AddUInt32(instanceId)
+                .Done();
         }
         catch
         {
-
+            return null;
         }
     }
 

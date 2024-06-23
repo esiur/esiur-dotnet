@@ -8,15 +8,22 @@ namespace Esiur.Security.Membership
     public class AuthorizationResults
     {
         public AuthorizationResultsResponse Response { get; set; }
-        public IIPAuthPacketIAuthDestination Destination { get; set; }
-        public IIPAuthPacketIAuthFormat RequiredFormat { get; set; }
-        public string Clue { get; set; }
 
-        public ushort Timeout { get; set; } // 0 means no timeout
+
         public uint Reference { get; set; }
+        public IIPAuthPacketIAuthDestination Destination { get; set; }
+        public string Clue { get; set; }
+        public IIPAuthPacketIAuthFormat? RequiredFormat { get; set; }
+        public IIPAuthPacketIAuthFormat? ContentFormat { get; set; }
+        public object? Content { get; set; }
 
-        public DateTime Issue { get; set; } = DateTime.UtcNow;
+        public byte? Trials { get; set; }
 
-        public bool Expired => Timeout == 0 ? false : (DateTime.UtcNow - Issue).TotalSeconds > Timeout;
+        public DateTime? Issue { get; set; } = DateTime.UtcNow;
+        public DateTime? Expire { get; set; }
+
+        public int Timeout => Expire.HasValue && Issue.HasValue ? (int)(Expire.Value - Issue.Value).TotalSeconds : 0;
+
+        public bool Expired => DateTime.Now > Expire;
     }
 }

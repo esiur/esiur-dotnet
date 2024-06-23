@@ -133,7 +133,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
     [Attribute]
-    public Func<Map<IIPAuthPacketIAuthHeader, object>, AsyncReply<object>> Authenticator { get; set; }
+    public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
+    //public Func<Map<IIPAuthPacketIAuthHeader, object>, AsyncReply<object>> Authenticator { get; set; }
 
     [Attribute]
     public bool AutoReconnect { get; set; } = false;
@@ -931,7 +932,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 var rt = (Map<byte, object>)parsed.Wait();
 
                 var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
-                //headers[IIPAuthPacketIAuthHeader.Reference] = rt;
+                var iAuthRequest = new AuthorizationRequest(headers);
 
                 if (Authenticator == null)
                 {
@@ -944,7 +945,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 }
                 else
                 {
-                    Authenticator(headers).Then(response =>
+                    Authenticator(iAuthRequest).Then(response =>
                     {
                         SendParams()
                             .AddUInt8((byte)IIPAuthPacketAction.IAuthPlain)
@@ -952,8 +953,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             .AddUInt8Array(Codec.Compose(response, this))
                             .Done();
                     })
-                    .Timeout(headers.ContainsKey(IIPAuthPacketIAuthHeader.Timeout) ? 
-                        (ushort)headers[IIPAuthPacketIAuthHeader.Timeout] * 1000 : 30000,
+                    .Timeout(iAuthRequest.Timeout * 1000,
                         () => {
                             SendParams()
                                 .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
@@ -972,7 +972,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
 
                 var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
-                //headers[IIPAuthPacketIAuthHeader.Reference] = rt;
+                var iAuthRequest = new AuthorizationRequest(headers);
 
                 if (Authenticator == null)
                 {
@@ -986,7 +986,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 else
                 {
 
-                    Authenticator(headers).Then(response =>
+                    Authenticator(iAuthRequest).Then(response =>
                     {
                         var sha = SHA256.Create();
                         var hash = sha.ComputeHash(new BinaryList()
@@ -1003,8 +1003,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             .AddUInt8Array(hash)
                             .Done();
                     })
-                    .Timeout(headers.ContainsKey(IIPAuthPacketIAuthHeader.Timeout) ?
-                        (ushort)headers[IIPAuthPacketIAuthHeader.Timeout] * 1000 : 30000,
+                    .Timeout(iAuthRequest.Timeout * 1000,
                         () => {
                         SendParams()
                             .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
@@ -1432,7 +1431,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             {
                 [IIPAuthPacketIAuthHeader.Reference] = results.Reference,
                 [IIPAuthPacketIAuthHeader.Destination] = results.Destination,
-                [IIPAuthPacketIAuthHeader.Timeout] = results.Timeout,
+                [IIPAuthPacketIAuthHeader.Trials] = results.Trials,
                 [IIPAuthPacketIAuthHeader.Clue] = results.Clue,
                 [IIPAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
             }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
@@ -1449,7 +1448,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
             {
                 [IIPAuthPacketIAuthHeader.Reference] = results.Reference,
                 [IIPAuthPacketIAuthHeader.Destination] = results.Destination,
-                [IIPAuthPacketIAuthHeader.Timeout] = results.Timeout,
+                [IIPAuthPacketIAuthHeader.Expire] = results.Expire,
+                //[IIPAuthPacketIAuthHeader.Issue] = results.Issue,
                 [IIPAuthPacketIAuthHeader.Clue] = results.Clue,
                 [IIPAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
             }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
@@ -1465,7 +1465,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             var args = new Map<IIPAuthPacketIAuthHeader, object>()
             {
                 [IIPAuthPacketIAuthHeader.Destination] = results.Destination,
-                [IIPAuthPacketIAuthHeader.Timeout] = results.Timeout,
+                [IIPAuthPacketIAuthHeader.Expire] = results.Expire,
                 [IIPAuthPacketIAuthHeader.Clue] = results.Clue,
                 [IIPAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
             }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));

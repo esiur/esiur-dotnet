@@ -12,6 +12,8 @@ namespace Esiur.Net.Packets
         RequiredFormat = 3,
         ContentFormat = 4,
         Content = 5,
-        Timeout = 6,
+        Trials = 6,
+        Issue = 7,
+        Expire = 8,
     }
 }

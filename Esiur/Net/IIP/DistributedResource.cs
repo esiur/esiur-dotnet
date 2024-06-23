@@ -120,7 +120,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     {
         destroyed = true;
         attached = false;
-        connection.DetachResource(instanceId);
+        connection.SendDetachRequest(instanceId);
         OnDestroy?.Invoke(this);
     }
 
@@ -459,12 +459,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
         var reply = new AsyncReply<object>();
 
-        var parameters = Codec.Compose(value, connection);
-        connection.SendRequest(IIPPacketAction.SetProperty)
-                    .AddUInt32(instanceId)
-                    .AddUInt8(index)
-                    .AddUInt8Array(parameters)
-                    .Done()
+        connection.SendSetProperty(instanceId, index, value)
                     .Then((res) =>
                     {
                         // not really needed, server will always send property modified, 

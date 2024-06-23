@@ -127,12 +127,12 @@ namespace Test
         }
 
 
-
-        static AsyncReply<object> Authenticator(Map<IIPAuthPacketIAuthHeader, object> x)
+//        AuthorizationRequest, AsyncReply<object>
+        static AsyncReply<object> Authenticator(AuthorizationRequest x)
         {
-            Console.WriteLine($"Authenticator: {x[IIPAuthPacketIAuthHeader.Clue]}");
+            Console.WriteLine($"Authenticator: {x.Clue}");
 
-            var format = (IIPAuthPacketIAuthFormat)x[IIPAuthPacketIAuthHeader.RequiredFormat];
+            var format = x.RequiredFormat;
 
             if (format == IIPAuthPacketIAuthFormat.Number)
                 return new AsyncReply<object>(Convert.ToInt32(Console.ReadLine()));

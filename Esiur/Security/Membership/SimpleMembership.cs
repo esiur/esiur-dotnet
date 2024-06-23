@@ -82,7 +82,7 @@ namespace Esiur.Security.Membership
                     Destination = IIPAuthPacketIAuthDestination.Self,
                     Reference = (uint)r.Next(),
                     RequiredFormat = format,
-                    Timeout = 30,
+                    Expire = DateTime.Now.AddSeconds(60),
                     Response = q.Hashed ? AuthorizationResultsResponse.IAuthHashed : AuthorizationResultsResponse.IAuthPlain
                 };
 

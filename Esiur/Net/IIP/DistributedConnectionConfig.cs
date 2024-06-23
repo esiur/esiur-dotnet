@@ -1,6 +1,7 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
 using Esiur.Net.Packets;
+using Esiur.Security.Membership;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -12,7 +13,7 @@ namespace Esiur.Net.IIP
         public ExceptionLevel ExceptionLevel { get; set; }
         = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
-        public Func<Map<IIPAuthPacketIAuthHeader, object>, AsyncReply<object>> Authenticator { get; set; }
+        public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
 
         public bool AutoReconnect { get; set; } = false;
 
