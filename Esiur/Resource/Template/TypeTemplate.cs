@@ -641,7 +641,8 @@ public class TypeTemplate
 
             type = type.BaseType;
 
-            if (type == typeof(Resource)
+            if (type == null 
+                || type == typeof(Resource)
                 || type == typeof(Record)
                 || type == typeof(EntryPoint))
                 break;
