@@ -1,2 +1,3 @@
 ﻿1- Scan assembly for child classes
 2- Auto reconnect id
+3- ResourceTrigger.PopulateDate (after ef data setting)

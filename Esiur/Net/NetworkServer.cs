@@ -124,28 +124,25 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
                     //Console.WriteLine("New Socket ... " + DateTime.Now);
 
                     var c = new TConnection();
-                        //c.OnClose += ClientDisconnectedEventReceiver;
-                        c.Assign(s);
-                    Add(c);
-                        //Connections.Add(c);
 
-                        try
+                    c.Assign(s);
+                    Add(c);
+
+                    try
                     {
-                            //ClientConnected(c);
-                            ClientConnected(c);
-                            //NetworkConnect(c);
-                        }
+                        ClientConnected(c);
+                    }
                     catch
                     {
-                            // something wrong with the child.
-                        }
+                        // something wrong with the child.
+                    }
 
                     s.Begin();
 
-                        // Accept more
-                        //listener.Accept().Then(NewConnection);
+                    // Accept more
+                    //listener.Accept().Then(NewConnection);
 
-                    }
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex);
