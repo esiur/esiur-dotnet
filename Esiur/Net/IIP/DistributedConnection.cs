@@ -1502,7 +1502,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex);
+            Global.Log(ex);
         }
         finally
         {
@@ -1654,7 +1654,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                     var link = DC.ToBytes(r.DistributedResourceLink);
 
-                    Console.WriteLine("Restoreing " + r.DistributedResourceLink);
+                    Global.Log("DistributedConnection", LogType.Debug, "Restoreing " + r.DistributedResourceLink);
 
                     try
                     {
@@ -1683,7 +1683,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                             await Fetch(id, null);
 
-                            Console.WriteLine("Restored " + id);
+                            Global.Log("DistributedConnection", LogType.Debug, "Restored " + id);
                         }
                     }
                     catch (AsyncException ex)

@@ -601,8 +601,9 @@ partial class DistributedConnection
             {
                 // reply failed
                 //SendParams(0x80, r.Instance.Id, r.Instance.Age, r.Instance.Serialize(false, this));
-                Console.WriteLine("Not found " + resourceId);
-                
+
+                Global.Log("DistributedConnection", LogType.Debug, "Not found " + resourceId);
+
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });

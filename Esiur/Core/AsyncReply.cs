@@ -66,9 +66,11 @@ public class AsyncReply
     public bool Ready
     {
         get { return resultReady; }
-
     }
 
+    public bool Failed => exception != null;
+
+    public Exception Exception => exception;
 
     public object Wait()
     {

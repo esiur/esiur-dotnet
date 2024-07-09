@@ -458,7 +458,7 @@ public class TCPSocket : ISocket
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex);
+            Global.Log(ex);
         }
         finally
         {

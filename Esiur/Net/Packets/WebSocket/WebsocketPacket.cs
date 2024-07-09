@@ -207,8 +207,8 @@ public class WebsocketPacket : Packet
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.ToString());
-            Console.WriteLine(offset + "::" + data.ToHex());
+            Global.Log(ex);
+            Global.Log("WebsocketPacket", Core.LogType.Debug, offset + "::" + data.ToHex());
             throw ex;
         }
     }

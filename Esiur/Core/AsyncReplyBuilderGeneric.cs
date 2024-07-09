@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Esiur.Misc;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -27,7 +28,7 @@ public class AsyncReplyBuilder<T>
 
     public void SetStateMachine(IAsyncStateMachine stateMachine)
     {
-        Console.WriteLine("SetStateMachine");
+        Global.Log("AsyncReplyBuilderGeneric", LogType.Debug, "SetStateMachine");
     }
 
     public void SetException(Exception exception)

@@ -316,7 +316,9 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
             }
             else
-                Console.WriteLine("Unknown WS opcode:" + pkt_receive.Opcode);
+            {
+                Global.Log("WSocket", LogType.Debug, "Unknown WS opcode:" + pkt_receive.Opcode);
+            }
 
             if (offset == msg.Length)
             {

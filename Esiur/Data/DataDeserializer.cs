@@ -7,6 +7,7 @@ using System.Text;
 using Esiur.Data;
 using Esiur.Resource.Template;
 using System.Linq;
+using Esiur.Misc;
 
 namespace Esiur.Data;
 
@@ -182,7 +183,7 @@ public static class DataDeserializer
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine(ex);
+                            Global.Log(ex);
                         }
                     }
 

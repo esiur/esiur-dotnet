@@ -186,7 +186,7 @@ public static class Warehouse
 
             if (!rt)
             {
-                Console.WriteLine($"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Template.ClassName}]");
+                Global.Log("Warehouse", LogType.Warning, $"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Template.ClassName}]");
             }
             //}
         }
@@ -199,7 +199,7 @@ public static class Warehouse
             var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
             if (!rt)
             {
-                Console.WriteLine($"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Template.ClassName}]");
+                Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Template.ClassName}]");
             }
             //return false;
             //}

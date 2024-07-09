@@ -145,7 +145,7 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex);
+                    Global.Log(ex);
                 }
             }
         }));
@@ -210,7 +210,7 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
         }
         finally
         {
-            Console.WriteLine("Server@{0} is down", port);
+            Global.Log("NetworkServer", LogType.Warning, $"Server@{port} is down.");
         }
     }
 
