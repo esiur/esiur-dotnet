@@ -223,15 +223,26 @@ partial class DistributedConnection
     {
         try
         {
+            var sendDetach = false;
+
             if (attachedResources.ContainsKey(instanceId))
+            {
                 attachedResources.Remove(instanceId);
+                sendDetach = true;
+            }
 
             if (suspendedResources.ContainsKey(instanceId))
+            {
                 suspendedResources.Remove(instanceId);
+                sendDetach = true;
+            }
 
-            return SendRequest(IIPPacketAction.DetachResource)
-                .AddUInt32(instanceId)
-                .Done();
+            if (sendDetach)
+                return SendRequest(IIPPacketAction.DetachResource)
+                    .AddUInt32(instanceId)
+                    .Done();
+
+            return null; // no one is waiting for this
         }
         catch
         {
@@ -333,9 +344,17 @@ partial class DistributedConnection
             DistributedResource r;
 
             if (attachedResources[resourceId].TryGetTarget(out r))
+            {
+                // remove from attached to avoid sending unnecessary deattach request when Destroy() is called
+                attachedResources.Remove(resourceId);
                 r.Destroy();
+            }
+            else
+            {
+                attachedResources.Remove(resourceId);
+            }
 
-            attachedResources.Remove(resourceId);
+            
         }
         else if (neededResources.Contains(resourceId))
         {
