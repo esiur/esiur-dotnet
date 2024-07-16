@@ -48,7 +48,7 @@ partial class DistributedConnection
     KeyList<uint, WeakReference<DistributedResource>> attachedResources = new KeyList<uint, WeakReference<DistributedResource>>();
     KeyList<uint, WeakReference<DistributedResource>> suspendedResources = new KeyList<uint, WeakReference<DistributedResource>>();
 
-    KeyList<uint, AsyncReply<DistributedResource>> resourceRequests = new KeyList<uint, AsyncReply<DistributedResource>>();
+    KeyList<uint, DistributedResourceAttachRequestInfo> resourceRequests = new KeyList<uint, DistributedResourceAttachRequestInfo>();
     KeyList<Guid, AsyncReply<TypeTemplate>> templateRequests = new KeyList<Guid, AsyncReply<TypeTemplate>>();
 
     KeyList<string, AsyncReply<TypeTemplate>> templateByNameRequests = new KeyList<string, AsyncReply<TypeTemplate>>();
@@ -2249,14 +2249,24 @@ partial class DistributedConnection
 
         resource = neededResources[id];
 
-        var request = resourceRequests[id];
+        var requestInfo = resourceRequests[id];
 
-        if (request != null)
+        if (requestInfo != null)
         {
             if (resource != null && (requestSequence?.Contains(id) ?? false))
+            {
+                // dead lock avoidance for loop reference.
                 return new AsyncReply<DistributedResource>(resource);
+            }
+            else if (resource != null && requestInfo.RequestSequence.Contains(id))
+            {
+                // dead lock avoidance for dependent reference.
+                return new AsyncReply<DistributedResource>(resource);
+            }
             else
-                return request;
+            {
+                return requestInfo.Reply;
+            }
         }
         else if (resource != null && !resource.DistributedResourceSuspended)
         {
@@ -2266,11 +2276,10 @@ partial class DistributedConnection
 
         }
 
+        var newSequence = requestSequence != null ? requestSequence.Concat(new uint[] { id }).ToArray() : new uint[] { id };
 
         var reply = new AsyncReply<DistributedResource>();
-        resourceRequests.Add(id, reply);
-
-        var newSequence = requestSequence != null ? requestSequence.Concat(new uint[] { id }).ToArray() : new uint[] { id };
+        resourceRequests.Add(id, new DistributedResourceAttachRequestInfo(reply, newSequence));
 
         SendRequest(IIPPacketAction.AttachResource)
                     .AddUInt32(id)
