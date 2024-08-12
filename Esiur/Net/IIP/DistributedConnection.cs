@@ -1817,7 +1817,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         {
             try
             {
-                x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
+                x.Reply.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
             }
             catch (Exception ex)
             {
