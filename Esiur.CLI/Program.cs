@@ -1,8 +1,11 @@
 ﻿
+using CommandLine;
+using Esiur.CLI;
 using Esiur.Data;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 
 static void Main(string[] args)
@@ -16,22 +19,18 @@ static void Main(string[] args)
             {
                 var url = args[1];
 
-                var parameters = GetParams(args, 2);
-
-
-                var username = args.ElementAtOrDefault(3);
-                var password = args.ElementAtOrDefault(4);
-                var asyncSetters = Convert.ToBoolean(args.ElementAtOrDefault(5));
-
-                var path = Esiur.Proxy.TemplateGenerator.GetTemplate(url,
-                    parameters["-d"] ?? parameters["--dir"],
-                    parameters["-u"] ?? parameters["--username"],
-                    parameters["-p"] ?? parameters["--password"],
-                    parameters["-d"] ?? parameters["--dir"]
-                    parameters.Contains ["--a"] ?? parameters["--dir"]);
-
-                Console.WriteLine($"Generated successfully: {path}");
-
+                Parser.Default.ParseArguments<GetTemplateOptions>(args.Skip(2))
+                                   .WithParsed<GetTemplateOptions>(o =>
+                                    {
+                                        try
+                                        {
+                                            var path = Esiur.Proxy.TemplateGenerator.GetTemplate(url, o.Dir, o.Username, o.Password, o.AsyncSetters);
+                                            Console.WriteLine($"Generated successfully: {path}");
+                                        }
+                                        catch (Exception ex) { 
+                                            Console.WriteLine(ex.ToString());
+                                        }
+                                    });
                 return;
             }
             catch (Exception ex)
@@ -40,21 +39,15 @@ static void Main(string[] args)
                 return;
             }
         }
+        else if (args[0].ToLower() == "version")
+        {
+            var version = FileVersionInfo.GetVersionInfo(typeof(Esiur.Core.AsyncReply).Assembly.Location).FileVersion;
+
+            Console.WriteLine(version);
+        }
     }
 
     PrintHelp();
-}
-
-static StringKeyList GetParams(string[] args, int offset)
-{
-    var rt = new StringKeyList();
-    for(var i = offset; i< args.Length; i+=2)
-    {
-        var v = args.Length >= (i + 1) ? args[i+1] : null;
-        rt.Add(args[i], v);
-    }
-
-    return rt;
 }
 
 static void PrintHelp()
@@ -71,6 +64,7 @@ static void PrintHelp()
     Console.WriteLine("Global options:");
     Console.WriteLine("\t-u, --username\tAuthentication username.");
     Console.WriteLine("\t-p, --password\tAuthentication password.");
-    Console.WriteLine("\t-d, --dir\tName of the directory to generate model inside.");
+    Console.WriteLine("\t-d, --dir\tDirectory name where the generated models will be saved.");
+    Console.WriteLine("\t-a, --async-setters\tUse asynchronous property setters.");
 
 }
