@@ -11,13 +11,15 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Sockets;
+using Microsoft.CodeAnalysis;
 
 namespace Esiur.Net.Sockets
 {
-    public class ClientWSocket : ISocket
+    public class FrameworkWebSocket : ISocket
     {
+        bool began;
 
-        ClientWebSocket sock;
+         WebSocket sock;
 
         NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
         NetworkBuffer sendNetworkBuffer = new NetworkBuffer();
@@ -38,14 +40,32 @@ namespace Esiur.Net.Sockets
         public IPEndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Any, 0);
 
 
-        public SocketState State { get; internal set; } = SocketState.Closed;
+        public SocketState State => sock == null ? SocketState.Closed : sock.State switch
+        {
+            WebSocketState.Aborted => SocketState.Closed,
+            WebSocketState.Closed => SocketState.Closed,
+            WebSocketState.Connecting => SocketState.Connecting,
+            WebSocketState.Open => SocketState.Established,
+            WebSocketState.CloseReceived => SocketState.Closed,
+            WebSocketState.CloseSent => SocketState.Closed,
+            WebSocketState.None => SocketState.Initial,
+            _ => SocketState.Initial
+        };
 
         public INetworkReceiver<ISocket> Receiver { get; set; }
 
-        public ClientWSocket()
+        public FrameworkWebSocket()
         {
             websocketReceiveBufferSegment = new ArraySegment<byte>(websocketReceiveBuffer);
         }
+
+
+        public FrameworkWebSocket(WebSocket webSocket)
+        {
+            websocketReceiveBufferSegment = new ArraySegment<byte>(websocketReceiveBuffer);
+            sock = webSocket;
+
+         }
 
 
         public void Send(byte[] message)
@@ -88,7 +108,7 @@ namespace Esiur.Net.Sockets
 
         public void Close()
         {
-            sock.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new System.Threading.CancellationToken());
+            sock?.CloseAsync(WebSocketCloseStatus.NormalClosure, "", new System.Threading.CancellationToken());
         }
 
         public bool Secure { get; set; }
@@ -97,23 +117,36 @@ namespace Esiur.Net.Sockets
         {
             var url = new Uri($"{(Secure ? "wss" : "ws")}://{hostname}:{port}");
 
-            sock = new ClientWebSocket();
-            await sock.ConnectAsync(url, new CancellationToken());
+            var ws = new ClientWebSocket();
+            sock = ws;
 
-            State = SocketState.Established;
+            await ws.ConnectAsync(url, new CancellationToken());
 
-            sock.ReceiveAsync(websocketReceiveBufferSegment, new CancellationToken())
+ 
+            sock.ReceiveAsync(websocketReceiveBufferSegment, CancellationToken.None)
                .ContinueWith(NetworkReceive);
 
             return true;
-
-
         }
 
 
         public bool Begin()
         {
+
+            // Socket destroyed
+            if (sock == null)
+                return false;
+
+            if (began)
+                return false;
+
+            began = true;
+
+            sock.ReceiveAsync(websocketReceiveBufferSegment, CancellationToken.None)
+                .ContinueWith(NetworkReceive);
+
             return true;
+          
         }
 
         public bool Trigger(ResourceTrigger trigger)
@@ -187,27 +220,27 @@ namespace Esiur.Net.Sockets
 
         public AsyncReply<bool> BeginAsync()
         {
-            return new AsyncReply<bool>(true);
+            return new AsyncReply<bool>(Begin());
         }
 
 
         private void NetworkReceive(Task<WebSocketReceiveResult> task)
         {
 
-            if (sock.State == WebSocketState.Closed)
+            if (sock.State == WebSocketState.Closed || sock.State == WebSocketState.Aborted)
             {
                 Receiver?.NetworkClose(this);
                 return;
             }
 
-
+ 
             var receivedLength = task.Result.Count;
 
             receiveNetworkBuffer.Write(websocketReceiveBuffer, 0, (uint)receivedLength);
 
             Receiver?.NetworkReceive(this, receiveNetworkBuffer);
 
-            sock.ReceiveAsync(websocketReceiveBufferSegment, new CancellationToken())
+            sock.ReceiveAsync(websocketReceiveBufferSegment, CancellationToken.None)
                 .ContinueWith(NetworkReceive);
 
         }

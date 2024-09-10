@@ -1595,7 +1595,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         {
             var os = RuntimeInformation.FrameworkDescription;
             if (UseWebSocket || RuntimeInformation.OSDescription == "Browser")
-                socket = new ClientWSocket();
+                socket = new FrameworkWebSocket();
             else
                 socket = new TCPSocket();
         }
