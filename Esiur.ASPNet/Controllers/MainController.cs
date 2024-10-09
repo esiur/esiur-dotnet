@@ -2,7 +2,7 @@ using Esiur.Core;
 using Esiur.Resource;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Esiur.ASPNet.Controllers
+namespace Esiur.AspNetCore.Example
 {
     [ApiController]
     [Route("[controller]")]

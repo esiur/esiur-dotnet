@@ -1,6 +1,6 @@
 ﻿using Esiur.Resource;
 
-namespace Esiur.ASPNet
+namespace Esiur.AspNetCore.Example
 {
     [Resource]
     public partial class MyResource

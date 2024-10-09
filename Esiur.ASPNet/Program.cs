@@ -1,4 +1,5 @@
-using Esiur.ASPNet;
+using Esiur.AspNetCore;
+using Esiur.AspNetCore.Example;
 using Esiur.Core;
 using Esiur.Net.IIP;
 using Esiur.Net.Sockets;
@@ -33,7 +34,7 @@ app.UseWebSockets(webSocketOptions);
 // Configure the HTTP request pipeline.
 //if (app.Environment.IsDevelopment())
 //{
- //   app.UseSwagger();
+//   app.UseSwagger();
 //    app.UseSwaggerUI();
 //}
 
@@ -50,26 +51,7 @@ var server = await Warehouse.Put("sys/server", new DistributedServer());
 
 await Warehouse.Open();
 
-app.Use(async (context, next) =>
-{
-    var buffer = new ArraySegment<byte>(new byte[10240]);
-
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync("iip");
-        var socket = new FrameworkWebSocket(webSocket);
-        var iipConnection = new DistributedConnection();
-        server.Add(iipConnection);
-        iipConnection.Assign(socket);
-        socket.Begin();
-
-        while (webSocket.State == WebSocketState.Open) ;
-    }
-    else
-    {
-        await next(context);
-    }
-});
+app.UseEsiur(new EsiurOptions() { Server = server });
 
 
 await app.RunAsync();

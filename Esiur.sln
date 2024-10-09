@@ -16,7 +16,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.Examples.StandaloneWe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Esiur.CLI", "Esiur.CLI\Esiur.CLI.csproj", "{5C193127-20D1-4709-90C4-DF714D7E6700}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.ASPNet", "Esiur.ASPNet\Esiur.ASPNet.csproj", "{7C65CC4D-0DE6-4E2A-8DCF-113E1AB85D8A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.AspNetCore.Example", "Esiur.ASPNet\Esiur.AspNetCore.Example.csproj", "{7C65CC4D-0DE6-4E2A-8DCF-113E1AB85D8A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.AspNetCore", "Esiur.AspNetCore\Esiur.AspNetCore.csproj", "{7B0C521F-8B13-4F2A-BD78-7C692620C831}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -56,6 +58,10 @@ Global
 		{7C65CC4D-0DE6-4E2A-8DCF-113E1AB85D8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7C65CC4D-0DE6-4E2A-8DCF-113E1AB85D8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7C65CC4D-0DE6-4E2A-8DCF-113E1AB85D8A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B0C521F-8B13-4F2A-BD78-7C692620C831}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B0C521F-8B13-4F2A-BD78-7C692620C831}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B0C521F-8B13-4F2A-BD78-7C692620C831}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B0C521F-8B13-4F2A-BD78-7C692620C831}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
