@@ -18,7 +18,8 @@ namespace Esiur.AspNetCore
         {
             var buffer = new ArraySegment<byte>(new byte[10240]);
 
-            if (context.WebSockets.IsWebSocketRequest)
+            if (context.WebSockets.IsWebSocketRequest 
+                && context.WebSockets.WebSocketRequestedProtocols.Contains("iip"))
             {
                 var webSocket = await context.WebSockets.AcceptWebSocketAsync("iip");
                 var socket = new FrameworkWebSocket(webSocket);
@@ -27,7 +28,9 @@ namespace Esiur.AspNetCore
                 iipConnection.Assign(socket);
                 socket.Begin();
 
-                while (webSocket.State == WebSocketState.Open) ;
+                // @TODO: Change this
+                while (webSocket.State == WebSocketState.Open)
+                    await Task.Delay(500);
             }
             else
             {
