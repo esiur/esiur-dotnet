@@ -177,7 +177,7 @@ public static class TemplateGenerator
         return (representationType.Nullable) ? name + "?" : name;
     }
 
-    public static string GetTemplate(string url, string dir = null, string username = null, string password = null, bool asyncSetters = false)
+    public static string GetTemplate(string url, string dir = null, bool tempDir = false, string username = null, string password = null, bool asyncSetters = false)
     {
         try
         {
@@ -200,14 +200,14 @@ public static class TemplateGenerator
             // no longer needed
             Warehouse.Remove(con);
 
-            var tempDir = new DirectoryInfo(Path.GetTempPath() + Path.DirectorySeparatorChar
-                            + Misc.Global.GenerateCode(20) + Path.DirectorySeparatorChar + dir);
+            var dstDir = new DirectoryInfo(tempDir ? Path.GetTempPath() + Path.DirectorySeparatorChar
+                            + Misc.Global.GenerateCode(20) + Path.DirectorySeparatorChar + dir : dir);
 
-            if (!tempDir.Exists)
-                tempDir.Create();
+            if (!dstDir.Exists)
+                dstDir.Create();
             else
             {
-                foreach (FileInfo file in tempDir.GetFiles())
+                foreach (FileInfo file in dstDir.GetFiles())
                     file.Delete();
             }
 
@@ -217,17 +217,17 @@ public static class TemplateGenerator
                 if (tmp.Type == TemplateType.Resource)
                 {
                     var source = GenerateClass(tmp, templates, asyncSetters);
-                    File.WriteAllText(tempDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
                 }
                 else if (tmp.Type == TemplateType.Record)
                 {
                     var source = GenerateRecord(tmp, templates);
-                    File.WriteAllText(tempDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
                 }
                 else if (tmp.Type == TemplateType.Enum)
                 {
                     var source = GenerateEnum(tmp, templates);
-                    File.WriteAllText(tempDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
                 }
             }
 
@@ -248,10 +248,10 @@ public static class TemplateGenerator
                 "\r\n } \r\n}";
 
 
-            File.WriteAllText(tempDir.FullName + Path.DirectorySeparatorChar + "Esiur.Generated.cs", typesFile);
+            File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + "Esiur.Generated.cs", typesFile);
 
 
-            return tempDir.FullName;
+            return dstDir.FullName;
 
         }
         catch (Exception ex)

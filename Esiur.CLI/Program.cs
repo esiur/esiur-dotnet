@@ -8,47 +8,47 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 
-static void Main(string[] args)
+
+if (args.Length > 0)
 {
-
-    if (args.Length > 0)
+    if (args[0].ToLower() == "get-template" && args.Length >= 2)
     {
-        if (args[0].ToLower() == "get-template" && args.Length >= 2)
+        try
         {
-            try
-            {
-                var url = args[1];
+            var url = args[1];
 
-                Parser.Default.ParseArguments<GetTemplateOptions>(args.Skip(2))
-                                   .WithParsed<GetTemplateOptions>(o =>
+            Parser.Default.ParseArguments<GetTemplateOptions>(args.Skip(2))
+                               .WithParsed<GetTemplateOptions>(o =>
+                                {
+                                    try
                                     {
-                                        try
-                                        {
-                                            var path = Esiur.Proxy.TemplateGenerator.GetTemplate(url, o.Dir, o.Username, o.Password, o.AsyncSetters);
-                                            Console.WriteLine($"Generated successfully: {path}");
-                                        }
-                                        catch (Exception ex) { 
-                                            Console.WriteLine(ex.ToString());
-                                        }
-                                    });
-                return;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
-                return;
-            }
+                                        var path = Esiur.Proxy.TemplateGenerator.GetTemplate(url, o.Dir, false, o.Username, o.Password, o.AsyncSetters);
+                                        Console.WriteLine($"Generated successfully: {path}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine(ex.ToString());
+                                    }
+                                });
+            return;
         }
-        else if (args[0].ToLower() == "version")
+        catch (Exception ex)
         {
-            var version = FileVersionInfo.GetVersionInfo(typeof(Esiur.Core.AsyncReply).Assembly.Location).FileVersion;
-
-            Console.WriteLine(version);
+            Console.WriteLine(ex.ToString());
+            return;
         }
     }
+    else if (args[0].ToLower() == "version")
+    {
+        var version = FileVersionInfo.GetVersionInfo(typeof(Esiur.Core.AsyncReply).Assembly.Location).FileVersion;
 
-    PrintHelp();
+        Console.WriteLine("Esiur " + version);
+        return;
+    }
 }
+
+PrintHelp();
+
 
 static void PrintHelp()
 {
@@ -58,13 +58,13 @@ static void PrintHelp()
     Console.WriteLine("Usage: <command> [arguments]");
     Console.WriteLine("");
     Console.WriteLine("Available commands:");
-    Console.WriteLine("\tget-template\t\tGet a template from an IIP link.");
+    Console.WriteLine("\tget-template\tGet a template from an IIP link.");
     Console.WriteLine("\tversion\t\tPrint Esiur version.");
     Console.WriteLine("");
     Console.WriteLine("Global options:");
-    Console.WriteLine("\t-u, --username\tAuthentication username.");
-    Console.WriteLine("\t-p, --password\tAuthentication password.");
-    Console.WriteLine("\t-d, --dir\tDirectory name where the generated models will be saved.");
+    Console.WriteLine("\t-u, --username\t\tAuthentication username.");
+    Console.WriteLine("\t-p, --password\t\tAuthentication password.");
+    Console.WriteLine("\t-d, --dir\t\tDirectory name where the generated models will be saved.");
     Console.WriteLine("\t-a, --async-setters\tUse asynchronous property setters.");
 
 }

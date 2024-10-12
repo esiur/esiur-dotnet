@@ -40,7 +40,7 @@ internal class Program
             }
             else
             {
-                sender.Response.Number = Esiur.Net.Packets.HTTPResponsePacket.ResponseCode.NotFound;
+                sender.Response.Number = Esiur.Net.Packets.HTTP.HTTPResponseCode.NotFound;
                 sender.Send("`" + fn + "` Not Found");
                 sender.Close();
             }

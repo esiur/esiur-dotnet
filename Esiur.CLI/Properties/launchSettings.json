@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Esiur.CLI": {
+      "commandName": "Project",
+      "commandLineArgs": "get-template iip://phase.delta.iq/sys/phase -d c:\\temp\\a"
+    }
+  }
+}
