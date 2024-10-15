@@ -9,11 +9,13 @@
 	<Authors>Ahmed Kh. Zamil</Authors>
 	<Company>Esiur Foundation</Company>
 
-	<PackageLicenseUrl>https://github.com/Esiur/Esiur-dotnet/blob/master/LICENSE</PackageLicenseUrl>
 	<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
 	<RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
 
-	<OutputType>Exe</OutputType>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -30,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Esiur\Esiur.csproj" />
+	<None Include="README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
 </Project>
