@@ -5,7 +5,7 @@
    #write-host "Lib is at $($lib)"
 
    $assembly =  [Reflection.Assembly]::LoadFile($lib)
-   $tempPath =  [Esiur.Proxy.TemplateGenerator]::GetTemplate($url, $dir, true, $username,$password, $asyncSetters);  
+   $tempPath =  [Esiur.Proxy.TemplateGenerator]::GetTemplate($url, $dir, $true, $username,$password, $asyncSetters);  
   
   $startupProject = GetStartupProject
   
