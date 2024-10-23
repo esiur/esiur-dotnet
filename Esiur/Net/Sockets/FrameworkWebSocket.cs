@@ -227,7 +227,7 @@ namespace Esiur.Net.Sockets
         private void NetworkReceive(Task<WebSocketReceiveResult> task)
         {
 
-            if (sock.State == WebSocketState.Closed || sock.State == WebSocketState.Aborted)
+            if (sock.State == WebSocketState.Closed || sock.State == WebSocketState.Aborted || sock.State == WebSocketState.CloseReceived)
             {
                 Receiver?.NetworkClose(this);
                 return;
