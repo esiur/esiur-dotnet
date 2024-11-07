@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
@@ -44,13 +45,11 @@ public class ResourceGenerator : ISourceGenerator
             if (tmp.Type == TemplateType.Resource)
             {
                 var source = TemplateGenerator.GenerateClass(tmp, templates, false);
-                // File.WriteAllText($@"C:\gen\{tmp.ClassName}.cs", source);
                 context.AddSource(tmp.ClassName + ".Generated.cs", source);
             }
             else if (tmp.Type == TemplateType.Record)
             {
                 var source = TemplateGenerator.GenerateRecord(tmp, templates);
-                // File.WriteAllText($@"C:\gen\{tmp.ClassName}.cs", source);
                 context.AddSource(tmp.ClassName + ".Generated.cs", source);
             }
         }
@@ -66,8 +65,6 @@ public class ResourceGenerator : ISourceGenerator
 
                         "\r\n } \r\n}";
 
-        //File.WriteAllText($@"C:\gen\Esiur.Generated.cs", gen);
-
         context.AddSource("Esiur.Generated.cs", typesFile);
 
     }
@@ -82,126 +79,185 @@ public class ResourceGenerator : ISourceGenerator
             return fieldName.Substring(0, 1).ToUpper() + fieldName.Substring(1);
     }
 
+    public string  FormatAttribute(AttributeData attribute)
+    {
+        if (attribute.AttributeClass is object)
+        {
+            string className = attribute.AttributeClass.ToDisplayString();
+
+            if (!attribute.ConstructorArguments.Any() & !attribute.ConstructorArguments.Any())
+            {
+                return className;
+            }
+
+            StringBuilder stringBuilder = new StringBuilder();
+
+            stringBuilder.Append(className);
+            stringBuilder.Append('(');
+
+            bool first = true;
+
+            foreach (var constructorArgument in attribute.ConstructorArguments)
+            {
+                if (!first)
+                {
+                    stringBuilder.Append(", ");
+                }
+
+                stringBuilder.Append(constructorArgument.ToCSharpString());
+                first = false;
+            }
+
+            foreach (var namedArgument in attribute.NamedArguments)
+            {
+                if (!first)
+                {
+                    stringBuilder.Append(", ");
+                }
+
+                stringBuilder.Append(namedArgument.Key);
+                stringBuilder.Append(" = ");
+                stringBuilder.Append(namedArgument.Value.ToCSharpString());
+                first = false;
+            }
+
+            stringBuilder.Append(')');
+
+            return stringBuilder.ToString();
+        }
+
+        throw new Exception("Attribute not found");
+    }
+
     public void Execute(GeneratorExecutionContext context)
     {
 
-        if (!(context.SyntaxContextReceiver is ResourceGeneratorReceiver receiver))
-            return;
-
-        //if (receiver.Imports.Count > 0 && !Debugger.IsAttached)
-        //{
-        //    Debugger.Launch();
-        //}
-
-        foreach (var path in receiver.Imports)
+        try
         {
-            if (!TemplateGenerator.urlRegex.IsMatch(path))
-                continue;
 
 
+            if (!(context.SyntaxContextReceiver is ResourceGeneratorReceiver receiver))
+                return;
 
-            if (cache.Contains(path))
+            //if (receiver.Imports.Count > 0 && !Debugger.IsAttached)
+            //{
+            //    Debugger.Launch();
+            //}
+
+            foreach (var path in receiver.Imports)
             {
-                GenerateModel(context, cache[path]);
-                continue;
+                if (!TemplateGenerator.urlRegex.IsMatch(path))
+                    continue;
+
+
+
+                if (cache.Contains(path))
+                {
+                    GenerateModel(context, cache[path]);
+                    continue;
+                }
+
+                // Syncronization
+                //if (inProgress.Contains(path))
+                //  continue;
+
+                //inProgress.Add(path);
+
+                var url = TemplateGenerator.urlRegex.Split(path);
+
+
+                try
+                {
+                    var con = Warehouse.Get<DistributedConnection>(url[1] + "://" + url[2]).Wait(20000);
+                    var templates = con.GetLinkTemplates(url[3]).Wait(60000);
+
+                    cache[path] = templates;
+
+                    // make sources
+                    GenerateModel(context, templates);
+
+                }
+                catch (Exception ex)
+                {
+                    ReportError(context, ex.Source, ex.Message, "Esiur");
+                }
+
+                //inProgress.Remove(path);
             }
 
-            // Syncronization
-            //if (inProgress.Contains(path))
-            //  continue;
 
-            //inProgress.Add(path);
+            //#if DEBUG
 
-            var url = TemplateGenerator.urlRegex.Split(path);
+            //#endif
 
+            //var toImplement = receiver.Classes.Where(x => x.Fields.Length > 0);
 
-            try
+            foreach (var ci in receiver.Classes.Values)
             {
-                var con = Warehouse.Get<DistributedConnection>(url[1] + "://" + url[2]).Wait(20000);
-                var templates = con.GetLinkTemplates(url[3]).Wait(60000);
+                try
+                {
 
-                cache[path] = templates;
-
-                // make sources
-                GenerateModel(context, templates);
-
-            }
-            catch (Exception ex)
-            {
-                ReportError(context, ex.Source, ex.Message, "Esiur");
-            }
-
-            //inProgress.Remove(path);
-        }
-
-
-        //#if DEBUG
-
-        //#endif
-
-        //var toImplement = receiver.Classes.Where(x => x.Fields.Length > 0);
-
-        foreach (var ci in receiver.Classes.Values)
-        {
-            try
-            {
-
-                var code = @$"using Esiur.Resource; 
+                    var code = @$"using Esiur.Resource; 
 using Esiur.Core; 
-namespace { ci.ClassSymbol.ContainingNamespace.ToDisplayString() } {{
+namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
 ";
 
-                if (ci.IsInterfaceImplemented(receiver.Classes))
-                    code += $"public partial class {ci.Name} {{\r\n";
-                else
-                {
-                    code += 
-@$" public partial class {ci.Name} : IResource {{
+                    if (ci.IsInterfaceImplemented(receiver.Classes))
+                        code += $"public partial class {ci.Name} {{\r\n";
+                    else
+                    {
+                        code +=
+    @$" public partial class {ci.Name} : IResource {{
     public virtual Instance Instance {{ get; set; }}
     public virtual event DestroyedEvent OnDestroy;
 
     public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
 ";
 
-                    if (!ci.HasTrigger)
-                        code +=
-"\tpublic virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n\r\n";
-                }
+                        if (!ci.HasTrigger)
+                            code +=
+    "\tpublic virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n\r\n";
+                    }
 
-                //Debugger.Launch();
-
-                foreach (var f in ci.Fields)
-                {
-                    var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "ExportAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value as string;
-
-                    var fn = f.Name;
-                    var pn = string.IsNullOrEmpty(givenName) ? SuggestExportName(fn) : givenName;
-
-                    //System.IO.File.AppendAllText("c:\\gen\\fields.txt", fn + " -> " + pn + "\r\n");
-
-                    // copy attributes 
-                    var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => $"[{x.ToString()}]"));
                     //Debugger.Launch();
-                    if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
+
+                    foreach (var f in ci.Fields)
                     {
-                        code += $"\t{attrs}\r\n\t public event {f.Type} {pn};\r\n";
+                        var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "ExportAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value as string;
+
+                        var fn = f.Name;
+                        var pn = string.IsNullOrEmpty(givenName) ? SuggestExportName(fn) : givenName;
+
+                        // copy attributes 
+                        //Debugger.Launch();
+
+                        var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => $"[{x.AttributeClass.Name}({x.ConstructorArguments.Select(x => x.Values.ToString())})]"));//  x.ToString()}]"));
+
+                        //Debugger.Launch();
+                        if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
+                        {
+                            code += $"\t{attrs}\r\n\t public event {f.Type} {pn};\r\n";
+                        }
+                        else
+                        {
+                            code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
+                        }
                     }
-                    else
-                    {
-                        code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
-                    }
+
+                    code += "}}\r\n";
+
+                    context.AddSource(ci.Name + ".g.cs", code);
+
                 }
-
-                code += "}}\r\n";
-
-                //System.IO.File.WriteAllText("c:\\gen\\" + ci.Name + "_esiur.cs", code);
-                context.AddSource(ci.Name + ".Generated.cs", code);
-
+                catch (Exception ex)
+                {
+                    context.AddSource(ci.Name + ".Error.g.cs", $"/*\r\n {ex}\r\n*/");
+                }
             }
-            catch //(Exception ex)
-            {
-                //System.IO.File.AppendAllText("c:\\gen\\error.log", ci.Name + " " + ex.ToString() + "\r\n");
-            }
+        }
+        catch (Exception ex)
+        {
+            context.AddSource("Error.g.cs", $"/*\r\n {ex}\r\n*/");
         }
     }
 }
