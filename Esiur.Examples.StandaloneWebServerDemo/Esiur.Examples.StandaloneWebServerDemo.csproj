@@ -8,13 +8,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Esiur" Version="2.4.5" />
     <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.1.1" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Web\js\" />
     <Folder Include="Web\img\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Esiur\Esiur.csproj" OutputItemType="Analyzer"/>
   </ItemGroup>
 
 </Project>
