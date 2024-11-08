@@ -28,7 +28,6 @@ SOFTWARE.
 using CommandLine;
 using Esiur.CLI;
 using Esiur.Data;
-using Microsoft.CodeAnalysis;
 using System;
 using System.Diagnostics;
 using System.IO;

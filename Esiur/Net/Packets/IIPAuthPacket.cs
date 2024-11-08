@@ -26,7 +26,6 @@ using Esiur.Data;
 using Esiur.Security.Authority;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Data.Common;
 using System.Linq;
 using System.Security.Cryptography;

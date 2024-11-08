@@ -36,75 +36,26 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Compile Remove="Core\AsyncBagAwaiterGeneric.cs" />
-		<Compile Remove="Core\AsyncBagGeneric.cs" />
-		<Compile Remove="Core\AsyncReplyNon.cs" />
-		<Compile Remove="Core\IAsyncReply.cs" />
-		<Compile Remove="Data\DataType.cs" />
-		<Compile Remove="Resource\ResourceEvent.cs" />
-		<Compile Remove="Resource\ResourceFunction.cs" />
-		<Compile Remove="Resource\ResourceProperty.cs" />
-
-	</ItemGroup>
-
-	<ItemGroup>
-		<Folder Include="Net\DataLink\Sources\" />
-		<Folder Include="Net\Packets\IIP\" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Include="Core\AsyncBagAwaiterGeneric.cs" />
-		<None Include="Core\AsyncReplyNon.cs" />
-		<None Include="Core\IAsyncReply.cs" />
-		<None Include="Data\DataType.cs" />
-		<None Include="Resource\ResourceEvent.cs" />
-		<None Include="Resource\ResourceFunction.cs" />
-		<None Include="Resource\ResourceProperty.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.8.0" />
-		<PackageReference Include="System.Collections" Version="4.3.0" />
 		<PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
-		<PackageReference Include="System.Diagnostics.StackTrace" Version="4.3.0" />
-		<PackageReference Include="System.Dynamic.Runtime" Version="4.3.0" />
-		<PackageReference Include="System.Interactive.Async" Version="6.0.1" />
-		<PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
-		<PackageReference Include="System.Net.NetworkInformation" Version="4.3.0" />
-		<PackageReference Include="System.Net.Security" Version="4.3.2" />
 		<PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
 		<PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
 		<PackageReference Include="System.Text.Json" Version="8.0.5" GeneratePathProperty="true" />
-		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
-
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
-
 	</ItemGroup>
 
 
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<!-- Package the Newtonsoft.Json dependency alongside the generator assembly -->
+		<!-- Package the Json dependency alongside the generator assembly -->
 		<None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<None Include="Tools/*" Pack="true" PackagePath="tools/" />
 	</ItemGroup>
 
 
 	<ItemGroup>
-		<None Include="Core\AsyncBagGeneric.cs" />
-	</ItemGroup>
-
-
-	<ItemGroup>
 		<None Include="LICENSE" Pack="true" PackagePath="">
 		</None>
-	</ItemGroup>
-
-
-	<ItemGroup>
-		<Page Include="Core\AsyncBagAwaiterGeneric.cs" />
-		<Page Include="Core\AsyncBagGeneric.cs" />
 	</ItemGroup>
 
 

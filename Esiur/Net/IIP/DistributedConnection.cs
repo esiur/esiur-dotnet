@@ -36,19 +36,13 @@ using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Resource.Template;
 using System.Linq;
-using System.Diagnostics;
-using static Esiur.Net.Packets.IIPPacket;
 using Esiur.Net.HTTP;
 using System.Timers;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using Esiur.Net.Packets.HTTP;
-using System.ComponentModel.DataAnnotations;
-using static System.Collections.Specialized.BitVector32;
 using Esiur.Security.Membership;
 using Esiur.Net.Packets;
-using System.Reflection.PortableExecutable;
-using System.Net.Http.Headers;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore

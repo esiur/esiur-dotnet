@@ -38,7 +38,6 @@ using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using Esiur.Misc;
 using Esiur.Net.Packets;
-using System.Reflection.Metadata;
 
 namespace Esiur.Net.IIP;
 
