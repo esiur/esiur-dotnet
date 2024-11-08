@@ -206,7 +206,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
     {
         base.Assign(socket);
 
-        session.LocalHeaders[IIPAuthPacketHeader.IPv4] = socket.RemoteEndPoint.Address.Address;
+        session.LocalHeaders[IIPAuthPacketHeader.IPAddress] = socket.RemoteEndPoint.Address.GetAddressBytes();
+
         if (socket.State == SocketState.Established &&
             session.AuthenticationType == AuthenticationType.Client)
         {

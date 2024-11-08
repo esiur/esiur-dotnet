@@ -13,8 +13,8 @@ namespace Esiur.Examples.StandaloneWebServerDemo
     {
         [Export] int color;
         [Export] string label = "Hello World";
-        [Export] public event ResourceEventHandler<int> Cleared;
-        [Export] public event ResourceEventHandler<Point> Drawn;
+        [Export] public event ResourceEventHandler<int>? Cleared;
+        [Export] public event ResourceEventHandler<Point>? Drawn;
 
         [Export] List<List<byte>> points;
 

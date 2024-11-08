@@ -11,6 +11,7 @@
     <PackageId>Esiur.Stores.EntityCore</PackageId>
     <Version>1.3.4</Version>
 	<LangVersion>latest</LangVersion>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 
+#nullable enable
+
 namespace Test;
 
 
@@ -25,8 +27,8 @@ public enum SizeEnum:short
 public partial class MyService
 {
 
-    [Export] public event ResourceEventHandler<string> StringEvent;
-    [Export] public event ResourceEventHandler<object[]> ArrayEvent;
+    [Export] public event ResourceEventHandler<string>? StringEvent;
+    [Export] public event ResourceEventHandler<object[]>? ArrayEvent;
 
     [Export] bool boolean = true;
     [Export] bool[] booleanArray = new bool[] { true, false, true, false, true };
@@ -124,14 +126,14 @@ public partial class MyService
     [Export] public List<MyRecord> RecordsList => new() { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
 
 
-    [Export] public MyResource[] myResources;
+    [Export] public MyResource[]? myResources;
 
-    [Export] public MyResource Resource { get; set; }
-    [Export] public MyChildResource ChildResource { get; set; }
+    [Export] public MyResource? Resource { get; set; }
+    [Export] public MyChildResource? ChildResource { get; set; }
 
     [Export] public MyChildRecord ChildRecord { get; set; } = new MyChildRecord() { ChildName = "Child", Id = 12, Name = "Parent", Score = 12.2 };
 
-    [Export] public IResource[] Resources { get; set; }
+    [Export] public IResource[]? Resources { get; set; }
 
     [Export]
     public void Void() =>
@@ -166,7 +168,7 @@ public partial class MyService
 
 
     [Export]
-    public void ConnectionOptional(object a1, int a2, string a3 = "sss", DistributedConnection a4 = null) =>
+    public void ConnectionOptional(object a1, int a2, string a3 = "sss", DistributedConnection? a4 = null) =>
         Console.WriteLine($"VoidArgs {a1} {a2} {a3}");
 
     [Export]

@@ -22,29 +22,22 @@ SOFTWARE.
 
 */
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Esiur.Data;
 using Esiur.Core;
-using System.ComponentModel;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations.Schema;
+
+#nullable enable
 
 namespace Esiur.Resource;
 
 public delegate bool QueryFilter<T>(T value);
 
-//[JsonConverter(typeof(ResourceJsonConverter))]
 
-public interface IResource : IDestructible///, INotifyPropertyChanged
+public interface IResource : IDestructible
 {
     AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
     [NotMapped]
     [JsonIgnore]
-    Instance Instance { get; set; }
-
-
+    Instance? Instance { get; set; }
 }

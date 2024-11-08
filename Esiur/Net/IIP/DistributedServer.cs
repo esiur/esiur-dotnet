@@ -104,7 +104,6 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
         set;
     }
 
-    public event PropertyModifiedEvent PropertyModified;
 
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {

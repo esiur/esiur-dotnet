@@ -9,6 +9,8 @@ using System.Dynamic;
 using System.Linq;
 using System.Text;
 
+#nullable enable
+
 namespace Esiur.Data
 {
     public enum RepresentationTypeIdentifier
@@ -83,8 +85,9 @@ namespace Esiur.Data
                     flags.RemoveAt(0);
             }
 
-            foreach (var st in SubTypes)
-                st.SetNull(flags);
+            if (SubTypes != null)
+                foreach (var st in SubTypes)
+                    st.SetNull(flags);
         }
 
         public void SetNull(byte flag)
@@ -94,8 +97,9 @@ namespace Esiur.Data
                 Nullable = (flag == 2);
             }
 
-            foreach (var st in SubTypes)
-                st.SetNull(flag);
+            if (SubTypes != null)
+                foreach (var st in SubTypes)
+                    st.SetNull(flag);
         }
 
 
@@ -108,8 +112,9 @@ namespace Esiur.Data
                     flags.RemoveAt(0);
             }
 
-            foreach (var st in SubTypes)
-                st.SetNotNull(flags);
+            if (SubTypes != null)
+                foreach (var st in SubTypes)
+                    st.SetNotNull(flags);
         }
 
 
@@ -126,8 +131,9 @@ namespace Esiur.Data
                 Nullable = (flag != 1);
             }
 
-            foreach (var st in SubTypes)
-                st.SetNotNull(flag);
+            if (SubTypes != null)
+                foreach (var st in SubTypes)
+                    st.SetNotNull(flag);
         }
 
         public Type? GetRuntimeType()
@@ -135,7 +141,7 @@ namespace Esiur.Data
 
             if (Identifier == RepresentationTypeIdentifier.TypedList)
             {
-                var sub = SubTypes[0].GetRuntimeType();
+                var sub = SubTypes?[0].GetRuntimeType();
                 if (sub == null)
                     return null;
 
@@ -149,7 +155,7 @@ namespace Esiur.Data
                 var rt = typeof(Map<,>).MakeGenericType(subs);
                 return rt;
             }
-            
+
             return Identifier switch
             {
                 (RepresentationTypeIdentifier.Void) => typeof(void),
@@ -171,9 +177,9 @@ namespace Esiur.Data
                 (RepresentationTypeIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
                 (RepresentationTypeIdentifier.Resource) => typeof(IResource),
                 (RepresentationTypeIdentifier.Record) => typeof(IRecord),
-                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Record)?.DefinedType,
-                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Resource)?.DefinedType,
-                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID, TemplateType.Enum)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID!, TemplateType.Record)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID!, TemplateType.Resource)?.DefinedType,
+                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID!, TemplateType.Enum)?.DefinedType,
 
                 _ => null
             };
@@ -186,7 +192,7 @@ namespace Esiur.Data
         //public RepresentationType? SubType2; // Map
         //public RepresentationType? SubType3; // No types yet
 
-        public RepresentationType?[] SubTypes = new RepresentationType[3];
+        public RepresentationType[]? SubTypes = null;
 
 
         public RepresentationType ToNullable()
@@ -194,11 +200,11 @@ namespace Esiur.Data
             return new RepresentationType(Identifier, true, GUID, SubTypes);
         }
 
-        public static RepresentationType? FromType(Type type) 
+        public static RepresentationType? FromType(Type type)
         {
 
-            var nullable = false; 
- 
+            var nullable = false;
+
             var nullType = System.Nullable.GetUnderlyingType(type);
 
             if (nullType != null)
@@ -245,7 +251,8 @@ namespace Esiur.Data
                         if (subType == null) // unrecongnized type
                             return null;
 
-                        return new RepresentationType(RepresentationTypeIdentifier.TypedList, nullable, null, subType);
+                        return new RepresentationType(RepresentationTypeIdentifier.TypedList, nullable, null,
+                            new RepresentationType[] { subType });
 
                     }
                 }
@@ -266,7 +273,8 @@ namespace Esiur.Data
                         if (subType2 == null)
                             return null;
 
-                        return new RepresentationType(RepresentationTypeIdentifier.TypedMap, nullable, null, subType1, subType2);
+                        return new RepresentationType(RepresentationTypeIdentifier.TypedMap, nullable, null,
+                            new RepresentationType[] { subType1, subType2 });
                     }
                 }
                 //else if (genericType == typeof(AsyncReply<>))
@@ -285,9 +293,10 @@ namespace Esiur.Data
                     var subTypes = new RepresentationType[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
-                        subTypes[i] = FromType(args[i]);
-                        if (subTypes[i] == null)
+                        var t = FromType(args[i]);
+                        if (t == null)
                             return null;
+                        subTypes[i] = t;
                     }
 
                     return new RepresentationType(RepresentationTypeIdentifier.Tuple2, nullable, null, subTypes);
@@ -298,9 +307,10 @@ namespace Esiur.Data
                     var subTypes = new RepresentationType[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
-                        subTypes[i] = FromType(args[i]);
-                        if (subTypes[i] == null)
+                        var t = FromType(args[i]);
+                        if (t == null)
                             return null;
+                        subTypes[i] = t;
                     }
 
                     return new RepresentationType(RepresentationTypeIdentifier.Tuple3, nullable, null, subTypes);
@@ -312,9 +322,10 @@ namespace Esiur.Data
                     var subTypes = new RepresentationType[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
-                        subTypes[i] = FromType(args[i]);
-                        if (subTypes[i] == null)
+                        var t = FromType(args[i]);
+                        if (t == null)
                             return null;
+                        subTypes[i] = t;
                     }
 
                     return new RepresentationType(RepresentationTypeIdentifier.Tuple4, nullable, null, subTypes);
@@ -325,9 +336,10 @@ namespace Esiur.Data
                     var subTypes = new RepresentationType[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
-                        subTypes[i] = FromType(args[i]);
-                        if (subTypes[i] == null)
+                        var t = FromType(args[i]);
+                        if (t == null)
                             return null;
+                        subTypes[i] = t;
                     }
 
                     return new RepresentationType(RepresentationTypeIdentifier.Tuple5, nullable, null, subTypes);
@@ -338,9 +350,10 @@ namespace Esiur.Data
                     var subTypes = new RepresentationType[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
-                        subTypes[i] = FromType(args[i]);
-                        if (subTypes[i] == null)
+                        var t = FromType(args[i]);
+                        if (t == null)
                             return null;
+                        subTypes[i] = t;
                     }
 
                     return new RepresentationType(RepresentationTypeIdentifier.Tuple6, nullable, null, subTypes);
@@ -351,9 +364,10 @@ namespace Esiur.Data
                     var subTypes = new RepresentationType[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
-                        subTypes[i] = FromType(args[i]);
-                        if (subTypes[i] == null)
+                        var t = FromType(args[i]);
+                        if (t == null)
                             return null;
+                        subTypes[i] = t;
                     }
 
                     return new RepresentationType(RepresentationTypeIdentifier.Tuple7, nullable, null, subTypes);
@@ -373,7 +387,8 @@ namespace Esiur.Data
                     if (subType == null)
                         return null;
 
-                    return new RepresentationType(RepresentationTypeIdentifier.TypedList, nullable, null, subType);
+                    return new RepresentationType(RepresentationTypeIdentifier.TypedList, nullable, null,
+                        new RepresentationType[] { subType });
 
                 }
             }
@@ -410,7 +425,7 @@ namespace Esiur.Data
 
         }
 
-        public RepresentationType(RepresentationTypeIdentifier identifier, bool nullable, Guid? guid = null, params RepresentationType[] subTypes)
+        public RepresentationType(RepresentationTypeIdentifier identifier, bool nullable, Guid? guid = null, RepresentationType[]? subTypes = null)
         {
             Nullable = nullable;
             Identifier = identifier;

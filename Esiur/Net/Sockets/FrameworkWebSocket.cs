@@ -122,8 +122,8 @@ namespace Esiur.Net.Sockets
 
             await ws.ConnectAsync(url, new CancellationToken());
 
- 
-            sock.ReceiveAsync(websocketReceiveBufferSegment, CancellationToken.None)
+
+            _ = sock.ReceiveAsync(websocketReceiveBufferSegment, CancellationToken.None)
                .ContinueWith(NetworkReceive);
 
             return true;
@@ -235,6 +235,8 @@ namespace Esiur.Net.Sockets
 
  
             var receivedLength = task.Result.Count;
+
+            totalReceived += receivedLength;
 
             receiveNetworkBuffer.Write(websocketReceiveBuffer, 0, (uint)receivedLength);
 

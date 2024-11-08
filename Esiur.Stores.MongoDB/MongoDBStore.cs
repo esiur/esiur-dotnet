@@ -72,7 +72,7 @@ public class MongoDBStore : IStore
 
     public void Destroy()
     {
-
+        OnDestroy?.Invoke(this);
     }
 
     /*

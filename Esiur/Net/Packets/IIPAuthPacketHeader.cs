@@ -24,6 +24,6 @@ namespace Esiur.Net.Packets
         Referrer = 15,
         Time = 16,
         Certificate = 17,
-        IPv4 = 18
+        IPAddress = 18,
     }
 }

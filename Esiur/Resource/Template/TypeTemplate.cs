@@ -601,18 +601,17 @@ public class TypeTemplate
                     .Where(x => x.GetCustomAttribute<IgnoreAttribute>() == null)
                     .Where(x => x.Name != "Instance")
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
-                    .Where(x=> !(x is EventInfo e && 
-                            !(e.EventHandlerType.IsGenericType && 
+                    .Where(x => !(x is EventInfo e &&
+                            !(e.EventHandlerType.IsGenericType &&
                                 (e.EventHandlerType.GetGenericTypeDefinition() == typeof(ResourceEventHandler<>)
                                 || e.EventHandlerType.GetGenericTypeDefinition() == typeof(CustomResourceEventHandler<>))
                              )
                           ))
-                    .Select(x => new MemberData()
-                    {
-                        Name = x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
-                        Info = x,
-                        Order = order
-                    })
+                    .Select(x => new MemberData(
+                        name: x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
+                        info: x,
+                        order: order
+                    ))
                     .OrderBy(x => x.Name);
 
                 members.AddRange(mis.ToArray());
@@ -627,12 +626,11 @@ public class TypeTemplate
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))
                     .Where(x => x.GetCustomAttribute<ExportAttribute>() != null)
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
-                    .Select(x => new MemberData
-                    {
-                        Name = x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
-                        Info = x,
-                        Order = order
-                    })
+                    .Select(x => new MemberData (
+                        name : x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
+                        info : x,
+                        order : order
+                    ))
                     .OrderBy(x => x.Name);
 
                 members.AddRange(mis.ToArray());
@@ -641,7 +639,7 @@ public class TypeTemplate
 
             type = type.BaseType;
 
-            if (type == null 
+            if (type == null
                 || type == typeof(Resource)
                 || type == typeof(Record)
                 || type == typeof(EntryPoint))

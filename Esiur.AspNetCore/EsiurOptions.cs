@@ -30,6 +30,6 @@ namespace Esiur.AspNetCore
 {
     public class EsiurOptions
     {
-        public DistributedServer Server { get; set; }
+        public required DistributedServer Server { get; set; }
     }
 }

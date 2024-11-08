@@ -29,10 +29,12 @@ using System.Threading.Tasks;
 
 namespace Esiur.Core;
 
+#nullable enable
+
 public delegate void DestroyedEvent(object sender);
 
 public interface IDestructible
 {
-    event DestroyedEvent OnDestroy;
+    event DestroyedEvent? OnDestroy;
     void Destroy();
 }

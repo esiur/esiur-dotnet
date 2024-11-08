@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
+#nullable enable
+
 namespace Esiur.Security.Membership
 {
     public class AuthorizationRequest

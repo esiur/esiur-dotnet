@@ -32,12 +32,12 @@ namespace Esiur.AspNetCore.Example
     public partial class MyResource
     {
         
-        [Annotation("sss","bb")][Export] int number;
+        [Annotation("A1","B2")][Export] int number;
 
         [Export]
         
         public string[] GetInfo() => new string[] { Environment.MachineName, Environment.UserName, Environment.CurrentDirectory,
-            Environment.CommandLine, Environment.OSVersion.ToString(), Environment.ProcessPath };
+            Environment.CommandLine, Environment.OSVersion.ToString()};
 
     }
 }

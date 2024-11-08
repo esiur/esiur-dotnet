@@ -1,6 +1,6 @@
 {
   "dependencies": {
     "@esiur/iui": "^1.2.1",
-    "esiur": "^2.2.14"
+    "esiur": "^2.3.3"
   }
 }

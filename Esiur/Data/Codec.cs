@@ -24,21 +24,17 @@ SOFTWARE.
 
 using System;
 using System.Collections.Generic;
-using System.Text;
-using Esiur.Misc;
-using System.ComponentModel;
-using Esiur.Data;
 using Esiur.Core;
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using System.Linq;
 using System.Reflection;
-using Esiur.Resource.Template;
 using System.Runtime.CompilerServices;
 using System.Collections;
-using System.Dynamic;
 
 namespace Esiur.Data;
+
+#nullable enable
 
 public static class Codec
 {
@@ -122,6 +118,10 @@ public static class Codec
         if (dataType == null)
         {
             (var longLen, dataType) = TransmissionType.Parse(data, offset, (uint)data.Length);
+
+            if (dataType == null)
+                throw new NullReferenceException("DataType can't be parsed.");
+
             len = (uint)longLen;
             offset = dataType.Value.Offset;
         }
@@ -153,8 +153,11 @@ public static class Codec
     /// <returns>True, if the resource owner is the given connection, otherwise False.</returns>
     public static bool IsLocalResource(IResource resource, DistributedConnection connection)
     {
+        if (resource == null)
+            throw new NullReferenceException("Resource is null.");
+
         if (resource is DistributedResource)
-            if ((resource as DistributedResource).DistributedResourceConnection == connection)
+            if (((DistributedResource)(resource)).DistributedResourceConnection == connection)
                 return true;
 
         return false;
@@ -270,7 +273,7 @@ public static class Codec
         }
 
         if (valueOrSource is IUserType)
-            valueOrSource = (valueOrSource as IUserType).Get();
+            valueOrSource = ((IUserType)valueOrSource).Get();
 
         //if (valueOrSource is Func<DistributedConnection, object>)
         //    valueOrSource = (valueOrSource as Func<DistributedConnection, object>)(connection);
@@ -366,7 +369,7 @@ public static class Codec
     }
 
 
-    public static Type GetGenericType(Type type, Type ifaceType, int argument = 0)
+    public static Type? GetGenericType(Type type, Type ifaceType, int argument = 0)
     {
         if (ifaceType.IsAssignableFrom(type))
         {

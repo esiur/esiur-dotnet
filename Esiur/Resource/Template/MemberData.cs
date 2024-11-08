@@ -5,6 +5,8 @@ using System.Text;
 
 namespace Esiur.Resource.Template;
 
+#nullable enable
+
 public class MemberData
 {
     public MemberInfo Info;
@@ -14,6 +16,13 @@ public class MemberData
     public MemberData? Parent;
     public MemberData? Child;
     public byte Index;
+
+    public MemberData(string name, MemberInfo info, int order)
+    {
+        this.Name = name;
+        this.Info = info;
+        this.Order = order;
+    }
 
     public MemberInfo GetMemberInfo()
     {
@@ -29,7 +38,7 @@ public class MemberData
 
     public string? GetAnnotation()
     {
-        string rt = null;
+        string? rt = null;
         var md = this;
         while (md != null)
         {

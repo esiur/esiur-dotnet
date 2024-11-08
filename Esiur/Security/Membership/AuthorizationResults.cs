@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
+#nullable enable
+
 namespace Esiur.Security.Membership
 {
     public class AuthorizationResults
@@ -12,7 +14,7 @@ namespace Esiur.Security.Membership
 
         public uint Reference { get; set; }
         public IIPAuthPacketIAuthDestination Destination { get; set; }
-        public string Clue { get; set; }
+        public string? Clue { get; set; }
         public IIPAuthPacketIAuthFormat? RequiredFormat { get; set; }
         public IIPAuthPacketIAuthFormat? ContentFormat { get; set; }
         public object? Content { get; set; }

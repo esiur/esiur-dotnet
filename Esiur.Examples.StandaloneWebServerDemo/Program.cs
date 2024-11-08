@@ -51,5 +51,7 @@ internal class Program
         // Start your server
         await Warehouse.Open();
 
+        Console.WriteLine("Running on http://localhost:8888");
+
     }
 }

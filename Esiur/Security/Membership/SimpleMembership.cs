@@ -15,7 +15,7 @@ namespace Esiur.Security.Membership
     {
         public bool GuestsAllowed { get; set; } = false;
 
-        public event ResourceEventHandler<AuthorizationIndication> Authorization;
+        public event ResourceEventHandler<AuthorizationIndication> Authorization { add { } remove { } }
 
         KeyList<string, UserInfo> users = new KeyList<string, UserInfo>();
 

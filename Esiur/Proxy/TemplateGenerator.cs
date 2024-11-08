@@ -270,6 +270,8 @@ public static class TemplateGenerator
         var rt = new StringBuilder();
 
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
+        rt.AppendLine("#nullable enable");
+
         rt.AppendLine($"namespace {nameSpace} {{");
 
         if (template.Annotation != null)

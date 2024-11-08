@@ -18,6 +18,7 @@ using Esiur.Core;
 namespace Esiur.Proxy;
 
 [Generator]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1036:Specify analyzer banned API enforcement setting", Justification = "<Pending>")]
 public class ResourceGenerator : ISourceGenerator
 {
 
@@ -182,7 +183,10 @@ public class ResourceGenerator : ISourceGenerator
                 {
 
                     var code = @$"using Esiur.Resource; 
-using Esiur.Core; 
+using Esiur.Core;
+
+#nullable enable
+
 namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
 ";
 
@@ -192,8 +196,8 @@ namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
                     {
                         code +=
     @$" public partial class {ci.Name} : IResource {{
-    public virtual Instance Instance {{ get; set; }}
-    public virtual event DestroyedEvent OnDestroy;
+    public virtual Instance? Instance {{ get; set; }}
+    public virtual event DestroyedEvent? OnDestroy;
 
     public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
 ";
