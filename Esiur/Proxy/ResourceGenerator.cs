@@ -79,55 +79,39 @@ public class ResourceGenerator : ISourceGenerator
             return fieldName.Substring(0, 1).ToUpper() + fieldName.Substring(1);
     }
 
-    public string  FormatAttribute(AttributeData attribute)
+    public static string FormatAttribute(AttributeData attribute)
     {
-        if (attribute.AttributeClass is object)
-        {
-            string className = attribute.AttributeClass.ToDisplayString();
+        if (!(attribute.AttributeClass is object))
+            throw new Exception("AttributeClass not found");
 
-            if (!attribute.ConstructorArguments.Any() & !attribute.ConstructorArguments.Any())
-            {
-                return className;
-            }
+        var className = attribute.AttributeClass.ToDisplayString();
 
-            StringBuilder stringBuilder = new StringBuilder();
+        if (!attribute.ConstructorArguments.Any() & !attribute.ConstructorArguments.Any())
+            return className;
 
-            stringBuilder.Append(className);
-            stringBuilder.Append('(');
+        var strBuilder = new StringBuilder();
 
-            bool first = true;
+        strBuilder.Append("[");
+        strBuilder.Append(className);
+        strBuilder.Append("(");
 
-            foreach (var constructorArgument in attribute.ConstructorArguments)
-            {
-                if (!first)
-                {
-                    stringBuilder.Append(", ");
-                }
+        strBuilder.Append(String.Join(", ", attribute.ConstructorArguments.Select(ca => FormatConstant(ca))));
 
-                stringBuilder.Append(constructorArgument.ToCSharpString());
-                first = false;
-            }
+        strBuilder.Append(String.Join(", ", attribute.NamedArguments.Select(na => $"{na.Key} = {FormatConstant(na.Value)}")));
 
-            foreach (var namedArgument in attribute.NamedArguments)
-            {
-                if (!first)
-                {
-                    stringBuilder.Append(", ");
-                }
+        strBuilder.Append(")]");
 
-                stringBuilder.Append(namedArgument.Key);
-                stringBuilder.Append(" = ");
-                stringBuilder.Append(namedArgument.Value.ToCSharpString());
-                first = false;
-            }
-
-            stringBuilder.Append(')');
-
-            return stringBuilder.ToString();
-        }
-
-        throw new Exception("Attribute not found");
+        return strBuilder.ToString();
     }
+
+    public static string FormatConstant(TypedConstant constant)
+    {
+        if (constant.Kind == TypedConstantKind.Array)
+            return $"new {constant.Type.ToDisplayString()} {{{string.Join(", ", constant.Values.Select(v => FormatConstant(v)))}}}";
+        else
+            return constant.ToCSharpString();
+    }
+
 
     public void Execute(GeneratorExecutionContext context)
     {
@@ -231,7 +215,7 @@ namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
                         // copy attributes 
                         //Debugger.Launch();
 
-                        var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => $"[{x.AttributeClass.Name}({x.ConstructorArguments.Select(x => x.Values.ToString())})]"));//  x.ToString()}]"));
+                        var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => FormatAttribute(x)));
 
                         //Debugger.Launch();
                         if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
@@ -251,13 +235,14 @@ namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
                 }
                 catch (Exception ex)
                 {
-                    context.AddSource(ci.Name + ".Error.g.cs", $"/*\r\n {ex}\r\n*/");
+                    context.AddSource(ci.Name + ".Error.g.cs", $"/*\r\n{ex}\r\n*/");
                 }
             }
         }
         catch (Exception ex)
         {
-            context.AddSource("Error.g.cs", $"/*\r\n {ex}\r\n*/");
+
+            context.AddSource("Error.g.cs", $"/*\r\n{ex}\r\n*/");
         }
     }
 }
