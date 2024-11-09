@@ -18,6 +18,8 @@
 		<LangVersion>latest</LangVersion>
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
 		<TargetFramework>netstandard2.0</TargetFramework>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -54,8 +56,8 @@
 
 
 	<ItemGroup>
-		<None Include="LICENSE" Pack="true" PackagePath="">
-		</None>
+		<None Include="LICENSE" Pack="true" PackagePath=""></None>
+		<None Include="README.md" Pack="true" PackagePath=""/>
 	</ItemGroup>
 
 
