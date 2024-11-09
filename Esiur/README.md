@@ -149,7 +149,7 @@ After installing the Esiur nuget package a new command is added to Visual Studio
 Get-Template iip://localhost/sys/hello
 ```
 
-This will generate and add wrappers for all types types needed by our resource.
+This will generate and add wrappers for all types needed by our resource.
 
 Allowing us to use
 ```C#
