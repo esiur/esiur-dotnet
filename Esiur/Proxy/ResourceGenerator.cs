@@ -88,7 +88,7 @@ public class ResourceGenerator : ISourceGenerator
         var className = attribute.AttributeClass.ToDisplayString();
 
         if (!attribute.ConstructorArguments.Any() & !attribute.ConstructorArguments.Any())
-            return className;
+            return $"[{className}]";
 
         var strBuilder = new StringBuilder();
 
