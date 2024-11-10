@@ -150,8 +150,6 @@ public class PropertyTemplate : MemberTemplate
         this.ValueType = valueType;
     }
 
-
-
     public static PropertyTemplate MakePropertyTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
@@ -166,32 +164,36 @@ public class PropertyTemplate : MemberTemplate
         var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
 
-        var nullabilityContext = new NullabilityInfoContext();
-        propType.Nullable = nullabilityContext.Create(pi).ReadState is NullabilityState.Nullable;
+        //var nullabilityContext = new NullabilityInfoContext();
+        //propType.Nullable = nullabilityContext.Create(pi).ReadState is NullabilityState.Nullable;
+
+        var nullableAttr = pi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
+        var nullableContextAttr = pi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttribute");
+
+        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags").GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
+        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag").GetValue(nullableContextAttr) ?? (byte)0);
 
 
-        //    var nullableContextAttr = pi.GetCustomAttribute<NullableContextAttribute>(true);
-        //    var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+        //var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+        //var flags = ((byte[]) nullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
-        //    var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+        if (nullableAttrFlags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
+            nullableAttrFlags.RemoveAt(0);
 
-        //    if (flags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
-        //        flags.RemoveAt(0);
-
-        //    if (nullableContextAttr?.Flag == 2)
-        //    {
-        //        if (flags.Count == 1)
-        //            propType.SetNotNull(flags.FirstOrDefault());
-        //        else
-        //            propType.SetNotNull(flags);
-        //    }
-        //    else
-        //    {
-        //        if (flags.Count == 1)
-        //            propType.SetNull(flags.FirstOrDefault());
-        //        else
-        //            propType.SetNull(flags);
-        //    }
+        if (nullableContextAttrFlag == 2)
+        {
+            if (nullableAttrFlags.Count == 1)
+                propType.SetNotNull(nullableAttrFlags.FirstOrDefault());
+            else
+                propType.SetNotNull(nullableAttrFlags);
+        }
+        else
+        {
+            if (nullableAttrFlags.Count == 1)
+                propType.SetNull(nullableAttrFlags.FirstOrDefault());
+            else
+                propType.SetNull(nullableAttrFlags);
+        }
 
         var pt = new PropertyTemplate(typeTemplate, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
 

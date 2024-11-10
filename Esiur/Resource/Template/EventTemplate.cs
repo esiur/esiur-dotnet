@@ -83,31 +83,36 @@ public class EventTemplate : MemberTemplate
         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
         var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
 
-        evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
+        //evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
 
-        //var nullableAttr = ei.GetCustomAttribute<NullableAttribute>(true);
-        //var nullableContextAttr = ei.GetCustomAttribute<NullableContextAttribute>(true);
+        var nullableAttr = ei.GetCustomAttributes().FirstOrDefault(x => x.GetType().Name == "System.Runtime.CompilerServices.NullableAttribute");// .GetCustomAttribute<NullableAttribute>(true);
+        var nullableContextAttr = ei.GetCustomAttributes().FirstOrDefault(x => x.GetType().Name == "System.Runtime.CompilerServices.NullableContextAttribute");// ei.GetCustomAttribute<NullableContextAttribute>(true);
+
+
+        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags").GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
+        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag").GetValue(nullableContextAttr) ?? (byte)0);
 
         //var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+        //var flags = ((byte[])nullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
-        //// skip the eventHandler class
-        //if (flags.Count > 1)
-        //    flags = flags.Skip(1).ToList();
+        // skip the eventHandler class
+        if (nullableAttrFlags.Count > 1)
+            nullableAttrFlags = nullableAttrFlags.Skip(1).ToList();
 
-        //if (nullableContextAttr?.Flag == 2)
-        //{
-        //    if (flags.Count == 1)
-        //        evtType.SetNotNull(flags.FirstOrDefault());
-        //    else
-        //        evtType.SetNotNull(flags);
-        //}
-        //else
-        //{
-        //    if (flags.Count == 1)
-        //        evtType.SetNull(flags.FirstOrDefault());
-        //    else
-        //        evtType.SetNull(flags);
-        //}
+        if (nullableContextAttrFlag == 2)
+        {
+            if (nullableAttrFlags.Count == 1)
+                evtType.SetNotNull(nullableAttrFlags.FirstOrDefault());
+            else
+                evtType.SetNotNull(nullableAttrFlags);
+        }
+        else
+        {
+            if (nullableAttrFlags.Count == 1)
+                evtType.SetNull(nullableAttrFlags.FirstOrDefault());
+            else
+                evtType.SetNull(nullableAttrFlags);
+        }
 
         var et = new EventTemplate(typeTemplate, index, customName ?? ei.Name, ei.DeclaringType != type, evtType);
         et.EventInfo = ei;

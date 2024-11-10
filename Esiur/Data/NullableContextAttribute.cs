@@ -1,19 +1,16 @@
 ﻿namespace System.Runtime.CompilerServices
 {
-    [System.AttributeUsage(
-        AttributeTargets.Class |
-        AttributeTargets.Delegate |
-        AttributeTargets.Interface |
-        AttributeTargets.Method |
-        AttributeTargets.Struct,
-        AllowMultiple = false,
-        Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Method | AttributeTargets.Interface | AttributeTargets.Delegate, Inherited = false)]
     public sealed class NullableContextAttribute : Attribute
     {
+        /// <summary>Flag specifying metadata related to nullable reference types.</summary>
         public readonly byte Flag;
-        public NullableContextAttribute(byte flag)
+
+        /// <summary>Initializes the attribute.</summary>
+        /// <param name="value">The flag value.</param>
+        public NullableContextAttribute(byte value)
         {
-            Flag = flag;
+            Flag = value;
         }
     }
 }

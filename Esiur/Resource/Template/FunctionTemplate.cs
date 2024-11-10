@@ -91,41 +91,56 @@ public class FunctionTemplate : MemberTemplate
 
         var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
 
-        var nullabilityInfoContext = new NullabilityInfoContext();
+        //var nullabilityInfoContext = new NullabilityInfoContext();
+        //rtType.Nullable = nullabilityInfoContext.Create(mi.ReturnParameter).WriteState is NullabilityState.Nullable;
 
-        rtType.Nullable = nullabilityInfoContext.Create(mi.ReturnParameter).WriteState is NullabilityState.Nullable;
 
+        var nullableAttr = mi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
+        var nullableContextAttr = mi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttribute");
 
-        //var nullableAttr = mi.GetCustomAttribute<NullableAttribute>(true);
-        //var nullableContextAttr = mi.GetCustomAttribute<NullableContextAttribute>(true);
+        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags").GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
+        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag").GetValue(nullableContextAttr) ?? (byte)0);
 
-        //var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+        //var flags = ((byte[])nullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
         //var rtNullableAttr = mi.ReturnTypeCustomAttributes.GetCustomAttributes(typeof(NullableAttribute), true).FirstOrDefault() as NullableAttribute;
-        //var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
+        var rtNullableAttr = mi.ReturnTypeCustomAttributes.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
+
+ 
+
+        // var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
         //                                .GetCustomAttributes(typeof(NullableContextAttribute), true)
-        //                                .FirstOrDefault() as NullableContextAttribute
+        //                                 .FirstOrDefault() as NullableContextAttribute
         //                                ?? nullableContextAttr;
 
+
+        var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
+                                .GetCustomAttributes(true).FirstOrDefault(x=>x.GetType().Name == "NullableContextAttribute")
+                                ?? nullableContextAttr;
+
+        var rtNullableAttrFlags = (rtNullableAttr?.GetType().GetField("NullableFlags").GetValue(rtNullableAttr) as byte[] ?? new byte[0]).ToList();
+        var rtNullableContextAttrFlag = (byte)(rtNullableContextAttr?.GetType().GetField("Flag").GetValue(rtNullableContextAttr) ?? (byte)0);
+
         //var rtFlags = rtNullableAttr?.Flags?.ToList() ?? new List<byte>();
+        //var rtFlags = ((byte[])rtNullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
-        //if (rtFlags.Count > 0 && genericRtType == typeof(AsyncReply<>))
-        //    rtFlags.RemoveAt(0);
+        if (rtNullableAttrFlags.Count > 0 && genericRtType == typeof(AsyncReply<>))
+            rtNullableAttrFlags.RemoveAt(0);
 
-        //if (rtNullableContextAttr?.Flag == 2)
-        //{
-        //    if (rtFlags.Count == 1)
-        //        rtType.SetNotNull(rtFlags.FirstOrDefault());
-        //    else
-        //        rtType.SetNotNull(rtFlags);
-        //}
-        //else
-        //{
-        //    if (rtFlags.Count == 1)
-        //        rtType.SetNull(rtFlags.FirstOrDefault());
-        //    else
-        //        rtType.SetNull(rtFlags);
-        //}
+        if (rtNullableContextAttrFlag == 2)
+        {
+            if (rtNullableAttrFlags.Count == 1)
+                rtType.SetNotNull(rtNullableAttrFlags.FirstOrDefault());
+            else
+                rtType.SetNotNull(rtNullableAttrFlags);
+        }
+        else
+        {
+            if (rtNullableAttrFlags.Count == 1)
+                rtType.SetNull(rtNullableAttrFlags.FirstOrDefault());
+            else
+                rtType.SetNull(rtNullableAttrFlags);
+        }
 
         var args = mi.GetParameters();
 
@@ -142,28 +157,34 @@ public class FunctionTemplate : MemberTemplate
             if (argType == null)
                 throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
 
-            argType.Nullable = nullabilityInfoContext.Create(x).WriteState is NullabilityState.Nullable;
+            //argType.Nullable = nullabilityInfoContext.Create(x).WriteState is NullabilityState.Nullable;
 
             //var argNullableAttr = x.GetCustomAttribute<NullableAttribute>(true);
             //var argNullableContextAttr = x.GetCustomAttribute<NullableContextAttribute>(true) ?? nullableContextAttr;
 
+            var argNullableAttr = x.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
+            var argNullableContextAttr = x.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttr");
+ 
             //var argFlags = argNullableAttr?.Flags?.ToList() ?? new List<byte>();
+            //var argFlags = ((byte[])argNullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
+            var argNullableAttrFlags = (argNullableAttr?.GetType().GetField("NullableFlags").GetValue(argNullableAttr) as byte[] ?? new byte[0]).ToList();
+            var argNullableContextAttrFlag = (byte)(argNullableAttr?.GetType().GetField("Flag").GetValue(argNullableAttr) ?? (byte)0);
 
-            //if (argNullableContextAttr?.Flag == 2)
-            //{
-            //    if (argFlags.Count == 1)
-            //        argType.SetNotNull(argFlags.FirstOrDefault());
-            //    else
-            //        argType.SetNotNull(argFlags);
-            //}
-            //else
-            //{
-            //    if (rtFlags.Count == 1)
-            //        argType.SetNull(argFlags.FirstOrDefault());
-            //    else
-            //        argType.SetNull(argFlags);
-            //}
+            if (argNullableContextAttrFlag == 2)
+            {
+                if (argNullableAttrFlags.Count == 1)
+                    argType.SetNotNull(argNullableAttrFlags.FirstOrDefault());
+                else
+                    argType.SetNotNull(argNullableAttrFlags);
+            }
+            else
+            {
+                if (argNullableAttrFlags.Count == 1)
+                    argType.SetNull(argNullableAttrFlags.FirstOrDefault());
+                else
+                    argType.SetNull(argNullableAttrFlags);
+            }
 
             return new ArgumentTemplate()
             {

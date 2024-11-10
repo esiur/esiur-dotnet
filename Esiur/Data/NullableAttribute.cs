@@ -1,28 +1,23 @@
 ﻿namespace System.Runtime.CompilerServices
 {
-    [AttributeUsage(
-        AttributeTargets.Class |
-        AttributeTargets.Event |
-        AttributeTargets.Field |
-        AttributeTargets.GenericParameter |
-        AttributeTargets.Parameter |
-        AttributeTargets.Property |
-        AttributeTargets.ReturnValue,
-        AllowMultiple = false,
-        Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Event | AttributeTargets.Parameter | AttributeTargets.ReturnValue | AttributeTargets.GenericParameter, Inherited = false)]
     public sealed class NullableAttribute : Attribute
     {
-        public readonly byte[] Flags;
-        //public readonly byte Flag;
+        /// <summary>Flags specifying metadata related to nullable reference types.</summary>
+        public readonly byte[] NullableFlags;
 
-        public NullableAttribute(byte flag)
+        /// <summary>Initializes the attribute.</summary>
+        /// <param name="value">The flags value.</param>
+        public NullableAttribute(byte value)
         {
-            //Flag = flag;
-            Flags = new byte[] { flag };
+            NullableFlags = new[] { value };
         }
-        public NullableAttribute(byte[] flags)
+
+        /// <summary>Initializes the attribute.</summary>
+        /// <param name="value">The flags value.</param>
+        public NullableAttribute(byte[] value)
         {
-            Flags = flags;
+            NullableFlags = value;
         }
     }
 }

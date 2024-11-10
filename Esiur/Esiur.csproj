@@ -5,7 +5,7 @@
 		<Copyright>Ahmed Kh. Zamil</Copyright>
 		<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<Version>2.4.8</Version>
+		<Version>2.4.9</Version>
 		<RepositoryUrl>https://github.com/esiur/esiur-dotnet</RepositoryUrl>
 		<Authors>Ahmed Kh. Zamil</Authors>
 		<AssemblyVersion></AssemblyVersion>
@@ -56,14 +56,14 @@
 
 
 	<ItemGroup>
-	  <Compile Remove="Data\NullableAttribute.cs" />
-	  <Compile Remove="Data\NullableContextAttribute.cs" />
+	  <Compile Remove="Data\NullabilityInfo.cs" />
+	  <Compile Remove="Data\NullabilityInfoContext.cs" />
 	</ItemGroup>
 
 
 	<ItemGroup>
-		<None Include="Data\NullableAttribute.cs" />
-		<None Include="Data\NullableContextAttribute.cs" />
+		<None Include="Data\NullabilityInfo.cs" />
+		<None Include="Data\NullabilityInfoContext.cs" />
 		<None Include="LICENSE" Pack="true" PackagePath=""></None>
 		<None Include="README.md" Pack="true" PackagePath="" />
 	</ItemGroup>
