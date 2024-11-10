@@ -82,29 +82,32 @@ public class EventTemplate : MemberTemplate
 
         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
         var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
-        var nullableAttr = ei.GetCustomAttribute<NullableAttribute>(true);
-        var nullableContextAttr = ei.GetCustomAttribute<NullableContextAttribute>(true);
 
-        var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+        evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
 
-        // skip the eventHandler class
-        if (flags.Count > 1)
-            flags = flags.Skip(1).ToList();
+        //var nullableAttr = ei.GetCustomAttribute<NullableAttribute>(true);
+        //var nullableContextAttr = ei.GetCustomAttribute<NullableContextAttribute>(true);
 
-        if (nullableContextAttr?.Flag == 2)
-        {
-            if (flags.Count == 1)
-                evtType.SetNotNull(flags.FirstOrDefault());
-            else
-                evtType.SetNotNull(flags);
-        }
-        else
-        {
-            if (flags.Count == 1)
-                evtType.SetNull(flags.FirstOrDefault());
-            else
-                evtType.SetNull(flags);
-        }
+        //var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+        //// skip the eventHandler class
+        //if (flags.Count > 1)
+        //    flags = flags.Skip(1).ToList();
+
+        //if (nullableContextAttr?.Flag == 2)
+        //{
+        //    if (flags.Count == 1)
+        //        evtType.SetNotNull(flags.FirstOrDefault());
+        //    else
+        //        evtType.SetNotNull(flags);
+        //}
+        //else
+        //{
+        //    if (flags.Count == 1)
+        //        evtType.SetNull(flags.FirstOrDefault());
+        //    else
+        //        evtType.SetNull(flags);
+        //}
 
         var et = new EventTemplate(typeTemplate, index, customName ?? ei.Name, ei.DeclaringType != type, evtType);
         et.EventInfo = ei;

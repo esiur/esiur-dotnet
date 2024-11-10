@@ -139,6 +139,9 @@ public class PropertyTemplate : MemberTemplate
         RepresentationType valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
         : base(template, index, name, inherited)
     {
+        if (name == "RecordNullable")
+            Console.Beep();
+
         this.Recordable = recordable;
         //this.Storage = storage;
         if (readAnnotation != null)
@@ -163,28 +166,32 @@ public class PropertyTemplate : MemberTemplate
         var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
 
-        var nullableContextAttr = pi.GetCustomAttribute<NullableContextAttribute>(true);
-        var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
+        var nullabilityContext = new NullabilityInfoContext();
+        propType.Nullable = nullabilityContext.Create(pi).ReadState is NullabilityState.Nullable;
 
-        var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
 
-        if (flags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
-            flags.RemoveAt(0);
+        //    var nullableContextAttr = pi.GetCustomAttribute<NullableContextAttribute>(true);
+        //    var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
 
-        if (nullableContextAttr?.Flag == 2)
-        {
-            if (flags.Count == 1)
-                propType.SetNotNull(flags.FirstOrDefault());
-            else
-                propType.SetNotNull(flags);
-        }
-        else
-        {
-            if (flags.Count == 1)
-                propType.SetNull(flags.FirstOrDefault());
-            else
-                propType.SetNull(flags);
-        }
+        //    var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
+
+        //    if (flags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
+        //        flags.RemoveAt(0);
+
+        //    if (nullableContextAttr?.Flag == 2)
+        //    {
+        //        if (flags.Count == 1)
+        //            propType.SetNotNull(flags.FirstOrDefault());
+        //        else
+        //            propType.SetNotNull(flags);
+        //    }
+        //    else
+        //    {
+        //        if (flags.Count == 1)
+        //            propType.SetNull(flags.FirstOrDefault());
+        //        else
+        //            propType.SetNull(flags);
+        //    }
 
         var pt = new PropertyTemplate(typeTemplate, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
 

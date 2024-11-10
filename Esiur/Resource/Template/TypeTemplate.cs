@@ -376,7 +376,6 @@ public class TypeTemplate
     public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, ExportAttribute exportAttr, byte index = 0, TypeTemplate typeTemplate = null)
     {
         var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
-        var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
 
         var valueType = RepresentationType.FromType(ci.FieldType);
 

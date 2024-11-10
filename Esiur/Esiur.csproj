@@ -56,8 +56,16 @@
 
 
 	<ItemGroup>
+	  <Compile Remove="Data\NullableAttribute.cs" />
+	  <Compile Remove="Data\NullableContextAttribute.cs" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+		<None Include="Data\NullableAttribute.cs" />
+		<None Include="Data\NullableContextAttribute.cs" />
 		<None Include="LICENSE" Pack="true" PackagePath=""></None>
-		<None Include="README.md" Pack="true" PackagePath=""/>
+		<None Include="README.md" Pack="true" PackagePath="" />
 	</ItemGroup>
 
 

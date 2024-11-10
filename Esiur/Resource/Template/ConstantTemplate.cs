@@ -72,7 +72,6 @@ public class ConstantTemplate : MemberTemplate
     public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
         var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
-        var nullableAttr = ci.GetCustomAttribute<NullableAttribute>(true);
 
         var valueType = RepresentationType.FromType(ci.FieldType);
 
