@@ -48,6 +48,7 @@ using System.Text;
 using Esiur.Security.Cryptography;
 using Esiur.Security.Membership;
 using Esiur.Net.Packets;
+using System.Numerics;
 
 namespace Test
 {
@@ -56,6 +57,9 @@ namespace Test
     {
         static async Task Main(string[] args)
         {
+            var rp = RepresentationType.FromType(typeof(IMyRecord));
+
+            var hhhh = Warehouse.GetTemplateByType(typeof(IMyRecord));
 
             var a = new ECDH();
             var b = new ECDH();

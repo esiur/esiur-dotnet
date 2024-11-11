@@ -765,6 +765,9 @@ public static class Warehouse
     /// <returns>Resource template.</returns>
     public static TypeTemplate GetTemplateByType(Type type)
     {
+        if (!(type.IsClass || type.IsEnum))
+            return null;
+
         var baseType = ResourceProxy.GetBaseType(type);
 
         if (baseType == typeof(IResource)

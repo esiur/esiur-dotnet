@@ -128,6 +128,7 @@ public partial class MyService
     [Export] public IRecord[] RecordsArray => new IRecord[] { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
     [Export] public List<MyRecord> RecordsList => new() { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
 
+    //[Export] public IMyRecord myrecord { get; set; }
 
     [Export] public MyResource[]? myResources;
 

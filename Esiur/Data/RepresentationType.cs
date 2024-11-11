@@ -217,6 +217,8 @@ namespace Esiur.Data
                 return new RepresentationType(RepresentationTypeIdentifier.Resource, nullable);
             else if (type == typeof(IRecord) || type == typeof(Record))
                 return new RepresentationType(RepresentationTypeIdentifier.Record, nullable);
+            else if (type.IsInterface)
+                return null; // other interfaces are not supported
             else if (type == typeof(Map<object, object>))
                 return new RepresentationType(RepresentationTypeIdentifier.Map, nullable);
             else if (Codec.ImplementsInterface(type, typeof(IResource)))
