@@ -139,9 +139,6 @@ public class PropertyTemplate : MemberTemplate
         RepresentationType valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
         : base(template, index, name, inherited)
     {
-        if (name == "RecordNullable")
-            Console.Beep();
-
         this.Recordable = recordable;
         //this.Storage = storage;
         if (readAnnotation != null)
