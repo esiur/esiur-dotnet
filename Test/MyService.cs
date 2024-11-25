@@ -135,7 +135,7 @@ public partial class MyService
     [Export] public MyResource? Resource { get; set; }
     [Export] public MyChildResource? ChildResource { get; set; }
 
-    [Export] public MyChildRecord ChildRecord { get; set; } = new MyChildRecord() { ChildName = "Child", Id = 12, Name = "Parent", Score = 12.2 };
+    [Export] MyChildRecord ChildRecord { get; set; } = new MyChildRecord() { ChildName = "Child", Id = 12, Name = "Parent", Score = 12.2 };
 
     [Export] public IResource[]? Resources { get; set; }
 
@@ -194,4 +194,6 @@ public partial class MyService
     [Export] public const double PI = Math.PI;
 
     [Export] public MyService Me => this;
+
+    [Export] int PrivateInt32 { get; set; } = 99;
 }

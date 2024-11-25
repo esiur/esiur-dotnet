@@ -398,6 +398,9 @@ public class TypeTemplate
     public TypeTemplate(Type type, bool addToWarehouse = false)
     {
 
+        //if (!type.IsPublic)
+        //    throw new Exception("Not public");
+
         if (Codec.ImplementsInterface(type, typeof(IResource)))
             templateType = TemplateType.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
@@ -481,7 +484,7 @@ public class TypeTemplate
         }
 
         // add attributes
-        var attrs = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        var attrs = type.GetProperties(BindingFlags.Public  | BindingFlags.Instance)
             .Where(x => x.GetCustomAttribute<AttributeAttribute>() != null);
 
         foreach (var attr in attrs)
@@ -592,6 +595,7 @@ public class TypeTemplate
 
             if (classIsPublic)
             {
+                // get public instance members only.
                 var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance
                                         | BindingFlags.DeclaredOnly | BindingFlags.Static)
                     .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
@@ -618,7 +622,8 @@ public class TypeTemplate
             }
             else
             {
-                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.Instance
+                // allow private and public members that are marked with [Export] attribute.
+                var mis = type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
                     | BindingFlags.DeclaredOnly | BindingFlags.Static)
                     .Where(x => x.MemberType == MemberTypes.Property || x.MemberType == MemberTypes.Field
                             || x.MemberType == MemberTypes.Event || x.MemberType == MemberTypes.Method)
