@@ -375,10 +375,11 @@ public static class Warehouse
 
     public static async AsyncReply<IResource[]> Query(string path)
     {
-        var p = path.Trim().Split('/');
+        var p = path.Trim().TrimStart('/').Split('/');
         IResource resource;
 
         foreach (var store in stores.Keys)
+        {
             if (p[0] == store.Instance.Name)
             {
 
@@ -407,8 +408,7 @@ public static class Warehouse
 
                 return null;
             }
-
-
+        }
 
         return null;
     }
