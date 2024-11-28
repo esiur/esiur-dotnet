@@ -2324,7 +2324,7 @@ partial class DistributedConnection
                                 var pvs = new List<PropertyValue>();
 
                                 for (var i = 0; i < ar.Length; i += 3)
-                                    pvs.Add(new PropertyValue(ar[i + 2], (ulong?)ar[i], (DateTime?)ar[i + 1]));
+                                    pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
 
                                 dr._Attach(pvs.ToArray());// (PropertyValue[])pvs);
                                 resourceRequests.Remove(id);
