@@ -98,8 +98,8 @@ public class FunctionTemplate : MemberTemplate
         var nullableAttr = mi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
         var nullableContextAttr = mi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttribute");
 
-        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags").GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
-        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag").GetValue(nullableContextAttr) ?? (byte)0);
+        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags")?.GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
+        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag")?.GetValue(nullableContextAttr) ?? (byte)0);
 
         //var flags = ((byte[])nullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
@@ -118,8 +118,8 @@ public class FunctionTemplate : MemberTemplate
                                 .GetCustomAttributes(true).FirstOrDefault(x=>x.GetType().Name == "NullableContextAttribute")
                                 ?? nullableContextAttr;
 
-        var rtNullableAttrFlags = (rtNullableAttr?.GetType().GetField("NullableFlags").GetValue(rtNullableAttr) as byte[] ?? new byte[0]).ToList();
-        var rtNullableContextAttrFlag = (byte)(rtNullableContextAttr?.GetType().GetField("Flag").GetValue(rtNullableContextAttr) ?? (byte)0);
+        var rtNullableAttrFlags = (rtNullableAttr?.GetType().GetField("NullableFlags")?.GetValue(rtNullableAttr) as byte[] ?? new byte[0]).ToList();
+        var rtNullableContextAttrFlag = (byte)(rtNullableContextAttr?.GetType().GetField("Flag")?.GetValue(rtNullableContextAttr) ?? (byte)0);
 
         //var rtFlags = rtNullableAttr?.Flags?.ToList() ?? new List<byte>();
         //var rtFlags = ((byte[])rtNullableAttr?.NullableFlags ?? new byte[0]).ToList();
@@ -168,8 +168,8 @@ public class FunctionTemplate : MemberTemplate
             //var argFlags = argNullableAttr?.Flags?.ToList() ?? new List<byte>();
             //var argFlags = ((byte[])argNullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
-            var argNullableAttrFlags = (argNullableAttr?.GetType().GetField("NullableFlags").GetValue(argNullableAttr) as byte[] ?? new byte[0]).ToList();
-            var argNullableContextAttrFlag = (byte)(argNullableAttr?.GetType().GetField("Flag").GetValue(argNullableAttr) ?? (byte)0);
+            var argNullableAttrFlags = (argNullableAttr?.GetType().GetField("NullableFlags")?.GetValue(argNullableAttr) as byte[] ?? new byte[0]).ToList();
+            var argNullableContextAttrFlag = (byte)(argNullableAttr?.GetType().GetField("Flag")?.GetValue(argNullableAttr) ?? (byte)0);
 
             if (argNullableContextAttrFlag == 2)
             {

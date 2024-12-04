@@ -167,8 +167,8 @@ public class PropertyTemplate : MemberTemplate
         var nullableAttr = pi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
         var nullableContextAttr = pi.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttribute");
 
-        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags").GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
-        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag").GetValue(nullableContextAttr) ?? (byte)0);
+        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags")?.GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
+        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag")?.GetValue(nullableContextAttr) ?? (byte)0);
 
 
         //var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);

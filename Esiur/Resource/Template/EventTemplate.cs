@@ -89,8 +89,8 @@ public class EventTemplate : MemberTemplate
         var nullableContextAttr = ei.GetCustomAttributes().FirstOrDefault(x => x.GetType().Name == "System.Runtime.CompilerServices.NullableContextAttribute");// ei.GetCustomAttribute<NullableContextAttribute>(true);
 
 
-        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags").GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
-        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag").GetValue(nullableContextAttr) ?? (byte)0);
+        var nullableAttrFlags = (nullableAttr?.GetType().GetField("NullableFlags")?.GetValue(nullableAttr) as byte[] ?? new byte[0]).ToList();
+        var nullableContextAttrFlag = (byte)(nullableContextAttr?.GetType().GetField("Flag")?.GetValue(nullableContextAttr) ?? (byte)0);
 
         //var flags = nullableAttr?.Flags?.ToList() ?? new List<byte>();
         //var flags = ((byte[])nullableAttr?.NullableFlags ?? new byte[0]).ToList();
