@@ -1545,18 +1545,15 @@ partial class DistributedConnection
 #if NETSTANDARD
                 var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
-                                            var res = t.GetType().GetProperty("Result").GetValue(t);
+                var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
                 SendReply(actionType, callback)
                  .AddUInt8Array(Codec.Compose(res, this))
                  .Done();
             });
 
-            //await t;
-            //SendParams((byte)0x90, callback, Codec.Compose(res, this));
         }
-        else if (rt is AsyncReply)// Codec.ImplementsInterface(rt.GetType(), typeof(IAsyncReply<>)))// rt.GetType().GetTypeInfo().IsGenericType
-                                  //&& rt.GetType().GetGenericTypeDefinition() == typeof(IAsyncReply<>))
+        else if (rt is AsyncReply)
         {
             (rt as AsyncReply).Then(res =>
             {

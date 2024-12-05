@@ -66,8 +66,8 @@ public class FunctionTemplate : MemberTemplate
         return bl.ToArray();
     }
 
-     public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, RepresentationType returnType, string annotation = null)
-        : base(template, index, name, inherited)
+    public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, RepresentationType returnType, string annotation = null)
+       : base(template, index, name, inherited)
     {
         this.Arguments = arguments;
         this.ReturnType = returnType;
@@ -82,9 +82,25 @@ public class FunctionTemplate : MemberTemplate
 
         var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
 
-        var rtType = genericRtType == typeof(AsyncReply<>) ?
-                RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]) :
-                RepresentationType.FromType(mi.ReturnType);
+        RepresentationType rtType;
+
+        if (genericRtType == typeof(AsyncReply<>))
+        {
+            rtType = RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]);
+        }
+        else if (genericRtType == typeof(IEnumerable<>) || genericRtType == typeof(IAsyncEnumerable<>))
+        {
+            // get export
+            rtType = RepresentationType.FromType(mi.GetCustomAttribute<ExportAttribute>()?.ReturnType ?? typeof(object));
+        }
+        else
+        {
+            rtType = RepresentationType.FromType(mi.ReturnType);
+        }
+
+        //var rtType = genericRtType == typeof(AsyncReply<>) ?
+        //        RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]) :
+        //        RepresentationType.FromType(mi.ReturnType);
 
         if (rtType == null)
             throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
@@ -106,7 +122,7 @@ public class FunctionTemplate : MemberTemplate
         //var rtNullableAttr = mi.ReturnTypeCustomAttributes.GetCustomAttributes(typeof(NullableAttribute), true).FirstOrDefault() as NullableAttribute;
         var rtNullableAttr = mi.ReturnTypeCustomAttributes.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
 
- 
+
 
         // var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
         //                                .GetCustomAttributes(typeof(NullableContextAttribute), true)
@@ -115,7 +131,7 @@ public class FunctionTemplate : MemberTemplate
 
 
         var rtNullableContextAttr = mi.ReturnTypeCustomAttributes
-                                .GetCustomAttributes(true).FirstOrDefault(x=>x.GetType().Name == "NullableContextAttribute")
+                                .GetCustomAttributes(true).FirstOrDefault(x => x.GetType().Name == "NullableContextAttribute")
                                 ?? nullableContextAttr;
 
         var rtNullableAttrFlags = (rtNullableAttr?.GetType().GetField("NullableFlags")?.GetValue(rtNullableAttr) as byte[] ?? new byte[0]).ToList();
@@ -164,7 +180,7 @@ public class FunctionTemplate : MemberTemplate
 
             var argNullableAttr = x.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
             var argNullableContextAttr = x.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttr");
- 
+
             //var argFlags = argNullableAttr?.Flags?.ToList() ?? new List<byte>();
             //var argFlags = ((byte[])argNullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
@@ -196,7 +212,7 @@ public class FunctionTemplate : MemberTemplate
         })
         .ToArray();
 
-        var fn =  customName ?? mi.Name;
+        var fn = customName ?? mi.Name;
 
         var ft = new FunctionTemplate(typeTemplate, index, fn, mi.DeclaringType != type,
             mi.IsStatic,

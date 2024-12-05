@@ -611,7 +611,6 @@ public class TypeTemplate
                              )
                           ))
                     .Select(x => new MemberData(
-                        name: x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
                         info: x,
                         order: order
                     ))
@@ -631,7 +630,6 @@ public class TypeTemplate
                     .Where(x => x.GetCustomAttribute<ExportAttribute>() != null)
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
                     .Select(x => new MemberData (
-                        name : x.GetCustomAttribute<ExportAttribute>()?.Name ?? x.Name,
                         info : x,
                         order : order
                     ))

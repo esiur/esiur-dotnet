@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml.Linq;
 
 namespace Esiur.Resource;
 
@@ -8,10 +9,29 @@ namespace Esiur.Resource;
 
 public class ExportAttribute : Attribute
 {
-    public string Name { get; set; }
+    public string Name { get; private set; } = null;
+    public Type ReturnType { get; private set; } = null;
 
-    public ExportAttribute(string name = null)
+    public ExportAttribute()
+    {
+
+    }
+
+    public ExportAttribute(string name)
     {
         Name = name;
     }
+
+    public ExportAttribute(Type returnType)
+    {
+        ReturnType = returnType;
+    }
+
+    public ExportAttribute(string name, Type returnType)
+    {
+        Name = name;
+        ReturnType = returnType;
+    }
+
+
 }

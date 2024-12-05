@@ -16,10 +16,14 @@ public class MemberData
     public MemberData? Parent;
     public MemberData? Child;
     public byte Index;
+    //public ExportAttribute ExportAttribute;
 
-    public MemberData(string name, MemberInfo info, int order)
+
+    //public string Name => ExportAttribute?.Name ?? Info.Name;
+
+    public MemberData(MemberInfo info, int order)
     {
-        this.Name = name;
+        this.Name = info.GetCustomAttribute<ExportAttribute>()?.Name ?? info.Name;
         this.Info = info;
         this.Order = order;
     }
