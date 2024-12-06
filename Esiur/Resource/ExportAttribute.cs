@@ -10,7 +10,6 @@ namespace Esiur.Resource;
 public class ExportAttribute : Attribute
 {
     public string Name { get; private set; } = null;
-    public Type ReturnType { get; private set; } = null;
 
     public ExportAttribute()
     {
@@ -21,17 +20,5 @@ public class ExportAttribute : Attribute
     {
         Name = name;
     }
-
-    public ExportAttribute(Type returnType)
-    {
-        ReturnType = returnType;
-    }
-
-    public ExportAttribute(string name, Type returnType)
-    {
-        Name = name;
-        ReturnType = returnType;
-    }
-
 
 }

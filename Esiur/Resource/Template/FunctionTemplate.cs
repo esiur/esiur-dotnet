@@ -91,16 +91,12 @@ public class FunctionTemplate : MemberTemplate
         else if (genericRtType == typeof(IEnumerable<>) || genericRtType == typeof(IAsyncEnumerable<>))
         {
             // get export
-            rtType = RepresentationType.FromType(mi.GetCustomAttribute<ExportAttribute>()?.ReturnType ?? typeof(object));
+            rtType = RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]);
         }
         else
         {
             rtType = RepresentationType.FromType(mi.ReturnType);
         }
-
-        //var rtType = genericRtType == typeof(AsyncReply<>) ?
-        //        RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]) :
-        //        RepresentationType.FromType(mi.ReturnType);
 
         if (rtType == null)
             throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");

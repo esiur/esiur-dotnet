@@ -268,7 +268,7 @@ partial class DistributedConnection
                         .Done();
     }
 
-    void SendProgress(uint callbackId, int value, int max)
+    internal void SendProgress(uint callbackId, int value, int max)
     {
         SendParams()
             .AddUInt8((byte)(0xC0 | (byte)IIPPacketReport.ProgressReport))
@@ -279,7 +279,7 @@ partial class DistributedConnection
         //SendParams(, callbackId, value, max);
     }
 
-    void SendChunk(uint callbackId, object chunk)
+    internal void SendChunk(uint callbackId, object chunk)
     {
         var c = Codec.Compose(chunk, this);
         SendParams()
@@ -353,7 +353,7 @@ partial class DistributedConnection
                 attachedResources.Remove(resourceId);
             }
 
-            
+
         }
         else if (neededResources.Contains(resourceId))
         {
@@ -1472,6 +1472,8 @@ partial class DistributedConnection
 
         object[] args = new object[pis.Length];
 
+        InvocationContext context = null;
+
         if (pis.Length > 0)
         {
             if (pis.Last().ParameterType == typeof(DistributedConnection))
@@ -1480,15 +1482,32 @@ partial class DistributedConnection
                 {
                     if (arguments.ContainsKey(i))
                         args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
-                    else if (ft.Arguments[i].Type.Nullable)// Nullable.GetUnderlyingType(pis[i].ParameterType) != null)
+                    else if (ft.Arguments[i].Type.Nullable)
                         args[i] = null;
                     else
                         args[i] = Type.Missing;
 
                 }
-                //args[i] = arguments.ContainsKey(i) ?
-                //                DC.CastConvert(arguments[i], pis[i].ParameterType) : Type.Missing;
+
                 args[args.Length - 1] = this;
+            }
+            else if (pis.Last().ParameterType == typeof(InvocationContext))
+            {
+                context = new InvocationContext(this, callback);
+
+                for (byte i = 0; i < pis.Length - 1; i++)
+                {
+                    if (arguments.ContainsKey(i))
+                        args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
+                    else if (ft.Arguments[i].Type.Nullable)
+                        args[i] = null;
+                    else
+                        args[i] = Type.Missing;
+
+                }
+
+                args[args.Length - 1] = context;
+
             }
             else
             {
@@ -1509,6 +1528,7 @@ partial class DistributedConnection
         try
         {
             rt = ft.MethodInfo.Invoke(target, args);
+            context.Ended = true;
         }
         catch (Exception ex)
         {
