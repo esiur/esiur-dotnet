@@ -1528,7 +1528,8 @@ partial class DistributedConnection
         try
         {
             rt = ft.MethodInfo.Invoke(target, args);
-            context.Ended = true;
+            if (context != null)
+                context.Ended = true;
         }
         catch (Exception ex)
         {

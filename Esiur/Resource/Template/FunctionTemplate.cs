@@ -88,7 +88,7 @@ public class FunctionTemplate : MemberTemplate
         {
             rtType = RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]);
         }
-        else if (genericRtType == typeof(IEnumerable<>) || genericRtType == typeof(IAsyncEnumerable<>))
+        else if (genericRtType == typeof(IEnumerable<>))// || genericRtType == typeof(IAsyncEnumerable<>))
         {
             // get export
             rtType = RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]);
@@ -158,7 +158,8 @@ public class FunctionTemplate : MemberTemplate
 
         if (args.Length > 0)
         {
-            if (args.Last().ParameterType == typeof(DistributedConnection))
+            if (args.Last().ParameterType == typeof(DistributedConnection) 
+                || args.Last().ParameterType == typeof(InvocationContext))
                 args = args.Take(args.Count() - 1).ToArray();
         }
 
