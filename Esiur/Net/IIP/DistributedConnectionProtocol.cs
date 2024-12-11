@@ -1528,8 +1528,6 @@ partial class DistributedConnection
         try
         {
             rt = ft.MethodInfo.Invoke(target, args);
-            if (context != null)
-                context.Ended = true;
         }
         catch (Exception ex)
         {
@@ -1551,9 +1549,16 @@ partial class DistributedConnection
                 SendReply(actionType, callback)
                 .AddUInt8((byte)TransmissionTypeIdentifier.Null)
                 .Done();
+
+                if (context != null)
+                    context.Ended = true;
+
             }
             catch (Exception ex)
             {
+                if (context != null)
+                    context.Ended = true;
+
                 var (code, msg) = SummerizeException(ex);
                 SendError(ErrorType.Exception, callback, code, msg);
             }
@@ -1563,6 +1568,9 @@ partial class DistributedConnection
         {
             (rt as Task).ContinueWith(t =>
             {
+                if (context != null)
+                    context.Ended = true;
+
 #if NETSTANDARD
                 var res = t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
 #else
@@ -1578,6 +1586,9 @@ partial class DistributedConnection
         {
             (rt as AsyncReply).Then(res =>
             {
+                if (context != null)
+                    context.Ended = true;
+
                 SendReply(actionType, callback)
                             .AddUInt8Array(Codec.Compose(res, this))
                             .Done();
@@ -1595,6 +1606,9 @@ partial class DistributedConnection
         }
         else
         {
+            if (context != null)
+                context.Ended = true;
+
             SendReply(actionType, callback)
                     .AddUInt8Array(Codec.Compose(rt, this))
                     .Done();
