@@ -8,6 +8,7 @@ using Esiur.Data;
 using Esiur.Resource.Template;
 using System.Linq;
 using Esiur.Misc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Esiur.Data;
 
@@ -170,7 +171,13 @@ public static class DataDeserializer
             {
                 var ar = (object[])r;
 
-                if (template.DefinedType != null)
+                if (template == null)
+                {
+                    // @TODO: add parse if no template settings
+                    reply.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
+                            "Template not found for record."));
+                }
+                else if (template.DefinedType != null)
                 {
                     var record = Activator.CreateInstance(template.DefinedType) as IRecord;
                     for (var i = 0; i < template.Properties.Length; i++)
@@ -198,6 +205,7 @@ public static class DataDeserializer
 
                     reply.Trigger(record);
                 }
+
             });
         };
 
@@ -205,20 +213,17 @@ public static class DataDeserializer
         {
             initRecord(template);
         }
-        else
+        else if (connection != null)
         {
+            // try to get the template from the other end
             connection.GetTemplate((Guid)classId).Then(tmp =>
             {
-                ListParser(data, offset, length, connection, requestSequence).Then(r =>
-                {
-                    if (tmp == null)
-                        reply.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
-                            "Template not found for record."));
-                    else
-                        initRecord(tmp);
-
-                });
+                initRecord(tmp);
             }).Error(x => reply.TriggerError(x));
+        }
+        else
+        {
+            initRecord(null);
         }
 
         return reply;
