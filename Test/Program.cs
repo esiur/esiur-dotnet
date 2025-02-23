@@ -57,7 +57,16 @@ namespace Test
     {
         static async Task Main(string[] args)
         {
-            var rp = RepresentationType.FromType(typeof(IMyRecord));
+
+
+            var x = new uint[] {1,2};// new byte[1024];
+            // var rr = DC.ToHex(Codec.Compose(aa, null));
+            var y = Codec.Compose(x, null);
+            var rr = DC.ToHex(y);
+
+            Console.WriteLine(rr);
+
+            var rp = RepresentationType.FromType(x.GetType());
 
             var hhhh = Warehouse.GetTemplateByType(typeof(IMyRecord));
 
