@@ -55,18 +55,45 @@ namespace Test
 
     class Program
     {
-        static async Task Main(string[] args)
+
+        static void TestSerialization(object x)
         {
 
-
-            var x = new uint[] {1,2};// new byte[1024];
-            // var rr = DC.ToHex(Codec.Compose(aa, null));
             var y = Codec.Compose(x, null);
             var rr = DC.ToHex(y);
 
-            Console.WriteLine(rr);
+            Console.WriteLine(x.GetType().Name + ": " + rr);
+        }
 
-            var rp = RepresentationType.FromType(x.GetType());
+
+        [Export]
+        public class StudentRecord:IRecord
+        {
+            public string Name { get; set; }
+            public byte Grade { get; set; }
+        }
+
+        static async Task Main(string[] args)
+        {
+
+            TestSerialization(new Map<string, byte?>
+            {
+                ["C++"] = 1,
+                ["C#"] = 2,
+                ["JS"] = null
+            });
+
+            TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90});
+
+            var tn = Encoding.UTF8.GetBytes("MyProject.Tools.Logging.LogRecord");
+            var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(tn).Clip(0, 16);
+            hash[6] = (byte)((hash[6] & 0xF) | 0x80);
+            hash[8] = (byte)((hash[8] & 0xF) | 0x80);
+
+            var g = new Guid(hash);
+
+            Console.WriteLine(g);
+
 
             var hhhh = Warehouse.GetTemplateByType(typeof(IMyRecord));
 

@@ -167,6 +167,9 @@ public class TypeTemplate
 
         var tn = Encoding.UTF8.GetBytes(GetTypeClassName(type));
         var hash = SHA256.Create().ComputeHash(tn).Clip(0, 16);
+        hash[6] = (byte)((hash[6] & 0xF) | 0x80);
+        hash[8] = (byte)((hash[8] & 0xF) | 0x80);
+
         var rt = new Guid(hash);
         return rt;
     }
