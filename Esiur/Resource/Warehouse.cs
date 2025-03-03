@@ -54,14 +54,14 @@ public static class Warehouse
     static uint resourceCounter = 0;
 
 
-    static KeyList<TemplateType, KeyList<Guid, TypeTemplate>> templates
-        = new KeyList<TemplateType, KeyList<Guid, TypeTemplate>>()
+    static KeyList<TemplateType, KeyList<UUID, TypeTemplate>> templates
+        = new KeyList<TemplateType, KeyList<UUID, TypeTemplate>>()
         {
             //[TemplateType.Unspecified] = new KeyList<Guid, TypeTemplate>(),
-            [TemplateType.Resource] = new KeyList<Guid, TypeTemplate>(),
-            [TemplateType.Record] = new KeyList<Guid, TypeTemplate>(),
+            [TemplateType.Resource] = new KeyList<UUID, TypeTemplate>(),
+            [TemplateType.Record] = new KeyList<UUID, TypeTemplate>(),
             //[TemplateType.Wrapper] = new KeyList<Guid, TypeTemplate>(),
-            [TemplateType.Enum] = new KeyList<Guid, TypeTemplate>(),
+            [TemplateType.Enum] = new KeyList<UUID, TypeTemplate>(),
         };
 
     static bool warehouseIsOpen = false;
@@ -800,7 +800,7 @@ public static class Warehouse
     /// </summary>
     /// <param name="classId">Class Id.</param>
     /// <returns>Resource template.</returns>
-    public static TypeTemplate GetTemplateByClassId(Guid classId, TemplateType? templateType = null)
+    public static TypeTemplate GetTemplateByClassId(UUID classId, TemplateType? templateType = null)
     {
         if (templateType == null)
         {

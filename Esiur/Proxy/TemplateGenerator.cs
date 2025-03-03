@@ -77,7 +77,7 @@ public static class TemplateGenerator
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
 
-        rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public class {className} : IRecord {{");
 
 
@@ -110,7 +110,7 @@ public static class TemplateGenerator
         if (template.Annotation != null)
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
-        rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public enum {className} {{");
 
         rt.AppendLine(String.Join(",\r\n", template.Constants.Select(x => $"{x.Name}={x.Value}")));
@@ -126,11 +126,11 @@ public static class TemplateGenerator
         string name;
 
         if (representationType.Identifier == RepresentationTypeIdentifier.TypedResource)// == DataType.Resource)
-            name = templates.First(x => x.ClassId == representationType.GUID && (x.Type == TemplateType.Resource)).ClassName;
+            name = templates.First(x => x.ClassId == representationType.UUID && (x.Type == TemplateType.Resource)).ClassName;
         else if (representationType.Identifier == RepresentationTypeIdentifier.TypedRecord)
-            name = templates.First(x => x.ClassId == representationType.GUID && x.Type == TemplateType.Record).ClassName;
+            name = templates.First(x => x.ClassId == representationType.UUID && x.Type == TemplateType.Record).ClassName;
         else if (representationType.Identifier == RepresentationTypeIdentifier.Enum)
-            name = templates.First(x => x.ClassId == representationType.GUID && x.Type == TemplateType.Enum).ClassName;
+            name = templates.First(x => x.ClassId == representationType.UUID && x.Type == TemplateType.Enum).ClassName;
         else if (representationType.Identifier == RepresentationTypeIdentifier.TypedList)
             name = GetTypeName(representationType.SubTypes[0], templates) + "[]";
         else if (representationType.Identifier == RepresentationTypeIdentifier.TypedMap)
@@ -278,7 +278,7 @@ public static class TemplateGenerator
             rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
 
 
-        rt.AppendLine($"[ClassId(\"{template.ClassId.ToByteArray().ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
 
         // extends
         if (template.ParentId == null)

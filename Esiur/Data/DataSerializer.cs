@@ -128,7 +128,7 @@ public static class DataSerializer
 
 
         var rt = new List<byte>();
-        rt.AddRange(template.ClassId.ToByteArray());
+        rt.AddRange(template.ClassId.Data);
         rt.Add(ct.Index);
 
         return (TransmissionTypeIdentifier.Enum, rt.ToArray());
@@ -366,7 +366,7 @@ public static class DataSerializer
         var template = Warehouse.GetTemplateByType(record.GetType());
 
 
-        rt.AddRange(template.ClassId.ToByteArray());
+        rt.AddRange(template.ClassId.Data);
 
         foreach (var pt in template.Properties)
         {

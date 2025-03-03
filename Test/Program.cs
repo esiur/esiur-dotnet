@@ -56,10 +56,10 @@ namespace Test
     class Program
     {
 
-        static void TestSerialization(object x)
+        static void TestSerialization(object x, DistributedConnection connection = null)
         {
 
-            var y = Codec.Compose(x, null);
+            var y = Codec.Compose(x, connection);
             var rr = DC.ToHex(y);
 
             Console.WriteLine(x.GetType().Name + ": " + rr);
@@ -67,14 +67,24 @@ namespace Test
 
 
         [Export]
-        public class StudentRecord:IRecord
+        public class StudentRecord : IRecord
         {
             public string Name { get; set; }
             public byte Grade { get; set; }
         }
+        public enum LogLevel : int
+        {
+            Debug,
+            Warning,
+            Error,
+        }
 
         static async Task Main(string[] args)
         {
+
+            var x = LogLevel.Warning;
+
+            TestSerialization(LogLevel.Warning);
 
             TestSerialization(new Map<string, byte?>
             {
@@ -83,14 +93,16 @@ namespace Test
                 ["JS"] = null
             });
 
-            TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90});
+             
 
-            var tn = Encoding.UTF8.GetBytes("MyProject.Tools.Logging.LogRecord");
+            TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90 });
+
+            var tn = Encoding.UTF8.GetBytes("Test.StudentRecord");
             var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(tn).Clip(0, 16);
             hash[6] = (byte)((hash[6] & 0xF) | 0x80);
             hash[8] = (byte)((hash[8] & 0xF) | 0x80);
 
-            var g = new Guid(hash);
+            var g = new UUID(hash);
 
             Console.WriteLine(g);
 
@@ -136,6 +148,8 @@ namespace Test
             var res3 = await Warehouse.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
             var res4 = await Warehouse.Put("sys/service/c2", new MyChildResource() { ChildName = "Child 2 Destroy", Description = "Testing Destroy Handler", CategoryId = 12 });
 
+            TestSerialization(res1);
+
             server.MapCall("Hello", (string msg, DateTime time, DistributedConnection sender) =>
             {
                 Console.WriteLine(msg);
@@ -167,7 +181,7 @@ namespace Test
         }
 
 
-//        AuthorizationRequest, AsyncReply<object>
+        //        AuthorizationRequest, AsyncReply<object>
         static AsyncReply<object> Authenticator(AuthorizationRequest x)
         {
             Console.WriteLine($"Authenticator: {x.Clue}");
@@ -194,7 +208,7 @@ namespace Test
                 Authenticator = Authenticator
             });
 
-          
+
             dynamic remote = await con.Get("sys/service");
 
             var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);

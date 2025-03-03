@@ -808,10 +808,15 @@ public static class DC // Data Converter
         return ar.ToArray();
     }
 
-    public static Guid GetGuid(this byte[] data, uint offset)
+    public static UUID GetUUID(this byte[] data, uint offset)
     {
-        return new Guid(Clip(data, offset, 16));
+        return new UUID(data, offset);
     }
+
+    //public static Guid GetGuid(this byte[] data, uint offset)
+    //{
+    //    return new Guid(Clip(data, offset, 16));
+    //}
 
     public static DateTime GetDateTime(this byte[] data, uint offset, Endian endian)
     {

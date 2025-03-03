@@ -177,9 +177,9 @@ namespace Esiur.Data
                 (RepresentationTypeIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
                 (RepresentationTypeIdentifier.Resource) => typeof(IResource),
                 (RepresentationTypeIdentifier.Record) => typeof(IRecord),
-                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((Guid)GUID!, TemplateType.Record)?.DefinedType,
-                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((Guid)GUID!, TemplateType.Resource)?.DefinedType,
-                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((Guid)GUID!, TemplateType.Enum)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Record)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Resource)?.DefinedType,
+                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Enum)?.DefinedType,
 
                 _ => null
             };
@@ -187,7 +187,7 @@ namespace Esiur.Data
 
         public RepresentationTypeIdentifier Identifier;
         public bool Nullable;
-        public Guid? GUID;
+        public UUID? UUID;
         //public RepresentationType? SubType1; // List + Map
         //public RepresentationType? SubType2; // Map
         //public RepresentationType? SubType3; // No types yet
@@ -197,7 +197,7 @@ namespace Esiur.Data
 
         public RepresentationType ToNullable()
         {
-            return new RepresentationType(Identifier, true, GUID, SubTypes);
+            return new RepresentationType(Identifier, true, UUID, SubTypes);
         }
 
         public static RepresentationType? FromType(Type type)
@@ -226,7 +226,7 @@ namespace Esiur.Data
                 return new RepresentationType(
                    RepresentationTypeIdentifier.TypedResource,
                    nullable,
-                   TypeTemplate.GetTypeGuid(type)
+                   TypeTemplate.GetTypeUUID(type)
                 );
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
@@ -234,7 +234,7 @@ namespace Esiur.Data
                 return new RepresentationType(
                    RepresentationTypeIdentifier.TypedRecord,
                    nullable,
-                   TypeTemplate.GetTypeGuid(type)
+                   TypeTemplate.GetTypeUUID(type)
                 );
             }
             else if (type.IsGenericType)
@@ -396,7 +396,7 @@ namespace Esiur.Data
             }
             else if (type.IsEnum)
             {
-                return new RepresentationType(RepresentationTypeIdentifier.Enum, nullable, TypeTemplate.GetTypeGuid(type));
+                return new RepresentationType(RepresentationTypeIdentifier.Enum, nullable, TypeTemplate.GetTypeUUID(type));
             }
             //else if (typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject) => RepresentationTypeIdentifier.Structure)
             //{
@@ -427,11 +427,11 @@ namespace Esiur.Data
 
         }
 
-        public RepresentationType(RepresentationTypeIdentifier identifier, bool nullable, Guid? guid = null, RepresentationType[]? subTypes = null)
+        public RepresentationType(RepresentationTypeIdentifier identifier, bool nullable, UUID? uuid = null, RepresentationType[]? subTypes = null)
         {
             Nullable = nullable;
             Identifier = identifier;
-            GUID = guid;
+            UUID = uuid;
             SubTypes = subTypes;
         }
 
@@ -444,8 +444,8 @@ namespace Esiur.Data
             else
                 rt.AddUInt8((byte)Identifier);
 
-            if (GUID != null)
-                rt.AddUInt8Array(DC.ToBytes((Guid)GUID));
+            if (UUID != null)
+                rt.AddUInt8Array(UUID.Value.Data);
 
             if (SubTypes != null)
                 for (var i = 0; i < SubTypes.Length; i++)
@@ -471,14 +471,14 @@ namespace Esiur.Data
             if ((header & 0x40) > 0)
             {
 
-                var hasGUID = (header & 0x4) > 0;
+                var hasUUID = (header & 0x4) > 0;
                 var subsCount = (header >> 3) & 0x7;
 
-                Guid? guid = null;
+                UUID? uuid = null;
 
-                if (hasGUID)
+                if (hasUUID)
                 {
-                    guid = data.GetGuid(offset);
+                    uuid = data.GetUUID(offset);
                     offset += 16;
                 }
 
@@ -490,7 +490,7 @@ namespace Esiur.Data
                     offset += len;
                 }
 
-                return (offset - oOffset, new RepresentationType(identifier, nullable, guid, subs));
+                return (offset - oOffset, new RepresentationType(identifier, nullable, uuid, subs));
             }
             else
             {

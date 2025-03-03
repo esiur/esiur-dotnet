@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Esiur.Data;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -9,9 +10,9 @@ struct IIPPacketAttachInfo
     public string Link;
     public ulong Age;
     public byte[] Content;
-    public Guid ClassId;
+    public UUID ClassId;
 
-    public IIPPacketAttachInfo(Guid classId, ulong age, string link, byte[] content)
+    public IIPPacketAttachInfo(UUID classId, ulong age, string link, byte[] content)
     {
         ClassId = classId;
         Age = age;

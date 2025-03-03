@@ -119,7 +119,7 @@ class IIPPacket : Packet
     public string ResourceLink { get; set; }
 
     public string ResourceName { get; set; }
-    public Guid ClassId { get; set; }
+    public UUID ClassId { get; set; }
     public byte MethodIndex { get; set; }
     public string MethodName { get; set; }
     public uint CallbackId { get; set; }
@@ -403,7 +403,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 16))
                     return -dataLengthNeeded;
 
-                ClassId = data.GetGuid(offset);
+                ClassId = data.GetUUID(offset);
                 offset += 16;
 
             }
@@ -592,7 +592,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 18))
                     return -dataLengthNeeded;
 
-                ClassId = data.GetGuid(offset);//, Endian.Little);
+                ClassId = data.GetUUID(offset);//, Endian.Little);
                 offset += 16;
 
                 MethodIndex = data[offset++];
@@ -615,7 +615,7 @@ class IIPPacket : Packet
                 if (NotEnough(offset, ends, 26))
                     return -dataLengthNeeded;
 
-                ClassId = data.GetGuid(offset);
+                ClassId = data.GetUUID(offset);
                 offset += 16;
 
                 ResourceAge = data.GetUInt64(offset, Endian.Little);

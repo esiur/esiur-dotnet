@@ -64,11 +64,17 @@ public class BinaryList
     }
 
 
-    public BinaryList AddGuid(Guid value)
+    public BinaryList AddUUID(UUID value)
     {
-        list.AddRange(DC.ToBytes(value));
+        list.AddRange(value.Data);
         return this;
+
     }
+    //public BinaryList AddGuid(Guid value)
+    //{
+    //    list.AddRange(DC.ToBytes(value));
+    //    return this;
+    //}
 
     public BinaryList InsertGuid(int position, Guid value)
     {

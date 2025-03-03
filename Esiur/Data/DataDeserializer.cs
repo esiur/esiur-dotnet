@@ -158,12 +158,12 @@ public static class DataDeserializer
 
         var reply = new AsyncReply<IRecord>();
 
-        var classId = data.GetGuid(offset);
+        var classId = data.GetUUID(offset);
         offset += 16;
         length -= 16;
 
 
-        var template = Warehouse.GetTemplateByClassId((Guid)classId, TemplateType.Record);
+        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
         var initRecord = (TypeTemplate template) =>
         {
@@ -216,7 +216,7 @@ public static class DataDeserializer
         else if (connection != null)
         {
             // try to get the template from the other end
-            connection.GetTemplate((Guid)classId).Then(tmp =>
+            connection.GetTemplate(classId).Then(tmp =>
             {
                 initRecord(tmp);
             }).Error(x => reply.TriggerError(x));
@@ -237,11 +237,11 @@ public static class DataDeserializer
     public static unsafe AsyncReply EnumParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
 
-        var classId = data.GetGuid(offset);
+        var classId = data.GetUUID(offset);
         offset += 16;
         var index = data[offset++];
 
-        var template = Warehouse.GetTemplateByClassId((Guid)classId, TemplateType.Enum);
+        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
 
         if (template != null)
         {
@@ -251,7 +251,7 @@ public static class DataDeserializer
         {
             var reply = new AsyncReply();
 
-            connection.GetTemplate((Guid)classId).Then(tmp =>
+            connection.GetTemplate(classId).Then(tmp =>
             {
                 reply.Trigger(tmp.Constants[index].Value);
             }).Error(x => reply.TriggerError(x));

@@ -22,8 +22,8 @@ namespace Esiur.Resource.Template;
 public class TypeTemplate
 {
 
-    protected Guid classId;
-    protected Guid? parentId;
+    protected UUID classId;
+    protected UUID? parentId;
 
     public string Annotation { get; set; }
 
@@ -43,7 +43,7 @@ public class TypeTemplate
 
     protected byte[] content;
 
-    public Guid? ParentId => parentId;
+    public UUID? ParentId => parentId;
 
     public byte[] Content
     {
@@ -123,7 +123,7 @@ public class TypeTemplate
         return null;
     }
 
-    public Guid ClassId
+    public UUID ClassId
     {
         get { return classId; }
     }
@@ -159,7 +159,7 @@ public class TypeTemplate
 
     }
 
-    public static Guid GetTypeGuid(Type type)
+    public static UUID GetTypeUUID(Type type)
     {
         var attr = type.GetCustomAttribute<ClassIdAttribute>();
         if (attr != null)
@@ -170,7 +170,7 @@ public class TypeTemplate
         hash[6] = (byte)((hash[6] & 0xF) | 0x80);
         hash[8] = (byte)((hash[8] & 0xF) | 0x80);
 
-        var rt = new Guid(hash);
+        var rt = new UUID(hash);
         return rt;
     }
 
@@ -428,7 +428,7 @@ public class TypeTemplate
         className = GetTypeClassName(type);
 
         // set guid
-        classId = GetTypeGuid(type);
+        classId = GetTypeUUID(type);
 
         if (addToWarehouse)
             Warehouse.PutTemplate(this);
@@ -525,7 +525,7 @@ public class TypeTemplate
         var classNameBytes = DC.ToBytes(className);
 
         b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasClassAnnotation ? 0x40 : 0x0) | (byte)templateType))
-         .AddGuid(classId)
+         .AddUUID(classId)
          .AddUInt8((byte)classNameBytes.Length)
          .AddUInt8Array(classNameBytes);
 
@@ -533,8 +533,8 @@ public class TypeTemplate
         {
             // find the first parent type that implements IResource
             ParentDefinedType = ResourceProxy.GetBaseType(type.BaseType);
-            var parentId = GetTypeGuid(ParentDefinedType);
-            b.AddGuid(parentId);
+            var parentId = GetTypeUUID(ParentDefinedType);
+            b.AddUUID(parentId);
         }
 
         if (hasClassAnnotation)
@@ -736,7 +736,7 @@ public class TypeTemplate
 
         od.templateType = (TemplateType)(data[offset++] & 0xF);
 
-        od.classId = data.GetGuid(offset);
+        od.classId = data.GetUUID(offset);
         offset += 16;
         od.className = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
@@ -744,7 +744,7 @@ public class TypeTemplate
 
         if (hasParent)
         {
-            od.parentId = data.GetGuid(offset);
+            od.parentId = data.GetUUID(offset);
             offset += 16;
         }
 

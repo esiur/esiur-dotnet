@@ -48,12 +48,12 @@ partial class DistributedConnection
     KeyList<uint, WeakReference<DistributedResource>> suspendedResources = new KeyList<uint, WeakReference<DistributedResource>>();
 
     KeyList<uint, DistributedResourceAttachRequestInfo> resourceRequests = new KeyList<uint, DistributedResourceAttachRequestInfo>();
-    KeyList<Guid, AsyncReply<TypeTemplate>> templateRequests = new KeyList<Guid, AsyncReply<TypeTemplate>>();
+    KeyList<UUID, AsyncReply<TypeTemplate>> templateRequests = new KeyList<UUID, AsyncReply<TypeTemplate>>();
 
     KeyList<string, AsyncReply<TypeTemplate>> templateByNameRequests = new KeyList<string, AsyncReply<TypeTemplate>>();
 
 
-    Dictionary<Guid, TypeTemplate> templates = new Dictionary<Guid, TypeTemplate>();
+    Dictionary<UUID, TypeTemplate> templates = new Dictionary<UUID, TypeTemplate>();
 
     KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
 
@@ -143,7 +143,7 @@ partial class DistributedConnection
     }
 
 
-    public AsyncReply<object> StaticCall(Guid classId, byte index, Map<byte, object> parameters)
+    public AsyncReply<object> StaticCall(UUID classId, byte index, Map<byte, object> parameters)
     {
         var pb = Codec.Compose(parameters, this);// Codec.ComposeVarArray(parameters, this, true);
 
@@ -154,7 +154,7 @@ partial class DistributedConnection
 
         SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketAction.StaticCall))
         .AddUInt32(c)
-        .AddGuid(classId)
+        .AddUUID(classId)
         .AddUInt8(index)
         .AddUInt8Array(pb)
         .Done();
@@ -577,7 +577,7 @@ partial class DistributedConnection
                 {
                     // reply ok
                     SendReply(IIPPacketAction.AttachResource, callback)
-                        .AddGuid(r.Instance.Template.ClassId)
+                        .AddUUID(r.Instance.Template.ClassId)
                         .AddUInt64(r.Instance.Age)
                         .AddUInt16((ushort)link.Length)
                         .AddUInt8Array(link)
@@ -589,7 +589,7 @@ partial class DistributedConnection
                 {
                     // reply ok
                     SendReply(IIPPacketAction.AttachResource, callback)
-                        .AddGuid(r.Instance.Template.ClassId)
+                        .AddUUID(r.Instance.Template.ClassId)
                         .AddUInt64(r.Instance.Age)
                         .AddUInt16((ushort)link.Length)
                         .AddUInt8Array(link)
@@ -1207,7 +1207,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPRequestTemplateFromClassId(uint callback, Guid classId)
+    void IIPRequestTemplateFromClassId(uint callback, UUID classId)
     {
         var t = Warehouse.GetTemplateByClassId(classId);
 
@@ -1334,7 +1334,7 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestStaticCall(uint callback, Guid classId, byte index, TransmissionType transmissionType, byte[] content)
+    void IIPRequestStaticCall(uint callback, UUID classId, byte index, TransmissionType transmissionType, byte[] content)
     {
         var template = Warehouse.GetTemplateByClassId(classId);
 
@@ -2097,7 +2097,7 @@ partial class DistributedConnection
     /// </summary>
     /// <param name="classId">Class GUID.</param>
     /// <returns>ResourceTemplate.</returns>
-    public AsyncReply<TypeTemplate> GetTemplate(Guid classId)
+    public AsyncReply<TypeTemplate> GetTemplate(UUID classId)
     {
         if (templates.ContainsKey(classId))
             return new AsyncReply<TypeTemplate>(templates[classId]);
@@ -2108,7 +2108,7 @@ partial class DistributedConnection
         templateRequests.Add(classId, reply);
 
         SendRequest(IIPPacketAction.TemplateFromClassId)
-                    .AddGuid(classId)
+                    .AddUUID(classId)
                     .Done()
                     .Then((rt) =>
                     {
@@ -2327,7 +2327,7 @@ partial class DistributedConnection
 
                         DistributedResource dr;
                         TypeTemplate template = null;
-                        Guid classId = (Guid)rt[0];
+                        UUID classId = (UUID)rt[0];
 
                         if (resource == null)
                         {
@@ -2370,7 +2370,7 @@ partial class DistributedConnection
 
                         if (template == null)
                         {
-                            GetTemplate((Guid)rt[0]).Then((tmp) =>
+                            GetTemplate((UUID)rt[0]).Then((tmp) =>
                             {
                                 // ClassId, ResourceAge, ResourceLink, Content
                                 if (resource == null)
