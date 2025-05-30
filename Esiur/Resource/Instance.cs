@@ -352,7 +352,7 @@ public class Instance
 */
 
         if (pt.PropertyInfo.PropertyType.IsGenericType
-            && pt.PropertyInfo.PropertyType.GetGenericTypeDefinition() == typeof(DistributedPropertyContext<>))
+            && pt.PropertyInfo.PropertyType.GetGenericTypeDefinition() == typeof(PropertyContext<>))
             return false;
 
 

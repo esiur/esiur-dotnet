@@ -191,7 +191,7 @@ public class TypeTemplate
             var genericTypeArgs = type.GetGenericArguments();
 
             if (genericType == typeof(List<>)
-                || genericType == typeof(DistributedPropertyContext<>))
+                || genericType == typeof(PropertyContext<>))
             {
                 return GetDistributedTypes(genericTypeArgs[0]);
             }

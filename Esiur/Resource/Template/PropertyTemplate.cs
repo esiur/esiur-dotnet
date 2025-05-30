@@ -151,7 +151,7 @@ public class PropertyTemplate : MemberTemplate
     {
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
 
-        var propType = genericPropType == typeof(DistributedPropertyContext<>) ?
+        var propType = genericPropType == typeof(PropertyContext<>) ?
                 RepresentationType.FromType(pi.PropertyType.GetGenericArguments()[0]) :
                 RepresentationType.FromType(pi.PropertyType);
 
@@ -174,7 +174,7 @@ public class PropertyTemplate : MemberTemplate
         //var nullableAttr = pi.GetCustomAttribute<NullableAttribute>(true);
         //var flags = ((byte[]) nullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
-        if (nullableAttrFlags.Count > 0 && genericPropType == typeof(DistributedPropertyContext<>))
+        if (nullableAttrFlags.Count > 0 && genericPropType == typeof(PropertyContext<>))
             nullableAttrFlags.RemoveAt(0);
 
         if (nullableContextAttrFlag == 2)

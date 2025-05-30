@@ -1909,7 +1909,7 @@ partial class DistributedConnection
 
 
                                 if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
-                                    == typeof(DistributedPropertyContext<>))
+                                    == typeof(PropertyContext<>))
                                 {
                                     value = Activator.CreateInstance(pi.PropertyType, this, value);
                                     //value = new DistributedPropertyContext(this, value);

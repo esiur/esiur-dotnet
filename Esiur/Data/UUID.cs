@@ -34,7 +34,7 @@ namespace Esiur.Data
 
         public UUID(byte[] data, uint offset)
         {
-            if (offset + 16 < data.Length)
+            if (offset + 16 > data.Length)
                 throw new Exception("UUID data size must be at least 16 bytes");
 
             Data = DC.Clip(data, offset, 16);

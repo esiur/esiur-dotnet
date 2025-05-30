@@ -257,9 +257,9 @@ public static class Codec
         {
 
             var genericType = type.GetGenericTypeDefinition();
-            if (genericType == typeof(DistributedPropertyContext<>))
+            if (genericType == typeof(PropertyContext<>))
             {
-                valueOrSource = ((IDistributedPropertyContext)valueOrSource).GetValue(connection);
+                valueOrSource = ((IPropertyContext)valueOrSource).GetValue(connection);
             }
             else if (genericType == typeof(Func<>))
             {

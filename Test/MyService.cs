@@ -106,12 +106,25 @@ public partial class MyService
     [Export] object[] objectArray = new object[] { 1, 1.2f, Math.PI, "Hello World" };
 
     [Export]
-    public DistributedPropertyContext<int> PropertyContext
+    public PropertyContext<int> PropertyContext
     {
-        get => new DistributedPropertyContext<int>((sender) => sender.RemoteEndPoint.Port);
+        get => new PropertyContext<int>((sender) => sender.RemoteEndPoint.Port);
         set
         {
             Console.WriteLine($"PropertyContext Set: {value.Value} {value.Connection.RemoteEndPoint.Port}");
+        }
+    }
+
+
+    int MyPasscode = 2025;
+    public PropertyContext<int> Passcode
+    {
+        get => new ((sender) => sender.Session.AuthorizedAccount == "alice" ? MyPasscode : 0);
+        set
+        {
+            if (value.Connection.Session.AuthorizedAccount != "alice")
+                throw new Exception("Only Alice is allowed.");
+            MyPasscode = value.Value;
         }
     }
 
@@ -144,8 +157,11 @@ public partial class MyService
         Console.WriteLine("Void()");
 
     [Export]
-    public void InvokeEvents(string msg)
+    public void InvokeEvents(string msg, InvocationContext context)
     {
+        if (context.Connection.Session.AuthorizedAccount != "Alice")
+            throw new Exception("Only Alice is allowed.");
+
         StringEvent?.Invoke(msg);
         ArrayEvent?.Invoke(new object[] { DateTime.UtcNow, "Event", msg });
     }

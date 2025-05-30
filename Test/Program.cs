@@ -82,29 +82,29 @@ namespace Test
         static async Task Main(string[] args)
         {
 
-            var x = LogLevel.Warning;
+            //var x = LogLevel.Warning;
 
-            TestSerialization(LogLevel.Warning);
+            //TestSerialization(LogLevel.Warning);
 
-            TestSerialization(new Map<string, byte?>
-            {
-                ["C++"] = 1,
-                ["C#"] = 2,
-                ["JS"] = null
-            });
+            //TestSerialization(new Map<string, byte?>
+            //{
+            //    ["C++"] = 1,
+            //    ["C#"] = 2,
+            //    ["JS"] = null
+            //});
 
              
 
-            TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90 });
+            //TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90 });
 
-            var tn = Encoding.UTF8.GetBytes("Test.StudentRecord");
-            var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(tn).Clip(0, 16);
-            hash[6] = (byte)((hash[6] & 0xF) | 0x80);
-            hash[8] = (byte)((hash[8] & 0xF) | 0x80);
+            //var tn = Encoding.UTF8.GetBytes("Test.StudentRecord");
+            //var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(tn).Clip(0, 16);
+            //hash[6] = (byte)((hash[6] & 0xF) | 0x80);
+            //hash[8] = (byte)((hash[8] & 0xF) | 0x80);
 
-            var g = new UUID(hash);
+            //var g = new UUID(hash);
 
-            Console.WriteLine(g);
+            //Console.WriteLine(g);
 
 
             var hhhh = Warehouse.GetTemplateByType(typeof(IMyRecord));
@@ -148,7 +148,7 @@ namespace Test
             var res3 = await Warehouse.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
             var res4 = await Warehouse.Put("sys/service/c2", new MyChildResource() { ChildName = "Child 2 Destroy", Description = "Testing Destroy Handler", CategoryId = 12 });
 
-            TestSerialization(res1);
+            //TestSerialization(res1);
 
             server.MapCall("Hello", (string msg, DateTime time, DistributedConnection sender) =>
             {
