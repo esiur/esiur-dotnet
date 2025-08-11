@@ -76,7 +76,7 @@ partial class DistributedConnection
     /// <param name="action">Packet action.</param>
     /// <param name="args">Arguments to send.</param>
     /// <returns></returns>
-    SendList SendRequest(IIPPacketAction action)
+    SendList SendRequest(IIPPacketRequest action)
     {
         var reply = new AsyncReply<object[]>();
         var c = callbackCounter++; // avoid thread racing
@@ -102,7 +102,7 @@ partial class DistributedConnection
 
     //uint maxcallerid = 0;
 
-    internal SendList SendReply(IIPPacketAction action, uint callbackId)
+    internal SendList SendReply(IIPPacketRequest action, uint callbackId)
     {
         return (SendList)SendParams().AddUInt8((byte)(0x80 | (byte)action)).AddUInt32(callbackId);
     }
@@ -118,7 +118,7 @@ partial class DistributedConnection
         var c = callbackCounter++;
         requests.Add(c, reply);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketAction.Listen))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Listen))
                     .AddUInt32(c)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
@@ -133,7 +133,7 @@ partial class DistributedConnection
         var c = callbackCounter++;
         requests.Add(c, reply);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketAction.Unlisten))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Unlisten))
                     .AddUInt32(c)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
@@ -152,7 +152,7 @@ partial class DistributedConnection
         requests.Add(c, reply);
 
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketAction.StaticCall))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.StaticCall))
         .AddUInt32(c)
         .AddUUID(classId)
         .AddUInt8(index)
@@ -180,7 +180,7 @@ partial class DistributedConnection
 
         var callName = DC.ToBytes(procedureCall);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketAction.ProcedureCall))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.ProcedureCall))
         .AddUInt32(c)
         .AddUInt16((ushort)callName.Length)
         .AddUInt8Array(callName)
@@ -198,7 +198,7 @@ partial class DistributedConnection
         var c = callbackCounter++;
         requests.Add(c, reply);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketAction.InvokeFunction))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.InvokeFunction))
                     .AddUInt32(c)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
@@ -211,7 +211,7 @@ partial class DistributedConnection
     {
         var cv = Codec.Compose(value, this);
 
-        return SendRequest(IIPPacketAction.SetProperty)
+        return SendRequest(IIPPacketRequest.SetProperty)
                 .AddUInt32(instanceId)
                 .AddUInt8(index)
                 .AddUInt8Array(cv)
@@ -237,7 +237,7 @@ partial class DistributedConnection
             }
 
             if (sendDetach)
-                return SendRequest(IIPPacketAction.DetachResource)
+                return SendRequest(IIPPacketRequest.DetachResource)
                     .AddUInt32(instanceId)
                     .Done();
 
@@ -576,7 +576,7 @@ partial class DistributedConnection
                 if (r is DistributedResource)
                 {
                     // reply ok
-                    SendReply(IIPPacketAction.AttachResource, callback)
+                    SendReply(IIPPacketRequest.AttachResource, callback)
                         .AddUUID(r.Instance.Template.ClassId)
                         .AddUInt64(r.Instance.Age)
                         .AddUInt16((ushort)link.Length)
@@ -588,7 +588,7 @@ partial class DistributedConnection
                 else
                 {
                     // reply ok
-                    SendReply(IIPPacketAction.AttachResource, callback)
+                    SendReply(IIPPacketRequest.AttachResource, callback)
                         .AddUUID(r.Instance.Template.ClassId)
                         .AddUInt64(r.Instance.Age)
                         .AddUInt16((ushort)link.Length)
@@ -713,7 +713,7 @@ partial class DistributedConnection
                 //r.Instance.Attributes.OnModified += Attributes_OnModified;
 
                 // reply ok
-                SendReply(IIPPacketAction.ReattachResource, callback)
+                SendReply(IIPPacketRequest.ReattachResource, callback)
                         .AddUInt64(r.Instance.Age)
                         .AddUInt8Array(Codec.Compose(r.Instance.Serialize(), this))
                             .Done();
@@ -742,7 +742,7 @@ partial class DistributedConnection
                 //attachedResources.Remove(res);
 
                 // reply ok
-                SendReply(IIPPacketAction.DetachResource, callback).Done();
+                SendReply(IIPPacketRequest.DetachResource, callback).Done();
             }
             else
             {
@@ -869,7 +869,7 @@ partial class DistributedConnection
 
                             Warehouse.Put(name, resource, store as IStore, parent).Then(ok =>
                            {
-                               SendReply(IIPPacketAction.CreateResource, callback)
+                               SendReply(IIPPacketRequest.CreateResource, callback)
                               .AddUInt32(resource.Instance.Id)
                               .Done();
 
@@ -902,7 +902,7 @@ partial class DistributedConnection
             }
 
             if (Warehouse.Remove(r))
-                SendReply(IIPPacketAction.DeleteResource, callback).Done();
+                SendReply(IIPPacketRequest.DeleteResource, callback).Done();
             //SendParams((byte)0x84, callback);
             else
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteFailed);
@@ -934,7 +934,7 @@ partial class DistributedConnection
             var st = r.Instance.GetAttributes(attrs);
 
             if (st != null)
-                SendReply(all ? IIPPacketAction.GetAllAttributes : IIPPacketAction.GetAttributes, callback)
+                SendReply(all ? IIPPacketRequest.GetAllAttributes : IIPPacketRequest.GetAttributes, callback)
                           .AddUInt8Array(Codec.Compose(st, this))
                           .Done();
             else
@@ -975,7 +975,7 @@ partial class DistributedConnection
 
                 parent.Instance.Store.AddChild(parent, child);
 
-                SendReply(IIPPacketAction.AddChild, callback).Done();
+                SendReply(IIPPacketRequest.AddChild, callback).Done();
                 //child.Instance.Parents
             });
 
@@ -1014,7 +1014,7 @@ partial class DistributedConnection
 
                 parent.Instance.Store.RemoveChild(parent, child);// Children.Remove(child);
 
-                SendReply(IIPPacketAction.RemoveChild, callback).Done();
+                SendReply(IIPPacketRequest.RemoveChild, callback).Done();
                 //child.Instance.Parents
             });
 
@@ -1039,7 +1039,7 @@ partial class DistributedConnection
 
 
             resource.Instance.Name = name;
-            SendReply(IIPPacketAction.RenameResource, callback).Done();
+            SendReply(IIPPacketRequest.RenameResource, callback).Done();
         });
     }
 
@@ -1055,7 +1055,7 @@ partial class DistributedConnection
 
             resource.Instance.Children<IResource>().Then(children =>
             {
-                SendReply(IIPPacketAction.ResourceChildren, callback)
+                SendReply(IIPPacketRequest.ResourceChildren, callback)
                 .AddUInt8Array(Codec.Compose(children, this))// Codec.ComposeResourceArray(children, this, true))
                     .Done();
 
@@ -1077,7 +1077,7 @@ partial class DistributedConnection
 
             resource.Instance.Parents<IResource>().Then(parents =>
             {
-                SendReply(IIPPacketAction.ResourceParents, callback)
+                SendReply(IIPPacketRequest.ResourceParents, callback)
                 .AddUInt8Array(Codec.Compose(parents, this))
                 //.AddUInt8Array(Codec.ComposeResourceArray(parents, this, true))
                 .Done();
@@ -1109,7 +1109,7 @@ partial class DistributedConnection
                 attrs = attributes.GetStringArray(0, (uint)attributes.Length);
 
             if (r.Instance.RemoveAttributes(attrs))
-                SendReply(all ? IIPPacketAction.ClearAllAttributes : IIPPacketAction.ClearAttributes, callback).Done();
+                SendReply(all ? IIPPacketRequest.ClearAllAttributes : IIPPacketRequest.ClearAttributes, callback).Done();
             else
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
 
@@ -1136,7 +1136,7 @@ partial class DistributedConnection
             DataDeserializer.TypedMapParser(attributes, 0, (uint)attributes.Length, this, null).Then(attrs =>
             {
                 if (r.Instance.SetAttributes((Map<string, object>)attrs, clearAttributes))
-                    SendReply(clearAttributes ? IIPPacketAction.ClearAllAttributes : IIPPacketAction.ClearAttributes,
+                    SendReply(clearAttributes ? IIPPacketRequest.ClearAllAttributes : IIPPacketRequest.ClearAttributes,
                               callback).Done();
                 else
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
@@ -1175,7 +1175,7 @@ partial class DistributedConnection
                     }
 
                     // digggg
-                    SendReply(IIPPacketAction.LinkTemplates, callback)
+                    SendReply(IIPPacketRequest.LinkTemplates, callback)
                             //.AddInt32(msg.Length)
                             //.AddUInt8Array(msg.ToArray())
                             .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, msg.ToArray()))
@@ -1195,7 +1195,7 @@ partial class DistributedConnection
         var t = Warehouse.GetTemplateByClassName(className);
 
         if (t != null)
-            SendReply(IIPPacketAction.TemplateFromClassName, callback)
+            SendReply(IIPPacketRequest.TemplateFromClassName, callback)
                     .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, t.Content))
                     //.AddInt32(t.Content.Length)
                     //.AddUInt8Array(t.Content)
@@ -1212,7 +1212,7 @@ partial class DistributedConnection
         var t = Warehouse.GetTemplateByClassId(classId);
 
         if (t != null)
-            SendReply(IIPPacketAction.TemplateFromClassId, callback)
+            SendReply(IIPPacketRequest.TemplateFromClassId, callback)
                     .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, t.Content))
                     //.AddInt32(t.Content.Length)
                     //.AddUInt8Array(t.Content)
@@ -1231,7 +1231,7 @@ partial class DistributedConnection
         Warehouse.GetById(resourceId).Then((r) =>
         {
             if (r != null)
-                SendReply(IIPPacketAction.TemplateFromResourceId, callback)
+                SendReply(IIPPacketRequest.TemplateFromResourceId, callback)
                         .AddInt32(r.Instance.Template.Content.Length)
                         .AddUInt8Array(r.Instance.Template.Content)
                         .Done();
@@ -1260,7 +1260,7 @@ partial class DistributedConnection
                 if (list.Length == 0)
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
-                    SendReply(IIPPacketAction.QueryLink, callback)
+                    SendReply(IIPPacketRequest.QueryLink, callback)
                                 .AddUInt8Array(Codec.Compose(list, this))
                                 //.AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
                                 .Done();
@@ -1326,7 +1326,7 @@ partial class DistributedConnection
             //    return;
             //}
 
-            InvokeFunction(call.Value.Template, callback, arguments, IIPPacketAction.ProcedureCall, call.Value.Delegate.Target);
+            InvokeFunction(call.Value.Template, callback, arguments, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
 
         }).Error(x =>
         {
@@ -1379,7 +1379,7 @@ partial class DistributedConnection
             //    return;
             //}
 
-            InvokeFunction(ft, callback, arguments, IIPPacketAction.StaticCall, null);
+            InvokeFunction(ft, callback, arguments, IIPPacketRequest.StaticCall, null);
 
         }).Error(x =>
         {
@@ -1425,7 +1425,7 @@ partial class DistributedConnection
                     {
                         rt.Then(res =>
                         {
-                            SendReply(IIPPacketAction.InvokeFunction, callback)
+                            SendReply(IIPPacketRequest.InvokeFunction, callback)
                                         .AddUInt8Array(Codec.Compose(res, this))
                                         .Done();
                         });
@@ -1456,7 +1456,7 @@ partial class DistributedConnection
                         return;
                     }
 
-                    InvokeFunction(ft, callback, arguments, IIPPacketAction.InvokeFunction, r);
+                    InvokeFunction(ft, callback, arguments, IIPPacketRequest.InvokeFunction, r);
                 }
             });
         });
@@ -1464,7 +1464,7 @@ partial class DistributedConnection
 
 
 
-    void InvokeFunction(FunctionTemplate ft, uint callback, Map<byte, object> arguments, IIPPacketAction actionType, object target = null)
+    void InvokeFunction(FunctionTemplate ft, uint callback, Map<byte, object> arguments, IIPPacketRequest actionType, object target = null)
     {
 
         // cast arguments
@@ -1629,7 +1629,7 @@ partial class DistributedConnection
                     {
                         (r as DistributedResource).Listen(et).Then(x =>
                        {
-                           SendReply(IIPPacketAction.Listen, callback).Done();
+                           SendReply(IIPPacketRequest.Listen, callback).Done();
                        }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
                     }
                     else
@@ -1650,7 +1650,7 @@ partial class DistributedConnection
 
                             subscriptions[r].Add(index);
 
-                            SendReply(IIPPacketAction.Listen, callback).Done();
+                            SendReply(IIPPacketRequest.Listen, callback).Done();
                         }
                     }
                 }
@@ -1683,7 +1683,7 @@ partial class DistributedConnection
                     {
                         (r as DistributedResource).Unlisten(et).Then(x =>
                         {
-                            SendReply(IIPPacketAction.Unlisten, callback).Done();
+                            SendReply(IIPPacketRequest.Unlisten, callback).Done();
                         }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
                     }
                     else
@@ -1704,7 +1704,7 @@ partial class DistributedConnection
 
                             subscriptions[r].Remove(index);
 
-                            SendReply(IIPPacketAction.Unlisten, callback).Done();
+                            SendReply(IIPPacketRequest.Unlisten, callback).Done();
                         }
                     }
                 }
@@ -1797,7 +1797,7 @@ partial class DistributedConnection
 
                     }*/
 
-                    SendReply(IIPPacketAction.ResourceHistory, callback)
+                    SendReply(IIPPacketRequest.ResourceHistory, callback)
                             .AddUInt8Array(history)
                             .Done();
 
@@ -1874,7 +1874,7 @@ partial class DistributedConnection
                             // propagation
                             (r as DistributedResource)._Set(index, value).Then((x) =>
                         {
-                            SendReply(IIPPacketAction.SetProperty, callback).Done();
+                            SendReply(IIPPacketRequest.SetProperty, callback).Done();
                         }).Error(x =>
                         {
                             SendError(x.Type, callback, (ushort)x.Code, x.Message);
@@ -1925,7 +1925,7 @@ partial class DistributedConnection
                                 {
 
                                     pi.SetValue(r, value);
-                                    SendReply(IIPPacketAction.SetProperty, callback).Done();
+                                    SendReply(IIPPacketRequest.SetProperty, callback).Done();
                                 }
                                 catch (Exception ex)
                                 {
@@ -2107,7 +2107,7 @@ partial class DistributedConnection
         var reply = new AsyncReply<TypeTemplate>();
         templateRequests.Add(classId, reply);
 
-        SendRequest(IIPPacketAction.TemplateFromClassId)
+        SendRequest(IIPPacketRequest.TemplateFromClassId)
                     .AddUUID(classId)
                     .Done()
                     .Then((rt) =>
@@ -2139,7 +2139,7 @@ partial class DistributedConnection
 
         var classNameBytes = DC.ToBytes(className);
 
-        SendRequest(IIPPacketAction.TemplateFromClassName)
+        SendRequest(IIPPacketRequest.TemplateFromClassName)
             .AddUInt8((byte)classNameBytes.Length)
             .AddUInt8Array(classNameBytes)
                     .Done()
@@ -2233,7 +2233,7 @@ partial class DistributedConnection
 
         var l = DC.ToBytes(link);
 
-        SendRequest(IIPPacketAction.LinkTemplates)
+        SendRequest(IIPPacketRequest.LinkTemplates)
         .AddUInt16((ushort)l.Length)
         .AddUInt8Array(l)
         .Done()
@@ -2312,7 +2312,7 @@ partial class DistributedConnection
         var reply = new AsyncReply<DistributedResource>();
         resourceRequests.Add(id, new DistributedResourceAttachRequestInfo(reply, newSequence));
 
-        SendRequest(IIPPacketAction.AttachResource)
+        SendRequest(IIPPacketRequest.AttachResource)
                     .AddUInt32(id)
                     .Done()
                     .Then((rt) =>
@@ -2415,7 +2415,7 @@ partial class DistributedConnection
     {
         var rt = new AsyncReply<IResource[]>();
 
-        SendRequest(IIPPacketAction.ResourceChildren)
+        SendRequest(IIPPacketRequest.ResourceChildren)
                     .AddUInt32(resource.Instance.Id)
                     .Done()
                     .Then(ar =>
@@ -2441,7 +2441,7 @@ partial class DistributedConnection
     {
         var rt = new AsyncReply<IResource[]>();
 
-        SendRequest(IIPPacketAction.ResourceParents)
+        SendRequest(IIPPacketRequest.ResourceParents)
             .AddUInt32(resource.Instance.Id)
             .Done()
             .Then(ar =>
@@ -2467,7 +2467,7 @@ partial class DistributedConnection
         var rt = new AsyncReply<bool>();
 
         if (attributes == null)
-            SendRequest(IIPPacketAction.ClearAllAttributes)
+            SendRequest(IIPPacketRequest.ClearAllAttributes)
                 .AddUInt32(resource.Instance.Id)
                 .Done()
                 .Then(ar => rt.Trigger(true))
@@ -2475,7 +2475,7 @@ partial class DistributedConnection
         else
         {
             var attrs = DC.ToBytes(attributes);
-            SendRequest(IIPPacketAction.ClearAttributes)
+            SendRequest(IIPPacketRequest.ClearAttributes)
                 .AddUInt32(resource.Instance.Id)
                 .AddInt32(attrs.Length)
                 .AddUInt8Array(attrs)
@@ -2491,7 +2491,7 @@ partial class DistributedConnection
     {
         var rt = new AsyncReply<bool>();
 
-        SendRequest(clearAttributes ? IIPPacketAction.UpdateAllAttributes : IIPPacketAction.UpdateAttributes)
+        SendRequest(clearAttributes ? IIPPacketRequest.UpdateAllAttributes : IIPPacketRequest.UpdateAttributes)
             .AddUInt32(resource.Instance.Id)
             //.AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
             .AddUInt8Array(Codec.Compose(attributes, this))
@@ -2508,7 +2508,7 @@ partial class DistributedConnection
 
         if (attributes == null)
         {
-            SendRequest(IIPPacketAction.GetAllAttributes)
+            SendRequest(IIPPacketRequest.GetAllAttributes)
                 .AddUInt32(resource.Instance.Id)
                 .Done()
                 .Then(ar =>
@@ -2529,7 +2529,7 @@ partial class DistributedConnection
         else
         {
             var attrs = DC.ToBytes(attributes);
-            SendRequest(IIPPacketAction.GetAttributes)
+            SendRequest(IIPPacketRequest.GetAttributes)
                 .AddUInt32(resource.Instance.Id)
                 .AddInt32(attrs.Length)
                 .AddUInt8Array(attrs)
@@ -2571,7 +2571,7 @@ partial class DistributedConnection
 
             var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
 
-            SendRequest(IIPPacketAction.ResourceHistory)
+            SendRequest(IIPPacketRequest.ResourceHistory)
                 .AddUInt32(dr.DistributedResourceInstanceId)
                 .AddDateTime(fromDate)
                 .AddDateTime(toDate)
@@ -2601,7 +2601,7 @@ partial class DistributedConnection
         var str = DC.ToBytes(path);
         var reply = new AsyncReply<IResource[]>();
 
-        SendRequest(IIPPacketAction.QueryLink)
+        SendRequest(IIPPacketRequest.QueryLink)
                     .AddUInt16((ushort)str.Length)
                     .AddUInt8Array(str)
                     .Done()
@@ -2647,7 +2647,7 @@ partial class DistributedConnection
 
         pkt.InsertInt32(8, pkt.Length);
 
-        SendRequest(IIPPacketAction.CreateResource)
+        SendRequest(IIPPacketRequest.CreateResource)
             .AddUInt8Array(pkt.ToArray())
             .Done()
             .Then(args =>
@@ -2810,7 +2810,7 @@ partial class DistributedConnection
         }
 
         SendParams()
-            .AddUInt8((byte)(0x80 | (byte)IIPPacketAction.KeepAlive))
+            .AddUInt8((byte)(0x80 | (byte)IIPPacketRequest.KeepAlive))
             .AddUInt32(callbackId)
             .AddDateTime(now)
             .AddUInt32(jitter)

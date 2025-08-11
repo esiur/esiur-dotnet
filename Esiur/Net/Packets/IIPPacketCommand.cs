@@ -4,11 +4,11 @@ using System.Text;
 
 namespace Esiur.Net.Packets
 {
-    public enum IIPPacketCommand : byte
+    public enum IIPPacketMethod : byte
     {
-        Event = 0,
+        Notification = 0,
         Request,
         Reply,
-        Report,
+        Extension,
     }
 }

@@ -372,7 +372,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         lastKeepAliveSent = now;
 
-        SendRequest(IIPPacketAction.KeepAlive)
+        SendRequest(IIPPacketRequest.KeepAlive)
                 .AddDateTime(now)
                 .AddUInt32(interval)
                 .Done()
@@ -463,63 +463,63 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     switch (packet.Action)
                     {
                         // Manage
-                        case IIPPacketAction.AttachResource:
+                        case IIPPacketRequest.AttachResource:
                             IIPRequestAttachResource(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacketAction.ReattachResource:
+                        case IIPPacketRequest.ReattachResource:
                             IIPRequestReattachResource(packet.CallbackId, packet.ResourceId, packet.ResourceAge);
                             break;
-                        case IIPPacketAction.DetachResource:
+                        case IIPPacketRequest.DetachResource:
                             IIPRequestDetachResource(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacketAction.CreateResource:
+                        case IIPPacketRequest.CreateResource:
                             //@TODO : fix this
                             //IIPRequestCreateResource(packet.CallbackId, packet.StoreId, packet.ResourceId, packet.Content);
                             break;
-                        case IIPPacketAction.DeleteResource:
+                        case IIPPacketRequest.DeleteResource:
                             IIPRequestDeleteResource(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacketAction.AddChild:
+                        case IIPPacketRequest.AddChild:
                             IIPRequestAddChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
                             break;
-                        case IIPPacketAction.RemoveChild:
+                        case IIPPacketRequest.RemoveChild:
                             IIPRequestRemoveChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
                             break;
-                        case IIPPacketAction.RenameResource:
+                        case IIPPacketRequest.RenameResource:
                             IIPRequestRenameResource(packet.CallbackId, packet.ResourceId, packet.ResourceName);
                             break;
 
                         // Inquire
-                        case IIPPacketAction.TemplateFromClassName:
+                        case IIPPacketRequest.TemplateFromClassName:
                             IIPRequestTemplateFromClassName(packet.CallbackId, packet.ClassName);
                             break;
-                        case IIPPacketAction.TemplateFromClassId:
+                        case IIPPacketRequest.TemplateFromClassId:
                             IIPRequestTemplateFromClassId(packet.CallbackId, packet.ClassId);
                             break;
-                        case IIPPacketAction.TemplateFromResourceId:
+                        case IIPPacketRequest.TemplateFromResourceId:
                             IIPRequestTemplateFromResourceId(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacketAction.QueryLink:
+                        case IIPPacketRequest.QueryLink:
                             IIPRequestQueryResources(packet.CallbackId, packet.ResourceLink);
                             break;
 
-                        case IIPPacketAction.ResourceChildren:
+                        case IIPPacketRequest.ResourceChildren:
                             IIPRequestResourceChildren(packet.CallbackId, packet.ResourceId);
                             break;
-                        case IIPPacketAction.ResourceParents:
+                        case IIPPacketRequest.ResourceParents:
                             IIPRequestResourceParents(packet.CallbackId, packet.ResourceId);
                             break;
 
-                        case IIPPacketAction.ResourceHistory:
+                        case IIPPacketRequest.ResourceHistory:
                             IIPRequestInquireResourceHistory(packet.CallbackId, packet.ResourceId, packet.FromDate, packet.ToDate);
                             break;
 
-                        case IIPPacketAction.LinkTemplates:
+                        case IIPPacketRequest.LinkTemplates:
                             IIPRequestLinkTemplates(packet.CallbackId, packet.ResourceLink);
                             break;
 
                         // Invoke
-                        case IIPPacketAction.InvokeFunction:
+                        case IIPPacketRequest.InvokeFunction:
                             IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
@@ -534,53 +534,53 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         //    IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
                         //    break;
 
-                        case IIPPacketAction.Listen:
+                        case IIPPacketRequest.Listen:
                             IIPRequestListen(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                             break;
 
-                        case IIPPacketAction.Unlisten:
+                        case IIPPacketRequest.Unlisten:
                             IIPRequestUnlisten(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
                             break;
 
-                        case IIPPacketAction.SetProperty:
+                        case IIPPacketRequest.SetProperty:
                             IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
                         // Attribute
-                        case IIPPacketAction.GetAllAttributes:
+                        case IIPPacketRequest.GetAllAttributes:
                             // @TODO : fix this
                             //IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
                             break;
-                        case IIPPacketAction.UpdateAllAttributes:
+                        case IIPPacketRequest.UpdateAllAttributes:
                             // @TODO : fix this
                             //IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
                             break;
-                        case IIPPacketAction.ClearAllAttributes:
+                        case IIPPacketRequest.ClearAllAttributes:
                             // @TODO : fix this
                             //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
                             break;
-                        case IIPPacketAction.GetAttributes:
+                        case IIPPacketRequest.GetAttributes:
                             // @TODO : fix this
                             //IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
-                        case IIPPacketAction.UpdateAttributes:
+                        case IIPPacketRequest.UpdateAttributes:
                             // @TODO : fix this
                             //IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
-                        case IIPPacketAction.ClearAttributes:
+                        case IIPPacketRequest.ClearAttributes:
                             // @TODO : fix this
                             //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
                             break;
 
-                        case IIPPacketAction.KeepAlive:
+                        case IIPPacketRequest.KeepAlive:
                             IIPRequestKeepAlive(packet.CallbackId, packet.CurrentTime, packet.Interval);
                             break;
 
-                        case IIPPacketAction.ProcedureCall:
+                        case IIPPacketRequest.ProcedureCall:
                             IIPRequestProcedureCall(packet.CallbackId, packet.Procedure, (TransmissionType)packet.DataType, msg);
                             break;
 
-                        case IIPPacketAction.StaticCall:
+                        case IIPPacketRequest.StaticCall:
                             IIPRequestStaticCall(packet.CallbackId, packet.ClassId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
                             break;
 
@@ -591,51 +591,51 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     switch (packet.Action)
                     {
                         // Manage
-                        case IIPPacketAction.AttachResource:
+                        case IIPPacketRequest.AttachResource:
                             IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.DataType, msg);
                             break;
 
-                        case IIPPacketAction.ReattachResource:
+                        case IIPPacketRequest.ReattachResource:
                             IIPReply(packet.CallbackId, packet.ResourceAge, packet.DataType, msg);
 
                             break;
-                        case IIPPacketAction.DetachResource:
+                        case IIPPacketRequest.DetachResource:
                             IIPReply(packet.CallbackId);
                             break;
 
-                        case IIPPacketAction.CreateResource:
+                        case IIPPacketRequest.CreateResource:
                             IIPReply(packet.CallbackId, packet.ResourceId);
                             break;
 
-                        case IIPPacketAction.DeleteResource:
-                        case IIPPacketAction.AddChild:
-                        case IIPPacketAction.RemoveChild:
-                        case IIPPacketAction.RenameResource:
+                        case IIPPacketRequest.DeleteResource:
+                        case IIPPacketRequest.AddChild:
+                        case IIPPacketRequest.RemoveChild:
+                        case IIPPacketRequest.RenameResource:
                             IIPReply(packet.CallbackId);
                             break;
 
                         // Inquire
 
-                        case IIPPacketAction.TemplateFromClassName:
-                        case IIPPacketAction.TemplateFromClassId:
-                        case IIPPacketAction.TemplateFromResourceId:
+                        case IIPPacketRequest.TemplateFromClassName:
+                        case IIPPacketRequest.TemplateFromClassId:
+                        case IIPPacketRequest.TemplateFromResourceId:
 
                             var content = msg.Clip(packet.DataType.Value.Offset, (uint)packet.DataType.Value.ContentLength);
                             IIPReply(packet.CallbackId, TypeTemplate.Parse(content));
                             break;
 
-                        case IIPPacketAction.QueryLink:
-                        case IIPPacketAction.ResourceChildren:
-                        case IIPPacketAction.ResourceParents:
-                        case IIPPacketAction.ResourceHistory:
-                        case IIPPacketAction.LinkTemplates:
+                        case IIPPacketRequest.QueryLink:
+                        case IIPPacketRequest.ResourceChildren:
+                        case IIPPacketRequest.ResourceParents:
+                        case IIPPacketRequest.ResourceHistory:
+                        case IIPPacketRequest.LinkTemplates:
                             IIPReply(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
                         // Invoke
-                        case IIPPacketAction.InvokeFunction:
-                        case IIPPacketAction.StaticCall:
-                        case IIPPacketAction.ProcedureCall:
+                        case IIPPacketRequest.InvokeFunction:
+                        case IIPPacketRequest.StaticCall:
+                        case IIPPacketRequest.ProcedureCall:
                             IIPReplyInvoke(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
@@ -647,26 +647,26 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         //    IIPReply(packet.CallbackId, packet.Content);
                         //    break;
 
-                        case IIPPacketAction.Listen:
-                        case IIPPacketAction.Unlisten:
-                        case IIPPacketAction.SetProperty:
+                        case IIPPacketRequest.Listen:
+                        case IIPPacketRequest.Unlisten:
+                        case IIPPacketRequest.SetProperty:
                             IIPReply(packet.CallbackId);
                             break;
 
                         // Attribute
-                        case IIPPacketAction.GetAllAttributes:
-                        case IIPPacketAction.GetAttributes:
+                        case IIPPacketRequest.GetAllAttributes:
+                        case IIPPacketRequest.GetAttributes:
                             IIPReply(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
                             break;
 
-                        case IIPPacketAction.UpdateAllAttributes:
-                        case IIPPacketAction.UpdateAttributes:
-                        case IIPPacketAction.ClearAllAttributes:
-                        case IIPPacketAction.ClearAttributes:
+                        case IIPPacketRequest.UpdateAllAttributes:
+                        case IIPPacketRequest.UpdateAttributes:
+                        case IIPPacketRequest.ClearAllAttributes:
+                        case IIPPacketRequest.ClearAttributes:
                             IIPReply(packet.CallbackId);
                             break;
 
-                        case IIPPacketAction.KeepAlive:
+                        case IIPPacketRequest.KeepAlive:
                             IIPReply(packet.CallbackId, packet.CurrentTime, packet.Jitter);
                             break;
                     }
@@ -1653,7 +1653,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                     try
                     {
-                        var ar = await SendRequest(IIPPacketAction.QueryLink)
+                        var ar = await SendRequest(IIPPacketRequest.QueryLink)
                                             .AddUInt16((ushort)link.Length)
                                             .AddUInt8Array(link)
                                             .Done();
