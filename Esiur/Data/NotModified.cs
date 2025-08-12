@@ -31,5 +31,5 @@ using System.Threading.Tasks;
 namespace Esiur.Data;
 public class NotModified
 {
-
+    public static NotModified Default { get; set; } = new NotModified();
 }

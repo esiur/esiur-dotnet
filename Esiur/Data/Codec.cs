@@ -39,41 +39,42 @@ namespace Esiur.Data;
 public static class Codec
 {
  
-    delegate AsyncReply Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
+    delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
+    delegate object SyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
-    static Parser[][] FixedParsers = new Parser[][]
+    static AsyncParser[][] FixedParsers = new AsyncParser[][]
     {
-        new Parser[]{
+        new AsyncParser[]{
             DataDeserializer.NullParser,
             DataDeserializer.BooleanFalseParser,
             DataDeserializer.BooleanTrueParser,
             DataDeserializer.NotModifiedParser,
         },
-        new Parser[]{
+        new AsyncParser[]{
             DataDeserializer.ByteParser,
             DataDeserializer.SByteParser,
             DataDeserializer.Char8Parser,
         },
-        new Parser[]{
+        new AsyncParser[]{
             DataDeserializer.Int16Parser,
             DataDeserializer.UInt16Parser,
             DataDeserializer.Char16Parser,
         },
-        new Parser[]{
+        new AsyncParser[]{
             DataDeserializer.Int32Parser,
             DataDeserializer.UInt32Parser,
             DataDeserializer.Float32Parser,
             DataDeserializer.ResourceParser,
             DataDeserializer.LocalResourceParser,
         },
-        new Parser[]{
+        new AsyncParser[]{
             DataDeserializer.Int64Parser,
             DataDeserializer.UInt64Parser,
             DataDeserializer.Float64Parser,
             DataDeserializer.DateTimeParser,
         },
-        new Parser[]
+        new AsyncParser[]
         {
             DataDeserializer.Int128Parser, // int 128
             DataDeserializer.UInt128Parser, // uint 128
@@ -81,7 +82,7 @@ public static class Codec
         }
     };
 
-    static Parser[] DynamicParsers = new Parser[]
+    static AsyncParser[] DynamicParsers = new AsyncParser[]
     {
         DataDeserializer.RawDataParser,
         DataDeserializer.StringParser,
@@ -90,7 +91,7 @@ public static class Codec
         DataDeserializer.RecordListParser,
     };
 
-    static Parser[] TypedParsers = new Parser[]
+    static AsyncParser[] TypedParsers = new AsyncParser[]
     {
         DataDeserializer.RecordParser,
         DataDeserializer.TypedListParser,
@@ -110,7 +111,7 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static (uint, AsyncReply) Parse(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionType? dataType = null)
+    public static (uint, AsyncReply) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionType? dataType = null)
     {
         uint len = 0;
 
@@ -143,6 +144,10 @@ public static class Codec
         }
     }
 
+    public static uint ParseSync(byte[] data, uint offset, TransmissionType? dataType = null)
+    {
+
+    }
 
     /// <summary>
     /// Check if a resource is local to a given connection.
