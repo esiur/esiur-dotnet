@@ -112,7 +112,6 @@ public static class Codec
     /// <returns>Value</returns>
     public static (uint, AsyncReply) Parse(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionType? dataType = null)
     {
-
         uint len = 0;
 
         if (dataType == null)

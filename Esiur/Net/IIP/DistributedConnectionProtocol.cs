@@ -112,13 +112,13 @@ partial class DistributedConnection
         return (SendList)SendParams().AddUInt8((byte)(evt));
     }
 
-    internal AsyncReply SendListenRequest(uint instanceId, byte index)
+    internal AsyncReply SendSubscribeRequest(uint instanceId, byte index)
     {
         var reply = new AsyncReply<object>();
         var c = callbackCounter++;
         requests.Add(c, reply);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Listen))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Subscribe))
                     .AddUInt32(c)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
@@ -127,13 +127,13 @@ partial class DistributedConnection
         return reply;
     }
 
-    internal AsyncReply SendUnlistenRequest(uint instanceId, byte index)
+    internal AsyncReply SendUnsubscribeRequest(uint instanceId, byte index)
     {
         var reply = new AsyncReply<object>();
         var c = callbackCounter++;
         requests.Add(c, reply);
 
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Unlisten))
+        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Unsubscribe))
                     .AddUInt32(c)
                     .AddUInt32(instanceId)
                     .AddUInt8(index)
@@ -331,13 +331,19 @@ partial class DistributedConnection
         }
     }
 
-    void IIPEventResourceReassigned(uint resourceId, uint newResourceId)
+    void IIPNotificationResourceReassigned(object value)
     {
-
+        // uint resourceId, uint newResourceId
     }
 
-    void IIPEventResourceDestroyed(uint resourceId)
+    void IIPNotificationResourceMoved(object value) { }
+
+    void IIPNotificationSystemFailure(object value) { }
+
+    void IIPNotificationResourceDestroyed(object value)
     {
+        var resourceId = (uint)value;
+
         if (attachedResources.Contains(resourceId))
         {
             DistributedResource r;
@@ -362,8 +368,10 @@ partial class DistributedConnection
         }
     }
 
-    void IIPEventPropertyUpdated(uint resourceId, byte index, TransmissionType dataType, byte[] data)
+    void IIPNotificationPropertyModified(object value)
     {
+        // uint resourceId, byte index, TransmissionType dataType, byte[] data
+
 
         Fetch(resourceId, null).Then(r =>
         {
@@ -387,42 +395,6 @@ partial class DistributedConnection
             });
 
         });
-
-        /*
-        if (resources.Contains(resourceId))
-        {
-            // push to the queue to gaurantee serialization
-            var reply = new AsyncReply<DistributedResourceQueueItem>();
-            queue.Add(reply);
-
-            var r = resources[resourceId];
-            Codec.Parse(content, 0, this).Then((arguments) =>
-            {
-                if (!r.IsAttached)
-                {
-                    // property updated before the template is received
-                    r.AddAfterAttachement(reply, 
-                                            new DistributedResourceQueueItem((DistributedResource)r, 
-                                                             DistributedResourceQueueItem.DistributedResourceQueueItemType.Propery, 
-                                                             arguments, index));
-                }
-                else
-                {
-                    var pt = r.Instance.Template.GetPropertyTemplate(index);
-                    if (pt != null)
-                    {
-                        reply.Trigger(new DistributedResourceQueueItem((DistributedResource)r, 
-                                                        DistributedResourceQueueItem.DistributedResourceQueueItemType.Propery, 
-                                                        arguments, index));
-                    }
-                    else
-                    {    // ft found, fi not found, this should never happen
-                        queue.Remove(reply);
-                    }
-                }
-            });
-        }
-        */
     }
 
 
@@ -1681,9 +1653,9 @@ partial class DistributedConnection
                 {
                     if (r is DistributedResource)
                     {
-                        (r as DistributedResource).Unlisten(et).Then(x =>
+                        (r as DistributedResource).Unsubscribe(et).Then(x =>
                         {
-                            SendReply(IIPPacketRequest.Unlisten, callback).Done();
+                            SendReply(IIPPacketRequest.Unsubscribe, callback).Done();
                         }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
                     }
                     else
@@ -1723,52 +1695,6 @@ partial class DistributedConnection
 
     }
 
-    //        void IIPRequestGetProperty(uint callback, uint resourceId, byte index)
-    //        {
-    //            Warehouse.GetById(resourceId).Then((r) =>
-    //            {
-    //                if (r != null)
-    //                {
-    //                    var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
-    //                    if (pt != null)
-    //                    {
-    //                        if (r is DistributedResource)
-    //                        {
-    //                            SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
-    //                                        .AddUInt8Array(Codec.Compose((r as DistributedResource)._Get(pt.Index), this))
-    //                                        .Done();
-    //                        }
-    //                        else
-    //                        {
-    //#if NETSTANDARD
-    //                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
-    //#else
-    //                            var pi = r.GetType().GetProperty(pt.Name);
-    //#endif
-
-    //                            if (pi != null)
-    //                            {
-    //                                SendReply(IIPPacket.IIPPacketAction.GetProperty, callback)
-    //                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
-    //                                            .Done();
-    //                            }
-    //                            else
-    //                            {
-    //                                // pt found, pi not found, this should never happen
-    //                            }
-    //                        }
-    //                    }
-    //                    else
-    //                    {
-    //                        // pt not found
-    //                    }
-    //                }
-    //                else
-    //                {
-    //                    // resource not found
-    //                }
-    //            });
-    //        }
 
     void IIPRequestInquireResourceHistory(uint callback, uint resourceId, DateTime fromDate, DateTime toDate)
     {
@@ -1780,23 +1706,6 @@ partial class DistributedConnection
                 {
                     var history = DataSerializer.HistoryComposer(results, this, true);
 
-                    /*
-                    ulong fromAge = 0;
-                    ulong toAge = 0;
-
-                    if (results.Count > 0)
-                    {
-                        var firstProp = results.Values.First();
-                        //var lastProp = results.Values.Last();
-
-                        if (firstProp.Length > 0)
-                        {
-                            fromAge = firstProp[0].Age;
-                            toAge = firstProp.Last().Age;
-                        }
-
-                    }*/
-
                     SendReply(IIPPacketRequest.ResourceHistory, callback)
                             .AddUInt8Array(history)
                             .Done();
@@ -1805,52 +1714,6 @@ partial class DistributedConnection
             }
         });
     }
-
-    //        void IIPRequestGetPropertyIfModifiedSince(uint callback, uint resourceId, byte index, ulong age)
-    //        {
-    //            Warehouse.GetById(resourceId).Then((r) =>
-    //            {
-    //                if (r != null)
-    //                {
-    //                    var pt = r.Instance.Template.GetFunctionTemplateByIndex(index);
-    //                    if (pt != null)
-    //                    {
-    //                        if (r.Instance.GetAge(index) > age)
-    //                        {
-    //#if NETSTANDARD
-    //                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
-    //#else
-    //                            var pi = r.GetType().GetProperty(pt.Name);
-    //#endif
-    //                            if (pi != null)
-    //                            {
-    //                                SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
-    //                                            .AddUInt8Array(Codec.Compose(pi.GetValue(r), this))
-    //                                            .Done();
-    //                            }
-    //                            else
-    //                            {
-    //                                // pt found, pi not found, this should never happen
-    //                            }
-    //                        }
-    //                        else
-    //                        {
-    //                            SendReply(IIPPacket.IIPPacketAction.GetPropertyIfModified, callback)
-    //                                    .AddUInt8((byte)DataType.NotModified)
-    //                                    .Done();
-    //                        }
-    //                    }
-    //                    else
-    //                    {
-    //                        // pt not found
-    //                    }
-    //                }
-    //                else
-    //                {
-    //                    // resource not found
-    //                }
-    //            });
-    //        }
 
     void IIPRequestSetProperty(uint callback, uint resourceId, byte index, TransmissionType transmissionType, byte[] content)
     {
@@ -1956,141 +1819,7 @@ partial class DistributedConnection
         });
     }
 
-    /*
-    void IIPReplyAttachResource(uint callback, uint resourceAge, object[] properties)
-    {
-        if (requests.ContainsKey(callback))
-        {
-            var req = requests[callback];
-            var r = resources[(uint)req.Arguments[0]];
 
-            if (r == null)
-            {
-                r.Instance.Deserialize(properties);
-                r.Instance.Age = resourceAge;
-                r.Attached();
-
-                // process stack
-                foreach (var rr in resources.Values)
-                    rr.Stack.ProcessStack();
-            }
-            else
-            {
-                // resource not found
-            }
-        }
-    }
-
-    void IIPReplyReattachResource(uint callback, uint resourceAge, object[] properties)
-    {
-        var req = requests.Take(callback);
-
-        if (req != null)
-        {
-            var r = resources[(uint)req.Arguments[0]];
-
-            if (r == null)
-            {
-                r.Instance.Deserialize(properties);
-                r.Instance.Age = resourceAge;
-                r.Attached();
-
-                // process stack
-                foreach (var rr in resources.Values)
-                    rr.Stack.ProcessStack();
-            }
-            else
-            {
-                // resource not found
-            }
-        }
-    }
-
-
-    void IIPReplyDetachResource(uint callback)
-    {
-        var req = requests.Take(callback);
-        // nothing to do
-    }
-
-    void IIPReplyCreateResource(uint callback, Guid classId, uint resourceId)
-    {
-        var req = requests.Take(callback);
-        // nothing to do
-
-    }
-    void IIPReplyDeleteResource(uint callback)
-    {
-        var req = requests.Take(callback);
-        // nothing to do
-
-    }
-
-    void IIPReplyTemplateFromClassName(uint callback, ResourceTemplate template)
-    {
-        // cache
-        if (!templates.ContainsKey(template.ClassId))
-            templates.Add(template.ClassId, template);
-
-        var req = requests.Take(callback);
-        req?.Trigger(template);
-    }
-
-    void IIPReplyTemplateFromClassId(uint callback, ResourceTemplate template)
-    {
-        // cache
-        if (!templates.ContainsKey(template.ClassId))
-            templates.Add(template.ClassId, template);
-
-        var req = requests.Take(callback);
-        req?.Trigger(template);
-
-    }
-
-    void IIPReplyTemplateFromResourceLink(uint callback, ResourceTemplate template)
-    {
-        // cache
-        if (!templates.ContainsKey(template.ClassId))
-            templates.Add(template.ClassId, template);
-
-        var req = requests.Take(callback);
-        req?.Trigger(template);
-    }
-
-    void IIPReplyTemplateFromResourceId(uint callback, ResourceTemplate template)
-    {
-        // cache
-        if (!templates.ContainsKey(template.ClassId))
-            templates.Add(template.ClassId, template);
-
-        var req = requests.Take(callback);
-        req?.Trigger(template);
-    }
-
-    void IIPReplyResourceIdFromResourceLink(uint callback, Guid classId, uint resourceId, uint resourceAge)
-    {
-        var req = requests.Take(callback);
-        req?.Trigger(template);
-    }
-
-    void IIPReplyInvokeFunction(uint callback, object returnValue)
-    {
-
-    }
-
-    void IIPReplyGetProperty(uint callback, object value)
-    {
-
-    }
-    void IIPReplyGetPropertyIfModifiedSince(uint callback, object value)
-    {
-
-    }
-    void IIPReplySetProperty(uint callback)
-    {
-
-    }
-    */
 
     /// <summary>
     /// Get the ResourceTemplate for a given class Id. 

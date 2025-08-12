@@ -17,7 +17,7 @@ public class EventTemplate : MemberTemplate
         set;
     }
 
-    public bool Listenable { get; set; }
+    public bool Subscribable { get; set; }
 
     public EventInfo EventInfo { get; set; }
 
@@ -29,7 +29,7 @@ public class EventTemplate : MemberTemplate
 
         var hdr = Inherited ? (byte)0x80 : (byte)0;
 
-        if (Listenable)
+        if (Subscribable)
             hdr |= 0x8;
 
         if (Annotation != null)
@@ -55,11 +55,11 @@ public class EventTemplate : MemberTemplate
                 .ToArray();
     }
 
-    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType argumentType, string annotation = null, bool listenable = false)
+    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType argumentType, string annotation = null, bool subscribable = false)
        : base(template, index, name, inherited)
     {
         this.Annotation = annotation;
-        this.Listenable = listenable;
+        this.Subscribable = subscribable;
         this.ArgumentType = argumentType;
     }
 
@@ -81,7 +81,7 @@ public class EventTemplate : MemberTemplate
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
 
         var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
-        var listenableAttr = ei.GetCustomAttribute<ListenableAttribute>(true);
+        var subscribableAttr = ei.GetCustomAttribute<SubscribableAttribute>(true);
 
         //evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
 
@@ -120,8 +120,8 @@ public class EventTemplate : MemberTemplate
         if (annotationAttr != null)
             et.Annotation = annotationAttr.Annotation;
 
-        if (listenableAttr != null)
-            et.Listenable = true;
+        if (subscribableAttr != null)
+            et.Subscribable = true;
 
         return et;
     }

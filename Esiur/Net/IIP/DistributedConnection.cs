@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2017-2025 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,27 +22,28 @@ SOFTWARE.
 
 */
 
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Net;
-using System.Net.Sockets;
-using System.Security.Cryptography;
-using Esiur.Net.Sockets;
+using Esiur.Core;
 using Esiur.Data;
 using Esiur.Misc;
-using Esiur.Core;
-using Esiur.Resource;
-using Esiur.Security.Authority;
-using Esiur.Resource.Template;
-using System.Linq;
 using Esiur.Net.HTTP;
-using System.Timers;
-using System.Threading.Tasks;
-using System.Runtime.InteropServices;
-using Esiur.Net.Packets.HTTP;
-using Esiur.Security.Membership;
 using Esiur.Net.Packets;
+using Esiur.Net.Packets.HTTP;
+using Esiur.Net.Sockets;
+using Esiur.Resource;
+using Esiur.Resource.Template;
+using Esiur.Security.Authority;
+using Esiur.Security.Membership;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
+using System.Timers;
 
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
@@ -426,10 +427,43 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                 offset += (uint)rt;
 
-                if (packet.Command == IIPPacketCommand.Event)
+                if (packet.DataType != null)
                 {
-                    switch (packet.Event)
+                    var dt = packet.DataType.Value;
+
+                    var (_, parsed) = Codec.Parse(msg, dt.Offset, this, null, dt);
+
+                    parsed.Then(value =>
                     {
+                        if (packet.Method == IIPPacketMethod.Notification)
+                        {
+                            switch (packet.Notification)
+                            {
+                                case IIPPacketNotification.ResourceDestroyed:
+                                    IIPNotificationResourceDestroyed(value);
+                                    break;
+                                case IIPPacketNotification.ResourceReassigned:
+                                    IIPNotificationResourceReassigned(value);
+                                    break;
+                                case IIPPacketNotification.ResourceMoved:
+                                    IIPNotificationResourceMoved(value);
+                                    break;
+                                case IIPPacketNotification.SystemFailure:
+                                    IIPNotificationSystemFailure(value);
+                                    break;
+                                case IIPPacketNotification.PropertyModified:
+                                    IIPNotificationPropertyModified()
+                            }
+                        }
+                    });
+                }
+
+                if (packet.Method == IIPPacketMethod.Notification)
+                {
+                    switch (packet.Notification)
+                    {
+                        case IIPPacketNotification.ResourceDestroyed:
+
                         case IIPPacketEvent.ResourceReassigned:
                             IIPEventResourceReassigned(packet.ResourceId, packet.NewResourceId);
                             break;

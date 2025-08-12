@@ -245,41 +245,41 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
             return connection.SendInvoke(instanceId, index, args);
     }
 
-    public AsyncReply Listen(EventTemplate et)
+    public AsyncReply Subscribe(EventTemplate et)
     {
         if (et == null)
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
 
-        if (!et.Listenable)
-            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotListenable, ""));
+        if (!et.Subscribable)
+            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
 
         return connection.SendListenRequest(instanceId, et.Index);
     }
 
-    public AsyncReply Listen(string eventName)
+    public AsyncReply Subscribe(string eventName)
     {
         var et = Instance.Template.GetEventTemplateByName(eventName);
 
-        return Listen(et);
+        return Subscribe(et);
     }
 
 
-    public AsyncReply Unlisten(EventTemplate et)
+    public AsyncReply Unsubscribe(EventTemplate et)
     {
         if (et == null)
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
 
-        if (!et.Listenable)
+        if (!et.Subscribable)
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotListenable, ""));
 
         return connection.SendUnlistenRequest(instanceId, et.Index);
     }
 
-    public AsyncReply Unlisten(string eventName)
+    public AsyncReply Unsubscribe(string eventName)
     {
         var et = Instance.Template.GetEventTemplateByName(eventName);
 
-        return Unlisten(et);
+        return Unsubscribe(et);
     }
 
 

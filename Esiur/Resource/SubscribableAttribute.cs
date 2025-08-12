@@ -30,10 +30,10 @@ using System.Threading.Tasks;
 namespace Esiur.Resource;
 
 [AttributeUsage(AttributeTargets.Event)]
-public class ListenableAttribute : System.Attribute
+public class SubscribableAttribute : System.Attribute
 {
 
-    public ListenableAttribute()
+    public SubscribableAttribute()
     {
 
     }
