@@ -2152,7 +2152,7 @@ partial class DistributedConnection
                         var dataType = (TransmissionType)ar[0];
                         var data = (byte[])ar[1];
 
-                        var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+                        var (_, parsed) = Codec.ParseAsync(data, dataType.Offset, this, null, dataType);
 
                         parsed.Then(resources => rt.Trigger(resources))
                               .Error(ex => rt.TriggerError(ex));

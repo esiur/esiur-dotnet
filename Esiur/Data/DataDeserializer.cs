@@ -72,7 +72,7 @@ public static class DataDeserializer
             return *(int*)ptr;
     }
 
-    public static unsafe uint UInt32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(uint*)ptr;
@@ -129,17 +129,56 @@ public static class DataDeserializer
 
     }
 
-
-    public static unsafe object ResourceParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser8(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
-        fixed (byte* ptr = &data[offset])
-            return connection.Fetch(*(uint*)ptr, requestSequence);
+        if (connection == null)
+            return new ResourceId(false, data[offset]);
+        else
+            return connection.Fetch(data[offset], requestSequence);
     }
 
-    public static unsafe object LocalResourceParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser8(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        if (connection == null)
+            return new ResourceId(true, data[offset]);
+        else
+            return Warehouse.GetById(data[offset]);
+    }
+
+    public static unsafe object ResourceParser16(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
-            return Warehouse.GetById(*(uint*)ptr);
+            if (connection == null)
+                return new ResourceId(false, *(ushort*)ptr);
+            else
+                return connection.Fetch(*(ushort*)ptr, requestSequence);
+    }
+
+    public static unsafe object LocalResourceParser16(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            if (connection == null)
+                return new ResourceId(true, *(ushort*)ptr);
+            else
+                return Warehouse.GetById(*(ushort*)ptr);
+    }
+
+    public static unsafe object ResourceParser32(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            if (connection == null)
+                return new ResourceId(false, *(uint*)ptr);
+            else
+                return connection.Fetch(*(uint*)ptr, requestSequence);
+    }
+
+    public static unsafe object LocalResourceParser32(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            if (connection == null)
+                return new ResourceId(true, *(uint*)ptr);
+            else
+                return Warehouse.GetById(*(uint*)ptr);
     }
 
 

@@ -38,8 +38,8 @@ interface IAsyncBag
 public class AsyncBag<T> : AsyncReply, IAsyncBag
 {
 
-    protected List<AsyncReply> replies = new List<AsyncReply>();
-    List<T> results = new();
+    protected List<object> replies = new List<object>();
+    //List<T> results = new();
 
     int count = 0;
     bool sealedBag = false;
@@ -75,61 +75,53 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
 
         sealedBag = true;
 
-        if (results.Count == 0)
+        var results = ArrayType == null ? new T[replies.Count]
+                                        : Array.CreateInstance(ArrayType, replies.Count);
+
+        if (replies.Count == 0)
         {
-            if (ArrayType != null)
+            Trigger(results);
+            return;
+        }
+
+        for (var i = 0; i < replies.Count; i++)
+        {
+            var k = replies[i];
+            var index = i;
+
+            if (k is AsyncReply)
             {
-                var ar = Array.CreateInstance(ArrayType, 0);
-                Trigger(ar);
+                (k as AsyncReply).Then((r) =>
+                {
+                    results.SetValue(r, i);
+                    count++;
+                    if (count == replies.Count)
+                        Trigger(results);
+                });
             }
             else
             {
-                Trigger(new object[0]);
-            }
-        }
-
-        for (var i = 0; i < results.Count; i++)
-        //foreach(var reply in results.Keys)
-        {
-            var k = replies[i];// results.Keys.ElementAt(i);
-            var index = i;
-
-            k.Then((r) =>
-            {
-                results[index] = (T)r;
+                results.SetValue(replies[i], i);
                 count++;
-                if (count == results.Count)
-                {
-                    if (ArrayType != null)
-                    {
-                        try
-                        {
-                            // @TODO: Safe casting check
-                            var ar = Array.CreateInstance(ArrayType, count);
-                            for (var i = 0; i < count; i++)
-                                ar.SetValue(results[i], i);
-                            Trigger(ar);
-                        }
-                        catch
-                        {
-                            Trigger(results.ToArray());
-                        }
-                    }
-                    else
-                        Trigger(results.ToArray());
-                }
-            });
+                if (count == replies.Count)
+                    Trigger(results);
+            }
         }
     }
 
-    public void Add(AsyncReply reply)
+
+    public void Add(object valueOrReply)
     {
         if (!sealedBag)
         {
-            results.Add(default(T));
-            replies.Add(reply);
+            //if (valueOrReply is AsyncReply)
+            //{
+            // results.Add(default(T));
+            replies.Add(valueOrReply);
+            //}
         }
     }
+
 
     public void AddBag(AsyncBag<T> bag)
     {

@@ -38,43 +38,47 @@ namespace Esiur.Data;
 
 public static class Codec
 {
- 
-    delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
+
+    //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
     delegate object SyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
-    static AsyncParser[][] FixedParsers = new AsyncParser[][]
+    static SyncParser[][] FixedParsers = new SyncParser[][]
     {
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.NullParser,
             DataDeserializer.BooleanFalseParser,
             DataDeserializer.BooleanTrueParser,
             DataDeserializer.NotModifiedParser,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.ByteParser,
             DataDeserializer.SByteParser,
             DataDeserializer.Char8Parser,
+            DataDeserializer.LocalResourceParser8,
+            DataDeserializer.ResourceParser8,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.Int16Parser,
             DataDeserializer.UInt16Parser,
             DataDeserializer.Char16Parser,
+            DataDeserializer.LocalResourceParser16,
+            DataDeserializer.ResourceParser16,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.Int32Parser,
             DataDeserializer.UInt32Parser,
             DataDeserializer.Float32Parser,
-            DataDeserializer.ResourceParser,
-            DataDeserializer.LocalResourceParser,
+            DataDeserializer.LocalResourceParser32,
+            DataDeserializer.ResourceParser32,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.Int64Parser,
             DataDeserializer.UInt64Parser,
             DataDeserializer.Float64Parser,
             DataDeserializer.DateTimeParser,
         },
-        new AsyncParser[]
+        new SyncParser[]
         {
             DataDeserializer.Int128Parser, // int 128
             DataDeserializer.UInt128Parser, // uint 128
@@ -82,7 +86,7 @@ public static class Codec
         }
     };
 
-    static AsyncParser[] DynamicParsers = new AsyncParser[]
+    static SyncParser[] DynamicParsers = new SyncParser[]
     {
         DataDeserializer.RawDataParser,
         DataDeserializer.StringParser,
@@ -91,7 +95,7 @@ public static class Codec
         DataDeserializer.RecordListParser,
     };
 
-    static AsyncParser[] TypedParsers = new AsyncParser[]
+    static SyncParser[] TypedParsers = new SyncParser[]
     {
         DataDeserializer.RecordParser,
         DataDeserializer.TypedListParser,
@@ -111,7 +115,7 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static (uint, AsyncReply) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionType? dataType = null)
+    public static (uint, object) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionType? dataType = null)
     {
         uint len = 0;
 
@@ -144,10 +148,6 @@ public static class Codec
         }
     }
 
-    public static uint ParseSync(byte[] data, uint offset, TransmissionType? dataType = null)
-    {
-
-    }
 
     /// <summary>
     /// Check if a resource is local to a given connection.
@@ -206,7 +206,7 @@ public static class Codec
         [typeof(List<byte>)] = DataSerializer.RawDataComposerFromList,
         //[typeof(List<byte?>)] = DataSerializer.RawDataComposerFromList,
         [typeof(string)] = DataSerializer.StringComposer,
- 
+
         // Special
         [typeof(object[])] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromArray,
         [typeof(List<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
@@ -348,7 +348,7 @@ public static class Codec
                 return TransmissionType.Compose(hdr, data);
 
                 //}
-            } 
+            }
             else if (type.IsEnum)
             {
                 var (hdr, data) = DataSerializer.EnumComposer(valueOrSource, connection);
