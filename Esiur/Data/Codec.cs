@@ -41,44 +41,45 @@ public static class Codec
 
     //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
-    delegate object SyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
+    delegate object AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
+    delegate object SyncParser(byte[] data, uint offset, uint length);
 
-    static SyncParser[][] FixedParsers = new SyncParser[][]
+    static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
     {
-        new SyncParser[]{
+        new AsyncParser[]{
             DataDeserializer.NullParser,
             DataDeserializer.BooleanFalseParser,
             DataDeserializer.BooleanTrueParser,
             DataDeserializer.NotModifiedParser,
         },
-        new SyncParser[]{
+        new AsyncParser[]{
             DataDeserializer.ByteParser,
             DataDeserializer.SByteParser,
             DataDeserializer.Char8Parser,
             DataDeserializer.LocalResourceParser8,
             DataDeserializer.ResourceParser8,
         },
-        new SyncParser[]{
+        new AsyncParser[]{
             DataDeserializer.Int16Parser,
             DataDeserializer.UInt16Parser,
             DataDeserializer.Char16Parser,
             DataDeserializer.LocalResourceParser16,
             DataDeserializer.ResourceParser16,
         },
-        new SyncParser[]{
+        new AsyncParser[]{
             DataDeserializer.Int32Parser,
             DataDeserializer.UInt32Parser,
             DataDeserializer.Float32Parser,
             DataDeserializer.LocalResourceParser32,
             DataDeserializer.ResourceParser32,
         },
-        new SyncParser[]{
+        new AsyncParser[]{
             DataDeserializer.Int64Parser,
             DataDeserializer.UInt64Parser,
             DataDeserializer.Float64Parser,
             DataDeserializer.DateTimeParser,
         },
-        new SyncParser[]
+        new AsyncParser[]
         {
             DataDeserializer.Int128Parser, // int 128
             DataDeserializer.UInt128Parser, // uint 128
@@ -86,7 +87,7 @@ public static class Codec
         }
     };
 
-    static SyncParser[] DynamicParsers = new SyncParser[]
+    static AsyncParser[] DynamicAsyncParsers = new AsyncParser[]
     {
         DataDeserializer.RawDataParser,
         DataDeserializer.StringParser,
@@ -95,7 +96,7 @@ public static class Codec
         DataDeserializer.RecordListParser,
     };
 
-    static SyncParser[] TypedParsers = new SyncParser[]
+    static AsyncParser[] TypedAsyncParsers = new AsyncParser[]
     {
         DataDeserializer.RecordParser,
         DataDeserializer.TypedListParser,
@@ -136,19 +137,50 @@ public static class Codec
 
         if (tt.Class == TransmissionTypeClass.Fixed)
         {
-            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
         else if (tt.Class == TransmissionTypeClass.Dynamic)
         {
-            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, DynamicAsyncParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
         else //if (tt.Class == TransmissionTypeClass.Typed)
         {
-            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, TypedAsyncParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
     }
 
+    public static (uint, object) ParseSync(byte[] data, uint offset, TransmissionType? dataType = null)
+    {
+        uint len = 0;
 
+        if (dataType == null)
+        {
+            (var longLen, dataType) = TransmissionType.Parse(data, offset, (uint)data.Length);
+
+            if (dataType == null)
+                throw new NullReferenceException("DataType can't be parsed.");
+
+            len = (uint)longLen;
+            offset = dataType.Value.Offset;
+        }
+        else
+            len = (uint)dataType.Value.ContentLength;
+
+        var tt = dataType.Value;
+
+        if (tt.Class == TransmissionTypeClass.Fixed)
+        {
+            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength));
+        }
+        else if (tt.Class == TransmissionTypeClass.Dynamic)
+        {
+            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength));
+        }
+        else //if (tt.Class == TransmissionTypeClass.Typed)
+        {
+            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength));
+        }
+    }
     /// <summary>
     /// Check if a resource is local to a given connection.
     /// </summary>
@@ -208,21 +240,21 @@ public static class Codec
         [typeof(string)] = DataSerializer.StringComposer,
 
         // Special
-        [typeof(object[])] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromArray,
-        [typeof(List<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
-        [typeof(VarList<object>)] = DataSerializer.ListComposer,// DataSerializer.ListComposerFromList,
-        [typeof(IResource[])] = DataSerializer.ResourceListComposer,// (value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
-        [typeof(IResource?[])] = DataSerializer.ResourceListComposer,// (value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
-        [typeof(List<IResource>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
-        [typeof(List<IResource?>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
-        [typeof(VarList<IResource>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
-        [typeof(VarList<IResource?>)] = DataSerializer.ResourceListComposer, //(value, con) => (TransmissionTypeIdentifier.ResourceList, DC.ToBytes((decimal)value)),
-        [typeof(IRecord[])] = DataSerializer.RecordListComposer,// (value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
-        [typeof(IRecord?[])] = DataSerializer.RecordListComposer,// (value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
-        [typeof(List<IRecord>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
-        [typeof(List<IRecord?>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
-        [typeof(VarList<IRecord>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
-        [typeof(VarList<IRecord?>)] = DataSerializer.RecordListComposer, //(value, con) => (TransmissionTypeIdentifier.RecordList, DC.ToBytes((decimal)value)),
+        [typeof(object[])] = DataSerializer.ListComposer,
+        [typeof(List<object>)] = DataSerializer.ListComposer,
+        [typeof(VarList<object>)] = DataSerializer.ListComposer,
+        [typeof(IResource[])] = DataSerializer.ResourceListComposer,
+        [typeof(IResource?[])] = DataSerializer.ResourceListComposer,
+        [typeof(List<IResource>)] = DataSerializer.ResourceListComposer,
+        [typeof(List<IResource?>)] = DataSerializer.ResourceListComposer, 
+        [typeof(VarList<IResource>)] = DataSerializer.ResourceListComposer, 
+        [typeof(VarList<IResource?>)] = DataSerializer.ResourceListComposer, 
+        [typeof(IRecord[])] = DataSerializer.RecordListComposer,
+        [typeof(IRecord?[])] = DataSerializer.RecordListComposer,
+        [typeof(List<IRecord>)] = DataSerializer.RecordListComposer,
+        [typeof(List<IRecord?>)] = DataSerializer.RecordListComposer,
+        [typeof(VarList<IRecord>)] = DataSerializer.RecordListComposer,
+        [typeof(VarList<IRecord?>)] = DataSerializer.RecordListComposer,  
         [typeof(Map<object, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object?, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object, object?>)] = DataSerializer.MapComposer,

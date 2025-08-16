@@ -14,83 +14,168 @@ namespace Esiur.Data;
 
 public static class DataDeserializer
 {
-    public static object NullParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object NullParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return null;
     }
 
-    public static object BooleanTrueParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object NullParser(byte[] data, uint offset, uint length)
+    {
+        return null;
+    }
+
+    public static object BooleanTrueParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return true;
     }
 
-    public static object BooleanFalseParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object BooleanTrueParser(byte[] data, uint offset, uint length)
+    {
+        return true;
+    }
+
+    public static object BooleanFalseParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return false;
     }
 
-    public static object NotModifiedParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object BooleanFalseParser(byte[] data, uint offset, uint length)
+    {
+        return false;
+    }
+
+    public static object NotModifiedParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return NotModified.Default;
     }
 
-    public static object ByteParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object NotModifiedParser(byte[] data, uint offset, uint length)
+    {
+        return NotModified.Default;
+    }
+
+    public static object UInt8ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return data[offset];
     }
-    public static object SByteParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object UInt8Parser(byte[] data, uint offset, uint length)
+    {
+        return data[offset];
+    }
+
+    public static object Int8ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return (sbyte)data[offset];
     }
-    public static unsafe object Char16Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object Int8Parser(byte[] data, uint offset, uint length)
+    {
+        return (sbyte)data[offset];
+    }
+
+    public static unsafe object Char16ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(char*)ptr;
     }
 
-    public static object Char8Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Char16Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(char*)ptr;
+    }
+
+    public static object Char8ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        return (char)data[offset];
+    }
+
+    public static object Char8Parser(byte[] data, uint offset, uint length)
     {
         return (char)data[offset];
     }
 
 
-    public static unsafe object Int16Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int16ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(short*)ptr;
     }
 
-    public static unsafe object UInt16Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int16Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(short*)ptr;
+    }
+
+    public static unsafe object UInt16ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(ushort*)ptr;
     }
 
-    public static unsafe object Int32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt16Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(ushort*)ptr;
+    }
+
+    public static unsafe object Int32ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(int*)ptr;
     }
 
-    public static unsafe object UInt32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int32Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(int*)ptr;
+    }
+
+    public static unsafe object UInt32ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(uint*)ptr;
     }
 
-    public static unsafe object Float32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt32Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(uint*)ptr;
+    }
+
+
+    public static unsafe object Float32ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(float*)ptr;
     }
 
-    public static unsafe object Float64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Float32Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(float*)ptr;
+    }
+
+    public static unsafe object Float64ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(double*)ptr;
     }
 
-    public static unsafe object Float128Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Float64Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(double*)ptr;
+    }
+
+
+    public static unsafe object Float128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(decimal*)ptr;
+    }
+
+    public static unsafe object Float128Parser(byte[] data, uint offset, uint length)
     {
         fixed (byte* ptr = &data[offset])
             return *(decimal*)ptr;
@@ -102,24 +187,49 @@ public static class DataDeserializer
             return *(decimal*)ptr;
     }
 
-
-    public static unsafe object UInt128Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(decimal*)ptr;
     }
 
 
-    public static unsafe object Int64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(decimal*)ptr;
+    }
+
+    public static unsafe object UInt128Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(decimal*)ptr;
+    }
+
+    public static unsafe object Int64ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(long*)ptr;
     }
 
+    public static unsafe object Int64Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(long*)ptr;
+    }
+
+
     public static unsafe object UInt64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(ulong*)ptr;
+    }
+
+    public static unsafe object DateTimeParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            return new DateTime(*(long*)ptr, DateTimeKind.Utc);
+
     }
 
     public static unsafe object DateTimeParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
