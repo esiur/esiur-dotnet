@@ -32,7 +32,7 @@ namespace Esiur.Core;
 
 interface IAsyncBag
 {
-    public void Add(AsyncReply reply);
+    public void Add(object replyOrValue);
 }
 
 public class AsyncBag<T> : AsyncReply, IAsyncBag

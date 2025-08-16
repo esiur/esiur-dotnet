@@ -350,7 +350,7 @@ partial class DistributedConnection
 
             if (attachedResources[resourceId].TryGetTarget(out r))
             {
-                // remove from attached to avoid sending unnecessary deattach request when Destroy() is called
+                // remove from attached to avoid sending unnecessary detach request when Destroy() is called
                 attachedResources.Remove(resourceId);
                 r.Destroy();
             }
