@@ -181,29 +181,33 @@ public static class DataDeserializer
             return *(decimal*)ptr;
     }
 
-    public static unsafe object Int128Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
-    {
-        fixed (byte* ptr = &data[offset])
-            return *(decimal*)ptr;
-    }
 
     public static unsafe object Int128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
-        fixed (byte* ptr = &data[offset])
-            return *(decimal*)ptr;
+        fixed (byte* ptr1 = &data[offset])
+        fixed (byte* ptr2 = &data[offset + 8])
+            return new Int128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
+    public static unsafe object Int128Parser(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr1 = &data[offset])
+        fixed (byte* ptr2 = &data[offset + 8])
+            return new Int128(*(ulong*)ptr1, *(ulong*)ptr2);
+    }
 
     public static unsafe object UInt128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
-        fixed (byte* ptr = &data[offset])
-            return *(decimal*)ptr;
+        fixed (byte* ptr1 = &data[offset])
+        fixed (byte* ptr2 = &data[offset + 8])
+            return new UInt128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
     public static unsafe object UInt128Parser(byte[] data, uint offset, uint length)
     {
-        fixed (byte* ptr = &data[offset])
-            return *(decimal*)ptr;
+        fixed (byte* ptr1 = &data[offset])
+        fixed (byte* ptr2 = &data[offset + 8])
+            return new UInt128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
     public static unsafe object Int64ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
@@ -219,7 +223,13 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object UInt64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt64ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            return *(ulong*)ptr;
+    }
+
+    public static unsafe object UInt64Parser(byte[] data, uint offset, uint length)
     {
         fixed (byte* ptr = &data[offset])
             return *(ulong*)ptr;
@@ -232,14 +242,14 @@ public static class DataDeserializer
 
     }
 
-    public static unsafe object DateTimeParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object DateTimeParser(byte[] data, uint offset, uint length)
     {
         fixed (byte* ptr = &data[offset])
             return new DateTime(*(long*)ptr, DateTimeKind.Utc);
 
     }
 
-    public static unsafe object ResourceParser8(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser8Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         if (connection == null)
             return new ResourceId(false, data[offset]);
@@ -247,7 +257,12 @@ public static class DataDeserializer
             return connection.Fetch(data[offset], requestSequence);
     }
 
-    public static unsafe object LocalResourceParser8(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser8(byte[] data, uint offset, uint length)
+    {
+        return new ResourceId(false, data[offset]);
+    }
+
+    public static unsafe object LocalResourceParser8Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         if (connection == null)
             return new ResourceId(true, data[offset]);
@@ -255,7 +270,12 @@ public static class DataDeserializer
             return Warehouse.GetById(data[offset]);
     }
 
-    public static unsafe object ResourceParser16(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser8(byte[] data, uint offset, uint length)
+    {
+        return new ResourceId(true, data[offset]);
+    }
+
+    public static unsafe object ResourceParser16Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             if (connection == null)
@@ -264,7 +284,14 @@ public static class DataDeserializer
                 return connection.Fetch(*(ushort*)ptr, requestSequence);
     }
 
-    public static unsafe object LocalResourceParser16(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser16(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return new ResourceId(false, *(ushort*)ptr);
+    }
+
+
+    public static unsafe object LocalResourceParser16Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             if (connection == null)
@@ -273,7 +300,13 @@ public static class DataDeserializer
                 return Warehouse.GetById(*(ushort*)ptr);
     }
 
-    public static unsafe object ResourceParser32(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser16(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return Warehouse.GetById(*(ushort*)ptr);
+    }
+
+    public static unsafe object ResourceParser32Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             if (connection == null)
@@ -282,7 +315,14 @@ public static class DataDeserializer
                 return connection.Fetch(*(uint*)ptr, requestSequence);
     }
 
-    public static unsafe object LocalResourceParser32(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser32(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return new ResourceId(false, *(uint*)ptr);
+    }
+
+
+    public static unsafe object LocalResourceParser32Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             if (connection == null)
@@ -291,18 +331,35 @@ public static class DataDeserializer
                 return Warehouse.GetById(*(uint*)ptr);
     }
 
+    public static unsafe object LocalResourceParser32(byte[] data, uint offset, uint length)
+    {
+        fixed (byte* ptr = &data[offset])
+            return new ResourceId(true, *(uint*)ptr);
+    }
 
-    public static unsafe object RawDataParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+
+    public static unsafe object RawDataParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return data.Clip(offset, length);
     }
 
-    public static unsafe object StringParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object RawDataParser(byte[] data, uint offset, uint length)
+    {
+        return data.Clip(offset, length);
+    }
+
+
+    public static unsafe object StringParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         return data.GetString(offset, length);
     }
 
-    public static unsafe object RecordParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object StringParser(byte[] data, uint offset, uint length)
+    {
+        return data.GetString(offset, length);
+    }
+
+    public static unsafe object RecordParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
 
         var reply = new AsyncReply<IRecord>();
@@ -378,12 +435,67 @@ public static class DataDeserializer
         return reply;
     }
 
-    public static unsafe object ConstantParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+
+    public static unsafe object RecordParser(byte[] data, uint offset, uint length)
+    {
+
+        var classId = data.GetUUID(offset);
+        offset += 16;
+        length -= 16;
+
+        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
+
+        var r = ListParser(data, offset, length);
+
+        var ar = (object[])r;
+
+        if (template == null)
+        {
+            // @TODO: add parse if no template settings
+            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
+                    "Template not found for record.");
+        }
+        else if (template.DefinedType != null)
+        {
+            var record = Activator.CreateInstance(template.DefinedType) as IRecord;
+            for (var i = 0; i < template.Properties.Length; i++)
+            {
+                try
+                {
+                    //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+                    var v = DC.CastConvert(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+                    template.Properties[i].PropertyInfo.SetValue(record, v);
+                }
+                catch (Exception ex)
+                {
+                    Global.Log(ex);
+                }
+            }
+
+            return record;
+        }
+        else
+        {
+            var record = new Record();
+
+            for (var i = 0; i < template.Properties.Length; i++)
+                record.Add(template.Properties[i].Name, ar[i]);
+
+            return record;
+        }
+    }
+
+    public static unsafe object ConstantParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         throw new NotImplementedException();
     }
 
-    public static unsafe AsyncReply EnumParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ConstantParser(byte[] data, uint offset, uint length)
+    {
+        throw new NotImplementedException();
+    }
+
+    public static unsafe AsyncReply EnumParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
 
         var classId = data.GetUUID(offset);
@@ -409,9 +521,28 @@ public static class DataDeserializer
         }
     }
 
+    public static unsafe object EnumParser(byte[] data, uint offset, uint length)
+    {
+
+        var classId = data.GetUUID(offset);
+        offset += 16;
+        var index = data[offset++];
+
+        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
+
+        if (template != null)
+        {
+            return template.Constants[index].Value;
+        }
+        else
+        {
+            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
+                    "Template not found for enum.");
+        }
+    }
 
 
-    public static AsyncReply RecordListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply RecordListParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IRecord>();
 
@@ -435,7 +566,30 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static AsyncReply ResourceListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object RecordListParser(byte[] data, uint offset, uint length)
+    {
+        var rt = new List<IRecord>();
+
+        while (length > 0)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+            rt.Add(reply as IRecord);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+        return rt.ToArray();
+    }
+
+    public static AsyncReply ResourceListParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IResource>();
 
@@ -460,7 +614,30 @@ public static class DataDeserializer
     }
 
 
-    public static AsyncBag<object> ListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object ResourceListParser(byte[] data, uint offset, uint length)
+    {
+        var rt = new List<IResource>();
+
+        while (length > 0)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+            rt.Add(reply as IResource);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+        return rt.ToArray();
+    }
+
+    public static AsyncBag<object> ListParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<object>();
 
@@ -484,7 +661,30 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static AsyncReply TypedMapParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object ListParser(byte[] data, uint offset, uint length)
+    {
+        var rt = new List<object>();
+
+        while (length > 0)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+            rt.Add(reply);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+        return rt.ToArray();
+    }
+
+    public static AsyncReply TypedMapParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         // get key type
         var (keyCs, keyRepType) = RepresentationType.Parse(data, offset);
@@ -533,7 +733,46 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TupleParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static object TypedMapParser(byte[] data, uint offset, uint length)
+    {
+        // get key type
+        var (keyCs, keyRepType) = RepresentationType.Parse(data, offset);
+        offset += keyCs;
+        length -= keyCs;
+
+        var (valueCs, valueRepType) = RepresentationType.Parse(data, offset);
+        offset += valueCs;
+        length -= valueCs;
+
+        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(), valueRepType.GetRuntimeType()));
+
+
+        var results = new List<object>();
+
+        while (length > 0)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+
+            results.Add(reply);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+        for (var i = 0; i < results.Count; i += 2)
+            map.Add(results[i], results[i + 1]);
+
+        return map;
+    }
+
+    public static AsyncReply TupleParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         var results = new AsyncBag<object>();
         var rt = new AsyncReply();
@@ -590,6 +829,73 @@ public static class DataDeserializer
                 });
 
         return rt;
+    }
+
+    public static object TupleParser(byte[] data, uint offset, uint length)
+    {
+        var results = new List<object>();
+
+
+        var tupleSize = data[offset++];
+        length--;
+
+        var types = new List<Type>();
+
+        for (var i = 0; i < tupleSize; i++)
+        {
+            var (cs, rep) = RepresentationType.Parse(data, offset);
+            types.Add(rep.GetRuntimeType());
+            offset += cs;
+            length -= cs;
+        }
+
+        while (length > 0)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+            results.Add(reply);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+
+        if (results.Count == 2)
+        {
+            var type = typeof(ValueTuple<,>).MakeGenericType(types.ToArray());
+            return Activator.CreateInstance(type, results[0], results[1]);
+        }
+        else if (results.Count == 3)
+        {
+            var type = typeof(ValueTuple<,,>).MakeGenericType(types.ToArray());
+            return Activator.CreateInstance(type, results[0], results[1], results[2]);
+        }
+        else if (results.Count == 4)
+        {
+            var type = typeof(ValueTuple<,,,>).MakeGenericType(types.ToArray());
+            return Activator.CreateInstance(type, results[0], results[1], results[2], results[3]);
+        }
+        else if (results.Count == 5)
+        {
+            var type = typeof(ValueTuple<,,,,>).MakeGenericType(types.ToArray());
+            return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4]);
+        }
+        else if (results.Count == 6)
+        {
+            var type = typeof(ValueTuple<,,,,,>).MakeGenericType(types.ToArray());
+            return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4], results[5]);
+        }
+        else if (results.Count == 7)
+        {
+            var type = typeof(ValueTuple<,,,,,,>).MakeGenericType(types.ToArray());
+            return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4], results[5], results[6]);
+        }
     }
 
     public static AsyncReply TypedListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
