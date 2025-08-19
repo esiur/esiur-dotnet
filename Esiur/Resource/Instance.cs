@@ -48,6 +48,7 @@ public class Instance
     List<ulong?> ages = new();
     List<DateTime?> modificationDates = new();
     private ulong instanceAge;
+    private byte hops;
     private DateTime instanceModificationDate;
 
     uint id;
@@ -390,6 +391,16 @@ public class Instance
     }
 
     /// <summary>
+    /// Number of nodes to reach the original resource.
+    /// </summary>
+    public ulong Hops
+    {
+        get { return hops; }
+        internal set { hops = value; }
+    }
+
+
+    /// <summary>
     /// Last modification date.
     /// </summary>
     public DateTime? ModificationDate
@@ -443,7 +454,7 @@ public class Instance
     /// <returns></returns>
     public PropertyValue[] Serialize()
     {
-        List<PropertyValue> props = new List<PropertyValue>();
+        var props = new List<PropertyValue>();
 
         foreach (var pt in template.Properties)
         {
@@ -457,6 +468,33 @@ public class Instance
         }
 
         return props.ToArray();
+    }
+
+    /// <summary>
+    /// Export all properties with ResourceProperty attributed as bytes array after a specific age.
+    /// </summary>
+    /// <returns></returns>
+    public Map<byte, PropertyValue> SerializeAfter(ulong age = 0)
+    {
+        var props = new Map<byte, PropertyValue>();
+
+        foreach (var pt in template.Properties)
+        {
+            IResource res;
+            if (resource.TryGetTarget(out res))
+            {
+                if (res.Instance.GetAge(pt.Index) > age)
+                {
+                    var rt = pt.PropertyInfo.GetValue(res, null);
+                    props.Add(pt.Index,
+                        new PropertyValue(rt, 
+                        ages[pt.Index], 
+                        modificationDates[pt.Index]));
+                }
+            }
+        }
+
+        return props;
     }
 
     /*
@@ -588,7 +626,7 @@ public class Instance
         }
     }
 
- 
+
 
     //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
 

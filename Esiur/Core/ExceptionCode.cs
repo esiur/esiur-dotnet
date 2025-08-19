@@ -40,10 +40,11 @@ public enum ExceptionCode : ushort
     AddToStoreFailed,
     NotAttached,
     AlreadyListened,
-    AlreadyUnlistened,
+    AlreadyUnsubscribed,
     NotSubscribable,
     ParseError,
     Timeout,
     NotSupported,
-    NotImplemented
+    NotImplemented,
+    NotAllowed
 }

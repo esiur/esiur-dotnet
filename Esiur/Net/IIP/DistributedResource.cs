@@ -68,7 +68,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     string link;
     //ulong age;
-    //ulong[] ages;
+
     protected object[] properties;
     internal List<DistributedResource> parents = new List<DistributedResource>();
     internal List<DistributedResource> children = new List<DistributedResource>();
@@ -174,15 +174,30 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     /// <returns></returns>
     internal PropertyValue[] _Serialize()
     {
-
         var props = new PropertyValue[properties.Length];
 
-
         for (byte i = 0; i < properties.Length; i++)
-            props[i] = new PropertyValue(properties[i], Instance.GetAge(i), Instance.GetModificationDate(i));
+            props[i] = new PropertyValue(properties[i], 
+                                        Instance.GetAge(i), 
+                                        Instance.GetModificationDate(i));
 
         return props;
     }
+
+    internal Map<byte, PropertyValue> _SerializeAfter(ulong age = 0)
+    {
+        var rt = new Map<byte, PropertyValue>();
+
+        for (byte i = 0; i < properties.Length; i++)
+            if (Instance.GetAge(i) > age)
+                rt.Add(i, new PropertyValue(properties[i],
+                                            Instance.GetAge(i),
+                                            Instance.GetModificationDate(i)));
+           
+
+        return rt;
+    }
+
 
     internal bool _Attach(PropertyValue[] properties)
     {
@@ -568,7 +583,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     protected virtual void EmitPropertyChanged(string name)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)); 
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
     ~DistributedResource()

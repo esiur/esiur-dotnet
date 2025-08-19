@@ -7,5 +7,6 @@ namespace Esiur.Core;
 public enum ErrorType
 {
     Management,
-    Exception
+    Exception,
+    Warning
 }

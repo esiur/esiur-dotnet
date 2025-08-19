@@ -6,29 +6,30 @@ namespace Esiur.Net.Packets
 {
     public enum IIPPacketRequest : byte
     {
-        // Request Manage
-        AttachResource = 0x0,
-        ReattachResource = 0x1,
-        DetachResource = 0x2,
-        CreateResource = 0x3,
-        DeleteResource = 0x4,
-        MoveResource = 0x5,
+        // Request Invoke
+        InvokeFunction = 0x0,
+        SetProperty = 0x1,
+        Subscribe = 0x2,
+        Unsubscribe = 0x3,
 
         // Request Inquire
         TemplateFromClassName = 0x8,
         TemplateFromClassId = 0x9,
         TemplateFromResourceId = 0xA,
-        QueryLink = 0xB,
+        Query = 0xB,
         LinkTemplates = 0xC,
         Token = 0xD,
+        GetResourceIdByLink = 0xE,
 
-        // Request Invoke
-        InvokeFunction = 0x10,
-        Subscribe = 0x11,
-        Unsubscribe = 0x12,
-        SetProperty = 0x13,
+        // Request Manage
+        AttachResource = 0x10,
+        ReattachResource = 0x11,
+        DetachResource = 0x12,
+        CreateResource = 0x13,
+        DeleteResource = 0x14,
+        MoveResource = 0x15,
 
-        // Static calling
+        // Request Static
         KeepAlive = 0x18,
         ProcedureCall = 0x19,
         StaticCall = 0x1A

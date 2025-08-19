@@ -373,7 +373,7 @@ public static class DataDeserializer
 
         var initRecord = (TypeTemplate template) =>
         {
-            ListParser(data, offset, length, connection, requestSequence).Then(r =>
+            ListParserAsync(data, offset, length, connection, requestSequence).Then(r =>
             {
                 var ar = (object[])r;
 
@@ -684,6 +684,31 @@ public static class DataDeserializer
         return rt.ToArray();
     }
 
+
+    public static (uint, ulong, object[]) LimitedCountListParser(byte[] data, uint offset, ulong length, uint countLimit = uint.MaxValue)
+    {
+        var rt = new List<object>();
+
+        while (length > 0 && rt.Count < countLimit)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+            rt.Add(reply);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+        return (offset, length, rt.ToArray());
+    }
+
+
     public static AsyncReply TypedMapParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         // get key type
@@ -826,6 +851,21 @@ public static class DataDeserializer
                         var type = typeof(ValueTuple<,,,>).MakeGenericType(types.ToArray());
                         rt.Trigger(Activator.CreateInstance(type, ar[0], ar[1], ar[2], ar[3]));
                     }
+                    else if (ar.Length == 5)
+                    {
+                        var type = typeof(ValueTuple<,,,,>).MakeGenericType(types.ToArray());
+                        rt.Trigger(Activator.CreateInstance(type, ar[0], ar[1], ar[2], ar[3], ar[4]));
+                    }
+                    else if (ar.Length == 6)
+                    {
+                        var type = typeof(ValueTuple<,,,,,>).MakeGenericType(types.ToArray());
+                        rt.Trigger(Activator.CreateInstance(type, ar[0], ar[1], ar[2], ar[3], ar[4], ar[5]));
+                    }
+                    else if (ar.Length == 7)
+                    {
+                        var type = typeof(ValueTuple<,,,,,,>).MakeGenericType(types.ToArray());
+                        rt.Trigger(Activator.CreateInstance(type, ar[0], ar[1], ar[2], ar[3], ar[4], ar[5], ar[6]));
+                    }
                 });
 
         return rt;
@@ -896,9 +936,12 @@ public static class DataDeserializer
             var type = typeof(ValueTuple<,,,,,,>).MakeGenericType(types.ToArray());
             return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4], results[5], results[6]);
         }
+
+        throw new Exception("Unknown tuple length.");
+
     }
 
-    public static AsyncReply TypedListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedListParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<object>();
 
@@ -932,13 +975,47 @@ public static class DataDeserializer
         return rt;
     }
 
+    public static object TypedListParser(byte[] data, uint offset, uint length)
+    {
 
-    public static AsyncBag<PropertyValue> PropertyValueArrayParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
+        // get the type
+        var (hdrCs, rep) = RepresentationType.Parse(data, offset);
+
+        offset += hdrCs;
+        length -= hdrCs;
+
+        var runtimeType = rep.GetRuntimeType();
+
+        var list = new List<object>();
+
+        while (length > 0)
+        {
+            var (cs, reply) = Codec.ParseSync(data, offset);
+
+            list.Add(reply);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+        var rt = Array.CreateInstance(runtimeType, list.Count);
+        Array.Copy(list.ToArray(), rt, rt.Length);
+        
+        return rt;
+    }
+
+    public static AsyncBag<PropertyValue> PropertyValueArrayParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {
         var rt = new AsyncBag<PropertyValue>();
 
 
-        ListParser(data, offset, length, connection, requestSequence).Then(x =>
+        ListParserAsync(data, offset, length, connection, requestSequence).Then(x =>
         {
             var ar = (object[])x;
             var pvs = new List<PropertyValue>();
@@ -954,7 +1031,8 @@ public static class DataDeserializer
 
     }
 
-    public static (uint, AsyncReply<PropertyValue>) PropertyValueParser(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
+
+    public static (uint, AsyncReply<PropertyValue>) PropertyValueParserAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {
         var reply = new AsyncReply<PropertyValue>();
 
@@ -967,15 +1045,22 @@ public static class DataDeserializer
 
         var (valueSize, results) = Codec.ParseAsync(data, offset, connection, requestSequence);
 
-        results.Then(value =>
+        if (results is AsyncReply)
         {
-            reply.Trigger(new PropertyValue(value, age, date));
-        });
+            (results as AsyncReply).Then(value =>
+            {
+                reply.Trigger(new PropertyValue(value, age, date));
+            });
+        }
+        else
+        {
+            reply.Trigger(new PropertyValue(results, age, date));
+        }
 
         return (16 + valueSize, reply);
     }
 
-    public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> HistoryParser(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> HistoryParserAsync(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection, uint[] requestSequence)
     {
         //var count = (int)toAge - (int)fromAge;
 
@@ -994,7 +1079,7 @@ public static class DataDeserializer
             var cs = data.GetUInt32(offset, Endian.Little);
             offset += 4;
 
-            var (len, pv) = PropertyValueParser(data, offset, connection, requestSequence);
+            var (len, pv) = PropertyValueParserAsync(data, offset, connection, requestSequence);
 
             bagOfBags.Add(pv);// ParsePropertyValueArray(data, offset, cs, connection));
             offset += len;

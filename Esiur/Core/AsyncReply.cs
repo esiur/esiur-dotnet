@@ -38,18 +38,19 @@ namespace Esiur.Core;
 [AsyncMethodBuilder(typeof(AsyncReplyBuilder))]
 public class AsyncReply
 {
-    //public bool Debug = false;
 
     protected List<Action<object>> callbacks = new List<Action<object>>();
     protected object result;
 
-    protected List<Action<AsyncException>> errorCallbacks = new List<Action<AsyncException>>();
+    protected List<Action<AsyncException>> errorCallbacks = null;
 
-    protected List<Action<ProgressType, int, int>> progressCallbacks = new List<Action<ProgressType, int, int>>();
+    protected List<Action<ProgressType, uint, uint>> progressCallbacks = null;
 
-    protected List<Action<object>> chunkCallbacks = new List<Action<object>>();
+    protected List<Action<object>> chunkCallbacks = null;
 
-    //List<AsyncAwaiter> awaiters = new List<AsyncAwaiter>();
+    protected List<Action<object>> propagationCallbacks = null;
+    protected List<Action<byte, string>> warningCallbacks = null;
+
 
     object asyncLock = new object();
 
@@ -77,14 +78,7 @@ public class AsyncReply
         if (resultReady)
             return result;
 
-        //if (Debug)
-        //    Console.WriteLine($"AsyncReply: {Id} Wait");
-
-        //mutex = new AutoResetEvent(false);
         mutex.WaitOne();
-
-        //if (Debug)
-        //    Console.WriteLine($"AsyncReply: {Id} Wait ended");
 
         if (exception != null)
             throw exception;
@@ -95,7 +89,7 @@ public class AsyncReply
 
     public AsyncReply Timeout(int milliseconds, Action callback = null)
     {
-        
+
         Task.Delay(milliseconds).ContinueWith(x =>
         {
             if (!resultReady && exception == null)
@@ -183,34 +177,52 @@ public class AsyncReply
 
     public AsyncReply Error(Action<AsyncException> callback)
     {
-        // lock (callbacksLock)
-        //  {
+
+        if (errorCallbacks == null)
+            errorCallbacks = new List<Action<AsyncException>>();
+
         errorCallbacks.Add(callback);
 
         if (exception != null)
             callback(exception);
 
         return this;
-        //}
     }
 
-    public AsyncReply Progress(Action<ProgressType, int, int> callback)
+    public AsyncReply Progress(Action<ProgressType, uint, uint> callback)
     {
-        //lock (callbacksLock)
-        //{
+        if (progressCallbacks == null)
+            progressCallbacks = new List<Action<ProgressType, uint, uint>>();
+
         progressCallbacks.Add(callback);
         return this;
-        //}
     }
 
+    public AsyncReply Warning(Action<byte, string> callback)
+    {
+        if (warningCallbacks == null)
+            warningCallbacks = new List<Action<byte, string>>();
+
+        warningCallbacks.Add(callback);
+        return this;
+    }
 
     public AsyncReply Chunk(Action<object> callback)
     {
-        // lock (callbacksLock)
-        // {
+        if (chunkCallbacks == null)
+            chunkCallbacks = new List<Action<object>>();
+
         chunkCallbacks.Add(callback);
         return this;
-        // }
+    }
+
+    public AsyncReply Propagation(Action<object> callback)
+    {
+        if (propagationCallbacks == null)
+            propagationCallbacks = new List<Action<object>>();
+
+        propagationCallbacks.Add(callback);
+        return this;
     }
 
     public AsyncReply Trigger(object result)
@@ -259,31 +271,56 @@ public class AsyncReply
         else
             this.exception = new AsyncException(exception);
 
-
-        // lock (callbacksLock)
-        // {
-        foreach (var cb in errorCallbacks)
-            cb(this.exception);
-        //  }
+        if (errorCallbacks != null)
+        {
+            foreach (var cb in errorCallbacks)
+                cb(this.exception);
+        }
+        else
+        {
+            // no error handlers found
+            throw exception;
+        }
 
         mutex?.Set();
 
         return this;
     }
 
-    public AsyncReply TriggerProgress(ProgressType type, int value, int max)
+    public AsyncReply TriggerProgress(ProgressType type, uint value, uint max)
     {
         //timeout?.Dispose();
 
-        //lock (callbacksLock)
-        //{
-        foreach (var cb in progressCallbacks)
-            cb(type, value, max);
-
-        //}
+        if (progressCallbacks != null)
+            foreach (var cb in progressCallbacks)
+                cb(type, value, max);
 
         return this;
     }
+
+    public AsyncReply TriggerWarning(byte level, string message)
+    {
+        //timeout?.Dispose();
+
+        if (warningCallbacks != null)
+            foreach (var cb in warningCallbacks)
+                cb(level, message);
+
+        return this;
+    }
+
+
+    public AsyncReply TriggerPropagation(object value)
+    {
+        //timeout?.Dispose();
+
+        if (propagationCallbacks != null)
+            foreach (var cb in propagationCallbacks)
+                cb(value);
+
+        return this;
+    }
+
 
 
     public AsyncReply TriggerChunk(object value)
@@ -292,12 +329,10 @@ public class AsyncReply
         //timeout?.Dispose();
 
 
-        //lock (callbacksLock)
-        //{
-        foreach (var cb in chunkCallbacks)
-            cb(value);
+        if (chunkCallbacks != null)
+            foreach (var cb in chunkCallbacks)
+                cb(value);
 
-        //}
 
         return this;
     }

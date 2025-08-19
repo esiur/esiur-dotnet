@@ -33,6 +33,7 @@ using Esiur.Resource;
 using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Security.Membership;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -48,6 +49,39 @@ using System.Timers;
 namespace Esiur.Net.IIP;
 public partial class DistributedConnection : NetworkConnection, IStore
 {
+
+
+    public delegate void ProtocolGeneralHandler(DistributedConnection connection, TransmissionType dataType, byte[] data);
+
+    public delegate void ProtocolRequestReplyHandler(DistributedConnection connection, uint callbackId, TransmissionType dataType, byte[] data);
+
+    //ProtocolGeneralHandler[] NotificationHandlers = new ProtocolGeneralHandler[]
+    //{
+    //    IIPNotificationResourceDestroyed,
+    //    IIPNotificationResourceReassigned,
+    //    IIPNotificationResourceMoved,
+    //    IIPNotificationSystemFailure,
+    //    IIPNotificationPropertyModified
+    //};
+
+    //ProtocolRequestReplyHandler[] RequestHandlers = new ProtocolRequestReplyHandler[]
+    //{
+    //    IIPRequestAttachResource,
+    //    IIPRequest
+
+    //};
+
+    //ProtocolRequestReplyHandler[] ReplyHandlers = new ProtocolRequestReplyHandler[]
+    //{
+
+    //};
+
+    //ProtocolGeneralHandler[] ExtensionHandler = new ProtocolGeneralHandler[]
+    //{
+
+    //};
+
+
 
     // Delegates
     public delegate void ReadyEvent(DistributedConnection sender);
@@ -112,10 +146,10 @@ public partial class DistributedConnection : NetworkConnection, IStore
     /// </summary>
     public Session Session => session;
 
-    [Export] 
+    [Export]
     public virtual ConnectionStatus Status { get; private set; }
 
-    [Export] 
+    [Export]
     public virtual uint Jitter { get; private set; }
 
     // Attributes
@@ -163,6 +197,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
         // nothing to do
         return true;
     }
+
+
+
 
     /// <summary>
     /// Send data to the other end as parameters
@@ -373,16 +410,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
         lastKeepAliveSent = now;
 
-        SendRequest(IIPPacketRequest.KeepAlive)
-                .AddDateTime(now)
-                .AddUInt32(interval)
-                .Done()
+        SendRequest(IIPPacketRequest.KeepAlive, now, interval)
                 .Then(x =>
                 {
-
-                    Jitter = (uint)x[1];
+                    Jitter = (uint)x;
                     keepAliveTimer.Start();
-                    //Console.WriteLine($"Keep Alive Received {Jitter}");
                 }).Error(ex =>
                 {
                     keepAliveTimer.Stop();
@@ -392,9 +424,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     keepAliveTimer.Stop();
                     Close();
                 });
-
-        //Console.WriteLine("Keep Alive sent");
-
 
     }
 
@@ -417,7 +446,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             if (rt <= 0)
             {
-
                 var size = ends - offset;
                 data.HoldFor(msg, offset, size, size + (uint)(-rt));
                 return ends;
@@ -427,311 +455,153 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                 offset += (uint)rt;
 
-                if (packet.DataType != null)
-                {
-                    var dt = packet.DataType.Value;
+                if (packet.DataType == null)
+                    return offset;
 
-                    var (_, parsed) = Codec.Parse(msg, dt.Offset, this, null, dt);
-
-                    parsed.Then(value =>
-                    {
-                        if (packet.Method == IIPPacketMethod.Notification)
-                        {
-                            switch (packet.Notification)
-                            {
-                                case IIPPacketNotification.ResourceDestroyed:
-                                    IIPNotificationResourceDestroyed(value);
-                                    break;
-                                case IIPPacketNotification.ResourceReassigned:
-                                    IIPNotificationResourceReassigned(value);
-                                    break;
-                                case IIPPacketNotification.ResourceMoved:
-                                    IIPNotificationResourceMoved(value);
-                                    break;
-                                case IIPPacketNotification.SystemFailure:
-                                    IIPNotificationSystemFailure(value);
-                                    break;
-                                case IIPPacketNotification.PropertyModified:
-                                    IIPNotificationPropertyModified()
-                            }
-                        }
-                    });
-                }
 
                 if (packet.Method == IIPPacketMethod.Notification)
                 {
+                    var dt = packet.DataType.Value;
+
                     switch (packet.Notification)
                     {
+                        // Invoke
+                        case IIPPacketNotification.PropertyModified:
+                            IIPNotificationPropertyModified(dt, msg);
+                            break;
+                        case IIPPacketNotification.EventOccurred:
+                            IIPNotificationEventOccurred(dt, msg);
+                            break;
+                        // Manage
                         case IIPPacketNotification.ResourceDestroyed:
-
-                        case IIPPacketEvent.ResourceReassigned:
-                            IIPEventResourceReassigned(packet.ResourceId, packet.NewResourceId);
+                            IIPNotificationResourceDestroyed(dt, msg);
                             break;
-                        case IIPPacketEvent.ResourceDestroyed:
-                            IIPEventResourceDestroyed(packet.ResourceId);
+                        case IIPPacketNotification.ResourceReassigned:
+                            IIPNotificationResourceReassigned(dt, msg);
                             break;
-                        case IIPPacketEvent.PropertyUpdated:
-                            IIPEventPropertyUpdated(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg); 
+                        case IIPPacketNotification.ResourceMoved:
+                            IIPNotificationResourceMoved(dt, msg);
                             break;
-                        case IIPPacketEvent.EventOccurred:
-                            IIPEventEventOccurred(packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
-                            break;
-
-                        case IIPPacketEvent.ChildAdded:
-                            IIPEventChildAdded(packet.ResourceId, packet.ChildId);
-                            break;
-                        case IIPPacketEvent.ChildRemoved:
-                            IIPEventChildRemoved(packet.ResourceId, packet.ChildId);
-                            break;
-                        case IIPPacketEvent.Renamed:
-                            IIPEventRenamed(packet.ResourceId, packet.ResourceLink);
-                            break;
-                        case IIPPacketEvent.AttributesUpdated:
-                            // @TODO: fix this
-                            //IIPEventAttributesUpdated(packet.ResourceId, packet.Content);
+                        case IIPPacketNotification.SystemFailure:
+                            IIPNotificationSystemFailure(dt, msg);
                             break;
                     }
                 }
-                else if (packet.Command == IIPPacketCommand.Request)
+                else if (packet.Method == IIPPacketMethod.Request)
                 {
-                    switch (packet.Action)
+                    var dt = packet.DataType.Value;
+
+                    switch (packet.Request)
                     {
-                        // Manage
-                        case IIPPacketRequest.AttachResource:
-                            IIPRequestAttachResource(packet.CallbackId, packet.ResourceId);
-                            break;
-                        case IIPPacketRequest.ReattachResource:
-                            IIPRequestReattachResource(packet.CallbackId, packet.ResourceId, packet.ResourceAge);
-                            break;
-                        case IIPPacketRequest.DetachResource:
-                            IIPRequestDetachResource(packet.CallbackId, packet.ResourceId);
-                            break;
-                        case IIPPacketRequest.CreateResource:
-                            //@TODO : fix this
-                            //IIPRequestCreateResource(packet.CallbackId, packet.StoreId, packet.ResourceId, packet.Content);
-                            break;
-                        case IIPPacketRequest.DeleteResource:
-                            IIPRequestDeleteResource(packet.CallbackId, packet.ResourceId);
-                            break;
-                        case IIPPacketRequest.AddChild:
-                            IIPRequestAddChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
-                            break;
-                        case IIPPacketRequest.RemoveChild:
-                            IIPRequestRemoveChild(packet.CallbackId, packet.ResourceId, packet.ChildId);
-                            break;
-                        case IIPPacketRequest.RenameResource:
-                            IIPRequestRenameResource(packet.CallbackId, packet.ResourceId, packet.ResourceName);
-                            break;
-
-                        // Inquire
-                        case IIPPacketRequest.TemplateFromClassName:
-                            IIPRequestTemplateFromClassName(packet.CallbackId, packet.ClassName);
-                            break;
-                        case IIPPacketRequest.TemplateFromClassId:
-                            IIPRequestTemplateFromClassId(packet.CallbackId, packet.ClassId);
-                            break;
-                        case IIPPacketRequest.TemplateFromResourceId:
-                            IIPRequestTemplateFromResourceId(packet.CallbackId, packet.ResourceId);
-                            break;
-                        case IIPPacketRequest.QueryLink:
-                            IIPRequestQueryResources(packet.CallbackId, packet.ResourceLink);
-                            break;
-
-                        case IIPPacketRequest.ResourceChildren:
-                            IIPRequestResourceChildren(packet.CallbackId, packet.ResourceId);
-                            break;
-                        case IIPPacketRequest.ResourceParents:
-                            IIPRequestResourceParents(packet.CallbackId, packet.ResourceId);
-                            break;
-
-                        case IIPPacketRequest.ResourceHistory:
-                            IIPRequestInquireResourceHistory(packet.CallbackId, packet.ResourceId, packet.FromDate, packet.ToDate);
-                            break;
-
-                        case IIPPacketRequest.LinkTemplates:
-                            IIPRequestLinkTemplates(packet.CallbackId, packet.ResourceLink);
-                            break;
-
                         // Invoke
                         case IIPPacketRequest.InvokeFunction:
-                            IIPRequestInvokeFunction(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
+                            IIPRequestInvokeFunction(packet.CallbackId, dt, msg);
                             break;
-
-                        //case IIPPacket.IIPPacketAction.InvokeFunctionNamedArguments:
-                        //    IIPRequestInvokeFunctionNamedArguments(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
-                        //    break;
-
-                        //case IIPPacket.IIPPacketAction.GetProperty:
-                        //    IIPRequestGetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
-                        //    break;
-                        //case IIPPacket.IIPPacketAction.GetPropertyIfModified:
-                        //    IIPRequestGetPropertyIfModifiedSince(packet.CallbackId, packet.ResourceId, packet.MethodIndex, packet.ResourceAge);
-                        //    break;
-
-                        case IIPPacketRequest.Listen:
-                            IIPRequestListen(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
-                            break;
-
-                        case IIPPacketRequest.Unlisten:
-                            IIPRequestUnlisten(packet.CallbackId, packet.ResourceId, packet.MethodIndex);
-                            break;
-
                         case IIPPacketRequest.SetProperty:
-                            IIPRequestSetProperty(packet.CallbackId, packet.ResourceId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
+                            IIPRequestSetProperty(packet.CallbackId, dt, msg);
                             break;
-
-                        // Attribute
-                        case IIPPacketRequest.GetAllAttributes:
-                            // @TODO : fix this
-                            //IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                        case IIPPacketRequest.Subscribe:
+                            IIPRequestSubscribe(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.UpdateAllAttributes:
-                            // @TODO : fix this
-                            //IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                        case IIPPacketRequest.Unsubscribe:
+                            IIPRequestUnsubscribe(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.ClearAllAttributes:
-                            // @TODO : fix this
-                            //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, true);
+                        // Inquire
+                        case IIPPacketRequest.TemplateFromClassName:
+                            IIPRequestTemplateFromClassName(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.GetAttributes:
-                            // @TODO : fix this
-                            //IIPRequestGetAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                        case IIPPacketRequest.TemplateFromClassId:
+                            IIPRequestTemplateFromClassId(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.UpdateAttributes:
-                            // @TODO : fix this
-                            //IIPRequestUpdateAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                        case IIPPacketRequest.TemplateFromResourceId:
+                            IIPRequestTemplateFromResourceId(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.ClearAttributes:
-                            // @TODO : fix this
-                            //IIPRequestClearAttributes(packet.CallbackId, packet.ResourceId, packet.Content, false);
+                        case IIPPacketRequest.Query:
+                            IIPRequestQueryResources(packet.CallbackId, dt, msg);
                             break;
-
-                        case IIPPacketRequest.KeepAlive:
-                            IIPRequestKeepAlive(packet.CallbackId, packet.CurrentTime, packet.Interval);
+                        case IIPPacketRequest.LinkTemplates:
+                            IIPRequestLinkTemplates(packet.CallbackId, dt, msg);
                             break;
-
-                        case IIPPacketRequest.ProcedureCall:
-                            IIPRequestProcedureCall(packet.CallbackId, packet.Procedure, (TransmissionType)packet.DataType, msg);
+                        case IIPPacketRequest.Token:
+                            IIPRequestToken(packet.CallbackId, dt, msg);
                             break;
-
-                        case IIPPacketRequest.StaticCall:
-                            IIPRequestStaticCall(packet.CallbackId, packet.ClassId, packet.MethodIndex, (TransmissionType)packet.DataType, msg);
+                        case IIPPacketRequest.GetResourceIdByLink:
+                            IIPRequestGetResourceIdByLink(packet.CallbackId, dt, msg);
                             break;
-
-                    }
-                }
-                else if (packet.Command == IIPPacketCommand.Reply)
-                {
-                    switch (packet.Action)
-                    {
                         // Manage
                         case IIPPacketRequest.AttachResource:
-                            IIPReply(packet.CallbackId, packet.ClassId, packet.ResourceAge, packet.ResourceLink, packet.DataType, msg);
+                            IIPRequestAttachResource(packet.CallbackId, dt, msg);
                             break;
-
                         case IIPPacketRequest.ReattachResource:
-                            IIPReply(packet.CallbackId, packet.ResourceAge, packet.DataType, msg);
-
+                            IIPRequestReattachResource(packet.CallbackId, dt, msg);
                             break;
                         case IIPPacketRequest.DetachResource:
-                            IIPReply(packet.CallbackId);
+                            IIPRequestDetachResource(packet.CallbackId, dt, msg);
                             break;
-
                         case IIPPacketRequest.CreateResource:
-                            IIPReply(packet.CallbackId, packet.ResourceId);
+                            IIPRequestCreateResource(packet.CallbackId, dt, msg);
                             break;
-
                         case IIPPacketRequest.DeleteResource:
-                        case IIPPacketRequest.AddChild:
-                        case IIPPacketRequest.RemoveChild:
-                        case IIPPacketRequest.RenameResource:
-                            IIPReply(packet.CallbackId);
+                            IIPRequestDeleteResource(packet.CallbackId, dt, msg);
                             break;
-
-                        // Inquire
-
-                        case IIPPacketRequest.TemplateFromClassName:
-                        case IIPPacketRequest.TemplateFromClassId:
-                        case IIPPacketRequest.TemplateFromResourceId:
-
-                            var content = msg.Clip(packet.DataType.Value.Offset, (uint)packet.DataType.Value.ContentLength);
-                            IIPReply(packet.CallbackId, TypeTemplate.Parse(content));
+                        case IIPPacketRequest.MoveResource:
+                            IIPRequestMoveResource(packet.CallbackId, dt, msg);
                             break;
-
-                        case IIPPacketRequest.QueryLink:
-                        case IIPPacketRequest.ResourceChildren:
-                        case IIPPacketRequest.ResourceParents:
-                        case IIPPacketRequest.ResourceHistory:
-                        case IIPPacketRequest.LinkTemplates:
-                            IIPReply(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
-                            break;
-
-                        // Invoke
-                        case IIPPacketRequest.InvokeFunction:
-                        case IIPPacketRequest.StaticCall:
-                        case IIPPacketRequest.ProcedureCall:
-                            IIPReplyInvoke(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
-                            break;
-
-                        //case IIPPacket.IIPPacketAction.GetProperty:
-                        //    IIPReply(packet.CallbackId, packet.Content);
-                        //    break;
-
-                        //case IIPPacket.IIPPacketAction.GetPropertyIfModified:
-                        //    IIPReply(packet.CallbackId, packet.Content);
-                        //    break;
-
-                        case IIPPacketRequest.Listen:
-                        case IIPPacketRequest.Unlisten:
-                        case IIPPacketRequest.SetProperty:
-                            IIPReply(packet.CallbackId);
-                            break;
-
-                        // Attribute
-                        case IIPPacketRequest.GetAllAttributes:
-                        case IIPPacketRequest.GetAttributes:
-                            IIPReply(packet.CallbackId, (TransmissionType)packet.DataType, msg);// packet.Content);
-                            break;
-
-                        case IIPPacketRequest.UpdateAllAttributes:
-                        case IIPPacketRequest.UpdateAttributes:
-                        case IIPPacketRequest.ClearAllAttributes:
-                        case IIPPacketRequest.ClearAttributes:
-                            IIPReply(packet.CallbackId);
-                            break;
-
+                        // Static
                         case IIPPacketRequest.KeepAlive:
-                            IIPReply(packet.CallbackId, packet.CurrentTime, packet.Jitter);
+                            IIPRequestKeepAlive(packet.CallbackId, dt, msg);
+                            break;
+                        case IIPPacketRequest.ProcedureCall:
+                            IIPRequestProcedureCall(packet.CallbackId, dt, msg);
+                            break;
+                        case IIPPacketRequest.StaticCall:
+                            IIPRequestStaticCall(packet.CallbackId, dt, msg);
                             break;
                     }
-
                 }
-                else if (packet.Command == IIPPacketCommand.Report)
+                else if (packet.Method == IIPPacketMethod.Reply)
                 {
-                    switch (packet.Report)
-                    {
-                        case IIPPacketReport.ManagementError:
-                            IIPReportError(packet.CallbackId, ErrorType.Management, packet.ErrorCode, null);
-                            break;
-                        case IIPPacketReport.ExecutionError:
-                            IIPReportError(packet.CallbackId, ErrorType.Exception, packet.ErrorCode, packet.ErrorMessage);
-                            break;
-                        case IIPPacketReport.ProgressReport:
-                            IIPReportProgress(packet.CallbackId, ProgressType.Execution, packet.ProgressValue, packet.ProgressMax);
-                            break;
-                        case IIPPacketReport.ChunkStream:
-                            IIPReportChunk(packet.CallbackId, (TransmissionType)packet.DataType, msg); 
+                    var dt = packet.DataType.Value;
 
+                    switch (packet.Reply)
+                    {
+                        case IIPPacketReply.Completed:
+                            IIPReplyCompleted(packet.CallbackId, dt, msg);
                             break;
+                        case IIPPacketReply.Propagated:
+                            IIPReplyPropagated(packet.CallbackId, dt, msg);
+                            break;
+                        case IIPPacketReply.PermissionError:
+                            IIPReplyError(packet.CallbackId, dt, msg, ErrorType.Management);
+                            break;
+                        case IIPPacketReply.ExecutionError:
+                            IIPReplyError(packet.CallbackId, dt, msg, ErrorType.Exception);
+                            break;
+
+                        case IIPPacketReply.Progress:
+                            IIPReplyProgress(packet.CallbackId, dt, msg);
+                            break;
+
+                        case IIPPacketReply.Chunk:
+                            IIPReplyChunk(packet.CallbackId, dt, msg);
+                            break;
+
+                        case IIPPacketReply.Warning:
+                            IIPReplyWarning(packet.Extension, dt, msg);
+                            break;
+
                     }
+                }
+                else if (packet.Method == IIPPacketMethod.Extension)
+                {
+                    IIPExtensionAction(packet.Extension, packet.DataType, msg);
                 }
             }
         }
-
         else
         {
 
-            // check if the reqeust through websockets
+            // check if the request through Websockets
 
             if (initialPacket)
             {
@@ -754,7 +624,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             var res = new HTTPResponsePacket();
 
                             HTTPConnection.Upgrade(req, res);
-
 
                             res.Compose(HTTPComposeOption.AllCalculateLength);
                             Send(res.Data);
@@ -784,10 +653,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 }
             }
 
-
-
             var rt = authPacket.Parse(msg, offset, ends);
-
 
             if (rt <= 0)
             {
@@ -810,9 +676,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
         }
 
         return offset;
-
-        //if (offset < ends)
-        // processPacket(msg, offset, ends, data, chunkId);
     }
 
     private void ProcessClientAuth(byte[] data)
@@ -831,9 +694,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             var dataType = authPacket.DataType.Value;
 
-            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
 
-            var rt = (Map<byte, object>)parsed.Wait();
+            var rt = (Map<byte, object>)parsed;
 
             session.RemoteHeaders = rt.Select(x => new KeyValuePair<IIPAuthPacketHeader, object>((IIPAuthPacketHeader)x.Key, x.Value));
 
@@ -924,7 +787,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 ready = true;
                 Status = ConnectionStatus.Connected;
 
-                
+
                 // put it in the warehouse
 
                 if (this.Instance == null)
@@ -957,8 +820,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else if (authPacket.Event == IIPAuthPacketEvent.IAuthPlain)
             {
                 var dataType = authPacket.DataType.Value;
-                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
-                var rt = (Map<byte, object>)parsed.Wait();
+                var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
+                var rt = (Map<byte, object>)parsed;
 
                 var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
                 var iAuthRequest = new AuthorizationRequest(headers);
@@ -983,7 +846,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             .Done();
                     })
                     .Timeout(iAuthRequest.Timeout * 1000,
-                        () => {
+                        () =>
+                        {
                             SendParams()
                                 .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
                                 .AddUInt8((byte)ExceptionCode.Timeout)
@@ -996,8 +860,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else if (authPacket.Event == IIPAuthPacketEvent.IAuthHashed)
             {
                 var dataType = authPacket.DataType.Value;
-                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
-                var rt = (Map<byte, object>)parsed.Wait();
+                var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
+                var rt = (Map<byte, object>)parsed;
 
 
                 var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
@@ -1033,14 +897,15 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             .Done();
                     })
                     .Timeout(iAuthRequest.Timeout * 1000,
-                        () => {
-                        SendParams()
-                            .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
-                            .AddUInt8((byte)ExceptionCode.Timeout)
-                            .AddUInt16(7)
-                            .AddString("Timeout")
-                            .Done();
-                    });
+                        () =>
+                        {
+                            SendParams()
+                                .AddUInt8((byte)IIPAuthPacketEvent.ErrorTerminate)
+                                .AddUInt8((byte)ExceptionCode.Timeout)
+                                .AddUInt16(7)
+                                .AddString("Timeout")
+                                .Done();
+                        });
                 }
             }
             else if (authPacket.Event == IIPAuthPacketEvent.IAuthEncrypted)
@@ -1058,10 +923,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             var dataType = authPacket.DataType.Value;
 
-            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
+            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
 
-            var rt = (Map<byte, object>)parsed.Wait();
-
+            var rt = (Map<byte, object>)parsed;
 
             session.RemoteHeaders = rt.Select(x => new KeyValuePair<IIPAuthPacketHeader, object>((IIPAuthPacketHeader)x.Key, x.Value));
 
@@ -1250,7 +1114,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         reply = Server.Membership.GetToken((ulong)session.RemoteHeaders[IIPAuthPacketHeader.TokenIndex],
                                                       (string)session.RemoteHeaders[IIPAuthPacketHeader.Domain]);
                     }
-                    else 
+                    else
                     {
                         throw new NotImplementedException("Authentication method unsupported.");
                     }
@@ -1317,9 +1181,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 var reference = authPacket.Reference;
                 var dataType = authPacket.DataType.Value;
 
-                var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
-
-                var value = parsed.Wait();
+                var (_, value) = Codec.ParseSync(data, dataType.Offset, dataType);
 
                 Server.Membership.AuthorizePlain(session, reference, value)
                     .Then(x => ProcessAuthorization(x));
@@ -1386,7 +1248,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             session.Id = new byte[32];
             r.NextBytes(session.Id);
             var accountId = session.AuthorizedAccount.ToBytes();
-            
+
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketEvent.IndicationEstablished)
                 .AddUInt8((byte)session.Id.Length)
@@ -1687,33 +1549,22 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                     try
                     {
-                        var ar = await SendRequest(IIPPacketRequest.QueryLink)
-                                            .AddUInt16((ushort)link.Length)
-                                            .AddUInt8Array(link)
-                                            .Done();
+                        var id = (uint)await SendRequest(IIPPacketRequest.GetResourceIdByLink, link);
 
-                        var dataType = (TransmissionType)ar[0];
-                        var data = ar[1] as byte[];
 
-                        if (dataType.Identifier == TransmissionTypeIdentifier.ResourceList)
-                        {
+                        // remove from suspended.
+                        suspendedResources.Remove(r.DistributedResourceInstanceId);
 
-                            // remove from suspended.
-                            suspendedResources.Remove(r.DistributedResourceInstanceId);
+                        // id changed ?
+                        if (id != r.DistributedResourceInstanceId)
+                            r.DistributedResourceInstanceId = id;
 
-                            // parse them as int
-                            var id = data.GetUInt32(8, Endian.Little);
+                        neededResources[id] = r;
 
-                            // id changed ?
-                            if (id != r.DistributedResourceInstanceId)
-                                r.DistributedResourceInstanceId = id;
+                        await Fetch(id, null);
 
-                            neededResources[id] = r;
+                        Global.Log("DistributedConnection", LogType.Debug, "Restored " + id);
 
-                            await Fetch(id, null);
-
-                            Global.Log("DistributedConnection", LogType.Debug, "Restored " + id);
-                        }
                     }
                     catch (AsyncException ex)
                     {

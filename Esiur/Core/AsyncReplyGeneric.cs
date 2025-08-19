@@ -45,7 +45,7 @@ public class AsyncReply<T> : AsyncReply
         return this;
     }
 
-    public new AsyncReply<T> Progress(Action<ProgressType, int, int> callback)
+    public new AsyncReply<T> Progress(Action<ProgressType, uint, uint> callback)
     {
         base.Progress(callback);
         return this;

@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2017-2025 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,22 +22,22 @@ SOFTWARE.
 
 */
 
-using Esiur.Data;
 using Esiur.Core;
+using Esiur.Data;
+using Esiur.Misc;
+using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
 using System;
 using System.Collections.Generic;
-
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
-using System.Security.Cryptography.X509Certificates;
-using Esiur.Misc;
-using Esiur.Net.Packets;
 
 namespace Esiur.Net.IIP;
 
@@ -61,7 +61,7 @@ partial class DistributedConnection
 
     Dictionary<IResource, List<byte>> subscriptions = new Dictionary<IResource, List<byte>>();
 
-    // resources might get attched by the client
+    // resources might get attached by the client
     internal KeyList<IResource, DateTime> cache = new();
 
     object subscriptionsLock = new object();
@@ -76,93 +76,116 @@ partial class DistributedConnection
     /// <param name="action">Packet action.</param>
     /// <param name="args">Arguments to send.</param>
     /// <returns></returns>
-    SendList SendRequest(IIPPacketRequest action)
+    AsyncReply SendRequest(IIPPacketRequest action, params object[] args)
     {
         var reply = new AsyncReply<object[]>();
         var c = callbackCounter++; // avoid thread racing
         requests.Add(c, reply);
 
-        return (SendList)SendParams(reply)
-            .AddUInt8((byte)(0x40 | (byte)action))
-            .AddUInt32(c);
-    }
+        if (args.Length == 0)
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0x40 | (byte)action))
+              .AddUInt32(c);
+            Send(bl.ToArray());
+        }
+        if (args.Length == 1)
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0x60 | (byte)action))
+              .AddUInt32(c)
+              .AddUInt8Array(Codec.Compose(args[0], this));
+            Send(bl.ToArray());
+        }
+        else
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0x60 | (byte)action))
+              .AddUInt32(c)
+              .AddUInt8Array(Codec.Compose(args, this));
+            Send(bl.ToArray());
+        }
 
-    /*
-    internal IAsyncReply<object[]> SendRequest(IIPPacket.IIPPacketAction action, params object[] args)
-    {
-        var reply = new AsyncReply<object[]>();
-        callbackCounter++;
-        var bl = new BinaryList((byte)(0x40 | (byte)action), callbackCounter);
-        bl.AddRange(args);
-        Send(bl.ToArray());
-        requests.Add(callbackCounter, reply);
         return reply;
     }
-    */
 
-    //uint maxcallerid = 0;
-
-    internal SendList SendReply(IIPPacketRequest action, uint callbackId)
+    /// <summary>
+    /// Send IIP notification.
+    /// </summary>
+    /// <param name="action">Packet action.</param>
+    /// <param name="args">Arguments to send.</param>
+    /// <returns></returns>
+    AsyncReply SendNotification(IIPPacketNotification action, params object[] args)
     {
-        return (SendList)SendParams().AddUInt8((byte)(0x80 | (byte)action)).AddUInt32(callbackId);
+        var reply = new AsyncReply();
+
+        if (args.Length == 0)
+        {
+            Send(new byte[] { (byte)action });
+        }
+        if (args.Length == 1)
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0x20 | (byte)action))
+              .AddUInt8Array(Codec.Compose(args[0], this));
+            Send(bl.ToArray());
+        }
+        else
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0x20 | (byte)action))
+              .AddUInt8Array(Codec.Compose(args, this));
+            Send(bl.ToArray());
+        }
+
+        return reply;
     }
 
-    internal SendList SendEvent(IIPPacketEvent evt)
+    void SendReply(IIPPacketReply action, uint callbackId, params object[] args)
     {
-        return (SendList)SendParams().AddUInt8((byte)(evt));
+        if (args.Length == 0)
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0x80 | (byte)action))
+              .AddUInt32(callbackId);
+            Send(bl.ToArray());
+        }
+        if (args.Length == 1)
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0xA0 | (byte)action))
+              .AddUInt32(callbackId)
+              .AddUInt8Array(Codec.Compose(args[0], this));
+            Send(bl.ToArray());
+        }
+        else
+        {
+            var bl = new BinaryList();
+            bl.AddUInt8((byte)(0xA0 | (byte)action))
+              .AddUInt32(callbackId)
+              .AddUInt8Array(Codec.Compose(args, this));
+            Send(bl.ToArray());
+        }
     }
+
 
     internal AsyncReply SendSubscribeRequest(uint instanceId, byte index)
     {
-        var reply = new AsyncReply<object>();
-        var c = callbackCounter++;
-        requests.Add(c, reply);
-
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Subscribe))
-                    .AddUInt32(c)
-                    .AddUInt32(instanceId)
-                    .AddUInt8(index)
-                    .Done();
-
-        return reply;
+        return SendRequest(IIPPacketRequest.Subscribe, instanceId, index);
     }
 
     internal AsyncReply SendUnsubscribeRequest(uint instanceId, byte index)
     {
-        var reply = new AsyncReply<object>();
-        var c = callbackCounter++;
-        requests.Add(c, reply);
-
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.Unsubscribe))
-                    .AddUInt32(c)
-                    .AddUInt32(instanceId)
-                    .AddUInt8(index)
-                    .Done();
-
-        return reply;
+        return SendRequest(IIPPacketRequest.Unsubscribe, instanceId, index);
     }
 
 
-    public AsyncReply<object> StaticCall(UUID classId, byte index, Map<byte, object> parameters)
+    public AsyncReply StaticCall(UUID classId, byte index, Map<byte, object> parameters)
     {
-        var pb = Codec.Compose(parameters, this);// Codec.ComposeVarArray(parameters, this, true);
-
-        var reply = new AsyncReply<object>();
-        var c = callbackCounter++;
-        requests.Add(c, reply);
-
-
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.StaticCall))
-        .AddUInt32(c)
-        .AddUUID(classId)
-        .AddUInt8(index)
-        .AddUInt8Array(pb)
-        .Done();
-
-        return reply;
+        return SendRequest(IIPPacketRequest.StaticCall, classId, index, parameters);
     }
 
-    public AsyncReply<object> Call(string procedureCall, params object[] parameters)
+    public AsyncReply Call(string procedureCall, params object[] parameters)
     {
         var args = new Map<byte, object>();
         for (byte i = 0; i < parameters.Length; i++)
@@ -170,55 +193,22 @@ partial class DistributedConnection
         return Call(procedureCall, args);
     }
 
-    public AsyncReply<object> Call(string procedureCall, Map<byte, object> parameters)
+    public AsyncReply Call(string procedureCall, Map<byte, object> parameters)
     {
-        var pb = Codec.Compose(parameters, this);
-
-        var reply = new AsyncReply<object>();
-        var c = callbackCounter++;
-        requests.Add(c, reply);
-
-        var callName = DC.ToBytes(procedureCall);
-
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.ProcedureCall))
-        .AddUInt32(c)
-        .AddUInt16((ushort)callName.Length)
-        .AddUInt8Array(callName)
-        .AddUInt8Array(pb)
-        .Done();
-
-        return reply;
+        return SendRequest(IIPPacketRequest.ProcedureCall, procedureCall, parameters);
     }
 
-    internal AsyncReply<object> SendInvoke(uint instanceId, byte index, Map<byte, object> parameters)
+    internal AsyncReply SendInvoke(uint instanceId, byte index, Map<byte, object> parameters)
     {
-        var pb = Codec.Compose(parameters, this);// Codec.ComposeVarArray(parameters, this, true);
-
-        var reply = new AsyncReply<object>();
-        var c = callbackCounter++;
-        requests.Add(c, reply);
-
-        SendParams().AddUInt8((byte)(0x40 | (byte)IIPPacketRequest.InvokeFunction))
-                    .AddUInt32(c)
-                    .AddUInt32(instanceId)
-                    .AddUInt8(index)
-                    .AddUInt8Array(pb)
-                    .Done();
-        return reply;
+        return SendRequest(IIPPacketRequest.InvokeFunction, instanceId, index, parameters);
     }
 
-    internal AsyncReply<object[]> SendSetProperty(uint instanceId, byte index, object value)
+    internal AsyncReply SendSetProperty(uint instanceId, byte index, object value)
     {
-        var cv = Codec.Compose(value, this);
-
-        return SendRequest(IIPPacketRequest.SetProperty)
-                .AddUInt32(instanceId)
-                .AddUInt8(index)
-                .AddUInt8Array(cv)
-                .Done();
+        return SendRequest(IIPPacketRequest.SetProperty, instanceId, index, value);
     }
 
-    internal AsyncReply<object[]> SendDetachRequest(uint instanceId)
+    internal AsyncReply SendDetachRequest(uint instanceId)
     {
         try
         {
@@ -237,9 +227,7 @@ partial class DistributedConnection
             }
 
             if (sendDetach)
-                return SendRequest(IIPPacketRequest.DetachResource)
-                    .AddUInt32(instanceId)
-                    .Done();
+                return SendRequest(IIPPacketRequest.DetachResource, instanceId);
 
             return null; // no one is waiting for this
         }
@@ -249,100 +237,167 @@ partial class DistributedConnection
         }
     }
 
-    void SendError(ErrorType type, uint callbackId, ushort errorCode, string errorMessage = "")
+    void SendError(ErrorType type, uint callbackId, ushort errorCodeOrWarningLevel, string message = "")
     {
-        var msg = DC.ToBytes(errorMessage);
         if (type == ErrorType.Management)
-            SendParams()
-                        .AddUInt8((byte)(0xC0 | (byte)IIPPacketReport.ManagementError))
-                        .AddUInt32(callbackId)
-                        .AddUInt16(errorCode)
-                        .Done();
+            SendReply(IIPPacketReply.PermissionError, callbackId, errorCodeOrWarningLevel, message);
         else if (type == ErrorType.Exception)
-            SendParams()
-                        .AddUInt8((byte)(0xC0 | (byte)IIPPacketReport.ExecutionError))
-                        .AddUInt32(callbackId)
-                        .AddUInt16(errorCode)
-                        .AddUInt16((ushort)msg.Length)
-                        .AddUInt8Array(msg)
-                        .Done();
+            SendReply(IIPPacketReply.ExecutionError, callbackId, errorCodeOrWarningLevel, message);
+        else if (type == ErrorType.Warning)
+            SendReply(IIPPacketReply.Warning, callbackId, (byte)errorCodeOrWarningLevel, message);
     }
 
-    internal void SendProgress(uint callbackId, int value, int max)
+    internal void SendProgress(uint callbackId, uint value, uint max)
     {
-        SendParams()
-            .AddUInt8((byte)(0xC0 | (byte)IIPPacketReport.ProgressReport))
-            .AddUInt32(callbackId)
-            .AddInt32(value)
-            .AddInt32(max)
-            .Done();
-        //SendParams(, callbackId, value, max);
+        SendReply(IIPPacketReply.Progress, callbackId, value, max);
     }
 
     internal void SendChunk(uint callbackId, object chunk)
     {
-        var c = Codec.Compose(chunk, this);
-        SendParams()
-            .AddUInt8((byte)(0xC0 | (byte)IIPPacketReport.ChunkStream))
-            .AddUInt32(callbackId)
-            .AddUInt8Array(c)
-            .Done();
+        SendReply(IIPPacketReply.Chunk, callbackId, chunk);
     }
 
-    void IIPReply(uint callbackId, params object[] results)
-    {
-        var req = requests.Take(callbackId);
-        req?.Trigger(results);
-    }
-
-    void IIPReplyInvoke(uint callbackId, TransmissionType transmissionType, byte[] content)
+    void IIPReplyCompleted(uint callbackId, TransmissionType dataType, byte[] data)
     {
         var req = requests.Take(callbackId);
 
-        var (_, parsed) = Codec.Parse(content, 0, this, null, transmissionType);
-        parsed.Then((rt) =>
+        if (req == null)
         {
-            req?.Trigger(rt);
-        });
-    }
+            // @TODO: Send general failure
+            return;
+        }
 
-    void IIPReportError(uint callbackId, ErrorType errorType, ushort errorCode, string errorMessage)
-    {
-        var req = requests.Take(callbackId);
-        req?.TriggerError(new AsyncException(errorType, errorCode, errorMessage));
-    }
-
-    void IIPReportProgress(uint callbackId, ProgressType type, int value, int max)
-    {
-        var req = requests[callbackId];
-        req?.TriggerProgress(type, value, max);
-    }
-
-    void IIPReportChunk(uint callbackId, TransmissionType dataType, byte[] data)
-    {
-        if (requests.ContainsKey(callbackId))
+        var (_, parsed) = Codec.ParseAsync(data, 0, this, null);
+        if (parsed is AsyncReply reply)
         {
-            var req = requests[callbackId];
-            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
-            parsed.Then((x) =>
+            reply.Then(result =>
             {
-                req.TriggerChunk(x);
+                req.Trigger(result);
             });
+        }
+        else
+        {
+            req.Trigger(parsed);
         }
     }
 
-    void IIPNotificationResourceReassigned(object value)
+    void IIPExtensionAction(byte actionId, TransmissionType? dataType, byte[] data)
+    {
+        // nothing is supported now
+    }
+
+    void IIPReplyPropagated(uint callbackId, TransmissionType dataType, byte[] data)
+    {
+        var req = requests[callbackId];
+
+        if (req == null)
+        {
+            // @TODO: Send general failure
+            return;
+        }
+
+        var (_, parsed) = Codec.ParseAsync(data, 0, this, null);
+        if (parsed is AsyncReply reply)
+        {
+            reply.Then(result =>
+            {
+                req.TriggerPropagation(result);
+            });
+        }
+        else
+        {
+            req.TriggerPropagation(parsed);
+        }
+    }
+
+    void IIPReplyError(uint callbackId, TransmissionType dataType, byte[] data, ErrorType type)
+    {
+        var req = requests.Take(callbackId);
+
+        if (req == null)
+        {
+            // @TODO: Send general failure
+            return;
+        }
+
+        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength)
+                                                as object[];
+
+        var errorCode = (ushort)args[0];
+        var errorMsg = (string)args[1];
+
+        req.TriggerError(new AsyncException(type, errorCode, errorMsg));
+    }
+
+    void IIPReplyProgress(uint callbackId, TransmissionType dataType, byte[] data)
+    {
+        var req = requests[callbackId];
+
+        if (req == null)
+        {
+            // @TODO: Send general failure
+            return;
+        }
+
+        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength)
+                                                as object[];
+
+        var current = (uint)args[0];
+        var total = (uint)args[1];
+
+        req.TriggerProgress(ProgressType.Execution, current, total);
+    }
+
+    void IIPReplyWarning(uint callbackId, TransmissionType dataType, byte[] data)
+    {
+        var req = requests[callbackId];
+
+        if (req == null)
+        {
+            // @TODO: Send general failure
+            return;
+        }
+
+        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength)
+                                                as object[];
+
+        var level = (byte)args[0];
+        var message = (string)args[1];
+
+        req.TriggerWarning(level, message);
+    }
+
+
+
+    void IIPReplyChunk(uint callbackId, TransmissionType dataType, byte[] data)
+    {
+        var req = requests[callbackId];
+
+        if (req == null)
+            return;
+
+        var (_, parsed) = Codec.ParseAsync(data, dataType.Offset, this, null, dataType);
+
+        if (parsed is AsyncReply reply)
+            reply.Then(result => req.TriggerChunk(result));
+        else
+            req.TriggerChunk(parsed);
+    }
+
+    void IIPNotificationResourceReassigned(TransmissionType dataType, byte[] data)
     {
         // uint resourceId, uint newResourceId
     }
 
-    void IIPNotificationResourceMoved(object value) { }
+    void IIPNotificationResourceMoved(TransmissionType dataType, byte[] data) { }
 
-    void IIPNotificationSystemFailure(object value) { }
+    void IIPNotificationSystemFailure(TransmissionType dataType, byte[] data) { }
 
-    void IIPNotificationResourceDestroyed(object value)
+    void IIPNotificationResourceDestroyed(TransmissionType dataType, byte[] data)
     {
-        var resourceId = (uint)value;
+        var (size, rt) = Codec.ParseSync(data, dataType.Offset, dataType);
+
+        var resourceId = (uint)rt;
 
         if (attachedResources.Contains(resourceId))
         {
@@ -366,125 +421,87 @@ partial class DistributedConnection
             // @TODO: handle this mess
             neededResources.Remove(resourceId);
         }
+
     }
 
-    void IIPNotificationPropertyModified(object value)
+    void IIPNotificationPropertyModified(TransmissionType dataType, byte[] data)
     {
-        // uint resourceId, byte index, TransmissionType dataType, byte[] data
+        // resourceId, index, value
+        var (valueOffset, valueSize, args) =
+            DataDeserializer.LimitedCountListParser(data, dataType.Offset, dataType.ContentLength, 2);
 
+        var rid = (uint)args[0];
+        var index = (byte)args[1];
 
-        Fetch(resourceId, null).Then(r =>
+        Fetch(rid, null).Then(r =>
         {
+            var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
+            if (pt != null)
+                return;
+
             var item = new AsyncReply<DistributedResourceQueueItem>();
             queue.Add(item);
 
-            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);// 0, this);
-            parsed.Then((arguments) =>
+            var (_, parsed) = Codec.ParseAsync(data, valueOffset, this, null);
+
+            if (parsed is AsyncReply)
             {
-                var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
-                if (pt != null)
+                (parsed as AsyncReply).Then((result) =>
                 {
                     item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
                                                     DistributedResourceQueueItem.DistributedResourceQueueItemType.Propery,
-                                                    arguments, index));
-                }
-                else
-                {    // ft found, fi not found, this should never happen
-                    queue.Remove(item);
-                }
-            });
-
+                                                    result, index));
+                });
+            }
+            else
+            {
+                item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
+                                                DistributedResourceQueueItem.DistributedResourceQueueItemType.Propery,
+                                                parsed, index));
+            }
         });
     }
 
 
-    void IIPEventEventOccurred(uint resourceId, byte index, TransmissionType dataType, byte[] data)
+    void IIPNotificationEventOccurred(TransmissionType dataType, byte[] data)
     {
+        // resourceId, index, value
+        var (valueOffset, valueSize, args) =
+            DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                    dataType.ContentLength, 2);
+
+        var resourceId = (uint)args[0];
+        var index = (byte)args[1];
+
         Fetch(resourceId, null).Then(r =>
         {
-            // push to the queue to gaurantee serialization
+            var et = r.Instance.Template.GetEventTemplateByIndex(index);
+
+            if (et == null) // this should never happen
+                return;
+
+            // push to the queue to guarantee serialization
             var item = new AsyncReply<DistributedResourceQueueItem>();
             queue.Add(item);
 
-            var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);//, 0, this);
-            parsed.Then((arguments) =>
+
+            var (_, parsed) = Codec.ParseAsync(data, valueOffset, this, null);
+
+            if (parsed is AsyncReply)
             {
-                var et = r.Instance.Template.GetEventTemplateByIndex(index);
-                if (et != null)
+                (parsed as AsyncReply).Then((result) =>
                 {
                     item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
-                                  DistributedResourceQueueItem.DistributedResourceQueueItemType.Event, arguments, index));
-                }
-                else
-                {    // ft found, fi not found, this should never happen
-                    queue.Remove(item);
-                }
-
-            });
+                                 DistributedResourceQueueItem.DistributedResourceQueueItemType.Event, result, index));
+                });
+            }
+            else
+            {
+                item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
+                              DistributedResourceQueueItem.DistributedResourceQueueItemType.Event, parsed, index));
+            }
         });
 
-        /*
-        if (resources.Contains(resourceId))
-        {
-            // push to the queue to gaurantee serialization
-            var reply = new AsyncReply<DistributedResourceQueueItem>();
-            var r = resources[resourceId];
-
-            queue.Add(reply);
-
-            Codec.ParseVarArray(content, this).Then((arguments) =>
-            {
-                if (!r.IsAttached)
-                {
-                    // event occurred before the template is received
-                    r.AddAfterAttachement(reply,
-                                            new DistributedResourceQueueItem((DistributedResource)r,
-                                      DistributedResourceQueueItem.DistributedResourceQueueItemType.Event, arguments, index));
-                }
-                else
-                {
-                    var et = r.Instance.Template.GetEventTemplate(index);
-                    if (et != null)
-                    {
-                        reply.Trigger(new DistributedResourceQueueItem((DistributedResource)r, 
-                                      DistributedResourceQueueItem.DistributedResourceQueueItemType.Event, arguments, index));
-                    }
-                    else
-                    {    // ft found, fi not found, this should never happen
-                        queue.Remove(reply);
-                    }
-                }
-            });
-        }
-        */
-    }
-
-    void IIPEventChildAdded(uint resourceId, uint childId)
-    {
-        Fetch(resourceId, null).Then(parent =>
-        {
-            Fetch(childId, null).Then(child =>
-            {
-                parent.children.Add(child);
-                child.parents.Add(parent);
-
-                //parent.Instance.Children.Add(child);
-            });
-        });
-    }
-
-    void IIPEventChildRemoved(uint resourceId, uint childId)
-    {
-        Fetch(resourceId, null).Then(parent =>
-        {
-            Fetch(childId, null).Then(child =>
-            {
-                parent.children.Remove(child);
-                child.parents.Remove(parent);
-
-                //                    parent.Instance.Children.Remove(child);
-            });
-        });
     }
 
     void IIPEventRenamed(uint resourceId, string name)
@@ -509,8 +526,12 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestAttachResource(uint callback, uint resourceId)
+    void IIPRequestAttachResource(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
+
+        var resourceId = (uint)value;
 
         Warehouse.GetById(resourceId).Then((res) =>
         {
@@ -527,179 +548,105 @@ partial class DistributedConnection
                 // unsubscribe
                 Unsubscribe(r);
 
-                //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                //r.Instance.ResourceModified -= Instance_PropertyModified;
-                //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-
-
-                // r.Instance.Children.OnAdd -= Children_OnAdd;
-                // r.Instance.Children.OnRemoved -= Children_OnRemoved;
-
-                //r.Instance.Attributes.OnModified -= Attributes_OnModified;
-
-                // Console.WriteLine("Attach {0} {1}", r.Instance.Link, r.Instance.Id);
-
-                // add it to attached resources so GC won't remove it from memory
-                ///attachedResources.Add(r);
-
-                var link = DC.ToBytes(r.Instance.Link);
-
-                if (r is DistributedResource)
+                if (r is DistributedResource dr)
                 {
                     // reply ok
-                    SendReply(IIPPacketRequest.AttachResource, callback)
-                        .AddUUID(r.Instance.Template.ClassId)
-                        .AddUInt64(r.Instance.Age)
-                        .AddUInt16((ushort)link.Length)
-                        .AddUInt8Array(link)
-                        //.AddUInt8Array(DataSerializer.PropertyValueArrayComposer((r as DistributedResource)._Serialize(), this, true))
-                        .AddUInt8Array(Codec.Compose((r as DistributedResource)._Serialize(), this))
-                        .Done();
+                    SendReply(IIPPacketReply.Completed, callback,
+                        r.Instance.Template.ClassId,
+                        r.Instance.Age,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        dr._Serialize());
                 }
                 else
                 {
                     // reply ok
-                    SendReply(IIPPacketRequest.AttachResource, callback)
-                        .AddUUID(r.Instance.Template.ClassId)
-                        .AddUInt64(r.Instance.Age)
-                        .AddUInt16((ushort)link.Length)
-                        .AddUInt8Array(link)
-                        .AddUInt8Array(Codec.Compose(r.Instance.Serialize(), this))
-                        //.AddUInt8Array(DataSerializer.PropertyValueArrayComposer(r.Instance.Serialize(), this, true))
-                        .Done();
+                    SendReply(IIPPacketReply.Completed, callback,
+                        r.Instance.Template.ClassId,
+                        r.Instance.Age,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        r.Instance.Serialize());
+
                 }
 
-
-
                 // subscribe
-                //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-                //r.Instance.ResourceModified += Instance_PropertyModified;
-                //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
-
                 Subscribe(r);
-
-                //r.Instance.Children.OnAdd += Children_OnAdd;
-                //r.Instance.Children.OnRemoved += Children_OnRemoved;
-
-                //r.Instance.Attributes.OnModified += Attributes_OnModified;
-
-
             }
             else
             {
                 // reply failed
-                //SendParams(0x80, r.Instance.Id, r.Instance.Age, r.Instance.Serialize(false, this));
-
                 Global.Log("DistributedConnection", LogType.Debug, "Not found " + resourceId);
-
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
 
-    private void Attributes_OnModified(string key, object oldValue, object newValue, KeyList<string, object> sender)
+    void IIPRequestReattachResource(uint callback, TransmissionType dataType, byte[] data)
     {
-        if (key == "name")
-        {
-            var instance = (sender.Owner as Instance);
-            var name = DC.ToBytes(newValue.ToString());
-            SendEvent(IIPPacketEvent.ChildRemoved)
-                    .AddUInt32(instance.Id)
-                    .AddUInt16((ushort)name.Length)
-                    .AddUInt8Array(name)
-                    .Done();
-        }
-    }
+        // resourceId, index, value
+        var (valueOffset, valueSize, args) =
+            DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                    dataType.ContentLength, 2);
 
-    private void Children_OnRemoved(Instance sender, IResource value)
-    {
-        SendEvent(IIPPacketEvent.ChildRemoved)
-            .AddUInt32(sender.Id)
-            .AddUInt32(value.Instance.Id)
-            .Done();
-    }
+        var resourceId = (uint)args[0];
+        var age = (ulong)args[1];
 
-    private void Children_OnAdd(Instance sender, IResource value)
-    {
-        //if (sender.Applicable(sender.Resource, this.session, ActionType.))
-        SendEvent(IIPPacketEvent.ChildAdded)
-            .AddUInt32(sender.Id)
-            .AddUInt32(value.Instance.Id)
-            .Done();
-    }
-
-
-    public bool RemoveChild(IResource parent, IResource child)
-    {
-        SendEvent(IIPPacketEvent.ChildRemoved)
-            .AddUInt32((parent as DistributedResource).DistributedResourceInstanceId)
-            .AddUInt32((child as DistributedResource).DistributedResourceInstanceId)
-            .Done();
-
-        return true;
-    }
-
-    public bool AddChild(IResource parent, IResource child)
-    {
-        SendEvent(IIPPacketEvent.ChildAdded)
-            .AddUInt32((parent as DistributedResource).DistributedResourceInstanceId)
-            .AddUInt32((child as DistributedResource).DistributedResourceInstanceId)
-            .Done();
-
-        return true;
-    }
-
-
-    void IIPRequestReattachResource(uint callback, uint resourceId, ulong resourceAge)
-    {
         Warehouse.GetById(resourceId).Then((res) =>
         {
             if (res != null)
             {
+                if (res.Instance.Applicable(session, ActionType.Attach, null) == Ruling.Denied)
+                {
+                    SendError(ErrorType.Management, callback, 6);
+                    return;
+                }
+
                 var r = res as IResource;
+
                 // unsubscribe
                 Unsubscribe(r);
-                Subscribe(r);
 
-                //r.Instance.ResourceEventOccurred -= Instance_EventOccurred;
-                //r.Instance.CustomResourceEventOccurred -= Instance_CustomEventOccurred;
-                //r.Instance.ResourceModified -= Instance_PropertyModified;
-                //r.Instance.ResourceDestroyed -= Instance_ResourceDestroyed;
-
-                //r.Instance.Children.OnAdd -= Children_OnAdd;
-                //r.Instance.Children.OnRemoved -= Children_OnRemoved;
-
-                //r.Instance.Attributes.OnModified -= Attributes_OnModified;
+                if (r is DistributedResource dr)
+                {
+                    // reply ok
+                    SendReply(IIPPacketReply.Completed, callback,
+                        r.Instance.Template.ClassId,
+                        r.Instance.Age,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        dr._SerializeAfter(age));
+                }
+                else
+                {
+                    // reply ok
+                    SendReply(IIPPacketReply.Completed, callback,
+                        r.Instance.Template.ClassId,
+                        r.Instance.Age,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        r.Instance.SerializeAfter(age));
+                }
 
                 // subscribe
-                //r.Instance.ResourceEventOccurred += Instance_EventOccurred;
-                //r.Instance.CustomResourceEventOccurred += Instance_CustomEventOccurred;
-                //r.Instance.ResourceModified += Instance_PropertyModified;
-                //r.Instance.ResourceDestroyed += Instance_ResourceDestroyed;
-
-                //r.Instance.Children.OnAdd += Children_OnAdd;
-                //r.Instance.Children.OnRemoved += Children_OnRemoved;
-
-                //r.Instance.Attributes.OnModified += Attributes_OnModified;
-
-                // reply ok
-                SendReply(IIPPacketRequest.ReattachResource, callback)
-                        .AddUInt64(r.Instance.Age)
-                        .AddUInt8Array(Codec.Compose(r.Instance.Serialize(), this))
-                            .Done();
+                Subscribe(r);
             }
             else
             {
                 // reply failed
+                Global.Log("DistributedConnection", LogType.Debug, "Not found " + resourceId);
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
 
-    void IIPRequestDetachResource(uint callback, uint resourceId)
+    void IIPRequestDetachResource(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
+
+        var resourceId = (uint)value;
+
         Warehouse.GetById(resourceId).Then((res) =>
         {
             if (res != null)
@@ -714,7 +661,7 @@ partial class DistributedConnection
                 //attachedResources.Remove(res);
 
                 // reply ok
-                SendReply(IIPPacketRequest.DetachResource, callback).Done();
+                SendReply(IIPPacketReply.Completed, callback);
             }
             else
             {
@@ -724,8 +671,23 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestCreateResource(uint callback, uint storeId, uint parentId, byte[] content)
+    void IIPRequestCreateResource(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength, 4);
+        var storeId = (uint)args[0];
+        var parentId = (uint)args[1];
+        var className = (string)args[2];
+        var instanceName = (string)args[3];
+
+        var type = Type.GetType(className);
+
+        if (type == null)
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ClassNotFound);
+            return;
+        }
 
         Warehouse.GetById(storeId).Then(store =>
         {
@@ -748,11 +710,10 @@ partial class DistributedConnection
                 return;
             }
 
+
             Warehouse.GetById(parentId).Then(parent =>
             {
-
                 // check security
-
                 if (parent != null)
                     if (parent.Instance.Applicable(session, ActionType.AddChild, null) != Ruling.Allowed)
                     {
@@ -760,105 +721,49 @@ partial class DistributedConnection
                         return;
                     }
 
-                uint offset = 0;
 
-                var className = content.GetString(offset + 1, content[0]);
-                offset += 1 + (uint)content[0];
+                var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
 
-                var nameLength = content.GetUInt16(offset, Endian.Little);
-                offset += 2;
-                var name = content.GetString(offset, nameLength);
-
-                var cl = content.GetUInt32(offset, Endian.Little);
-                offset += 4;
-
-                var type = Type.GetType(className);
-
-                if (type == null)
+                if (parsed is AsyncReply reply)
                 {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ClassNotFound);
-                    return;
-                }
-
-                DataDeserializer.ListParser(content, offset, cl, this, null).Then(parameters =>
-                {
-                    offset += cl;
-                    cl = content.GetUInt32(offset, Endian.Little);
-
-                    //Codec.ParseStructure(content, offset, cl, this).Then(attributes =>
-                    DataDeserializer.TypedMapParser(content, offset, cl, this, null).Then(attributes =>
+                    reply.Then((result) =>
                     {
-                        offset += cl;
-                        cl = (uint)content.Length - offset;
-
-                        //Codec.ParseStructure(content, offset, cl, this).Then(values =>
-                        DataDeserializer.TypedMapParser(content, offset, cl, this, null).Then(values =>
-                        {
-
-#if NETSTANDARD
-                            var constructors = Type.GetType(className).GetTypeInfo().GetConstructors();
-#else
-                                var constructors = Type.GetType(className).GetConstructors();
-#endif
-
-                            var matching = constructors.Where(x =>
-                            {
-                                var ps = x.GetParameters();
-                                if (ps.Length > 0 && ps.Length == parameters.Length + 1)
-                                    if (ps.Last().ParameterType == typeof(DistributedConnection))
-                                        return true;
-
-                                return ps.Length == parameters.Length;
-                            }
-                            ).ToArray();
-
-                            var pi = matching[0].GetParameters();
-
-                            // cast arguments
-                            object[] args = null;
-
-                            if (pi.Length > 0)
-                            {
-                                int argsCount = pi.Length;
-                                args = new object[pi.Length];
-
-                                if (pi[pi.Length - 1].ParameterType == typeof(DistributedConnection))
-                                {
-                                    args[--argsCount] = this;
-                                }
-
-                                if (parameters != null)
-                                {
-                                    for (int i = 0; i < argsCount && i < parameters.Length; i++)
-                                    {
-                                        args[i] = DC.CastConvert(parameters[i], pi[i].ParameterType);
-                                    }
-                                }
-                            }
-
-                            // create the resource
-                            var resource = Activator.CreateInstance(type, args) as IResource;
-
-                            Warehouse.Put(name, resource, store as IStore, parent).Then(ok =>
-                           {
-                               SendReply(IIPPacketRequest.CreateResource, callback)
-                              .AddUInt32(resource.Instance.Id)
-                              .Done();
-
-                           }).Error(x =>
-                           {
-                               SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.AddToStoreFailed);
-                           });
-
-                        });
+                        var map = (Map<byte, object>)result;
+                        Warehouse.New(type, instanceName, store as IStore, parent, null, null, map)
+                                     .Then(resource =>
+                                     {
+                                         SendReply(IIPPacketReply.Completed, callback, resource.Instance.Id);
+                                     })
+                                     .Error(ex =>
+                                     {
+                                         SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.AddToStoreFailed);
+                                     });
                     });
-                });
+                }
+                else
+                {
+                    var map = (Map<byte, object>)parsed;
+                    Warehouse.New(type, instanceName, store as IStore, parent, null, null, map)
+                    .Then(resource =>
+                    {
+                        SendReply(IIPPacketReply.Completed, callback, resource.Instance.Id);
+                    }).Error(x =>
+                    {
+                        SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.AddToStoreFailed);
+                    });
+                }
             });
         });
     }
 
-    void IIPRequestDeleteResource(uint callback, uint resourceId)
+
+    void IIPRequestDeleteResource(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
+
+        var resourceId = (uint)value;
+
         Warehouse.GetById(resourceId).Then(r =>
         {
             if (r == null)
@@ -874,127 +779,28 @@ partial class DistributedConnection
             }
 
             if (Warehouse.Remove(r))
-                SendReply(IIPPacketRequest.DeleteResource, callback).Done();
-            //SendParams((byte)0x84, callback);
+                SendReply(IIPPacketReply.Completed, callback);
+      
             else
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteFailed);
         });
     }
 
-    void IIPRequestGetAttributes(uint callback, uint resourceId, byte[] attributes, bool all = false)
+    void IIPRequestMoveResource(uint callback, TransmissionType dataType, byte[] data)
     {
-        Warehouse.GetById(resourceId).Then(r =>
+
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength);
+
+        var resourceId = (uint)args[0];
+        var name = (string)args[1];
+
+        if (name.Contains("/"))
         {
-            if (r == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotSupported);
+            return;
+        }
 
-            //                if (!r.Instance.Store.Instance.Applicable(r, session, ActionType.InquireAttributes, null))
-            if (r.Instance.Applicable(session, ActionType.InquireAttributes, null) != Ruling.Allowed)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ViewAttributeDenied);
-                return;
-            }
-
-            string[] attrs = null;
-
-            if (!all)
-                attrs = attributes.GetStringArray(0, (uint)attributes.Length);
-
-            var st = r.Instance.GetAttributes(attrs);
-
-            if (st != null)
-                SendReply(all ? IIPPacketRequest.GetAllAttributes : IIPPacketRequest.GetAttributes, callback)
-                          .AddUInt8Array(Codec.Compose(st, this))
-                          .Done();
-            else
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GetAttributesFailed);
-
-        });
-    }
-
-    void IIPRequestAddChild(uint callback, uint parentId, uint childId)
-    {
-        Warehouse.GetById(parentId).Then(parent =>
-        {
-            if (parent == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
-
-            Warehouse.GetById(childId).Then(child =>
-            {
-                if (child == null)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                    return;
-                }
-
-                if (parent.Instance.Applicable(this.session, ActionType.AddChild, null) != Ruling.Allowed)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
-                    return;
-                }
-
-                if (child.Instance.Applicable(this.session, ActionType.AddParent, null) != Ruling.Allowed)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddParentDenied);
-                    return;
-                }
-
-                parent.Instance.Store.AddChild(parent, child);
-
-                SendReply(IIPPacketRequest.AddChild, callback).Done();
-                //child.Instance.Parents
-            });
-
-        });
-    }
-
-    void IIPRequestRemoveChild(uint callback, uint parentId, uint childId)
-    {
-        Warehouse.GetById(parentId).Then(parent =>
-        {
-            if (parent == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
-
-            Warehouse.GetById(childId).Then(child =>
-            {
-                if (child == null)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                    return;
-                }
-
-                if (parent.Instance.Applicable(this.session, ActionType.RemoveChild, null) != Ruling.Allowed)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddChildDenied);
-                    return;
-                }
-
-                if (child.Instance.Applicable(this.session, ActionType.RemoveParent, null) != Ruling.Allowed)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AddParentDenied);
-                    return;
-                }
-
-                parent.Instance.Store.RemoveChild(parent, child);// Children.Remove(child);
-
-                SendReply(IIPPacketRequest.RemoveChild, callback).Done();
-                //child.Instance.Parents
-            });
-
-        });
-    }
-
-    void IIPRequestRenameResource(uint callback, uint resourceId, string name)
-    {
         Warehouse.GetById(resourceId).Then(resource =>
         {
             if (resource == null)
@@ -1011,115 +817,25 @@ partial class DistributedConnection
 
 
             resource.Instance.Name = name;
-            SendReply(IIPPacketRequest.RenameResource, callback).Done();
+            SendReply(IIPPacketReply.Completed, callback);
         });
     }
 
-    void IIPRequestResourceChildren(uint callback, uint resourceId)
+
+
+
+
+    void IIPRequestToken(uint callback, TransmissionType dataType, byte[] data)
     {
-        Warehouse.GetById(resourceId).Then(resource =>
-        {
-            if (resource == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
-
-            resource.Instance.Children<IResource>().Then(children =>
-            {
-                SendReply(IIPPacketRequest.ResourceChildren, callback)
-                .AddUInt8Array(Codec.Compose(children, this))// Codec.ComposeResourceArray(children, this, true))
-                    .Done();
-
-            });
-
-
-        });
+        // @TODO: To be implemented
     }
 
-    void IIPRequestResourceParents(uint callback, uint resourceId)
+    void IIPRequestLinkTemplates(uint callback, TransmissionType dataType, byte[] data)
     {
-        Warehouse.GetById(resourceId).Then(resource =>
-        {
-            if (resource == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
 
-            resource.Instance.Parents<IResource>().Then(parents =>
-            {
-                SendReply(IIPPacketRequest.ResourceParents, callback)
-                .AddUInt8Array(Codec.Compose(parents, this))
-                //.AddUInt8Array(Codec.ComposeResourceArray(parents, this, true))
-                .Done();
+        var resourceLink = (string)value;
 
-            });
-
-        });
-    }
-
-    void IIPRequestClearAttributes(uint callback, uint resourceId, byte[] attributes, bool all = false)
-    {
-        Warehouse.GetById(resourceId).Then(r =>
-        {
-            if (r == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
-
-            if (r.Instance.Store.Instance.Applicable(session, ActionType.UpdateAttributes, null) != Ruling.Allowed)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeDenied);
-                return;
-            }
-
-            string[] attrs = null;
-
-            if (!all)
-                attrs = attributes.GetStringArray(0, (uint)attributes.Length);
-
-            if (r.Instance.RemoveAttributes(attrs))
-                SendReply(all ? IIPPacketRequest.ClearAllAttributes : IIPPacketRequest.ClearAttributes, callback).Done();
-            else
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
-
-        });
-    }
-
-    void IIPRequestUpdateAttributes(uint callback, uint resourceId, byte[] attributes, bool clearAttributes = false)
-    {
-        Warehouse.GetById(resourceId).Then(r =>
-        {
-            if (r == null)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                return;
-            }
-
-            if (r.Instance.Store.Instance.Applicable(session, ActionType.UpdateAttributes, null) != Ruling.Allowed)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeDenied);
-                return;
-            }
-
-
-            DataDeserializer.TypedMapParser(attributes, 0, (uint)attributes.Length, this, null).Then(attrs =>
-            {
-                if (r.Instance.SetAttributes((Map<string, object>)attrs, clearAttributes))
-                    SendReply(clearAttributes ? IIPPacketRequest.ClearAllAttributes : IIPPacketRequest.ClearAttributes,
-                              callback).Done();
-                else
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.UpdateAttributeFailed);
-            });
-
-        });
-
-    }
-
-    void IIPRequestLinkTemplates(uint callback, string resourceLink)
-    {
         Action<IResource[]> queryCallback = (r) =>
         {
             if (r == null)
@@ -1133,25 +849,18 @@ partial class DistributedConnection
                 else
                 {
                     // get all templates related to this resource
-
-                    var msg = new BinaryList();
-
                     var templates = new List<TypeTemplate>();
                     foreach (var resource in list)
                         templates.AddRange(TypeTemplate.GetDependencies(resource.Instance.Template).Where(x => !templates.Contains(x)));
 
-                    foreach (var t in templates)
-                    {
-                        msg.AddInt32(t.Content.Length)
-                            .AddUInt8Array(t.Content);
-                    }
+                    var binList = new List<byte[]>();
 
-                    // digggg
-                    SendReply(IIPPacketRequest.LinkTemplates, callback)
-                            //.AddInt32(msg.Length)
-                            //.AddUInt8Array(msg.ToArray())
-                            .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, msg.ToArray()))
-                            .Done();
+                    foreach (var t in templates)
+                        binList.Add(t.Content);
+
+                    // Send
+                    SendReply(IIPPacketReply.Completed, callback, binList.ToArray());
+
                 }
             }
         };
@@ -1162,16 +871,18 @@ partial class DistributedConnection
             Warehouse.Query(resourceLink).Then(queryCallback);
     }
 
-    void IIPRequestTemplateFromClassName(uint callback, string className)
+    void IIPRequestTemplateFromClassName(uint callback, TransmissionType dataType, byte[] data)
     {
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
+
+        var className = (string)value;
+
         var t = Warehouse.GetTemplateByClassName(className);
 
         if (t != null)
-            SendReply(IIPPacketRequest.TemplateFromClassName, callback)
-                    .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, t.Content))
-                    //.AddInt32(t.Content.Length)
-                    //.AddUInt8Array(t.Content)
-                    .Done();
+        {
+            SendReply(IIPPacketReply.Completed, callback, t.Content);
+        }
         else
         {
             // reply failed
@@ -1179,16 +890,19 @@ partial class DistributedConnection
         }
     }
 
-    void IIPRequestTemplateFromClassId(uint callback, UUID classId)
+    void IIPRequestTemplateFromClassId(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
+
+        var classId = new UUID((byte[])value);
+
         var t = Warehouse.GetTemplateByClassId(classId);
 
         if (t != null)
-            SendReply(IIPPacketRequest.TemplateFromClassId, callback)
-                    .AddUInt8Array(TransmissionType.Compose(TransmissionTypeIdentifier.RawData, t.Content))
-                    //.AddInt32(t.Content.Length)
-                    //.AddUInt8Array(t.Content)
-                    .Done();
+        {
+            SendReply(IIPPacketReply.Completed, callback, t.Content);
+        }
         else
         {
             // reply failed
@@ -1198,28 +912,33 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestTemplateFromResourceId(uint callback, uint resourceId)
+    void IIPRequestTemplateFromResourceId(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (_, value) = Codec.ParseSync(data, 0, dataType);
+
+        var resourceId = (uint)value;
+
         Warehouse.GetById(resourceId).Then((r) =>
         {
             if (r != null)
-                SendReply(IIPPacketRequest.TemplateFromResourceId, callback)
-                        .AddInt32(r.Instance.Template.Content.Length)
-                        .AddUInt8Array(r.Instance.Template.Content)
-                        .Done();
+            {
+                SendReply(IIPPacketReply.Completed, callback, r.Instance.Template.Content);
+            }
             else
             {
                 // reply failed
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             }
         });
     }
 
 
 
-
-    void IIPRequestQueryResources(uint callback, string resourceLink)
+    void IIPRequestGetResourceIdByLink(uint callback, TransmissionType dataType, byte[] data)
     {
+        var (_, parsed) = Codec.ParseSync(data, 0, dataType);
+        var resourceLink = (string)parsed;
 
         Action<IResource[]> queryCallback = (r) =>
         {
@@ -1232,10 +951,35 @@ partial class DistributedConnection
                 if (list.Length == 0)
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
                 else
-                    SendReply(IIPPacketRequest.QueryLink, callback)
-                                .AddUInt8Array(Codec.Compose(list, this))
-                                //.AddUInt8Array(Codec.ComposeResourceArray(list, this, true))
-                                .Done();
+                    SendReply(IIPPacketReply.Completed, callback, list.FirstOrDefault());
+            }
+        };
+
+        if (Server?.EntryPoint != null)
+            Server.EntryPoint.Query(resourceLink, this).Then(queryCallback);
+        else
+            Warehouse.Query(resourceLink).Then(queryCallback);
+
+    }
+
+    void IIPRequestQueryResources(uint callback, TransmissionType dataType, byte[] data)
+    {
+        var (_, parsed) = Codec.ParseSync(data, 0, dataType);
+
+        var resourceLink = (string)parsed;
+
+        Action<IResource[]> queryCallback = (r) =>
+        {
+            if (r == null)
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+            else
+            {
+                var list = r.Where(x => x.Instance.Applicable(session, ActionType.Attach, null) != Ruling.Denied).ToArray();
+
+                if (list.Length == 0)
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                else
+                    SendReply(IIPPacketReply.Completed, callback, list);
             }
         };
 
@@ -1264,12 +1008,17 @@ partial class DistributedConnection
     }
 
 
-    void IIPRequestProcedureCall(uint callback, string procedureCall, TransmissionType transmissionType, byte[] content)
+    void IIPRequestProcedureCall(uint callback, TransmissionType dataType, byte[] data)
     {
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength, 1);
+
+        var procedureCall = (string)args[0];
+
 
         if (Server == null)
         {
-            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GeneralFailure);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotSupported);
             return;
         }
 
@@ -1281,34 +1030,55 @@ partial class DistributedConnection
             return;
         }
 
-        var (_, parsed) = Codec.Parse(content, 0, this, null, transmissionType);
+        var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
 
-        parsed.Then(results =>
+        if (parsed is AsyncReply reply)
         {
-            var arguments = (Map<byte, object>)results;// (object[])results;
+            reply.Then(results =>
+            {
+                var arguments = (Map<byte, object>)results;
+
+                // un hold the socket to send data immediately
+                this.Socket.Unhold();
+
+                // @TODO: Make managers for procedure calls
+                //if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
+                //{
+                //    SendError(ErrorType.Management, callback,
+                //        (ushort)ExceptionCode.InvokeDenied);
+                //    return;
+                //}
+
+                InvokeFunction(call.Value.Template, callback, arguments, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+
+            }).Error(x =>
+            {
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError);
+            });
+        }
+        else
+        {
+            var arguments = (Map<byte, object>)parsed;
 
             // un hold the socket to send data immediately
             this.Socket.Unhold();
 
             // @TODO: Make managers for procedure calls
-            //if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
-            //{
-            //    SendError(ErrorType.Management, callback,
-            //        (ushort)ExceptionCode.InvokeDenied);
-            //    return;
-            //}
-
             InvokeFunction(call.Value.Template, callback, arguments, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
-
-        }).Error(x =>
-        {
-            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError);
-        });
+        }
     }
 
-    void IIPRequestStaticCall(uint callback, UUID classId, byte index, TransmissionType transmissionType, byte[] content)
+    void IIPRequestStaticCall(uint callback, TransmissionType dataType, byte[] data)
     {
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength, 2);
+
+        var classId = new UUID((byte[])args[0]);
+        var index = (byte)args[1];
+
+
         var template = Warehouse.GetTemplateByClassId(classId);
+
 
         if (template == null)
         {
@@ -1325,43 +1095,63 @@ partial class DistributedConnection
             return;
         }
 
-        var (_, parsed) = Codec.Parse(content, 0, this, null, transmissionType);
+        var fi = ft.MethodInfo;
 
-        parsed.Then(results =>
+        if (fi == null)
         {
-            var arguments = (Map<byte, object>)results;// (object[])results;
+            // ft found, fi not found, this should never happen
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+            return;
+        }
+
+        var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
+
+        if (parsed is AsyncReply reply)
+        {
+            reply.Then(results =>
+            {
+                var arguments = (Map<byte, object>)results;
+
+                // un hold the socket to send data immediately
+                this.Socket.Unhold();
+
+
+                // @TODO: Make managers for static calls
+                //if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
+                //{
+                //    SendError(ErrorType.Management, callback,
+                //        (ushort)ExceptionCode.InvokeDenied);
+                //    return;
+                //}
+
+                InvokeFunction(ft, callback, arguments, IIPPacketRequest.StaticCall, null);
+
+            }).Error(x =>
+            {
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError);
+            });
+        }
+        else
+        {
+            var arguments = (Map<byte, object>)parsed;
 
             // un hold the socket to send data immediately
             this.Socket.Unhold();
 
-            var fi = ft.MethodInfo;
-
-            if (fi == null)
-            {
-                // ft found, fi not found, this should never happen
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                return;
-            }
-
             // @TODO: Make managers for static calls
-            //if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
-            //{
-            //    SendError(ErrorType.Management, callback,
-            //        (ushort)ExceptionCode.InvokeDenied);
-            //    return;
-            //}
+
 
             InvokeFunction(ft, callback, arguments, IIPPacketRequest.StaticCall, null);
-
-        }).Error(x =>
-        {
-            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError);
-        });
+        }
     }
 
-    void IIPRequestInvokeFunction(uint callback, uint resourceId, byte index, TransmissionType transmissionType, byte[] content)
+    void IIPRequestInvokeFunction(uint callback, TransmissionType dataType, byte[] data)
     {
-        //Console.WriteLine("IIPRequestInvokeFunction " + callback + " " + resourceId + "  " + index);
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                             dataType.ContentLength, 2);
+
+        var resourceId = (uint)args[0];
+        var index = (byte)args[1];
 
         Warehouse.GetById(resourceId).Then((r) =>
         {
@@ -1381,11 +1171,49 @@ partial class DistributedConnection
                 return;
             }
 
-            var (_, parsed) = Codec.Parse(content, 0, this, null, transmissionType);
+            var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
 
-            parsed.Then(results =>
+            if (parsed is AsyncReply)
             {
-                var arguments = (Map<byte, object>)results;// (object[])results;
+                (parsed as AsyncReply).Then(result =>
+                {
+                    var arguments = (Map<byte, object>)result;
+
+                    // un hold the socket to send data immediately
+                    this.Socket.Unhold();
+
+                    if (r is DistributedResource)
+                    {
+                        var rt = (r as DistributedResource)._Invoke(index, arguments);
+                        if (rt != null)
+                        {
+                            rt.Then(res =>
+                            {
+                                SendReply(IIPPacketReply.Completed, callback, res);
+                            });
+                        }
+                        else
+                        {
+                            // function not found on a distributed object
+                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                        }
+                    }
+                    else
+                    {
+                        if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
+                        {
+                            SendError(ErrorType.Management, callback,
+                                (ushort)ExceptionCode.InvokeDenied);
+                            return;
+                        }
+
+                        InvokeFunction(ft, callback, arguments, IIPPacketRequest.InvokeFunction, r);
+                    }
+                });
+            }
+            else
+            {
+                var arguments = (Map<byte, object>)parsed;
 
                 // un hold the socket to send data immediately
                 this.Socket.Unhold();
@@ -1397,9 +1225,7 @@ partial class DistributedConnection
                     {
                         rt.Then(res =>
                         {
-                            SendReply(IIPPacketRequest.InvokeFunction, callback)
-                                        .AddUInt8Array(Codec.Compose(res, this))
-                                        .Done();
+                            SendReply(IIPPacketReply.Completed, callback, res);
                         });
                     }
                     else
@@ -1410,17 +1236,6 @@ partial class DistributedConnection
                 }
                 else
                 {
-
-                    //var fi = r.GetType().GetMethod(ft.Name);
-
-                    //if (fi == null)
-                    //{
-                    //    // ft found, fi not found, this should never happen
-                    //    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                    //    return;
-                    //}
-
-
                     if (r.Instance.Applicable(session, ActionType.Execute, ft) == Ruling.Denied)
                     {
                         SendError(ErrorType.Management, callback,
@@ -1430,7 +1245,8 @@ partial class DistributedConnection
 
                     InvokeFunction(ft, callback, arguments, IIPPacketRequest.InvokeFunction, r);
                 }
-            });
+
+            }
         });
     }
 
@@ -1518,9 +1334,8 @@ partial class DistributedConnection
             {
                 foreach (var v in enu)
                     SendChunk(callback, v);
-                SendReply(actionType, callback)
-                .AddUInt8((byte)TransmissionTypeIdentifier.Null)
-                .Done();
+
+                SendReply(IIPPacketReply.Completed, callback);
 
                 if (context != null)
                     context.Ended = true;
@@ -1548,9 +1363,8 @@ partial class DistributedConnection
 #else
                 var res = t.GetType().GetProperty("Result").GetValue(t);
 #endif
-                SendReply(actionType, callback)
-                 .AddUInt8Array(Codec.Compose(res, this))
-                 .Done();
+
+                SendReply(IIPPacketReply.Completed, callback, res);
             });
 
         }
@@ -1561,9 +1375,8 @@ partial class DistributedConnection
                 if (context != null)
                     context.Ended = true;
 
-                SendReply(actionType, callback)
-                            .AddUInt8Array(Codec.Compose(res, this))
-                            .Done();
+                SendReply(IIPPacketReply.Completed, callback, res);
+
             }).Error(ex =>
             {
                 var (code, msg) = SummerizeException(ex);
@@ -1574,6 +1387,9 @@ partial class DistributedConnection
             }).Chunk(v =>
             {
                 SendChunk(callback, v);
+            }).Warning((level, message) =>
+            {
+                SendError(ErrorType.Warning, callback, level, message);
             });
         }
         else
@@ -1581,244 +1397,256 @@ partial class DistributedConnection
             if (context != null)
                 context.Ended = true;
 
-            SendReply(actionType, callback)
-                    .AddUInt8Array(Codec.Compose(rt, this))
-                    .Done();
+            SendReply(IIPPacketReply.Completed, callback, rt);
         }
     }
 
-    void IIPRequestListen(uint callback, uint resourceId, byte index)
+    void IIPRequestSubscribe(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength);
+
+        var resourceId = (uint)args[0];
+        var index = (byte)args[1];
+
         Warehouse.GetById(resourceId).Then((r) =>
         {
-            if (r != null)
-            {
-                var et = r.Instance.Template.GetEventTemplateByIndex(index);
-
-                if (et != null)
-                {
-                    if (r is DistributedResource)
-                    {
-                        (r as DistributedResource).Listen(et).Then(x =>
-                       {
-                           SendReply(IIPPacketRequest.Listen, callback).Done();
-                       }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
-                    }
-                    else
-                    {
-                        lock (subscriptionsLock)
-                        {
-                            if (!subscriptions.ContainsKey(r))
-                            {
-                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
-                                return;
-                            }
-
-                            if (subscriptions[r].Contains(index))
-                            {
-                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyListened);
-                                return;
-                            }
-
-                            subscriptions[r].Add(index);
-
-                            SendReply(IIPPacketRequest.Listen, callback).Done();
-                        }
-                    }
-                }
-                else
-                {
-                    // pt not found
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                }
-            }
-            else
+            if (r == null)
             {
                 // resource not found
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                return;
             }
-        });
 
-    }
+            var et = r.Instance.Template.GetEventTemplateByIndex(index);
 
-    void IIPRequestUnlisten(uint callback, uint resourceId, byte index)
-    {
-        Warehouse.GetById(resourceId).Then((r) =>
-        {
-            if (r != null)
+            if (et != null)
             {
-                var et = r.Instance.Template.GetEventTemplateByIndex(index);
+                // et not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                return;
+            }
 
-                if (et != null)
-                {
-                    if (r is DistributedResource)
-                    {
-                        (r as DistributedResource).Unsubscribe(et).Then(x =>
-                        {
-                            SendReply(IIPPacketRequest.Unsubscribe, callback).Done();
-                        }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
-                    }
-                    else
-                    {
-                        lock (subscriptionsLock)
-                        {
-                            if (!subscriptions.ContainsKey(r))
-                            {
-                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
-                                return;
-                            }
-
-                            if (!subscriptions[r].Contains(index))
-                            {
-                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyUnlistened);
-                                return;
-                            }
-
-                            subscriptions[r].Remove(index);
-
-                            SendReply(IIPPacketRequest.Unlisten, callback).Done();
-                        }
-                    }
-                }
-                else
-                {
-                    // pt not found
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                }
+            if (r is DistributedResource)
+            {
+                (r as DistributedResource).Subscribe(et).Then(x =>
+               {
+                   SendReply(IIPPacketReply.Completed, callback);
+               }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
             }
             else
             {
-                // resource not found
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                lock (subscriptionsLock)
+                {
+                    if (!subscriptions.ContainsKey(r))
+                    {
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
+                        return;
+                    }
+
+                    if (subscriptions[r].Contains(index))
+                    {
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyListened);
+                        return;
+                    }
+
+                    subscriptions[r].Add(index);
+
+                    SendReply(IIPPacketReply.Completed, callback);
+                }
             }
         });
 
     }
 
-
-    void IIPRequestInquireResourceHistory(uint callback, uint resourceId, DateTime fromDate, DateTime toDate)
+    void IIPRequestUnsubscribe(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength);
+
+        var resourceId = (uint)args[0];
+        var index = (byte)args[1];
+
         Warehouse.GetById(resourceId).Then((r) =>
         {
-            if (r != null)
+            if (r == null)
             {
-                r.Instance.Store.GetRecord(r, fromDate, toDate).Then((results) =>
+                // resource not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                return;
+            }
+
+            var et = r.Instance.Template.GetEventTemplateByIndex(index);
+
+            if (et == null)
+            {
+                // pt not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                return;
+            }
+
+            if (r is DistributedResource)
+            {
+                (r as DistributedResource).Unsubscribe(et).Then(x =>
                 {
-                    var history = DataSerializer.HistoryComposer(results, this, true);
+                    SendReply(IIPPacketReply.Completed, callback);
+                }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
+            }
+            else
+            {
+                lock (subscriptionsLock)
+                {
+                    if (!subscriptions.ContainsKey(r))
+                    {
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
+                        return;
+                    }
 
-                    SendReply(IIPPacketRequest.ResourceHistory, callback)
-                            .AddUInt8Array(history)
-                            .Done();
+                    if (!subscriptions[r].Contains(index))
+                    {
+                        SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyUnsubscribed);
+                        return;
+                    }
 
-                });
+                    subscriptions[r].Remove(index);
+
+                    SendReply(IIPPacketReply.Completed, callback);
+                }
             }
         });
     }
 
-    void IIPRequestSetProperty(uint callback, uint resourceId, byte index, TransmissionType transmissionType, byte[] content)
+
+
+
+    void IIPRequestSetProperty(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength, 2);
+
+        var rid = (uint)args[0];
+        var index = (byte)args[1];
 
         // un hold the socket to send data immediately
         this.Socket.Unhold();
 
-        Warehouse.GetById(resourceId).Then((r) =>
+        Warehouse.GetById(rid).Then((r) =>
         {
-            if (r != null)
+            if (r == null)
             {
+                // resource not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                return;
+            }
 
-                var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
-                if (pt != null)
+            var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
+
+            if (pt != null)
+            {
+                // property not found
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
+                return;
+            }
+
+
+            if (r is DistributedResource)
+            {
+                var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
+                if (parsed is AsyncReply)
                 {
-                    var (_, parsed) = Codec.Parse(content, 0, this, null, transmissionType);
-                    parsed.Then((value) =>
+                    (parsed as AsyncReply).Then((value) =>
                     {
-                        if (r is DistributedResource)
+                        // propagation
+                        (r as DistributedResource)._Set(index, value).Then((x) =>
                         {
-                            // propagation
-                            (r as DistributedResource)._Set(index, value).Then((x) =>
-                        {
-                            SendReply(IIPPacketRequest.SetProperty, callback).Done();
+                            SendReply(IIPPacketReply.Completed, callback);
                         }).Error(x =>
                         {
                             SendError(x.Type, callback, (ushort)x.Code, x.Message);
                         });
-                        }
-                        else
-                        {
-
-                            /*
-    #if NETSTANDARD
-                            var pi = r.GetType().GetTypeInfo().GetProperty(pt.Name);
-    #else
-                            var pi = r.GetType().GetProperty(pt.Name);
-    #endif*/
-
-                            var pi = pt.PropertyInfo;
-
-                            if (pi != null)
-                            {
-
-                                if (r.Instance.Applicable(session, ActionType.SetProperty, pt, this) == Ruling.Denied)
-                                {
-                                    SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
-                                    return;
-                                }
-
-                                if (!pi.CanWrite)
-                                {
-                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ReadOnlyProperty);
-                                    return;
-                                }
-
-
-                                if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
-                                    == typeof(PropertyContext<>))
-                                {
-                                    value = Activator.CreateInstance(pi.PropertyType, this, value);
-                                    //value = new DistributedPropertyContext(this, value);
-                                }
-                                else
-                                {
-                                    // cast new value type to property type
-                                    value = DC.CastConvert(value, pi.PropertyType);
-                                }
-
-
-                                try
-                                {
-
-                                    pi.SetValue(r, value);
-                                    SendReply(IIPPacketRequest.SetProperty, callback).Done();
-                                }
-                                catch (Exception ex)
-                                {
-                                    SendError(ErrorType.Exception, callback, 0, ex.Message);
-                                }
-
-                            }
-                            else
-                            {
-                                // pt found, pi not found, this should never happen
-                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
-                            }
-                        }
-
                     });
-                }
-                else
-                {
-                    // property not found
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
                 }
             }
             else
             {
-                // resource not found
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                var pi = pt.PropertyInfo;
+                if (pi == null)
+                {
+                    // pt found, pi not found, this should never happen
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
+                    return;
+                }
+
+                if (r.Instance.Applicable(session, ActionType.SetProperty, pt, this) == Ruling.Denied)
+                {
+                    SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
+                    return;
+                }
+
+                if (!pi.CanWrite)
+                {
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ReadOnlyProperty);
+                    return;
+                }
+
+                var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
+
+                if (parsed is AsyncReply)
+                {
+                    (parsed as AsyncReply).Then((value) =>
+                    {
+                        if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
+                                == typeof(PropertyContext<>))
+                        {
+                            value = Activator.CreateInstance(pi.PropertyType, this, value);
+                        }
+                        else
+                        {
+                            // cast new value type to property type
+                            value = DC.CastConvert(value, pi.PropertyType);
+                        }
+
+                        try
+                        {
+                            pi.SetValue(r, value);
+                            SendReply(IIPPacketReply.Completed, callback);
+                        }
+                        catch (Exception ex)
+                        {
+                            SendError(ErrorType.Exception, callback, 0, ex.Message);
+                        }
+                    });
+                }
+                else
+                {
+                    if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
+                            == typeof(PropertyContext<>))
+                    {
+                        parsed = Activator.CreateInstance(pi.PropertyType, this, parsed);
+                        //value = new DistributedPropertyContext(this, value);
+                    }
+                    else
+                    {
+                        // cast new value type to property type
+                        parsed = DC.CastConvert(parsed, pi.PropertyType);
+                    }
+
+                    try
+                    {
+                        pi.SetValue(r, parsed);
+                        SendReply(IIPPacketReply.Completed, callback);
+                    }
+                    catch (Exception ex)
+                    {
+                        SendError(ErrorType.Exception, callback, 0, ex.Message);
+                    }
+                }
             }
         });
     }
-
 
 
     /// <summary>
@@ -1836,15 +1664,14 @@ partial class DistributedConnection
         var reply = new AsyncReply<TypeTemplate>();
         templateRequests.Add(classId, reply);
 
-        SendRequest(IIPPacketRequest.TemplateFromClassId)
-                    .AddUUID(classId)
-                    .Done()
-                    .Then((rt) =>
+        SendRequest(IIPPacketRequest.TemplateFromClassId, classId)
+                    .Then((result) =>
                     {
+                        var args = (object[])result;
                         templateRequests.Remove(classId);
-                        templates.Add(((TypeTemplate)rt[0]).ClassId, (TypeTemplate)rt[0]);
-                        Warehouse.PutTemplate(rt[0] as TypeTemplate);
-                        reply.Trigger(rt[0]);
+                        templates.Add(((TypeTemplate)args[0]).ClassId, (TypeTemplate)args[0]);
+                        Warehouse.PutTemplate(args[0] as TypeTemplate);
+                        reply.Trigger(args[0]);
                     }).Error((ex) =>
                     {
                         reply.TriggerError(ex);
@@ -1866,18 +1693,16 @@ partial class DistributedConnection
         var reply = new AsyncReply<TypeTemplate>();
         templateByNameRequests.Add(className, reply);
 
-        var classNameBytes = DC.ToBytes(className);
 
-        SendRequest(IIPPacketRequest.TemplateFromClassName)
-            .AddUInt8((byte)classNameBytes.Length)
-            .AddUInt8Array(classNameBytes)
-                    .Done()
-                    .Then((rt) =>
+        SendRequest(IIPPacketRequest.TemplateFromClassName, className)
+                    .Then((result) =>
                     {
+                        var tt = TypeTemplate.Parse((byte[])result);
+
                         templateByNameRequests.Remove(className);
-                        templates.Add(((TypeTemplate)rt[0]).ClassId, (TypeTemplate)rt[0]);
-                        Warehouse.PutTemplate(rt[0] as TypeTemplate);
-                        reply.Trigger(rt[0]);
+                        templates.Add(tt.ClassId, tt);
+                        Warehouse.PutTemplate(tt);
+                        reply.Trigger(tt);
                     }).Error((ex) =>
                     {
                         reply.TriggerError(ex);
@@ -1912,74 +1737,22 @@ partial class DistributedConnection
 
 
         return rt;
-
-        /*
-
-        if (pathRequests.ContainsKey(path))
-            return pathRequests[path];
-
-        var reply = new AsyncReply<IResource>();
-        pathRequests.Add(path, reply);
-
-        var bl = new BinaryList(path);
-        bl.Insert(0, (ushort)bl.Length);
-
-        SendRequest(IIPPacket.IIPPacketAction.QueryLink, bl.ToArray()).Then((rt) =>
-        {
-            pathRequests.Remove(path);
-            //(Guid)rt[0],
-            Fetch((uint)rt[1]).Then((r) =>
-           {
-               reply.Trigger(r);
-           });
-        }).Error((ex) =>
-        {
-            reply.TriggerError(ex);
-        }); ;
-
-
-        return reply;
-        */
     }
-
-    ///// <summary>
-    ///// Retrive a resource by its instance Id.
-    ///// </summary>
-    ///// <param name="iid">Instance Id</param>
-    ///// <returns>Resource</returns>
-    //public AsyncReply<IResource> Retrieve(uint iid)
-    //{
-    //    foreach (var r in resources.Values)
-    //        if (r.Instance.Id == iid)
-    //            return new AsyncReply<IResource>(r);
-    //    return new AsyncReply<IResource>(null);
-    //}
-
 
     public AsyncReply<TypeTemplate[]> GetLinkTemplates(string link)
     {
         var reply = new AsyncReply<TypeTemplate[]>();
 
-        var l = DC.ToBytes(link);
 
-        SendRequest(IIPPacketRequest.LinkTemplates)
-        .AddUInt16((ushort)l.Length)
-        .AddUInt8Array(l)
-        .Done()
-        .Then((rt) =>
+        SendRequest(IIPPacketRequest.LinkTemplates, link)
+        .Then((result) =>
         {
-
+            
             var templates = new List<TypeTemplate>();
-            // parse templates
-            var tt = (TransmissionType)rt[0];
-            var data = (byte[])rt[1];
-            //var offset = 0;
-            for (var offset = tt.Offset; offset < tt.ContentLength;)
+
+            foreach(var template in (byte[][])result)
             {
-                var cs = data.GetUInt32(offset, Endian.Little);
-                offset += 4;
-                templates.Add(TypeTemplate.Parse(data, offset, cs));
-                offset += cs;
+                templates.Add(TypeTemplate.Parse(template));
             }
 
             reply.Trigger(templates.ToArray());
@@ -2041,30 +1814,34 @@ partial class DistributedConnection
         var reply = new AsyncReply<DistributedResource>();
         resourceRequests.Add(id, new DistributedResourceAttachRequestInfo(reply, newSequence));
 
-        SendRequest(IIPPacketRequest.AttachResource)
-                    .AddUInt32(id)
-                    .Done()
-                    .Then((rt) =>
+        SendRequest(IIPPacketRequest.AttachResource, id)
+                    .Then((result) =>
                     {
-
-                        if (rt == null)
+                        if (result == null)
                         {
                             reply.TriggerError(new AsyncException(ErrorType.Management,
                                 (ushort)ExceptionCode.ResourceNotFound, "Null response"));
                             return;
                         }
 
+                        // ClassId, Age, Link, Hops, PropertyValue[]
+                        var args = (object[])result;
+                        var classId = (UUID)args[0];
+                        var age = (ulong)args[1];
+                        var link = (string)args[2];
+                        var hops = (byte)args[3];
+                        var pv = (PropertyValue[])args[4];
+
                         DistributedResource dr;
                         TypeTemplate template = null;
-                        UUID classId = (UUID)rt[0];
 
                         if (resource == null)
                         {
                             template = Warehouse.GetTemplateByClassId(classId, TemplateType.Resource);
                             if (template?.DefinedType != null && template.IsWrapper)
-                                dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)rt[1], (string)rt[2]) as DistributedResource;
+                                dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)args[1], (string)args[2]) as DistributedResource;
                             else
-                                dr = new DistributedResource(this, id, (ulong)rt[1], (string)rt[2]);
+                                dr = new DistributedResource(this, id, (ulong)args[1], (string)args[2]);
                         }
                         else
                         {
@@ -2072,28 +1849,46 @@ partial class DistributedConnection
                             template = resource.Instance.Template;
                         }
 
-                        var transmissionType = (TransmissionType)rt[3];
-                        var content = (byte[])rt[4];
 
                         var initResource = (DistributedResource ok) =>
                         {
-                            var (_, parsed) = Codec.Parse(content, 0, this, newSequence, transmissionType);
-                            parsed.Then(results =>
+                            var (_, parsed) = Codec.ParseAsync(content, 0, this, newSequence, transmissionType);
+
+                            if (parsed is AsyncReply parsedReply)
                             {
-                                var ar = results as object[];
+                                parsedReply.Then(results =>
+                                {
+                                    var ar = results as object[];
+
+                                    var pvs = new List<PropertyValue>();
+
+                                    for (var i = 0; i < ar.Length; i += 3)
+                                        pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
+
+                                    dr._Attach(pvs.ToArray());
+                                    resourceRequests.Remove(id);
+                                    // move from needed to attached.
+                                    neededResources.Remove(id);
+                                    attachedResources[id] = new WeakReference<DistributedResource>(dr);
+                                    reply.Trigger(dr);
+                                }).Error(ex => reply.TriggerError(ex));
+                            }
+                            else
+                            {
+                                var ar = parsed as object[];
 
                                 var pvs = new List<PropertyValue>();
 
                                 for (var i = 0; i < ar.Length; i += 3)
                                     pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
 
-                                dr._Attach(pvs.ToArray());// (PropertyValue[])pvs);
+                                dr._Attach(pvs.ToArray());
                                 resourceRequests.Remove(id);
                                 // move from needed to attached.
                                 neededResources.Remove(id);
                                 attachedResources[id] = new WeakReference<DistributedResource>(dr);
                                 reply.Trigger(dr);
-                            }).Error(ex => reply.TriggerError(ex));
+                            }
 
                         };
 
@@ -2191,135 +1986,9 @@ partial class DistributedConnection
         return rt;
     }
 
-    public AsyncReply<bool> RemoveAttributes(IResource resource, string[] attributes = null)
-    {
-        var rt = new AsyncReply<bool>();
 
-        if (attributes == null)
-            SendRequest(IIPPacketRequest.ClearAllAttributes)
-                .AddUInt32(resource.Instance.Id)
-                .Done()
-                .Then(ar => rt.Trigger(true))
-                .Error(ex => rt.TriggerError(ex));
-        else
-        {
-            var attrs = DC.ToBytes(attributes);
-            SendRequest(IIPPacketRequest.ClearAttributes)
-                .AddUInt32(resource.Instance.Id)
-                .AddInt32(attrs.Length)
-                .AddUInt8Array(attrs)
-                .Done()
-                .Then(ar => rt.Trigger(true))
-                .Error(ex => rt.TriggerError(ex));
-        }
 
-        return rt;
-    }
-
-    public AsyncReply<bool> SetAttributes(IResource resource, Map<string, object> attributes, bool clearAttributes = false)
-    {
-        var rt = new AsyncReply<bool>();
-
-        SendRequest(clearAttributes ? IIPPacketRequest.UpdateAllAttributes : IIPPacketRequest.UpdateAttributes)
-            .AddUInt32(resource.Instance.Id)
-            //.AddUInt8Array(Codec.ComposeStructure(attributes, this, true, true, true))
-            .AddUInt8Array(Codec.Compose(attributes, this))
-            .Done()
-            .Then(ar => rt.Trigger(true))
-            .Error(ex => rt.TriggerError(ex));
-
-        return rt;
-    }
-
-    public AsyncReply<Map<string, object>> GetAttributes(IResource resource, string[] attributes = null)
-    {
-        var rt = new AsyncReply<Map<string, object>>();
-
-        if (attributes == null)
-        {
-            SendRequest(IIPPacketRequest.GetAllAttributes)
-                .AddUInt32(resource.Instance.Id)
-                .Done()
-                .Then(ar =>
-                {
-                    var dataType = (TransmissionType)ar[0];
-                    var data = (byte[])ar[1];
-                    //Codec.Parse(d, )
-                    var (_, parsed) = Codec.Parse(data, 0, this, null, dataType);
-                    parsed.Then(st =>
-                    {
-
-                        resource.Instance.SetAttributes(st as Map<string, object>);
-
-                        rt.Trigger(st);
-                    }).Error(ex => rt.TriggerError(ex));
-                });
-        }
-        else
-        {
-            var attrs = DC.ToBytes(attributes);
-            SendRequest(IIPPacketRequest.GetAttributes)
-                .AddUInt32(resource.Instance.Id)
-                .AddInt32(attrs.Length)
-                .AddUInt8Array(attrs)
-                .Done()
-                .Then(ar =>
-                {
-                    var dataType = (TransmissionType)ar[0];
-                    var data = (byte[])ar[1];
-
-                    var (_, parsed) = Codec.Parse(data, 0, this, null, dataType);
-                    parsed.Then(st =>
-                    {
-
-                        resource.Instance.SetAttributes((Map<string, object>)st);
-
-                        rt.Trigger(st);
-                    }).Error(ex => rt.TriggerError(ex));
-                });
-        }
-
-        return rt;
-    }
-
-    /// <summary>
-    /// Get resource history.
-    /// </summary>
-    /// <param name="resource">IResource.</param>
-    /// <param name="fromDate">From date.</param>
-    /// <param name="toDate">To date.</param>
-    /// <returns></returns>
-    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
-    {
-        if (resource is DistributedResource)
-        {
-            var dr = resource as DistributedResource;
-
-            if (dr.DistributedResourceConnection != this)
-                return new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>(null);
-
-            var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
-
-            SendRequest(IIPPacketRequest.ResourceHistory)
-                .AddUInt32(dr.DistributedResourceInstanceId)
-                .AddDateTime(fromDate)
-                .AddDateTime(toDate)
-                .Done()
-                .Then(rt =>
-                {
-                    var content = (byte[])rt[0];
-
-                    DataDeserializer.HistoryParser(content, 0, (uint)content.Length, resource, this, null)
-                                      .Then((history) => reply.Trigger(history));
-
-                }).Error((ex) => reply.TriggerError(ex));
-
-            return reply;
-        }
-        else
-            return new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>(null);
-    }
-
+ 
     /// <summary>
     /// Query resources at specific link.
     /// </summary>
@@ -2330,23 +1999,10 @@ partial class DistributedConnection
         var str = DC.ToBytes(path);
         var reply = new AsyncReply<IResource[]>();
 
-        SendRequest(IIPPacketRequest.QueryLink)
-                    .AddUInt16((ushort)str.Length)
-                    .AddUInt8Array(str)
-                    .Done()
-                    .Then(ar =>
+        SendRequest(IIPPacketRequest.Query, path)
+                    .Then(result =>
                     {
-                        var dataType = (TransmissionType)ar[0];
-                        var data = ar[1] as byte[];
-
-                        var (_, parsed) = Codec.Parse(data, dataType.Offset, this, null, dataType);
-
-                        parsed.Then(resources => reply.Trigger(resources))
-                              .Error(ex => reply.TriggerError(ex));
-
-                        //Codec.ParseResourceArray(content, 0, (uint)content.Length, this)
-                        //                      .Then(resources => reply.Trigger(resources));
-
+                        reply.Trigger((IResource[])result);
                     }).Error(ex => reply.TriggerError(ex));
 
         return reply;
@@ -2362,7 +2018,7 @@ partial class DistributedConnection
     /// <param name="attributes">Resource attributeds.</param>
     /// <param name="values">Values for the resource properties.</param>
     /// <returns>New resource instance</returns>
-    public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, object[] parameters, Map<string, object> attributes, Map<string, object> values)
+    public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, Map<string, object> attributes, Map<string, object> values)
     {
         var reply = new AsyncReply<DistributedResource>();
         var pkt = new BinaryList()
@@ -2497,7 +2153,7 @@ partial class DistributedConnection
 
     private void Instance_EventOccurred(EventOccurredInfo info)
     {
-        if (info.EventTemplate.Listenable)
+        if (info.EventTemplate.Subscribable)
         {
             lock (subscriptionsLock)
             {
@@ -2514,7 +2170,7 @@ partial class DistributedConnection
             return;
 
         // compose the packet
-        SendEvent(IIPPacketEvent.EventOccurred)
+        SendEvent(IIPPacketNotification.EventOccurred)
                     .AddUInt32(info.Resource.Instance.Id)
                     .AddUInt8((byte)info.EventTemplate.Index)
                     .AddUInt8Array(Codec.Compose(info.Value, this))
@@ -2523,8 +2179,14 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestKeepAlive(uint callbackId, DateTime peerTime, uint interval)
+    void IIPRequestKeepAlive(uint callback, TransmissionType dataType, byte[] data)
     {
+
+        var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
+                                                                     dataType.ContentLength);
+
+        var peerTime = (DateTime)args[0];
+        var interval = (uint)args[0];
 
         uint jitter = 0;
 

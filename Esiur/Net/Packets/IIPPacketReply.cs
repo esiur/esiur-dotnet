@@ -11,8 +11,8 @@ namespace Esiur.Net.Packets
         Propagated = 0x1,
 
         // Error
-        Permission = 0x81,
-        Execution = 0x82,
+        PermissionError = 0x81,
+        ExecutionError = 0x82,
 
         // Partial
         Progress = 0x10,

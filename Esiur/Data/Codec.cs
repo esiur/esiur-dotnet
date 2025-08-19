@@ -47,47 +47,110 @@ public static class Codec
     static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
     {
         new AsyncParser[]{
+            DataDeserializer.NullParserAsync,
+            DataDeserializer.BooleanFalseParserAsync,
+            DataDeserializer.BooleanTrueParserAsync,
+            DataDeserializer.NotModifiedParserAsync,
+        },
+        new AsyncParser[]{
+            DataDeserializer.UInt8ParserAsync,
+            DataDeserializer.Int8ParserAsync,
+            DataDeserializer.Char8ParserAsync,
+            DataDeserializer.LocalResourceParser8Async,
+            DataDeserializer.ResourceParser8Async,
+        },
+        new AsyncParser[]{
+            DataDeserializer.Int16ParserAsync,
+            DataDeserializer.UInt16ParserAsync,
+            DataDeserializer.Char16ParserAsync,
+            DataDeserializer.LocalResourceParser16Async,
+            DataDeserializer.ResourceParser16Async,
+        },
+        new AsyncParser[]{
+            DataDeserializer.Int32ParserAsync,
+            DataDeserializer.UInt32ParserAsync,
+            DataDeserializer.Float32ParserAsync,
+            DataDeserializer.LocalResourceParser32Async,
+            DataDeserializer.ResourceParser32Async,
+        },
+        new AsyncParser[]{
+            DataDeserializer.Int64ParserAsync,
+            DataDeserializer.UInt64ParserAsync,
+            DataDeserializer.Float64ParserAsync,
+            DataDeserializer.DateTimeParserAsync,
+        },
+        new AsyncParser[]
+        {
+            DataDeserializer.Int128ParserAsync, // int 128
+            DataDeserializer.UInt128ParserAsync, // uint 128
+            DataDeserializer.Float128ParserAsync,
+        }
+    };
+
+    static AsyncParser[] DynamicAsyncParsers = new AsyncParser[]
+    {
+        DataDeserializer.RawDataParserAsync,
+        DataDeserializer.StringParserAsync,
+        DataDeserializer.ListParserAsync,
+        DataDeserializer.ResourceListParserAsync,
+        DataDeserializer.RecordListParserAsync,
+    };
+
+    static AsyncParser[] TypedAsyncParsers = new AsyncParser[]
+    {
+        DataDeserializer.RecordParserAsync,
+        DataDeserializer.TypedListParserAsync,
+        DataDeserializer.TypedMapParserAsync,
+        DataDeserializer.TupleParserAsync,
+        DataDeserializer.EnumParserAsync,
+        DataDeserializer.ConstantParserAsync,
+    };
+
+
+    static SyncParser[][] FixedParsers = new SyncParser[][]
+{
+        new SyncParser[]{
             DataDeserializer.NullParser,
             DataDeserializer.BooleanFalseParser,
             DataDeserializer.BooleanTrueParser,
             DataDeserializer.NotModifiedParser,
         },
-        new AsyncParser[]{
-            DataDeserializer.ByteParser,
-            DataDeserializer.SByteParser,
+        new SyncParser[]{
+            DataDeserializer.UInt8Parser,
+            DataDeserializer.Int8Parser,
             DataDeserializer.Char8Parser,
             DataDeserializer.LocalResourceParser8,
             DataDeserializer.ResourceParser8,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.Int16Parser,
             DataDeserializer.UInt16Parser,
             DataDeserializer.Char16Parser,
             DataDeserializer.LocalResourceParser16,
             DataDeserializer.ResourceParser16,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.Int32Parser,
             DataDeserializer.UInt32Parser,
             DataDeserializer.Float32Parser,
             DataDeserializer.LocalResourceParser32,
             DataDeserializer.ResourceParser32,
         },
-        new AsyncParser[]{
+        new SyncParser[]{
             DataDeserializer.Int64Parser,
             DataDeserializer.UInt64Parser,
             DataDeserializer.Float64Parser,
             DataDeserializer.DateTimeParser,
         },
-        new AsyncParser[]
+        new SyncParser[]
         {
             DataDeserializer.Int128Parser, // int 128
             DataDeserializer.UInt128Parser, // uint 128
             DataDeserializer.Float128Parser,
         }
-    };
+};
 
-    static AsyncParser[] DynamicAsyncParsers = new AsyncParser[]
+    static SyncParser[] DynamicParsers = new SyncParser[]
     {
         DataDeserializer.RawDataParser,
         DataDeserializer.StringParser,
@@ -96,7 +159,7 @@ public static class Codec
         DataDeserializer.RecordListParser,
     };
 
-    static AsyncParser[] TypedAsyncParsers = new AsyncParser[]
+    static SyncParser[] TypedParsers = new SyncParser[]
     {
         DataDeserializer.RecordParser,
         DataDeserializer.TypedListParser,
@@ -105,7 +168,6 @@ public static class Codec
         DataDeserializer.EnumParser,
         DataDeserializer.ConstantParser,
     };
-
 
     /// <summary>
     /// Parse a value
@@ -246,15 +308,15 @@ public static class Codec
         [typeof(IResource[])] = DataSerializer.ResourceListComposer,
         [typeof(IResource?[])] = DataSerializer.ResourceListComposer,
         [typeof(List<IResource>)] = DataSerializer.ResourceListComposer,
-        [typeof(List<IResource?>)] = DataSerializer.ResourceListComposer, 
-        [typeof(VarList<IResource>)] = DataSerializer.ResourceListComposer, 
-        [typeof(VarList<IResource?>)] = DataSerializer.ResourceListComposer, 
+        [typeof(List<IResource?>)] = DataSerializer.ResourceListComposer,
+        [typeof(VarList<IResource>)] = DataSerializer.ResourceListComposer,
+        [typeof(VarList<IResource?>)] = DataSerializer.ResourceListComposer,
         [typeof(IRecord[])] = DataSerializer.RecordListComposer,
         [typeof(IRecord?[])] = DataSerializer.RecordListComposer,
         [typeof(List<IRecord>)] = DataSerializer.RecordListComposer,
         [typeof(List<IRecord?>)] = DataSerializer.RecordListComposer,
         [typeof(VarList<IRecord>)] = DataSerializer.RecordListComposer,
-        [typeof(VarList<IRecord?>)] = DataSerializer.RecordListComposer,  
+        [typeof(VarList<IRecord?>)] = DataSerializer.RecordListComposer,
         [typeof(Map<object, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object?, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object, object?>)] = DataSerializer.MapComposer,

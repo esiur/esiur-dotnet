@@ -652,75 +652,51 @@ public static class Warehouse
 
         type = ResourceProxy.GetProxy(type);
 
-
-        /*
-        if (arguments != null)
-        {
-            var constructors = type.GetConstructors(System.Reflection.BindingFlags.Public);
-
-            foreach(var constructor in constructors)
-            {
-                var pi = constructor.GetParameters();
-                if (pi.Length == constructor.le)
-            }
-
-            // cast arguments
-            ParameterInfo[] pi = fi.GetParameters();
-
-            object[] args = new object[pi.Length];
-
-            for (var i = 0; i < pi.Length; i++)
-            {
-                if (pi[i].ParameterType == typeof(DistributedConnection))
-                {
-                    args[i] = this;
-                }
-                else if (namedArgs.ContainsKey(pi[i].Name))
-                {
-                    args[i] = DC.CastConvert(namedArgs[pi[i].Name], pi[i].ParameterType);
-                }
-            }
-
-            constructors[0].
-        }
-        */
         var res = Activator.CreateInstance(type) as IResource;
 
 
         if (properties != null)
         {
-            var ps = Map<string, object>.FromObject(properties);
-
-            foreach (var p in ps)
+            if (properties is Map<byte, object> map)
             {
+                var template = GetTemplateByType(type);
+                foreach(var kvp in map)
+                    template.GetPropertyTemplateByIndex(kvp.Key).PropertyInfo.SetValue(res, kvp.Value);
+            }
+            else
+            {
+                var ps = Map<string, object>.FromObject(properties);
 
-                var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (pi != null)
+                foreach (var p in ps)
                 {
-                    if (pi.CanWrite)
+                    var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (pi != null)
                     {
-                        try
+                        if (pi.CanWrite)
                         {
-                            pi.SetValue(res, p.Value);
-                        }
-                        catch (Exception ex)
-                        {
-                            Global.Log(ex);
+                            try
+                            {
+                                pi.SetValue(res, p.Value);
+                            }
+                            catch (Exception ex)
+                            {
+                                Global.Log(ex);
+                            }
                         }
                     }
-                }
-                else
-                {
-                    var fi = type.GetField(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    if (fi != null)
+                    else
                     {
-                        try
+                        var fi = type.GetField(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (fi != null)
                         {
-                            fi.SetValue(res, p.Value);
-                        }
-                        catch (Exception ex)
-                        {
-                            Global.Log(ex);
+                            try
+                            {
+                                fi.SetValue(res, p.Value);
+                            }
+                            catch (Exception ex)
+                            {
+                                Global.Log(ex);
+                            }
                         }
                     }
                 }
@@ -729,9 +705,6 @@ public static class Warehouse
 
         if (store != null || parent != null || res is IStore)
         {
-            //if (!await Put(name, res, store, parent, null, 0, manager, attributes))
-            //    return null;
-
             await Put(name, res, store, parent, null, 0, manager, attributes);
         }
 

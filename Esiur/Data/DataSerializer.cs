@@ -102,7 +102,7 @@ public static class DataSerializer
         var rt = new byte[16];
         fixed (byte* ptr = rt)
             *((decimal*)ptr) = v;
-        return (TransmissionTypeIdentifier.Float128, rt);
+        return (TransmissionTypeIdentifier.Decimal128, rt);
     }
 
 
@@ -122,7 +122,7 @@ public static class DataSerializer
         var intVal = Convert.ChangeType(value, (value as Enum).GetTypeCode());
 
         var ct = template.Constants.FirstOrDefault(x => x.Value.Equals(intVal));
-        
+
         if (ct == null)
             return (TransmissionTypeIdentifier.Null, new byte[0]);
 
@@ -131,7 +131,7 @@ public static class DataSerializer
         rt.AddRange(template.ClassId.Data);
         rt.Add(ct.Index);
 
-        return (TransmissionTypeIdentifier.Enum, rt.ToArray());
+        return (TransmissionTypeIdentifier.TypedEnum, rt.ToArray());
     }
 
     public static (TransmissionTypeIdentifier, byte[]) UInt8Composer(object value, DistributedConnection connection)
@@ -146,7 +146,7 @@ public static class DataSerializer
 
     public static unsafe (TransmissionTypeIdentifier, byte[]) Char8Composer(object value, DistributedConnection connection)
     {
-       return (TransmissionTypeIdentifier.Char8, new byte[] { (byte)(char)value });
+        return (TransmissionTypeIdentifier.Char8, new byte[] { (byte)(char)value });
     }
 
     public static unsafe (TransmissionTypeIdentifier, byte[]) Char16Composer(object value, DistributedConnection connection)
@@ -241,7 +241,7 @@ public static class DataSerializer
     //        .ToArray();
     //}
 
-    public static (TransmissionTypeIdentifier, byte[])  PropertyValueArrayComposer(object value, DistributedConnection connection)
+    public static (TransmissionTypeIdentifier, byte[]) PropertyValueArrayComposer(object value, DistributedConnection connection)
     {
         if (value == null)
             return (TransmissionTypeIdentifier.Null, new byte[0]);
@@ -274,9 +274,9 @@ public static class DataSerializer
 
         var map = (IMap)value;
 
-        foreach(var el in map.Serialize())
+        foreach (var el in map.Serialize())
             rt.AddRange(Codec.Compose(el, connection));
-        
+
         return (TransmissionTypeIdentifier.TypedMap, rt.ToArray());
     }
 
@@ -315,32 +315,59 @@ public static class DataSerializer
     public static unsafe (TransmissionTypeIdentifier, byte[]) ResourceComposer(object value, DistributedConnection connection)
     {
         var resource = (IResource)value;
-        var rt = new byte[4];
 
-        if (resource.Instance  == null || resource.Instance.IsDestroyed)
+        if (resource.Instance == null || resource.Instance.IsDestroyed)
         {
             return (TransmissionTypeIdentifier.Null, new byte[0]);
         }
 
         if (Codec.IsLocalResource(resource, connection))
         {
+            var rid = (resource as DistributedResource).DistributedResourceInstanceId;
 
-            fixed (byte* ptr = rt)
-                *((uint*)ptr) = (resource as DistributedResource).DistributedResourceInstanceId;
+            if (rid <= 0xFF)
+                return (TransmissionTypeIdentifier.LocalResource8, new byte[] { (byte)rid });
+            else if (rid <= 0xFFFF)
+            {
+                var rt = new byte[2];
+                fixed (byte* ptr = rt)
+                    *((ushort*)ptr) = (ushort)rid;
 
-            return (TransmissionTypeIdentifier.ResourceLocal, rt);
+                return (TransmissionTypeIdentifier.LocalResource16, rt);
+            }
+            else
+            {
+                var rt = new byte[4];
+                fixed (byte* ptr = rt)
+                    *((uint*)ptr) = rid;
+                return (TransmissionTypeIdentifier.LocalResource32, rt);
+            }
         }
         else
         {
-           
+
             //rt.Append((value as IResource).Instance.Template.ClassId, (value as IResource).Instance.Id);
             connection.cache.Add(value as IResource, DateTime.UtcNow);
 
-       
-            fixed (byte* ptr = rt)
-                *((uint*)ptr) = resource.Instance.Id;
+            var rid = resource.Instance.Id;
 
-            return (TransmissionTypeIdentifier.Resource, rt);
+            if (rid <= 0xFF)
+                return (TransmissionTypeIdentifier.RemoteResource8, new byte[] { (byte)rid });
+            else if (rid <= 0xFFFF)
+            {
+                var rt = new byte[2];
+                fixed (byte* ptr = rt)
+                    *((ushort*)ptr) = (ushort)rid;
+
+                return (TransmissionTypeIdentifier.RemoteResource16, rt);
+            }
+            else
+            {
+                var rt = new byte[4];
+                fixed (byte* ptr = rt)
+                    *((uint*)ptr) = rid;
+                return (TransmissionTypeIdentifier.RemoteResource32, rt);
+            }
         }
     }
 
@@ -400,7 +427,7 @@ public static class DataSerializer
         var rt = new List<byte>();
 
         var fields = value.GetType().GetFields();
-        var list =  fields.Select(x => x.GetValue(value)).ToArray();
+        var list = fields.Select(x => x.GetValue(value)).ToArray();
         var types = fields.Select(x => RepresentationType.FromType(x.FieldType).Compose()).ToArray();
 
         rt.Add((byte)list.Length);
@@ -415,7 +442,7 @@ public static class DataSerializer
         else
         {
             rt.AddRange(composed);
-            return (TransmissionTypeIdentifier.Tuple, rt.ToArray());
+            return (TransmissionTypeIdentifier.TypedTuple, rt.ToArray());
         }
     }
 }
