@@ -722,14 +722,15 @@ partial class DistributedConnection
                     }
 
 
-                var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
+                var (_, parsed) = Codec.ParseAsync(data, 0, this, null, dataType);
 
                 if (parsed is AsyncReply reply)
                 {
                     reply.Then((result) =>
                     {
-                        var map = (Map<byte, object>)result;
-                        Warehouse.New(type, instanceName, store as IStore, parent, null, null, map)
+                        var props = (Map<byte, object>)((object[])result)[4];
+                        var attrs = (Map<byte, object>)((object[])result)[5];
+                        Warehouse.New(type, instanceName, store as IStore, parent, null, attrs, props)
                                      .Then(resource =>
                                      {
                                          SendReply(IIPPacketReply.Completed, callback, resource.Instance.Id);
@@ -2018,7 +2019,7 @@ partial class DistributedConnection
     /// <param name="attributes">Resource attributeds.</param>
     /// <param name="values">Values for the resource properties.</param>
     /// <returns>New resource instance</returns>
-    public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, Map<string, object> attributes, Map<string, object> values)
+    public AsyncReply<DistributedResource> Create(IStore store, IResource parent, string className, Map<string, object> values, Map<string, object> attributes)
     {
         var reply = new AsyncReply<DistributedResource>();
         var pkt = new BinaryList()
@@ -2032,7 +2033,7 @@ partial class DistributedConnection
 
         pkt.InsertInt32(8, pkt.Length);
 
-        SendRequest(IIPPacketRequest.CreateResource)
+        SendRequest(IIPPacketRequest.CreateResource, store, parent, cl)
             .AddUInt8Array(pkt.ToArray())
             .Done()
             .Then(args =>
