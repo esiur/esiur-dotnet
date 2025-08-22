@@ -55,34 +55,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     public delegate void ProtocolRequestReplyHandler(DistributedConnection connection, uint callbackId, TransmissionType dataType, byte[] data);
 
-    //ProtocolGeneralHandler[] NotificationHandlers = new ProtocolGeneralHandler[]
-    //{
-    //    IIPNotificationResourceDestroyed,
-    //    IIPNotificationResourceReassigned,
-    //    IIPNotificationResourceMoved,
-    //    IIPNotificationSystemFailure,
-    //    IIPNotificationPropertyModified
-    //};
-
-    //ProtocolRequestReplyHandler[] RequestHandlers = new ProtocolRequestReplyHandler[]
-    //{
-    //    IIPRequestAttachResource,
-    //    IIPRequest
-
-    //};
-
-    //ProtocolRequestReplyHandler[] ReplyHandlers = new ProtocolRequestReplyHandler[]
-    //{
-
-    //};
-
-    //ProtocolGeneralHandler[] ExtensionHandler = new ProtocolGeneralHandler[]
-    //{
-
-    //};
-
-
-
     // Delegates
     public delegate void ReadyEvent(DistributedConnection sender);
     public delegate void ErrorEvent(DistributedConnection sender, byte errorCode, string errorMessage);
@@ -163,7 +135,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     [Attribute]
     public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
-    //public Func<Map<IIPAuthPacketIAuthHeader, object>, AsyncReply<object>> Authenticator { get; set; }
+
 
     [Attribute]
     public bool AutoReconnect { get; set; } = false;
@@ -294,7 +266,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             // change to Map<byte, object> for compatibility
             var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
 
-            // @REVIEW: MITM Attack can still occure
+            // @REVIEW: MITM Attack can still occur
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketInitialize.NoAuthNoAuth)
                 .AddUInt8Array(headers)
@@ -792,7 +764,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                 if (this.Instance == null)
                 {
-                    Warehouse.Put(session.AuthorizedAccount.Replace("/", "_"), this, null, Server).Then(x =>
+                    Instance.Warehouse.Put(Server + "/" + session.AuthorizedAccount.Replace("/", "_"), this)
+                        .Then(x =>
                     {
                         openReply?.Trigger(true);
                         OnReady?.Invoke(this);
@@ -1259,7 +1232,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             if (this.Instance == null)
             {
-                Warehouse.Put(this.GetHashCode().ToString().Replace("/", "_"), this, null, Server).Then(x =>
+                Instance.Warehouse.Put(
+                    Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
+                    .Then(x =>
                 {
                     ready = true;
                     Status = ConnectionStatus.Connected;
@@ -1622,46 +1597,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
         return true;
     }
 
-    AsyncReply<bool> IStore.AddChild(IResource parent, IResource child)
-    {
-        // not implemented
-        throw new NotImplementedException();
-    }
-
-    AsyncReply<bool> IStore.RemoveChild(IResource parent, IResource child)
-    {
-        // not implemeneted
-        throw new NotImplementedException();
-    }
-
-    public AsyncReply<bool> AddParent(IResource child, IResource parent)
-    {
-        throw new NotImplementedException();
-    }
-
-    public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
-    {
-        throw new NotImplementedException();
-    }
-
-
     public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
     {
         throw new Exception("Not implemented");
-
-        //if (Codec.IsLocalResource(resource, this))
-        //  return new AsyncBag<T>((resource as DistributedResource).children.Where(x => x.GetType() == typeof(T)).Select(x => (T)x));
-
-        //return null;
     }
 
-    public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
-    {
-        throw new Exception("Not implemented");
-        //if (Codec.IsLocalResource(resource, this))
-        //  return (resource as DistributedResource).parents.Where(x => x.GetType() == typeof(T)).Select(x => (T)x);
-
-    }
 
 
     protected override void Connected()
@@ -1670,7 +1610,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             Declare();
     }
 
-    protected override void Disconencted()
+    protected override void Disconnected()
     {
         // clean up
         ready = false;
@@ -1737,7 +1677,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             suspendedResources.Clear();
 
             UnsubscribeAll();
-            Warehouse.Remove(this);
+            Instance.Warehouse.Remove(this);
 
             if (ready)
                 Server.Membership?.Logout(session);
@@ -1758,4 +1698,33 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     }
 
+    public AsyncBag<T> Parent<T>(IResource resource, string name) where T : IResource
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    {
+        throw new NotImplementedException();
+    }
+
+    AsyncReply<bool> IStore.Remove(IResource resource)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Remove(string path)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Move(IResource resource, string newPath)
+    {
+        throw new NotImplementedException();
+    }
+
+    AsyncReply<T> IStore.Parent<T>(IResource resource, string name)
+    {
+        throw new NotImplementedException();
+    }
 }

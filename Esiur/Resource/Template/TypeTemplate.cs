@@ -216,7 +216,7 @@ public class TypeTemplate
     }
 
 
-    public static TypeTemplate[] GetDependencies(TypeTemplate template)
+    public static TypeTemplate[] GetDependencies(TypeTemplate template, Warehouse warehouse)
     {
 
         var list = new List<TypeTemplate>();
@@ -238,7 +238,7 @@ public class TypeTemplate
             // Get parents
             while (parentType != null)
             {
-                var parentTemplate = Warehouse.GetTemplateByType(parentType);
+                var parentTemplate = warehouse.GetTemplateByType(parentType);
                 if (parentTemplate != null)
                 {
                     list.Add(parentTemplate);
@@ -255,7 +255,7 @@ public class TypeTemplate
 
                 foreach (var functionReturnType in functionReturnTypes)
                 {
-                    var functionReturnTemplate = Warehouse.GetTemplateByType(functionReturnType);
+                    var functionReturnTemplate = warehouse.GetTemplateByType(functionReturnType);
                     if (functionReturnTemplate != null)
                     {
                         if (!bag.Contains(functionReturnTemplate))
@@ -274,7 +274,7 @@ public class TypeTemplate
 
                     foreach (var fpType in fpTypes)
                     {
-                        var fpt = Warehouse.GetTemplateByType(fpType);
+                        var fpt = warehouse.GetTemplateByType(fpType);
                         if (fpt != null)
                         {
                             if (!bag.Contains(fpt))
@@ -297,7 +297,7 @@ public class TypeTemplate
 
                         foreach (var fpType in fpTypes)
                         {
-                            var fpt = Warehouse.GetTemplateByType(fpType);
+                            var fpt = warehouse.GetTemplateByType(fpType);
                             if (fpt != null)
                             {
                                 if (!bag.Contains(fpt))
@@ -319,7 +319,7 @@ public class TypeTemplate
 
                 foreach (var propertyType in propertyTypes)
                 {
-                    var propertyTemplate = Warehouse.GetTemplateByType(propertyType);
+                    var propertyTemplate = warehouse.GetTemplateByType(propertyType);
                     if (propertyTemplate != null)
                     {
                         if (!bag.Contains(propertyTemplate))
@@ -338,7 +338,7 @@ public class TypeTemplate
 
                 foreach (var eventType in eventTypes)
                 {
-                    var eventTemplate = Warehouse.GetTemplateByType(eventType);
+                    var eventTemplate = warehouse.GetTemplateByType(eventType);
 
                     if (eventTemplate != null)
                     {
@@ -398,7 +398,7 @@ public class TypeTemplate
 
     public bool IsWrapper { get; private set; }
 
-    public TypeTemplate(Type type, bool addToWarehouse = false)
+    public TypeTemplate(Type type, Warehouse warehouse = null)
     {
 
         //if (!type.IsPublic)
@@ -430,8 +430,8 @@ public class TypeTemplate
         // set guid
         classId = GetTypeUUID(type);
 
-        if (addToWarehouse)
-            Warehouse.PutTemplate(this);
+        if (warehouse != null)
+            warehouse.PutTemplate(this);
 
 
 
@@ -887,7 +887,7 @@ public class TypeTemplate
 
                 offset += dts;
 
-                (dts, var value) = Codec.Parse(data, offset, null, null);
+                (dts, var value) = Codec.ParseSync(data, offset);
 
                 offset += dts;
 
@@ -899,7 +899,7 @@ public class TypeTemplate
                     offset += cs;
                 }
 
-                var ct = new ConstantTemplate(od, eventIndex++, name, inherited, valueType, value.Result, annotation);
+                var ct = new ConstantTemplate(od, eventIndex++, name, inherited, valueType, value, annotation);
 
                 od.constants.Add(ct);
             }
@@ -919,6 +919,19 @@ public class TypeTemplate
             od.members.Add(od.constants[i]);
 
         return od;
+    }
+
+    public Map<byte, object> CastProperties(Map<string, object> properties)
+    {
+        var rt = new Map<byte, object>();
+        foreach(var kv in properties)
+        {
+            var pt = GetPropertyTemplateByName(kv.Key);
+            if (pt == null) continue;
+            rt.Add(pt.Index, kv.Value);
+        }
+            
+        return rt;
     }
 }
 

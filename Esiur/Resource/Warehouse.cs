@@ -41,20 +41,23 @@ using System.Data;
 
 namespace Esiur.Resource;
 
-// Centeral Resource Issuer
-public static class Warehouse
+// Central Resources Manager
+public class Warehouse
 {
+
+    public static Warehouse Default = new Warehouse();
+
     //static byte prefixCounter;
 
     //static AutoList<IStore, Instance> stores = new AutoList<IStore, Instance>(null);
-    static ConcurrentDictionary<uint, WeakReference<IResource>> resources = new ConcurrentDictionary<uint, WeakReference<IResource>>();
-    static ConcurrentDictionary<IStore, List<WeakReference<IResource>>> stores = new ConcurrentDictionary<IStore, List<WeakReference<IResource>>>();
+    ConcurrentDictionary<uint, WeakReference<IResource>> resources = new ConcurrentDictionary<uint, WeakReference<IResource>>();
+    ConcurrentDictionary<IStore, List<WeakReference<IResource>>> stores = new ConcurrentDictionary<IStore, List<WeakReference<IResource>>>();
 
 
-    static uint resourceCounter = 0;
+    uint resourceCounter = 0;
 
 
-    static KeyList<TemplateType, KeyList<UUID, TypeTemplate>> templates
+    KeyList<TemplateType, KeyList<UUID, TypeTemplate>> templates
         = new KeyList<TemplateType, KeyList<UUID, TypeTemplate>>()
         {
             //[TemplateType.Unspecified] = new KeyList<Guid, TypeTemplate>(),
@@ -64,36 +67,33 @@ public static class Warehouse
             [TemplateType.Enum] = new KeyList<UUID, TypeTemplate>(),
         };
 
-    static bool warehouseIsOpen = false;
+    bool warehouseIsOpen = false;
 
-    public delegate void StoreEvent(IStore store);//, string name);
-                                                  // public delegate void StoreDisconnectedEvent(IStore store);
-
-    public static event StoreEvent StoreConnected;
-    //public static event StoreEvent StoreOpen;
-    public static event StoreEvent StoreDisconnected;
+    public delegate void StoreEvent(IStore store);
+    public event StoreEvent StoreConnected;
+    public event StoreEvent StoreDisconnected;
 
     public delegate AsyncReply<IStore> ProtocolInstance(string name, object properties);
 
-    public static KeyList<string, ProtocolInstance> Protocols { get; } = GetSupportedProtocols();
+    public KeyList<string, ProtocolInstance> Protocols { get; } = new KeyList<string, ProtocolInstance>();
 
-    private static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
+    private Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
-    //private static object resourcesLock = new object();
 
-    static KeyList<string, ProtocolInstance> GetSupportedProtocols()
+    public Warehouse()
     {
-        var rt = new KeyList<string, ProtocolInstance>();
-        rt.Add("iip", async (name, attributes) => await Warehouse.New<DistributedConnection>(name, null, null, null, attributes));
-        return rt;
+        Protocols.Add("iip",
+            async (name, attributes)
+            => await New<DistributedConnection>(name, null, attributes));
     }
+
 
     /// <summary>
     /// Get a store by its name.
     /// </summary>
     /// <param name="name">Store instance name</param>
     /// <returns></returns>
-    public static IStore GetStore(string name)
+    public IStore GetStore(string name)
     {
         foreach (var s in stores)
             if (s.Key.Instance.Name == name)
@@ -101,14 +101,14 @@ public static class Warehouse
         return null;
     }
 
-    public static WeakReference<IResource>[] Resources => resources.Values.ToArray();
+    public WeakReference<IResource>[] Resources => resources.Values.ToArray();
 
     /// <summary>
     /// Get a resource by instance Id.
     /// </summary>
     /// <param name="id">Instance Id</param>
     /// <returns></returns>
-    public static AsyncReply<IResource> GetById(uint id)
+    public AsyncReply<IResource> GetById(uint id)
     {
         if (resources.ContainsKey(id))
         {
@@ -122,7 +122,7 @@ public static class Warehouse
             return new AsyncReply<IResource>(null);
     }
 
-    static void LoadGenerated()
+    void LoadGenerated()
     {
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
@@ -155,7 +155,7 @@ public static class Warehouse
     /// This function issues the initialize trigger to all stores and resources.
     /// </summary>
     /// <returns>True, if no problem occurred.</returns>
-    public static async AsyncReply<bool> Open()
+    public async AsyncReply<bool> Open()
     {
         if (warehouseIsOpen)
             return false;
@@ -193,68 +193,16 @@ public static class Warehouse
 
         foreach (var r in resSnap)
         {
-            //IResource r;
-            //if (rk.Value.TryGetTarget(out r))
-            //{
             var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
             if (!rt)
             {
                 Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Template.ClassName}]");
             }
-            //return false;
-            //}
         }
 
 
         return true;
 
-        /*
-        var bag = new AsyncBag<bool>();
-
-        //foreach (var store in stores)
-        //    bag.Add(store.Trigger(ResourceTrigger.Initialize));
-
-
-        bag.Seal();
-
-        var rt = new AsyncReply<bool>();
-        bag.Then((x) =>
-        {
-            foreach (var b in x)
-                if (!b)
-                {
-                    rt.Trigger(false);
-                    return;
-                }
-
-            var rBag = new AsyncBag<bool>();
-            foreach (var rk in resources)
-            {
-                IResource r;
-                if (rk.Value.TryGetTarget(out r))
-                    rBag.Add(r.Trigger(ResourceTrigger.Initialize));
-            }
-
-            rBag.Seal();
-
-            rBag.Then(y =>
-            {
-                foreach (var b in y)
-                    if (!b)
-                    {
-                        rt.Trigger(false);
-                        return;
-                    }
-
-                rt.Trigger(true);
-                warehouseIsOpen = true;
-            });
-
-        });
-
-
-        return rt;
-        */
     }
 
     /// <summary>
@@ -262,7 +210,7 @@ public static class Warehouse
     /// This function issues terminate trigger to all resources and stores.
     /// </summary>
     /// <returns>True, if no problem occurred.</returns>
-    public static AsyncReply<bool> Close()
+    public AsyncReply<bool> Close()
     {
 
         var bag = new AsyncBag<bool>();
@@ -315,96 +263,20 @@ public static class Warehouse
     }
 
 
-    /*
-    private static IResource[] QureyIn(string[] path, int index, IEnumerable<IResource> resources)// AutoList<IResource, Instance> resources)
-    {
-        var rt = new List<IResource>();
-
-        if (index == path.Length - 1)
-        {
-            if (path[index] == "")
-                foreach (IResource child in resources)
-                  rt.Add(child);
-             else
-                foreach (IResource child in resources)
-                    if (child.Instance.Name == path[index])
-                        rt.Add(child);
-        }
-        else
-            foreach (IResource child in resources)
-                if (child.Instance.Name == path[index])
-                    rt.AddRange(QureyIn(path, index+1, child.Instance.Children<IResource>()));
-
-        return rt.ToArray();
-    }
-
-    public static AsyncReply<IResource[]> Query(string path)
-    {
-        if (path == null || path == "")
-        {
-            var roots = stores.Where(s => s.Instance.Parents<IResource>().Count() == 0).ToArray();
-            return new AsyncReply<IResource[]>(roots);
-        }
-        else
-        {
-            var rt = new AsyncReply<IResource[]>();
-            Get(path).Then(x =>
-            {
-                var p = path.Split('/');
-
-                if (x == null)
-                {
-                    rt.Trigger(QureyIn(p, 0, stores));
-                }
-                else
-                {
-                    var ar = QureyIn(p, 0, stores).Where(r => r != x).ToList();
-                    ar.Insert(0, x);
-                    rt.Trigger(ar.ToArray());
-                }
-            });
-
-            return rt;
-
-        }
-
-    }
-    */
-
-
-
-    public static async AsyncReply<IResource[]> Query(string path)
+    public async AsyncReply<IResource> Query(string path)
     {
         var p = path.Trim().TrimStart('/').Split('/');
-        IResource resource;
 
         foreach (var store in stores.Keys)
         {
             if (p[0] == store.Instance.Name)
             {
-
                 if (p.Length == 1)
-                    return new IResource[] { store };
+                    return  store;
 
                 var res = await store.Get(String.Join("/", p.Skip(1).ToArray()));
                 if (res != null)
-                    return new IResource[] { res };
-
-
-                resource = store;
-                for (var i = 1; i < p.Length; i++)
-                {
-                    var children = await resource.Instance.Children<IResource>(p[i]);
-                    if (children != null && children.Length > 0)
-                    {
-                        if (i == p.Length - 1)
-                            return children;
-                        else
-                            resource = children[0];
-                    }
-                    else
-                        break;
-                }
+                    return res;
 
                 return null;
             }
@@ -419,12 +291,9 @@ public static class Warehouse
     /// </summary>
     /// <param name="path"></param>
     /// <returns>Resource instance.</returns>
-    public static async AsyncReply<T> Get<T>(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
+    public async AsyncReply<T> Get<T>(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
         where T : IResource
     {
-        //var rt = new AsyncReply<IResource>();
-
-        // Should we create a new store ?
 
         if (urlRegex.IsMatch(path))
         {
@@ -441,8 +310,6 @@ public static class Warehouse
 
                 try
                 {
-                    //await Put(store, url[2], null, parent, null, 0, manager, attributes);
-
                     if (url[3].Length > 0 && url[3] != "")
                         return (T)await store.Get(url[3]);
                     else
@@ -451,78 +318,20 @@ public static class Warehouse
                 }
                 catch (Exception ex)
                 {
-                    Warehouse.Remove(store);
+                    Remove(store);
                     throw ex;
                 }
-
             }
-
-
-            //    store.Get(url[3]).Then(r =>
-            //        {
-            //            rt.Trigger(r);
-            //        }).Error(e =>
-            //        {
-            //            Warehouse.Remove(store);
-            //            rt.TriggerError(e);
-            //        });
-            //    else
-            //        rt.Trigger(store);
-
-            //    store.Trigger(ResourceTrigger.Open).Then(x =>
-            //    {
-
-            //        warehouseIsOpen = true;
-            //        await Put(store, url[2], null, parent, null, 0, manager, attributes);
-
-            //        if (url[3].Length > 0 && url[3] != "")
-            //            store.Get(url[3]).Then(r =>
-            //            {
-            //                rt.Trigger(r);
-            //            }).Error(e =>
-            //            {
-            //                Warehouse.Remove(store);
-            //                rt.TriggerError(e);
-            //            });
-            //        else
-            //            rt.Trigger(store);
-            //    }).Error(e =>
-            //    {
-            //        rt.TriggerError(e);
-            //        //Warehouse.Remove(store);
-            //    });
-
-            //    return rt;
-            //}
         }
-
-
-        //await Query(path).Then(rs =>
-        //{
-        //    //                rt.TriggerError(new Exception());
-        //    if (rs != null && rs.Length > 0)
-        //        rt.Trigger(rs.First());
-        //    else
-        //        rt.Trigger(null);
-        //});
-
-        //return rt;
 
         var res = await Query(path);
 
-        if (res == null || res.Length == 0)
+        if (res == null)
             return default(T);
         else
-            return (T)res.First();
+            return (T)res;
 
     }
-
-
-    //public static async AsyncReply<T> Push<T>(string path, T resource) where T : IResource
-    //{
-    //    await Put(path, resource);
-    //    return resource;
-    //}
 
     /// <summary>
     /// Put a resource in the warehouse.
@@ -531,28 +340,26 @@ public static class Warehouse
     /// <param name="resource">Resource instance.</param>
     /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
     /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-    public static async AsyncReply<T> Put<T>(string name, T resource, IStore store = null, IResource parent = null, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
+    public async AsyncReply<T> Put<T>(string path, T resource, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
     {
         if (resource.Instance != null)
             throw new Exception("Resource has a store.");
 
-        var path = name.TrimStart('/').Split('/');
+        var location = path.TrimStart('/').Split('/');
 
-        if (path.Length > 1)
+        IResource parent = null;
+        IStore store = null;
+        var instanceName = location.Last();
+
+        if (location.Length > 1)
         {
-            if (parent != null)
-                throw new Exception("Parent can't be set when using path in instance name");
-
-            parent = await Warehouse.Get<IResource>(string.Join("/", path.Take(path.Length - 1)));
+            parent = await Get<IResource>(string.Join("/", path.Take(path.Length - 1)));
 
             if (parent == null)
                 throw new Exception("Can't find parent");
 
-            store = store ?? parent.Instance.Store;
+            store = parent.Instance.Store;
         }
-
-        var instanceName = path.Last();
-
 
         var resourceReference = new WeakReference<IResource>(resource);
 
@@ -590,18 +397,19 @@ public static class Warehouse
                 throw new Exception("Can't find a store for the resource.");
         }
 
-        resource.Instance = new Instance(resourceCounter++, instanceName, resource, store, customTemplate, age);
+        resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
 
         if (attributes != null)
-            resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
+            if (attributes is Map<string, object> attrs)
+                resource.Instance.SetAttributes(attrs);
+            else
+                resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
 
         if (manager != null)
             resource.Instance.Managers.Add(manager);
 
         if (store == parent)
             parent = null;
-
-
 
 
         try
@@ -615,15 +423,14 @@ public static class Warehouse
             //return default(T);
 
 
-            if (parent != null)
-            {
-                await parent.Instance.Store.AddChild(parent, resource);
-                await store.AddParent(resource, parent);
-            }
+            //if (parent != null)
+            //{
+            //    await parent.Instance.Store.AddChild(parent, resource);
+            //    await store.AddParent(resource, parent);
+            //}
 
             var t = resource.GetType();
             Global.Counters["T-" + t.Namespace + "." + t.Name]++;
-
 
             resources.TryAdd(resource.Instance.Id, resourceReference);
 
@@ -639,15 +446,14 @@ public static class Warehouse
         }
         catch (Exception ex)
         {
-            Warehouse.Remove(resource);
+            Remove(resource);
             throw ex;
         }
 
         return resource;
-
     }
 
-    public static async AsyncReply<IResource> New(Type type, string name = null, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
+    public async AsyncReply<IResource> New(Type type, string path, IPermissionsManager manager = null, object attributes = null, object properties = null)
     {
 
         type = ResourceProxy.GetProxy(type);
@@ -703,26 +509,20 @@ public static class Warehouse
             }
         }
 
-        if (store != null || parent != null || res is IStore)
-        {
-            await Put(name, res, store, parent, null, 0, manager, attributes);
-        }
-
-        return res;
-
+        return await Put(path, res, null, 0, manager, attributes);
     }
 
-    public static async AsyncReply<T> New<T>(string name, IStore store = null, IResource parent = null, IPermissionsManager manager = null, object attributes = null, object properties = null)
+    public async AsyncReply<T> New<T>(string path, IPermissionsManager manager = null, object attributes = null, object properties = null)
         where T : IResource
     {
-        return (T)(await New(typeof(T), name, store, parent, manager, attributes, properties));
+        return (T)(await New(typeof(T), path, manager, attributes, properties));
     }
 
     /// <summary>
     /// Put a resource template in the templates warehouse.
     /// </summary>
     /// <param name="template">Resource template.</param>
-    public static void PutTemplate(TypeTemplate template)
+    public void PutTemplate(TypeTemplate template)
     {
         if (templates[template.Type].ContainsKey(template.ClassId))
             throw new Exception($"Template with same class Id already exists. {templates[template.Type][template.ClassId].ClassName} -> {template.ClassName}");
@@ -736,7 +536,7 @@ public static class Warehouse
     /// </summary>
     /// <param name="type">.Net type.</param>
     /// <returns>Resource template.</returns>
-    public static TypeTemplate GetTemplateByType(Type type)
+    public TypeTemplate GetTemplateByType(Type type)
     {
         if (!(type.IsClass || type.IsEnum))
             return null;
@@ -762,8 +562,8 @@ public static class Warehouse
             return template;
 
         // create new template for type
-        template = new TypeTemplate(baseType, true);
-        TypeTemplate.GetDependencies(template);
+        template = new TypeTemplate(baseType, this);
+        TypeTemplate.GetDependencies(template, this);
 
         return template;
     }
@@ -773,7 +573,7 @@ public static class Warehouse
     /// </summary>
     /// <param name="classId">Class Id.</param>
     /// <returns>Resource template.</returns>
-    public static TypeTemplate GetTemplateByClassId(UUID classId, TemplateType? templateType = null)
+    public TypeTemplate GetTemplateByClassId(UUID classId, TemplateType? templateType = null)
     {
         if (templateType == null)
         {
@@ -807,7 +607,7 @@ public static class Warehouse
     /// </summary>
     /// <param name="className">Class name.</param>
     /// <returns>Resource template.</returns>
-    public static TypeTemplate GetTemplateByClassName(string className, TemplateType? templateType = null)
+    public TypeTemplate GetTemplateByClassName(string className, TemplateType? templateType = null)
     {
         if (templateType == null)
         {
@@ -836,14 +636,12 @@ public static class Warehouse
         }
     }
 
-    public static bool Remove(IResource resource)
+    public bool Remove(IResource resource)
     {
 
         if (resource.Instance == null)
             return false;
 
-        //lock (resourcesLock)
-        //{
 
         WeakReference<IResource> resourceReference;
 

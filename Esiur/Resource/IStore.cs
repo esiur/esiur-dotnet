@@ -41,7 +41,11 @@ public interface IStore : IResource
     string Link(IResource resource);
     bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
     bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
-    bool Remove(IResource resource);
+    AsyncReply<bool> Remove(IResource resource);
+
+    AsyncReply<bool> Remove(string path);
+
+    AsyncReply<bool> Move(IResource resource, string newPath);
 
     //bool RemoveAttributes(IResource resource, string[] attributes = null);
 
@@ -51,15 +55,15 @@ public interface IStore : IResource
 
 
 
-    AsyncReply<bool> AddChild(IResource parent, IResource child);
-    AsyncReply<bool> RemoveChild(IResource parent, IResource child);
+    //AsyncReply<bool> AddChild(IResource parent, IResource child);
+    //AsyncReply<bool> RemoveChild(IResource parent, IResource child);
 
-    AsyncReply<bool> AddParent(IResource child, IResource parent);
-    AsyncReply<bool> RemoveParent(IResource child, IResource parent);
+    //AsyncReply<bool> AddParent(IResource child, IResource parent);
+    //AsyncReply<bool> RemoveParent(IResource child, IResource parent);
 
 
     AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource;
-    AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource;
+    AsyncReply<T> Parent<T>(IResource resource, string name) where T : IResource;
 
 
 

@@ -283,7 +283,7 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
 
     public void NetworkClose(ISocket socket)
     {
-        Disconencted();
+        Disconnected();
         OnClose?.Invoke(this);
     }
 
@@ -307,7 +307,7 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
 
     protected abstract void DataReceived(NetworkBuffer buffer);
     protected abstract void Connected();
-    protected abstract void Disconencted();
+    protected abstract void Disconnected();
 
     public void NetworkReceive(ISocket sender, NetworkBuffer buffer)
     {

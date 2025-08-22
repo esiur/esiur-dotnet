@@ -238,7 +238,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         Instance.EmitResourceEvent(et, args);
     }
 
-    public AsyncReply<object> _Invoke(byte index, Map<byte, object> args)
+    public AsyncReply _Invoke(byte index, Map<byte, object> args)
     {
         if (destroyed)
             throw new Exception("Trying to access a destroyed object.");
@@ -268,7 +268,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         if (!et.Subscribable)
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
 
-        return connection.SendListenRequest(instanceId, et.Index);
+        return connection.SendSubscribeRequest(instanceId, et.Index);
     }
 
     public AsyncReply Subscribe(string eventName)
@@ -285,9 +285,9 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
 
         if (!et.Subscribable)
-            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotListenable, ""));
+            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
 
-        return connection.SendUnlistenRequest(instanceId, et.Index);
+        return connection.SendUnsubscribeRequest(instanceId, et.Index);
     }
 
     public AsyncReply Unsubscribe(string eventName)

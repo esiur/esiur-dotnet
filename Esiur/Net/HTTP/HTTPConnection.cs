@@ -445,7 +445,7 @@ public class HTTPConnection : NetworkConnection
         // do nothing
     }
 
-    protected override void Disconencted()
+    protected override void Disconnected()
     {
         // do nothing
     }

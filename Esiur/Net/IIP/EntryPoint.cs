@@ -34,6 +34,6 @@ namespace Esiur.Net.IIP;
 public abstract class EntryPoint : Esiur.Resource.Resource
 {
 
-    public abstract AsyncReply<IResource[]> Query(string path, DistributedConnection sender);
+    public abstract AsyncReply<IResource> Query(string path, DistributedConnection sender);
     protected abstract override bool Create();
 }

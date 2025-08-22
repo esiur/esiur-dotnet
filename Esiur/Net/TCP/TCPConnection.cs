@@ -58,7 +58,7 @@ public class TCPConnection : NetworkConnection
         Server?.Execute(this, buffer);
     }
 
-    protected override void Disconencted()
+    protected override void Disconnected()
     {
         // do nothing
     }

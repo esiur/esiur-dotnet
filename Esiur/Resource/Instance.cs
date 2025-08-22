@@ -393,7 +393,7 @@ public class Instance
     /// <summary>
     /// Number of nodes to reach the original resource.
     /// </summary>
-    public ulong Hops
+    public byte Hops
     {
         get { return hops; }
         internal set { hops = value; }
@@ -776,24 +776,21 @@ public class Instance
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            //if (!(store is null))
             return store.Children<T>(res, name);
-            //else
-            //    return (res as IStore).Children<T>(res, name);
         }
         else
             return new AsyncBag<T>(null);
     }
 
-    public AsyncBag<T> Parents<T>(string name = null) where T : IResource
+    public AsyncReply<T> Parent<T>(string name = null) where T : IResource
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            return store.Parents<T>(res, name);
+            return store.Parent<T>(res, name);
         }
         else
-            return new AsyncBag<T>(null);
+            return new AsyncReply<T>(default(T));
     }
 
     /*
@@ -908,6 +905,7 @@ public class Instance
     /// </summary>
     public AutoList<IPermissionsManager, Instance> Managers => managers;
 
+    public readonly Warehouse Warehouse;
     /// <summary>
     /// Create new instance.
     /// </summary>
@@ -915,8 +913,9 @@ public class Instance
     /// <param name="name">Name of the instance.</param>
     /// <param name="resource">Resource to manage.</param>
     /// <param name="store">Store responsible for the resource.</param>
-    public Instance(uint id, string name, IResource resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0)
+    public Instance(Warehouse warehouse, uint id, string name, IResource resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0)
     {
+        this.Warehouse = warehouse;
         this.store = store;
         this.resource = new WeakReference<IResource>(resource);
         this.id = id;
