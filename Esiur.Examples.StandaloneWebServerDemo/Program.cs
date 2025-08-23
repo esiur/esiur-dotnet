@@ -13,14 +13,16 @@ internal class Program
 
     private static async Task Main(string[] args)
     {
-        // Create a store to keep objects.
-        var system = await Warehouse.Put("sys", new MemoryStore());
-        // Create a distibuted server
-        var esiurServer = await Warehouse.Put("sys/server", new DistributedServer());
-        // Add your object to the store
-        var service = await Warehouse.Put("sys/demo", new Demo());
+        var wh = new Warehouse();
 
-        var http = await Warehouse.Put<HTTPServer>("sys/http", new HTTPServer() { Port = 8888 });
+        // Create a store to keep objects.
+        var system = await wh.Put("sys", new MemoryStore());
+        // Create a distibuted server
+        var esiurServer = await wh.Put("sys/server", new DistributedServer());
+        // Add your object to the store
+        var service = await wh.Put("sys/demo", new Demo());
+
+        var http = await wh.Put<HTTPServer>("sys/http", new HTTPServer() { Port = 8888 });
 
 
         http.MapGet("{url}", (string url, HTTPConnection sender) =>
@@ -49,7 +51,7 @@ internal class Program
 
 
         // Start your server
-        await Warehouse.Open();
+        await wh.Open();
 
         Console.WriteLine("Running on http://localhost:8888");
 

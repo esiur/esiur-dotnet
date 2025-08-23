@@ -19,12 +19,21 @@ namespace Esiur.Core
             Connection.SendChunk(CallbackId, value);
         }
 
-        public void Progress(int value, int max) {
+        public void Progress(uint value, uint max) {
 
             if (Ended)
                 throw new Exception("Execution has ended.");
 
             Connection.SendProgress(CallbackId, value, max);
+        }
+
+        public void Warning(byte level, string message)
+        {
+
+            if (Ended)
+                throw new Exception("Execution has ended.");
+
+            Connection.SendWarning(CallbackId, level, message);
         }
 
         public DistributedConnection Connection { get; internal set; }

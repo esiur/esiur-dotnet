@@ -56,12 +56,12 @@ var webSocketOptions = new WebSocketOptions()
 
 app.UseWebSockets(webSocketOptions);
 
+ 
+await Warehouse.Default.Put("sys", new MemoryStore());
+await Warehouse.Default.Put("sys/service", new MyResource());
+var server = await Warehouse.Default.Put("sys/server", new DistributedServer());
 
-await Warehouse.Put("sys", new MemoryStore());
-await Warehouse.Put("sys/service", new MyResource());
-var server = await Warehouse.Put("sys/server", new DistributedServer());
-
-await Warehouse.Open();
+await Warehouse.Default.Open();
 
 app.UseEsiur(new EsiurOptions() { Server = server });
 

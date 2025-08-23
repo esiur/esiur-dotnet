@@ -19,7 +19,7 @@ public class IIPoHTTP : HTTPFilter
 
         IIPPacketRequest action = (IIPPacketRequest)Convert.ToByte(sender.Request.Query["a"]);
 
-        if (action == IIPPacketRequest.QueryLink)
+        if (action == IIPPacketRequest.Query)
         {
             EntryPoint.Query(sender.Request.Query["l"], null).Then(x =>
             {

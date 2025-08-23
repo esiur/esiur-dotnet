@@ -666,7 +666,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             var dataType = authPacket.DataType.Value;
 
-            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
+            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
 
             var rt = (Map<byte, object>)parsed;
 
@@ -793,7 +793,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else if (authPacket.Event == IIPAuthPacketEvent.IAuthPlain)
             {
                 var dataType = authPacket.DataType.Value;
-                var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
+                var (_, parsed) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
                 var rt = (Map<byte, object>)parsed;
 
                 var headers = rt.Select(x => new KeyValuePair<IIPAuthPacketIAuthHeader, object>((IIPAuthPacketIAuthHeader)x.Key, x.Value));
@@ -833,7 +833,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             else if (authPacket.Event == IIPAuthPacketEvent.IAuthHashed)
             {
                 var dataType = authPacket.DataType.Value;
-                var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
+                var (_, parsed) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
                 var rt = (Map<byte, object>)parsed;
 
 
@@ -896,7 +896,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             var dataType = authPacket.DataType.Value;
 
-            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, dataType);
+            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
 
             var rt = (Map<byte, object>)parsed;
 
@@ -1154,7 +1154,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 var reference = authPacket.Reference;
                 var dataType = authPacket.DataType.Value;
 
-                var (_, value) = Codec.ParseSync(data, dataType.Offset, dataType);
+                var (_, value) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
 
                 Server.Membership.AuthorizePlain(session, reference, value)
                     .Then(x => ProcessAuthorization(x));
@@ -1698,7 +1698,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     }
 
-    public AsyncBag<T> Parent<T>(IResource resource, string name) where T : IResource
+    public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
     {
         throw new NotImplementedException();
     }
@@ -1723,8 +1723,5 @@ public partial class DistributedConnection : NetworkConnection, IStore
         throw new NotImplementedException();
     }
 
-    AsyncReply<T> IStore.Parent<T>(IResource resource, string name)
-    {
-        throw new NotImplementedException();
-    }
+  
 }

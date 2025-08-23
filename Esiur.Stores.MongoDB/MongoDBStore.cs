@@ -225,7 +225,7 @@ public class MongoDBStore : IStore
             var doc = value.AsBsonDocument;
             if (doc["type"] == 0)
             {
-                return Warehouse.Get<IResource>(doc["link"].AsString);
+                return Instance.Warehouse.Get<IResource>(doc["link"].AsString);
             } // structure
             else if (doc["type"] == 1)
             {
@@ -845,7 +845,7 @@ public class MongoDBStore : IStore
 
             foreach (var child in children)
             {
-                var r = Warehouse.Get<T>(child);
+                var r = Instance.Warehouse.Get<T>(child);
                 if (r is AsyncReply<T>)
                     rt.Add(r);// (AsyncReply<T>)r);
             }
@@ -855,41 +855,7 @@ public class MongoDBStore : IStore
         }
     }
 
-    public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
-    {
-
-        if (resource == this)
-        {
-            return new AsyncBag<T>(null);
-        }
-        else
-        {
-            var parents = (string[])resource.Instance.Variables["parents"];
-
-            if (parents == null)
-            {
-                return new AsyncBag<T>(null);
-            }
-
-            var rt = new AsyncBag<T>();
-
-
-
-            foreach (var parent in parents)
-            {
-                var r = Warehouse.Get<T>(parent);
-                if (r is AsyncReply<T>)
-                    rt.Add(r);// (AsyncReply<T>)r);
-            }
-
-
-            rt.Seal();
-
-
-            return rt;
-        }
-    }
-
+  
 
     public AsyncReply<bool> AddChild(IResource resource, IResource child)
     {
@@ -917,6 +883,26 @@ public class MongoDBStore : IStore
     }
 
     public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
+    {
+        throw new NotImplementedException();
+    }
+
+    AsyncReply<bool> IStore.Remove(IResource resource)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Remove(string path)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Move(IResource resource, string newPath)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<T> Parent<T>(IResource resource, string name) where T : IResource
     {
         throw new NotImplementedException();
     }

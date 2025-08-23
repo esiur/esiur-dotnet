@@ -252,6 +252,11 @@ partial class DistributedConnection
         SendReply(IIPPacketReply.Progress, callbackId, value, max);
     }
 
+    internal void SendWarning(uint callbackId, byte level, string message)
+    {
+        SendReply(IIPPacketReply.Warning, callbackId, level, message);
+    }
+
     internal void SendChunk(uint callbackId, object chunk)
     {
         SendReply(IIPPacketReply.Chunk, callbackId, chunk);
@@ -320,7 +325,7 @@ partial class DistributedConnection
             return;
         }
 
-        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength)
+        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength, Instance.Warehouse)
                                                 as object[];
 
         var errorCode = (ushort)args[0];
@@ -339,7 +344,7 @@ partial class DistributedConnection
             return;
         }
 
-        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength)
+        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength, Instance.Warehouse)
                                                 as object[];
 
         var current = (uint)args[0];
@@ -358,7 +363,7 @@ partial class DistributedConnection
             return;
         }
 
-        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength)
+        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength, Instance.Warehouse)
                                                 as object[];
 
         var level = (byte)args[0];
@@ -395,7 +400,7 @@ partial class DistributedConnection
 
     void IIPNotificationResourceDestroyed(TransmissionType dataType, byte[] data)
     {
-        var (size, rt) = Codec.ParseSync(data, dataType.Offset, dataType);
+        var (size, rt) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
 
         var resourceId = (uint)rt;
 
@@ -428,7 +433,7 @@ partial class DistributedConnection
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
-            DataDeserializer.LimitedCountListParser(data, dataType.Offset, dataType.ContentLength, 2);
+            DataDeserializer.LimitedCountListParser(data, dataType.Offset, dataType.ContentLength, Instance.Warehouse, 2);
 
         var rid = (uint)args[0];
         var index = (byte)args[1];
@@ -468,7 +473,7 @@ partial class DistributedConnection
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                    dataType.ContentLength, 2);
+                                                    dataType.ContentLength, Instance.Warehouse, 2);
 
         var resourceId = (uint)args[0];
         var index = (byte)args[1];
@@ -515,7 +520,7 @@ partial class DistributedConnection
     void IIPRequestAttachResource(uint callback, TransmissionType dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var resourceId = (uint)value;
 
@@ -572,7 +577,7 @@ partial class DistributedConnection
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                    dataType.ContentLength, 2);
+                                                    dataType.ContentLength, Instance.Warehouse, 2);
 
         var resourceId = (uint)args[0];
         var age = (ulong)args[1];
@@ -628,7 +633,7 @@ partial class DistributedConnection
     void IIPRequestDetachResource(uint callback, TransmissionType dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var resourceId = (uint)value;
 
@@ -720,7 +725,7 @@ partial class DistributedConnection
     void IIPRequestDeleteResource(uint callback, TransmissionType dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var resourceId = (uint)value;
 
@@ -750,7 +755,7 @@ partial class DistributedConnection
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength);
+                                                                     dataType.ContentLength, Instance.Warehouse);
 
         var resourceId = (uint)args[0];
         var name = (string)args[1];
@@ -792,7 +797,7 @@ partial class DistributedConnection
 
     void IIPRequestLinkTemplates(uint callback, TransmissionType dataType, byte[] data)
     {
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var resourceLink = (string)value;
 
@@ -813,7 +818,7 @@ partial class DistributedConnection
             var templates = TypeTemplate.GetDependencies(r.Instance.Template, Instance.Warehouse);
 
             // Send
-            SendReply(IIPPacketReply.Completed, callback, templates.Select(x=>x.Content).ToArray());
+            SendReply(IIPPacketReply.Completed, callback, templates.Select(x => x.Content).ToArray());
 
         };
 
@@ -825,7 +830,7 @@ partial class DistributedConnection
 
     void IIPRequestTemplateFromClassName(uint callback, TransmissionType dataType, byte[] data)
     {
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var className = (string)value;
 
@@ -845,7 +850,7 @@ partial class DistributedConnection
     void IIPRequestTemplateFromClassId(uint callback, TransmissionType dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var classId = new UUID((byte[])value);
 
@@ -867,7 +872,7 @@ partial class DistributedConnection
     void IIPRequestTemplateFromResourceId(uint callback, TransmissionType dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, dataType);
+        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var resourceId = (uint)value;
 
@@ -889,7 +894,7 @@ partial class DistributedConnection
 
     void IIPRequestGetResourceIdByLink(uint callback, TransmissionType dataType, byte[] data)
     {
-        var (_, parsed) = Codec.ParseSync(data, 0, dataType);
+        var (_, parsed) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
         var resourceLink = (string)parsed;
 
         Action<IResource> queryCallback = (r) =>
@@ -917,7 +922,7 @@ partial class DistributedConnection
 
     void IIPRequestQueryResources(uint callback, TransmissionType dataType, byte[] data)
     {
-        var (_, parsed) = Codec.ParseSync(data, 0, dataType);
+        var (_, parsed) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
         var resourceLink = (string)parsed;
 
@@ -976,7 +981,7 @@ partial class DistributedConnection
     void IIPRequestProcedureCall(uint callback, TransmissionType dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength, 1);
+                                                                     dataType.ContentLength, Instance.Warehouse, 1);
 
         var procedureCall = (string)args[0];
 
@@ -1036,7 +1041,7 @@ partial class DistributedConnection
     void IIPRequestStaticCall(uint callback, TransmissionType dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength, 2);
+                                                                     dataType.ContentLength, Instance.Warehouse, 2);
 
         var classId = new UUID((byte[])args[0]);
         var index = (byte)args[1];
@@ -1113,7 +1118,7 @@ partial class DistributedConnection
     void IIPRequestInvokeFunction(uint callback, TransmissionType dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                             dataType.ContentLength, 2);
+                                                                             dataType.ContentLength, Instance.Warehouse, 2);
 
         var resourceId = (uint)args[0];
         var index = (byte)args[1];
@@ -1370,7 +1375,7 @@ partial class DistributedConnection
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength);
+                                                                     dataType.ContentLength, Instance.Warehouse);
 
         var resourceId = (uint)args[0];
         var index = (byte)args[1];
@@ -1429,7 +1434,7 @@ partial class DistributedConnection
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength);
+                                                                     dataType.ContentLength, Instance.Warehouse);
 
         var resourceId = (uint)args[0];
         var index = (byte)args[1];
@@ -1490,7 +1495,7 @@ partial class DistributedConnection
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength, 2);
+                                                                     dataType.ContentLength, Instance.Warehouse, 2);
 
         var rid = (uint)args[0];
         var index = (byte)args[1];
@@ -1795,7 +1800,7 @@ partial class DistributedConnection
                         var age = (ulong)args[1];
                         var link = (string)args[2];
                         var hops = (byte)args[3];
-                        var pv = (PropertyValue[])args[4];
+                        var pvData = (byte[])args[4];
 
                         DistributedResource dr;
                         TypeTemplate template = null;
@@ -1817,30 +1822,12 @@ partial class DistributedConnection
 
                         var initResource = (DistributedResource ok) =>
                         {
-                            var (_, parsed) = Codec.ParseAsync(content, 0, this, newSequence, transmissionType);
+                            var parsedReply = DataDeserializer.PropertyValueArrayParserAsync(pvData, 0, (uint)pvData.Length, this, newSequence);// Codec.proper (content, 0, this, newSequence, transmissionType);
 
-                            if (parsed is AsyncReply parsedReply)
+
+                            parsedReply.Then(results =>
                             {
-                                parsedReply.Then(results =>
-                                {
-                                    var ar = results as object[];
-
-                                    var pvs = new List<PropertyValue>();
-
-                                    for (var i = 0; i < ar.Length; i += 3)
-                                        pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
-
-                                    dr._Attach(pvs.ToArray());
-                                    resourceRequests.Remove(id);
-                                    // move from needed to attached.
-                                    neededResources.Remove(id);
-                                    attachedResources[id] = new WeakReference<DistributedResource>(dr);
-                                    reply.Trigger(dr);
-                                }).Error(ex => reply.TriggerError(ex));
-                            }
-                            else
-                            {
-                                var ar = parsed as object[];
+                                var ar = results as object[];
 
                                 var pvs = new List<PropertyValue>();
 
@@ -1853,7 +1840,8 @@ partial class DistributedConnection
                                 neededResources.Remove(id);
                                 attachedResources[id] = new WeakReference<DistributedResource>(dr);
                                 reply.Trigger(dr);
-                            }
+                            }).Error(ex => reply.TriggerError(ex));
+
 
                         };
 
@@ -2063,7 +2051,7 @@ partial class DistributedConnection
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
-                                                                     dataType.ContentLength);
+                                                                     dataType.ContentLength, Instance.Warehouse);
 
         var peerTime = (DateTime)args[0];
         var interval = (uint)args[0];

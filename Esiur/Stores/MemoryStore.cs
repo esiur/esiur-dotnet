@@ -65,18 +65,18 @@ public class MemoryStore : IStore
         return new AsyncReply<bool>(true);
     }
 
-    public AsyncReply<IResource> Retrieve(uint iid)
-    {
-        if (resources.ContainsKey(iid))
-        {
-            if (resources.ContainsKey(iid))// .TryGetTarget(out r))
-                return new AsyncReply<IResource>(resources[iid]);
-            else
-                return new AsyncReply<IResource>(null);
-        }
-        else
-            return new AsyncReply<IResource>(null);
-    }
+    //public AsyncReply<IResource> Retrieve(uint iid)
+    //{
+    //    if (resources.ContainsKey(iid))
+    //    {
+    //        if (resources.ContainsKey(iid))// .TryGetTarget(out r))
+    //            return new AsyncReply<IResource>(resources[iid]);
+    //        else
+    //            return new AsyncReply<IResource>(null);
+    //    }
+    //    else
+    //        return new AsyncReply<IResource>(null);
+    //}
 
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {
@@ -104,33 +104,29 @@ public class MemoryStore : IStore
         return true;
     }
 
-    public AsyncReply<bool> AddChild(IResource parent, IResource child)
-    {
-        if (parent.Instance.Store == this)
-        {
-            (parent.Instance.Variables["children"] as AutoList<IResource, Instance>).Add(child);
-            return new AsyncReply<bool>(true);
-        }
-        else
-            return new AsyncReply<bool>(false);
-    }
+    //public AsyncReply<bool> AddChild(IResource parent, IResource child)
+    //{
+    //    if (parent.Instance.Store == this)
+    //    {
+    //        (parent.Instance.Variables["children"] as AutoList<IResource, Instance>).Add(child);
+    //        return new AsyncReply<bool>(true);
+    //    }
+    //    else
+    //        return new AsyncReply<bool>(false);
+    //}
+ 
 
-    public AsyncReply<bool> RemoveChild(IResource parent, IResource child)
-    {
-        throw new NotImplementedException();
-    }
+    //public AsyncReply<bool> AddParent(IResource resource, IResource parent)
+    //{
 
-    public AsyncReply<bool> AddParent(IResource resource, IResource parent)
-    {
-
-        if (resource.Instance.Store == this)
-        {
-            (resource.Instance.Variables["parents"] as AutoList<IResource, Instance>).Add(parent);
-            return new AsyncReply<bool>(true);
-        }
-        else
-            return new AsyncReply<bool>(false);
-    }
+    //    if (resource.Instance.Store == this)
+    //    {
+    //        (resource.Instance.Variables["parents"] as AutoList<IResource, Instance>).Add(parent);
+    //        return new AsyncReply<bool>(true);
+    //    }
+    //    else
+    //        return new AsyncReply<bool>(false);
+    //}
 
     public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
     {
@@ -157,4 +153,20 @@ public class MemoryStore : IStore
         else
             return new AsyncBag<T>(parents.Where(x => x is T && x.Instance.Name == name).Select(x => (T)x).ToArray());
     }
+
+    AsyncReply<bool> IStore.Remove(IResource resource)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Remove(string path)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Move(IResource resource, string newPath)
+    {
+        throw new NotImplementedException();
+    }
+
 }

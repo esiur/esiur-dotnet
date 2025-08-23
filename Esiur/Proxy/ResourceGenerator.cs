@@ -153,7 +153,7 @@ public class ResourceGenerator : ISourceGenerator
 
                 try
                 {
-                    var con = Warehouse.Get<DistributedConnection>(url[1] + "://" + url[2]).Wait(20000);
+                    var con = Warehouse.Default.Get<DistributedConnection>(url[1] + "://" + url[2]).Wait(20000);
                     var templates = con.GetLinkTemplates(url[3]).Wait(60000);
 
                     cache[path] = templates;

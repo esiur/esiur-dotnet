@@ -42,7 +42,7 @@ public static class Codec
     //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
     delegate object AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
-    delegate object SyncParser(byte[] data, uint offset, uint length);
+    delegate object SyncParser(byte[] data, uint offset, uint length, Warehouse warehouse);
 
     static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
     {
@@ -211,7 +211,7 @@ public static class Codec
         }
     }
 
-    public static (uint, object) ParseSync(byte[] data, uint offset, TransmissionType? dataType = null)
+    public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse, TransmissionType? dataType = null)
     {
         uint len = 0;
 
@@ -232,15 +232,15 @@ public static class Codec
 
         if (tt.Class == TransmissionTypeClass.Fixed)
         {
-            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength));
+            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
         }
         else if (tt.Class == TransmissionTypeClass.Dynamic)
         {
-            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength));
+            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
         }
         else //if (tt.Class == TransmissionTypeClass.Typed)
         {
-            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength));
+            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
         }
     }
     /// <summary>

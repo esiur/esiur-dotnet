@@ -185,25 +185,7 @@ public class EntityStore : IStore
         //throw new NotImplementedException();
     }
 
-    public bool Remove(IResource resource)
-    {
-        var type = ResourceProxy.GetBaseType(resource);
-
-        var eid = TypesByType[type].PrimaryKey.GetValue(resource);
-
-        lock (DBLock)
-        {
-            if (DB[type].ContainsKey(eid))
-            {
-                DB[type].Remove(eid);
-                return true;
-            }
-        }
-
-        return false;
-        //throw new NotImplementedException();
-    }
-
+ 
     public AsyncReply<bool> AddChild(IResource parent, IResource child)
     {
         throw new NotImplementedException();
@@ -289,5 +271,33 @@ public class EntityStore : IStore
     public void Destroy()
     {
         OnDestroy?.Invoke(this);
+    }
+
+    public AsyncReply<bool> Remove(IResource resource)
+    {
+        var type = ResourceProxy.GetBaseType(resource);
+
+        var eid = TypesByType[type].PrimaryKey.GetValue(resource);
+
+        lock (DBLock)
+        {
+            if (DB[type].ContainsKey(eid))
+            {
+                DB[type].Remove(eid);
+                return new AsyncReply<bool>(true);
+            }
+        }
+
+        return new AsyncReply<bool>(false);
+    }
+
+    public AsyncReply<bool> Remove(string path)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Move(IResource resource, string newPath)
+    {
+        throw new NotImplementedException();
     }
 }

@@ -42,7 +42,7 @@ public class TemporaryStore : IStore
 
     public AsyncReply<bool> Put(IResource resource)
     {
-        resources.Add(resource.Instance.Id, new WeakReference(resource));//  new WeakReference<IResource>(resource));
+        resources.Add(resource.Instance.Id, new WeakReference(resource));
         return new AsyncReply<bool>(true);
     }
 
@@ -74,38 +74,31 @@ public class TemporaryStore : IStore
         throw new NotImplementedException();
     }
 
-    public bool Remove(IResource resource)
-    {
-        resources.Remove(resource.Instance.Id);
-        return true;
-    }
-
+   
     public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
         return true;
     }
 
-    public AsyncReply<bool> AddChild(IResource parent, IResource child)
-    {
-        throw new NotImplementedException();
-    }
-
-    public AsyncReply<bool> RemoveChild(IResource parent, IResource child)
-    {
-        throw new NotImplementedException();
-    }
-
-    public AsyncReply<bool> AddParent(IResource child, IResource parent)
-    {
-        throw new NotImplementedException();
-    }
-
-    public AsyncReply<bool> RemoveParent(IResource child, IResource parent)
-    {
-        throw new NotImplementedException();
-    }
-
+ 
     public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
+    {
+        throw new NotImplementedException();
+    }
+ 
+
+    AsyncReply<bool> IStore.Remove(IResource resource)
+    {
+        resources.Remove(resource.Instance.Id);
+        return new AsyncReply<bool>(true);
+    }
+
+    public AsyncReply<bool> Remove(string path)
+    {
+        throw new NotImplementedException();
+    }
+
+    public AsyncReply<bool> Move(IResource resource, string newPath)
     {
         throw new NotImplementedException();
     }

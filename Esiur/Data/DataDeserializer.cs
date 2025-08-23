@@ -19,7 +19,7 @@ public static class DataDeserializer
         return null;
     }
 
-    public static object NullParser(byte[] data, uint offset, uint length)
+    public static object NullParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return null;
     }
@@ -29,7 +29,7 @@ public static class DataDeserializer
         return true;
     }
 
-    public static object BooleanTrueParser(byte[] data, uint offset, uint length)
+    public static object BooleanTrueParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return true;
     }
@@ -39,7 +39,7 @@ public static class DataDeserializer
         return false;
     }
 
-    public static object BooleanFalseParser(byte[] data, uint offset, uint length)
+    public static object BooleanFalseParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return false;
     }
@@ -49,7 +49,7 @@ public static class DataDeserializer
         return NotModified.Default;
     }
 
-    public static object NotModifiedParser(byte[] data, uint offset, uint length)
+    public static object NotModifiedParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return NotModified.Default;
     }
@@ -58,7 +58,7 @@ public static class DataDeserializer
     {
         return data[offset];
     }
-    public static object UInt8Parser(byte[] data, uint offset, uint length)
+    public static object UInt8Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return data[offset];
     }
@@ -67,7 +67,7 @@ public static class DataDeserializer
     {
         return (sbyte)data[offset];
     }
-    public static object Int8Parser(byte[] data, uint offset, uint length)
+    public static object Int8Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return (sbyte)data[offset];
     }
@@ -78,7 +78,7 @@ public static class DataDeserializer
             return *(char*)ptr;
     }
 
-    public static unsafe object Char16Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Char16Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(char*)ptr;
@@ -89,7 +89,7 @@ public static class DataDeserializer
         return (char)data[offset];
     }
 
-    public static object Char8Parser(byte[] data, uint offset, uint length)
+    public static object Char8Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return (char)data[offset];
     }
@@ -101,7 +101,7 @@ public static class DataDeserializer
             return *(short*)ptr;
     }
 
-    public static unsafe object Int16Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Int16Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(short*)ptr;
@@ -113,7 +113,7 @@ public static class DataDeserializer
             return *(ushort*)ptr;
     }
 
-    public static unsafe object UInt16Parser(byte[] data, uint offset, uint length)
+    public static unsafe object UInt16Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(ushort*)ptr;
@@ -125,7 +125,7 @@ public static class DataDeserializer
             return *(int*)ptr;
     }
 
-    public static unsafe object Int32Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Int32Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(int*)ptr;
@@ -137,7 +137,7 @@ public static class DataDeserializer
             return *(uint*)ptr;
     }
 
-    public static unsafe object UInt32Parser(byte[] data, uint offset, uint length)
+    public static unsafe object UInt32Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(uint*)ptr;
@@ -150,7 +150,7 @@ public static class DataDeserializer
             return *(float*)ptr;
     }
 
-    public static unsafe object Float32Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Float32Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(float*)ptr;
@@ -162,7 +162,7 @@ public static class DataDeserializer
             return *(double*)ptr;
     }
 
-    public static unsafe object Float64Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Float64Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(double*)ptr;
@@ -175,7 +175,7 @@ public static class DataDeserializer
             return *(decimal*)ptr;
     }
 
-    public static unsafe object Float128Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Float128Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(decimal*)ptr;
@@ -189,7 +189,7 @@ public static class DataDeserializer
             return new Int128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object Int128Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Int128Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr1 = &data[offset])
         fixed (byte* ptr2 = &data[offset + 8])
@@ -203,7 +203,7 @@ public static class DataDeserializer
             return new UInt128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object UInt128Parser(byte[] data, uint offset, uint length)
+    public static unsafe object UInt128Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr1 = &data[offset])
         fixed (byte* ptr2 = &data[offset + 8])
@@ -216,7 +216,7 @@ public static class DataDeserializer
             return *(long*)ptr;
     }
 
-    public static unsafe object Int64Parser(byte[] data, uint offset, uint length)
+    public static unsafe object Int64Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(long*)ptr;
@@ -229,7 +229,7 @@ public static class DataDeserializer
             return *(ulong*)ptr;
     }
 
-    public static unsafe object UInt64Parser(byte[] data, uint offset, uint length)
+    public static unsafe object UInt64Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(ulong*)ptr;
@@ -242,7 +242,7 @@ public static class DataDeserializer
 
     }
 
-    public static unsafe object DateTimeParser(byte[] data, uint offset, uint length)
+    public static unsafe object DateTimeParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return new DateTime(*(long*)ptr, DateTimeKind.Utc);
@@ -257,7 +257,7 @@ public static class DataDeserializer
             return connection.Fetch(data[offset], requestSequence);
     }
 
-    public static unsafe object ResourceParser8(byte[] data, uint offset, uint length)
+    public static unsafe object ResourceParser8(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return new ResourceId(false, data[offset]);
     }
@@ -267,10 +267,10 @@ public static class DataDeserializer
         if (connection == null)
             return new ResourceId(true, data[offset]);
         else
-            return Warehouse.GetById(data[offset]);
+            return connection.Instance.Warehouse.GetById(data[offset]);
     }
 
-    public static unsafe object LocalResourceParser8(byte[] data, uint offset, uint length)
+    public static unsafe object LocalResourceParser8(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return new ResourceId(true, data[offset]);
     }
@@ -284,7 +284,7 @@ public static class DataDeserializer
                 return connection.Fetch(*(ushort*)ptr, requestSequence);
     }
 
-    public static unsafe object ResourceParser16(byte[] data, uint offset, uint length)
+    public static unsafe object ResourceParser16(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return new ResourceId(false, *(ushort*)ptr);
@@ -297,13 +297,13 @@ public static class DataDeserializer
             if (connection == null)
                 return new ResourceId(true, *(ushort*)ptr);
             else
-                return Warehouse.GetById(*(ushort*)ptr);
+                return connection.Instance.Warehouse.GetById(*(ushort*)ptr);
     }
 
-    public static unsafe object LocalResourceParser16(byte[] data, uint offset, uint length)
+    public static unsafe object LocalResourceParser16(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
-            return Warehouse.GetById(*(ushort*)ptr);
+            return new ResourceId(true, *(ushort*)ptr);
     }
 
     public static unsafe object ResourceParser32Async(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
@@ -315,7 +315,7 @@ public static class DataDeserializer
                 return connection.Fetch(*(uint*)ptr, requestSequence);
     }
 
-    public static unsafe object ResourceParser32(byte[] data, uint offset, uint length)
+    public static unsafe object ResourceParser32(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return new ResourceId(false, *(uint*)ptr);
@@ -328,10 +328,10 @@ public static class DataDeserializer
             if (connection == null)
                 return new ResourceId(true, *(uint*)ptr);
             else
-                return Warehouse.GetById(*(uint*)ptr);
+                return connection.Instance.Warehouse.GetById(*(uint*)ptr);
     }
 
-    public static unsafe object LocalResourceParser32(byte[] data, uint offset, uint length)
+    public static unsafe object LocalResourceParser32(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return new ResourceId(true, *(uint*)ptr);
@@ -343,7 +343,7 @@ public static class DataDeserializer
         return data.Clip(offset, length);
     }
 
-    public static unsafe object RawDataParser(byte[] data, uint offset, uint length)
+    public static unsafe object RawDataParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return data.Clip(offset, length);
     }
@@ -354,7 +354,7 @@ public static class DataDeserializer
         return data.GetString(offset, length);
     }
 
-    public static unsafe object StringParser(byte[] data, uint offset, uint length)
+    public static unsafe object StringParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         return data.GetString(offset, length);
     }
@@ -369,7 +369,7 @@ public static class DataDeserializer
         length -= 16;
 
 
-        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
+        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
         var initRecord = (TypeTemplate template) =>
         {
@@ -436,16 +436,16 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object RecordParser(byte[] data, uint offset, uint length)
+    public static unsafe object RecordParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
 
         var classId = data.GetUUID(offset);
         offset += 16;
         length -= 16;
 
-        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
+        var template = warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
-        var r = ListParser(data, offset, length);
+        var r = ListParser(data, offset, length, warehouse);
 
         var ar = (object[])r;
 
@@ -490,7 +490,7 @@ public static class DataDeserializer
         throw new NotImplementedException();
     }
 
-    public static unsafe object ConstantParser(byte[] data, uint offset, uint length)
+    public static unsafe object ConstantParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         throw new NotImplementedException();
     }
@@ -502,7 +502,7 @@ public static class DataDeserializer
         offset += 16;
         var index = data[offset++];
 
-        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
+        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
 
         if (template != null)
         {
@@ -521,14 +521,14 @@ public static class DataDeserializer
         }
     }
 
-    public static unsafe object EnumParser(byte[] data, uint offset, uint length)
+    public static unsafe object EnumParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
 
         var classId = data.GetUUID(offset);
         offset += 16;
         var index = data[offset++];
 
-        var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
+        var template = warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
 
         if (template != null)
         {
@@ -566,13 +566,13 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static object RecordListParser(byte[] data, uint offset, uint length)
+    public static object RecordListParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         var rt = new List<IRecord>();
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             rt.Add(reply as IRecord);
 
@@ -614,13 +614,13 @@ public static class DataDeserializer
     }
 
 
-    public static object ResourceListParser(byte[] data, uint offset, uint length)
+    public static object ResourceListParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         var rt = new List<IResource>();
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             rt.Add(reply as IResource);
 
@@ -661,13 +661,13 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static object ListParser(byte[] data, uint offset, uint length)
+    public static object ListParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         var rt = new List<object>();
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             rt.Add(reply);
 
@@ -685,13 +685,13 @@ public static class DataDeserializer
     }
 
 
-    public static (uint, ulong, object[]) LimitedCountListParser(byte[] data, uint offset, ulong length, uint countLimit = uint.MaxValue)
+    public static (uint, ulong, object[]) LimitedCountListParser(byte[] data, uint offset, ulong length, Warehouse warehouse, uint countLimit = uint.MaxValue)
     {
         var rt = new List<object>();
 
         while (length > 0 && rt.Count < countLimit)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             rt.Add(reply);
 
@@ -720,7 +720,9 @@ public static class DataDeserializer
         offset += valueCs;
         length -= valueCs;
 
-        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(), valueRepType.GetRuntimeType()));
+        var wh = connection.Instance.Warehouse;
+
+        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(wh), valueRepType.GetRuntimeType(wh)));
 
         var rt = new AsyncReply();
 
@@ -758,7 +760,7 @@ public static class DataDeserializer
 
     }
 
-    public static object TypedMapParser(byte[] data, uint offset, uint length)
+    public static object TypedMapParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         // get key type
         var (keyCs, keyRepType) = RepresentationType.Parse(data, offset);
@@ -769,14 +771,14 @@ public static class DataDeserializer
         offset += valueCs;
         length -= valueCs;
 
-        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(), valueRepType.GetRuntimeType()));
+        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(warehouse), valueRepType.GetRuntimeType(warehouse)));
 
 
         var results = new List<object>();
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
 
             results.Add(reply);
@@ -799,6 +801,7 @@ public static class DataDeserializer
 
     public static AsyncReply TupleParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
+
         var results = new AsyncBag<object>();
         var rt = new AsyncReply();
 
@@ -810,7 +813,7 @@ public static class DataDeserializer
         for (var i = 0; i < tupleSize; i++)
         {
             var (cs, rep) = RepresentationType.Parse(data, offset);
-            types.Add(rep.GetRuntimeType());
+            types.Add(rep.GetRuntimeType(connection.Instance.Warehouse));
             offset += cs;
             length -= cs;
         }
@@ -871,7 +874,7 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static object TupleParser(byte[] data, uint offset, uint length)
+    public static object TupleParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         var results = new List<object>();
 
@@ -884,14 +887,14 @@ public static class DataDeserializer
         for (var i = 0; i < tupleSize; i++)
         {
             var (cs, rep) = RepresentationType.Parse(data, offset);
-            types.Add(rep.GetRuntimeType());
+            types.Add(rep.GetRuntimeType(warehouse));
             offset += cs;
             length -= cs;
         }
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             results.Add(reply);
 
@@ -951,7 +954,7 @@ public static class DataDeserializer
         offset += hdrCs;
         length -= hdrCs;
 
-        var runtimeType = rep.GetRuntimeType();
+        var runtimeType = rep.GetRuntimeType(connection.Instance.Warehouse);
 
         rt.ArrayType = runtimeType;
 
@@ -975,7 +978,7 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static object TypedListParser(byte[] data, uint offset, uint length)
+    public static object TypedListParser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
 
         // get the type
@@ -984,13 +987,13 @@ public static class DataDeserializer
         offset += hdrCs;
         length -= hdrCs;
 
-        var runtimeType = rep.GetRuntimeType();
+        var runtimeType = rep.GetRuntimeType(warehouse);
 
         var list = new List<object>();
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(data, offset);
+            var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             list.Add(reply);
 

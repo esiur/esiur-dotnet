@@ -13,10 +13,7 @@ public abstract class Store<T> : IStore where T : IResource
     public event DestroyedEvent OnDestroy;
     
 
-    public abstract AsyncReply<bool> AddChild(IResource parent, IResource child);
-
-    public abstract AsyncReply<bool> AddParent(IResource child, IResource parent);
-
+ 
     public abstract AsyncBag<T1> Children<T1>(IResource resource, string name) where T1 : IResource;
 
     public virtual void Destroy()
@@ -33,25 +30,29 @@ public abstract class Store<T> : IStore where T : IResource
 
     public abstract bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 
-    public abstract AsyncBag<T1> Parents<T1>(IResource resource, string name) where T1 : IResource;
-
+ 
     public abstract AsyncReply<bool> Put(IResource resource);
 
     public abstract bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 
-    public abstract bool Remove(IResource resource);
-
-    public abstract AsyncReply<bool> RemoveChild(IResource parent, IResource child);
-
-    public abstract AsyncReply<bool> RemoveParent(IResource child, IResource parent);
-
+ 
+ 
+ 
     public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-    public async AsyncReply<T> New(string name = null, object attributes = null, object properties = null)
-    {
-        var resource = await Warehouse.New<T>(name, this, null, null, attributes, properties);
-        resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
-        return resource;
-    }
+    //public async AsyncReply<T> New(string name = null, object attributes = null, object properties = null)
+    //{
+    //    var resource = await Warehouse.New<T>(name, this, null, null, attributes, properties);
+    //    resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
+    //    return resource;
+    //}
+
+    public abstract AsyncReply<bool> Remove(IResource resource);
+
+    public abstract AsyncReply<bool> Remove(string path);
+
+    public abstract AsyncReply<bool> Move(IResource resource, string newPath);
+
+    public abstract AsyncBag<T1> Parents<T1>(IResource resource, string name) where T1 : IResource;
 }
 

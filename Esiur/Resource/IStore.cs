@@ -63,7 +63,7 @@ public interface IStore : IResource
 
 
     AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource;
-    AsyncReply<T> Parent<T>(IResource resource, string name) where T : IResource;
+    AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource;
 
 
 

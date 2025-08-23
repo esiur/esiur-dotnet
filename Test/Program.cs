@@ -107,8 +107,7 @@ namespace Test
             //Console.WriteLine(g);
 
 
-            var hhhh = Warehouse.GetTemplateByType(typeof(IMyRecord));
-
+ 
             var a = new ECDH();
             var b = new ECDH();
 
@@ -135,18 +134,20 @@ namespace Test
                 }
             });
 
+            var wh = new Warehouse();
+
             // Create stores to keep objects.
-            var system = await Warehouse.Put("sys", new MemoryStore());
-            var server = await Warehouse.Put("sys/server", new DistributedServer() { Membership = membership });
+            var system = await wh.Put("sys", new MemoryStore());
+            var server = await wh.Put("sys/server", new DistributedServer() { Membership = membership });
 
 
-            var web = await Warehouse.Put("sys/web", new HTTPServer() { Port = 8088 });
+            var web = await wh.Put("sys/web", new HTTPServer() { Port = 8088 });
 
-            var service = await Warehouse.Put("sys/service", new MyService());
-            var res1 = await Warehouse.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
-            var res2 = await Warehouse.Put("sys/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
-            var res3 = await Warehouse.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
-            var res4 = await Warehouse.Put("sys/service/c2", new MyChildResource() { ChildName = "Child 2 Destroy", Description = "Testing Destroy Handler", CategoryId = 12 });
+            var service = await wh.Put("sys/service", new MyService());
+            var res1 = await wh.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
+            var res2 = await wh.Put("sys/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
+            var res3 = await wh.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
+            var res4 = await wh.Put("sys/service/c2", new MyChildResource() { ChildName = "Child 2 Destroy", Description = "Testing Destroy Handler", CategoryId = 12 });
 
             //TestSerialization(res1);
 
@@ -174,7 +175,7 @@ namespace Test
                 sender.Send("Hello");
             });
 
-            await Warehouse.Open();
+            await   wh.Open();
 
             // Start testing
             TestClient(service);
@@ -200,7 +201,7 @@ namespace Test
         {
 
 
-            var con = await Warehouse.Get<DistributedConnection>("iip://localhost", new DistributedConnectionConfig
+            var con = await Warehouse.Default.Get<DistributedConnection>("iip://localhost", new DistributedConnectionConfig
             {
                 AutoReconnect = true,
                 Username = "admin",

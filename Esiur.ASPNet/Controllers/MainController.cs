@@ -19,7 +19,7 @@ namespace Esiur.AspNetCore.Example
         [HttpGet(Name = "Get")]
         public async AsyncReply<MyResource> Get()
         {
-            return await Warehouse.Get<MyResource>("/sys/demo");
+            return await Warehouse.Default.Get<MyResource>("/sys/demo");
         }
     }
 }

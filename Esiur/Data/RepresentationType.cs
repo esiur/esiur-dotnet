@@ -136,12 +136,12 @@ namespace Esiur.Data
                     st.SetNotNull(flag);
         }
 
-        public Type? GetRuntimeType()
+        public Type? GetRuntimeType(Warehouse warehouse)
         {
 
             if (Identifier == RepresentationTypeIdentifier.TypedList)
             {
-                var sub = SubTypes?[0].GetRuntimeType();
+                var sub = SubTypes?[0].GetRuntimeType(warehouse);
                 if (sub == null)
                     return null;
 
@@ -151,11 +151,11 @@ namespace Esiur.Data
             }
             else if (Identifier == RepresentationTypeIdentifier.TypedMap)
             {
-                var subs = SubTypes.Select(x => x.GetRuntimeType()).ToArray();
+                var subs = SubTypes.Select(x => x.GetRuntimeType(warehouse)).ToArray();
                 var rt = typeof(Map<,>).MakeGenericType(subs);
                 return rt;
             }
-
+            
             return Identifier switch
             {
                 (RepresentationTypeIdentifier.Void) => typeof(void),
@@ -177,9 +177,9 @@ namespace Esiur.Data
                 (RepresentationTypeIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
                 (RepresentationTypeIdentifier.Resource) => typeof(IResource),
                 (RepresentationTypeIdentifier.Record) => typeof(IRecord),
-                (RepresentationTypeIdentifier.TypedRecord) => Warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Record)?.DefinedType,
-                (RepresentationTypeIdentifier.TypedResource) => Warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Resource)?.DefinedType,
-                (RepresentationTypeIdentifier.Enum) => Warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Enum)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedRecord) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Record)?.DefinedType,
+                (RepresentationTypeIdentifier.TypedResource) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Resource)?.DefinedType,
+                (RepresentationTypeIdentifier.Enum) =>warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Enum)?.DefinedType,
 
                 _ => null
             };
@@ -193,7 +193,6 @@ namespace Esiur.Data
         //public RepresentationType? SubType3; // No types yet
 
         public RepresentationType[]? SubTypes = null;
-
 
         public RepresentationType ToNullable()
         {

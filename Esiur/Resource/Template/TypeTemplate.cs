@@ -887,7 +887,7 @@ public class TypeTemplate
 
                 offset += dts;
 
-                (dts, var value) = Codec.ParseSync(data, offset);
+                (dts, var value) = Codec.ParseSync(data, offset, Warehouse.Default);
 
                 offset += dts;
 

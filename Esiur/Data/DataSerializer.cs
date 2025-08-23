@@ -117,7 +117,7 @@ public static class DataSerializer
         if (value == null)
             return (TransmissionTypeIdentifier.Null, new byte[0]);
 
-        var template = Warehouse.GetTemplateByType(value.GetType());
+        var template = connection.Instance.Warehouse.GetTemplateByType(value.GetType());
 
         var intVal = Convert.ChangeType(value, (value as Enum).GetTypeCode());
 
@@ -390,7 +390,7 @@ public static class DataSerializer
         var rt = new List<byte>();// BinaryList();
         var record = (IRecord)value;
 
-        var template = Warehouse.GetTemplateByType(record.GetType());
+        var template = connection.Instance.Warehouse.GetTemplateByType(record.GetType());
 
 
         rt.AddRange(template.ClassId.Data);

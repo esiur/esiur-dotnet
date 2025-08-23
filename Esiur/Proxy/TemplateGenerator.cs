@@ -186,7 +186,7 @@ public static class TemplateGenerator
                 throw new Exception("Invalid IIP URL");
 
             var path = urlRegex.Split(url);
-            var con = Warehouse.Get<DistributedConnection>(path[1] + "://" + path[2],
+            var con = Warehouse.Default.Get<DistributedConnection>(path[1] + "://" + path[2],
                     !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password) ? new { Username = username, Password = password } : null
                 ).Wait(20000);
 
@@ -198,7 +198,7 @@ public static class TemplateGenerator
 
             var templates = con.GetLinkTemplates(path[3]).Wait(60000);
             // no longer needed
-            Warehouse.Remove(con);
+            Warehouse.Default.Remove(con);
 
             var dstDir = new DirectoryInfo(tempDir ? Path.GetTempPath() + Path.DirectorySeparatorChar
                             + Misc.Global.GenerateCode(20) + Path.DirectorySeparatorChar + dir : dir);
