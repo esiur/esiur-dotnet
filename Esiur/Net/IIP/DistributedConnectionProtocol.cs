@@ -542,7 +542,7 @@ partial class DistributedConnection
                         r.Instance.Age,
                         r.Instance.Link,
                         r.Instance.Hops,
-                        dr._Serialize());
+                        dr._Serialize(), this);
                 }
                 else
                 {
@@ -552,8 +552,7 @@ partial class DistributedConnection
                         r.Instance.Age,
                         r.Instance.Link,
                         r.Instance.Hops,
-                        r.Instance.Serialize());
-
+                        r.Instance.Serialize(), this);
                 }
 
                 // subscribe

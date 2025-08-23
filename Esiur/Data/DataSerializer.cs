@@ -256,7 +256,7 @@ public static class DataSerializer
             rt.AddRange(Codec.Compose(pv.Value, connection));
         }
 
-        return (TransmissionTypeIdentifier.List, rt.ToArray());
+        return (TransmissionTypeIdentifier.RawData, rt.ToArray());
     }
 
     public static (TransmissionTypeIdentifier, byte[]) TypedMapComposer(object value, Type keyType, Type valueType, DistributedConnection connection)
