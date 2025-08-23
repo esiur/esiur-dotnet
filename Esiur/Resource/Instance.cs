@@ -782,15 +782,15 @@ public class Instance
             return new AsyncBag<T>(null);
     }
 
-    public AsyncReply<T> Parent<T>(string name = null) where T : IResource
+    public AsyncBag<T> Parents<T>(string name = null) where T : IResource
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            return store.Parent<T>(res, name);
+            return store.Parents<T>(res, name);
         }
         else
-            return new AsyncReply<T>(default(T));
+            return new AsyncBag<T>(default(T[]));
     }
 
     /*

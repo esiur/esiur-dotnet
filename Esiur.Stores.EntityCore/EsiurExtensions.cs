@@ -57,7 +57,8 @@ public static class EsiurExtensions
 
     public static async AsyncReply<T> AddResourceAsync<T>(this DbSet<T> dbSet, T resource) where T : class, IResource
     {
-        var store = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions>().Store;
+        var options = dbSet.GetInfrastructure().GetService<IDbContextOptions>().FindExtension<EsiurExtensionOptions>();
+        var store = options.Store;
 
         if (store == null)
             throw new Exception("Store not set, please call 'UseEsiur' on your DbContextOptionsBuilder.");
@@ -89,7 +90,6 @@ public static class EsiurExtensions
 
             foreach (var p in ps)
             {
-
                 var mi = resType.GetMember(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
                                 .FirstOrDefault();
 
@@ -131,7 +131,7 @@ public static class EsiurExtensions
 
         var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(resource);
 
-        await Warehouse.Put(id.ToString(), res, store, null, null, 0, manager);
+        await options.Warehouse.Put(id.ToString(), res, store, null, 0, manager);
 
         return (T)res;
     }

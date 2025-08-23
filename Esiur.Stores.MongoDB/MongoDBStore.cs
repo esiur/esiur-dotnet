@@ -110,7 +110,7 @@ public class MongoDBStore : IStore
     }
 
     [Export]
-    public bool Remove(IResource resource)
+    public  AsyncReply<bool> Remove(IResource resource)
     {
         var objectId = resource.Instance.Variables["objectId"].ToString();
         var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
@@ -125,7 +125,7 @@ public class MongoDBStore : IStore
 
         Instance.Modified("Count");
 
-        return true;
+        return new AsyncReply<bool>(true);
     }
 
     async AsyncReply<T> Fetch<T>(string id) where T : IResource
@@ -159,7 +159,7 @@ public class MongoDBStore : IStore
             resources.Add(id, new WeakReference(resource));
 
         //@TODO this causes store.put to be invoked, need fix 
-        await Warehouse.Put(document["name"].AsString, resource, this);
+        await Instance.Warehouse.Put(document["name"].AsString, resource);
 
 
         var parents = document["parents"].AsBsonArray;
@@ -887,22 +887,51 @@ public class MongoDBStore : IStore
         throw new NotImplementedException();
     }
 
-    AsyncReply<bool> IStore.Remove(IResource resource)
-    {
-        throw new NotImplementedException();
-    }
+ 
 
-    public AsyncReply<bool> Remove(string path)
-    {
-        throw new NotImplementedException();
-    }
-
+ 
     public AsyncReply<bool> Move(IResource resource, string newPath)
     {
         throw new NotImplementedException();
     }
 
-    public AsyncReply<T> Parent<T>(IResource resource, string name) where T : IResource
+
+    public AsyncBag<T> Parents<T>(IResource resource, string name) where T : IResource
+    {
+
+        if (resource == this)
+        {
+            return new AsyncBag<T>(null);
+        }
+        else
+        {
+            var parents = (string[])resource.Instance.Variables["parents"];
+
+            if (parents == null)
+            {
+                return new AsyncBag<T>(null);
+            }
+
+            var rt = new AsyncBag<T>();
+
+
+
+            foreach (var parent in parents)
+            {
+                var r = Instance.Warehouse.Get<T>(parent);
+                if (r is AsyncReply<T>)
+                    rt.Add(r);// (AsyncReply<T>)r);
+            }
+
+
+            rt.Seal();
+
+
+            return rt;
+        }
+    }
+
+    public AsyncReply<bool> Remove(string path)
     {
         throw new NotImplementedException();
     }

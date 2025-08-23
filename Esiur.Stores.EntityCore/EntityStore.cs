@@ -127,7 +127,7 @@ public class EntityStore : IStore
     public IResource GetById(Type type, object id)
     {
         if (!initialized)
-            throw new Exception("Store not initalized. Make sure the Warehouse is open.");
+            throw new Exception("Store is not initialized. Make sure the Warehouse is open.");
 
         lock (DBLock)
         {

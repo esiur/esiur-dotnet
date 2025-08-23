@@ -35,6 +35,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
 using Esiur.Proxy;
 using Microsoft.EntityFrameworkCore;
+using Esiur.Resource;
 
 namespace Esiur.Stores.EntityCore;
 
@@ -50,13 +51,15 @@ public class EsiurExtensionOptions : IDbContextOptionsExtension
 
 
 
-    private DbContextOptionsExtensionInfo _info;
+    DbContextOptionsExtensionInfo _info;
     EntityStore _store;
+    Warehouse _warehouse;
 
     public DbContextOptionsExtensionInfo Info => _info;
 
     public EntityStore Store => _store;
 
+    public Warehouse Warehouse => _warehouse;
 
     public void ApplyServices(IServiceCollection services)
     {
@@ -84,6 +87,7 @@ public class EsiurExtensionOptions : IDbContextOptionsExtension
     {
         _info = new ExtensionInfo(this);
         _store = store;
+        _warehouse = store.Instance.Warehouse;
     }
 
 

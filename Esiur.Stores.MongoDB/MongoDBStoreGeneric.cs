@@ -38,7 +38,8 @@ namespace Esiur.Stores.MongoDB
         [Export]
         public async AsyncReply<T> New(string name = null, object properties = null)
         {
-            var resource = await Warehouse.New<T>(name, this, null, null, null, properties);
+            var resource = Instance.Warehouse.CreateInstance<T>(properties);
+            await Instance.Warehouse.Put(name, resource, this, null, 0);
             resource.Instance.Managers.AddRange(this.Instance.Managers.ToArray());
             return resource;
         }
