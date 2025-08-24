@@ -436,7 +436,6 @@ public class Warehouse
 
         var location = path.TrimStart('/').Split('/');
 
-        IResource parent = null;
         IStore store = null;
 
         var instanceName = location.Last();
@@ -446,7 +445,7 @@ public class Warehouse
             if (!(resource is IStore))
                 throw new Exception("Resource is not a store, root level path is not allowed.");
 
-
+            store = (IStore)resource;
         }
 
         if (location.Length == 1 &&
@@ -478,15 +477,16 @@ public class Warehouse
 
 
         resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
-
+        
         if (attributes != null)
             if (attributes is Map<string, object> attrs)
                 resource.Instance.SetAttributes(attrs);
             else
                 resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
 
-        if (manager != null)
-            resource.Instance.Managers.Add(manager);
+
+        //if (manager != null)
+        //    resource.Instance.Managers.Add(manager);
 
         //if (store == parent)
         //    parent = null;
