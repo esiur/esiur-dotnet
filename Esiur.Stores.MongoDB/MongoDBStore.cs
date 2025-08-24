@@ -303,7 +303,7 @@ public class MongoDBStore : IStore
         return this.Instance.Name + "/id/" + (string)resource.Instance.Variables["objectId"];
     }
 
-    public async AsyncReply<bool> Put(IResource resource)
+    public async AsyncReply<bool> Put(IResource resource, string path)
     {
         try
         {

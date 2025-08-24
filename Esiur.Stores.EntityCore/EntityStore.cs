@@ -103,7 +103,7 @@ public class EntityStore : IStore
         }
     }
 
-    public AsyncReply<bool> Put(IResource resource)
+    public AsyncReply<bool> Put(IResource resource, string path)
     {
         if (resource == this)
             return new AsyncReply<bool>(true);

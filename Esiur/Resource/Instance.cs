@@ -764,7 +764,7 @@ public class Instance
                 if (res == res.Instance.store)
                     return name; // root store
                 else
-                    return store.Link(res);
+                    return store.Instance.name + "/" + store.Link(res);
             }
             else
                 return null;

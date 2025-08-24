@@ -31,7 +31,7 @@ public abstract class Store<T> : IStore where T : IResource
     public abstract bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 
  
-    public abstract AsyncReply<bool> Put(IResource resource);
+    public abstract AsyncReply<bool> Put(IResource resource, string path);
 
     public abstract bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 

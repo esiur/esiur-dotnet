@@ -71,7 +71,7 @@ public class EsiurProxyRewrite : IModelFinalizingConvention
             // check if the object exists
             var obj = options.Warehouse.Create(entityType.ClrType) as IResource;
             options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
-            options.Warehouse.Put(id.ToString(), obj, options.Store, null, 0, manager).Wait();
+            options.Warehouse.Put($"{options.Store.Instance.Name}/{entityType.ClrType.Name}/{id}", obj, null, 0, manager).Wait();
             return obj;
         }
         else

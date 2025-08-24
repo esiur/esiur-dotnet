@@ -15,7 +15,7 @@ public class MemoryStore : IStore
     public Instance Instance { get; set; }
 
     public event DestroyedEvent OnDestroy;
-    
+
 
     KeyList<uint, IResource> resources = new KeyList<uint, IResource>();
 
@@ -27,8 +27,9 @@ public class MemoryStore : IStore
     public string Link(IResource resource)
     {
         if (resource.Instance.Store == this)
-            return this.Instance.Name + "/$" + resource.Instance.Id;
+            return (string)resource.Instance.Variables["link"];
 
+        //    return this.Instance.Name + "/$" + resource.Instance.Id;
         return null;
     }
 
@@ -48,24 +49,25 @@ public class MemoryStore : IStore
         else
         {
             foreach (var r in resources)
-                if (r.Value.Instance.Name == path)
+                if (Link(r.Value) == path)//.Value.Instance.Name == path)
                     return new AsyncReply<IResource>(r.Value);
         }
 
         return new AsyncReply<IResource>(null);
     }
 
-    public AsyncReply<bool> Put(IResource resource)
+    public AsyncReply<bool> Put(IResource resource, string path)
     {
 
-        resources.Add(resource.Instance.Id, resource);//  new WeakReference<IResource>(resource));
+        resources.Add(resource.Instance.Id, resource);
         resource.Instance.Variables["children"] = new AutoList<IResource, Instance>(resource.Instance);
         resource.Instance.Variables["parents"] = new AutoList<IResource, Instance>(resource.Instance);
+        resource.Instance.Variables["link"] = path;
 
         return new AsyncReply<bool>(true);
     }
 
- 
+
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {
         return new AsyncReply<bool>(true);
@@ -102,7 +104,7 @@ public class MemoryStore : IStore
     //    else
     //        return new AsyncReply<bool>(false);
     //}
- 
+
 
     //public AsyncReply<bool> AddParent(IResource resource, IResource parent)
     //{
@@ -123,12 +125,19 @@ public class MemoryStore : IStore
 
     public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
     {
-        var children = (resource.Instance.Variables["children"] as AutoList<IResource, Instance>);
 
-        if (name == null)
-            return new AsyncBag<T>(children.Where(x => x is T).Select(x => (T)x).ToArray());
-        else
-            return new AsyncBag<T>(children.Where(x => x is T && x.Instance.Name == name).Select(x => (T)x).ToArray());
+        var rt = new AsyncBag<T>();
+
+        var location = Link(resource) + "/";
+
+        return new AsyncBag<T>(resources.Where(r => r.Value is T && Link(r.Value).StartsWith(location)).Select(r => (T)r.Value).ToArray());
+ 
+        //var children = (resource.Instance.Variables["children"] as AutoList<IResource, Instance>);
+
+        //if (name == null)
+        //    return new AsyncBag<T>(children.Where(x => x is T).Select(x => (T)x).ToArray());
+        //else
+        //    return new AsyncBag<T>(children.Where(x => x is T && x.Instance.Name == name).Select(x => (T)x).ToArray());
 
     }
 

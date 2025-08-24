@@ -272,7 +272,7 @@ partial class DistributedConnection
             return;
         }
 
-        var (_, parsed) = Codec.ParseAsync(data, 0, this, null);
+        var (_, parsed) = Codec.ParseAsync(data, 0, this, null, dataType);
         if (parsed is AsyncReply reply)
         {
             reply.Then(result =>
@@ -2054,7 +2054,7 @@ partial class DistributedConnection
                                                                      dataType.ContentLength, Instance.Warehouse);
 
         var peerTime = (DateTime)args[0];
-        var interval = (uint)args[0];
+        var interval = (uint)args[1];
 
         uint jitter = 0;
 

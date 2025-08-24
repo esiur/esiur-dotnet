@@ -40,7 +40,7 @@ public class TemporaryStore : IStore
         return new AsyncReply<IResource>(null);
     }
 
-    public AsyncReply<bool> Put(IResource resource)
+    public AsyncReply<bool> Put(IResource resource, string path)
     {
         resources.Add(resource.Instance.Id, new WeakReference(resource));
         return new AsyncReply<bool>(true);

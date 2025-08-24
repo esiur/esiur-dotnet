@@ -346,78 +346,78 @@ public class Warehouse
     /// <param name="resource">Resource instance.</param>
     /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
     /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-    public async AsyncReply<T> Put<T>(string instanceName, T resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
-    {
-        if (resource.Instance != null)
-            throw new Exception("Resource has a store.");
+    //public async AsyncReply<T> Put<T>(string instanceName, T resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
+    //{
+    //    if (resource.Instance != null)
+    //        throw new Exception("Resource has a store.");
 
 
-        var resourceReference = new WeakReference<IResource>(resource);
+    //    var resourceReference = new WeakReference<IResource>(resource);
 
 
-        if (resource is IStore && store == null)
-            store = (IStore)resource;
+    //    if (resource is IStore && store == null)
+    //        store = (IStore)resource;
 
-        if (store == null)
-            throw new Exception("Resource store is not set.");
-
-
-        resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
-
-        if (attributes != null)
-            if (attributes is Map<string, object> attrs)
-                resource.Instance.SetAttributes(attrs);
-            else
-                resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
-
-        if (manager != null)
-            resource.Instance.Managers.Add(manager);
-
-        //if (store == parent)
-        //    parent = null;
+    //    if (store == null)
+    //        throw new Exception("Resource store is not set.");
 
 
-        try
-        {
-            if (resource is IStore)
-                stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
+    //    resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
+
+    //    if (attributes != null)
+    //        if (attributes is Map<string, object> attrs)
+    //            resource.Instance.SetAttributes(attrs);
+    //        else
+    //            resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
+
+    //    if (manager != null)
+    //        resource.Instance.Managers.Add(manager);
+
+    //    //if (store == parent)
+    //    //    parent = null;
 
 
-            if (!await store.Put(resource))
-                throw new Exception("Store failed to put the resource");
-            //return default(T);
+    //    try
+    //    {
+    //        if (resource is IStore)
+    //            stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
 
 
-            //if (parent != null)
-            //{
-            //    await parent.Instance.Store.AddChild(parent, resource);
-            //    await store.AddParent(resource, parent);
-            //}
+    //        if (!await store.Put(resource))
+    //            throw new Exception("Store failed to put the resource");
+    //        //return default(T);
 
-            var t = resource.GetType();
-            Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
-            resources.TryAdd(resource.Instance.Id, resourceReference);
+    //        //if (parent != null)
+    //        //{
+    //        //    await parent.Instance.Store.AddChild(parent, resource);
+    //        //    await store.AddParent(resource, parent);
+    //        //}
 
-            if (warehouseIsOpen)
-            {
-                await resource.Trigger(ResourceTrigger.Initialize);
-                if (resource is IStore)
-                    await resource.Trigger(ResourceTrigger.Open);
-            }
+    //        var t = resource.GetType();
+    //        Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
-            if (resource is IStore)
-                StoreConnected?.Invoke(resource as IStore);
-        }
-        catch (Exception ex)
-        {
-            Remove(resource);
-            throw ex;
-        }
+    //        resources.TryAdd(resource.Instance.Id, resourceReference);
 
-        return resource;
+    //        if (warehouseIsOpen)
+    //        {
+    //            await resource.Trigger(ResourceTrigger.Initialize);
+    //            if (resource is IStore)
+    //                await resource.Trigger(ResourceTrigger.Open);
+    //        }
 
-    }
+    //        if (resource is IStore)
+    //            StoreConnected?.Invoke(resource as IStore);
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        Remove(resource);
+    //        throw ex;
+    //    }
+
+    //    return resource;
+
+    //}
 
     /// <summary>
     /// Put a resource in the warehouse.
@@ -429,7 +429,7 @@ public class Warehouse
     public async AsyncReply<T> Put<T>(string path, T resource, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
     {
         if (resource.Instance != null)
-            throw new Exception("Resource has a store.");
+            throw new Exception("Resource already initialized.");
 
         if (string.IsNullOrEmpty(path))
             throw new ArgumentNullException("Invalid path.");
@@ -437,6 +437,7 @@ public class Warehouse
         var location = path.TrimStart('/').Split('/');
 
         IStore store = null;
+        //IResource parent = null;
 
         var instanceName = location.Last();
 
@@ -447,73 +448,46 @@ public class Warehouse
 
             store = (IStore)resource;
         }
+        else
+        {
 
-        if (location.Length == 1 &&
+            // get parent
+            var parent = await Get<IResource>(string.Join("/", location.Take(location.Length - 1)));
 
+            if (parent == null)
+                throw new Exception("Can't find parent");
 
-        if (location.Length == 1)
-                return await Put<T>(path, resource, null, customTemplate, age, manager, attributes);
-            else
-            {
-                // get parent
-                parent = await Get<IResource>(string.Join("/", location.Take(location.Length - 1)));
+            store = parent.Instance.Store;// GetStore(location[0]);
 
-                if (parent == null)
-                    throw new Exception("Can't find parent");
-
-                return await Put<T>(instanceName, resource, parent.Instance.Store, customTemplate, age, manager, attributes);
-            }
-
-
+            //if (store == null)
+            //    throw new Exception("Store not found.");
+        }
 
         var resourceReference = new WeakReference<IResource>(resource);
 
-
-        if (resource is IStore && store == null)
-            store = (IStore)resource;
-
-        if (store == null)
-            throw new Exception("Resource store is not set.");
-
-
         resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
-        
+
         if (attributes != null)
             if (attributes is Map<string, object> attrs)
                 resource.Instance.SetAttributes(attrs);
             else
                 resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
 
-
-        //if (manager != null)
-        //    resource.Instance.Managers.Add(manager);
-
-        //if (store == parent)
-        //    parent = null;
-
-
         try
         {
             if (resource is IStore)
                 stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
-
-
-            if (!await store.Put(resource))
-                throw new Exception("Store failed to put the resource");
-            //return default(T);
-
-
-            //if (parent != null)
-            //{
-            //    await parent.Instance.Store.AddChild(parent, resource);
-            //    await store.AddParent(resource, parent);
-            //}
+            else if ((IResource)resource != store)
+            {
+                if (!await store.Put(resource, string.Join("/", location.Skip(1).ToArray())))
+                    throw new Exception("Store failed to put the resource.");
+            }
 
             var t = resource.GetType();
             Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
             resources.TryAdd(resource.Instance.Id, resourceReference);
-
+            
             if (warehouseIsOpen)
             {
                 await resource.Trigger(ResourceTrigger.Initialize);
@@ -523,6 +497,7 @@ public class Warehouse
 
             if (resource is IStore)
                 StoreConnected?.Invoke(resource as IStore);
+
         }
         catch (Exception ex)
         {
@@ -599,7 +574,7 @@ public class Warehouse
 
     public async AsyncReply<IResource> New(Type type, string path, IPermissionsManager manager = null, object attributes = null, object properties = null)
     {
-        var res = CreateInstance(type, properties);
+        var res = Create(type, properties);
         return await Put(path, res, null, 0, manager, attributes);
     }
 

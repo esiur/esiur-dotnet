@@ -1570,14 +1570,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
         return true;
     }
 
-    //    AsyncReply<bool> connect({ISocket socket, String hostname, int port, String username, DC password, String domain})
-
+ 
     /// <summary>
     /// Store interface.
     /// </summary>
     /// <param name="resource">Resource.</param>
     /// <returns></returns>
-    public AsyncReply<bool> Put(IResource resource)
+    public AsyncReply<bool> Put(IResource resource, string path)
     {
         if (Codec.IsLocalResource(resource, this))
             neededResources.Add((resource as DistributedResource).DistributedResourceInstanceId, (DistributedResource)resource);

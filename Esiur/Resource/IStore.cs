@@ -37,7 +37,7 @@ namespace Esiur.Resource;
 public interface IStore : IResource
 {
     AsyncReply<IResource> Get(string path); 
-    AsyncReply<bool> Put(IResource resource);
+    AsyncReply<bool> Put(IResource resource, string path);
     string Link(IResource resource);
     bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
     bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
