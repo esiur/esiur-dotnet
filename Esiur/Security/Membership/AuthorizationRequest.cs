@@ -27,7 +27,7 @@ namespace Esiur.Security.Membership
         public AuthorizationRequest(Map<IIPAuthPacketIAuthHeader, object> headers)
         {
             Reference = (uint)headers[IIPAuthPacketIAuthHeader.Reference];
-            Destination = (IIPAuthPacketIAuthDestination)headers[IIPAuthPacketIAuthHeader.Destination];
+            Destination =(IIPAuthPacketIAuthDestination)headers[IIPAuthPacketIAuthHeader.Destination];
             Clue = (string)headers[IIPAuthPacketIAuthHeader.Clue];
 
             if (headers.ContainsKey(IIPAuthPacketIAuthHeader.RequiredFormat))

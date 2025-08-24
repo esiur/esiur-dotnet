@@ -22,22 +22,23 @@ SOFTWARE.
 
 */
 
-using Esiur.Data;
 using Esiur.Core;
+using Esiur.Data;
+using Esiur.Misc;
+using Esiur.Net.IIP;
+using Esiur.Net.Packets;
 using Esiur.Proxy;
 using Esiur.Resource.Template;
 using Esiur.Security.Permissions;
 using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using Esiur.Net.IIP;
 using System.Text.RegularExpressions;
-using Esiur.Misc;
-using System.Collections.Concurrent;
-using System.Collections;
-using System.Data;
+using System.Threading.Tasks;
 
 namespace Esiur.Resource;
 
@@ -85,6 +86,11 @@ public class Warehouse
         Protocols.Add("iip",
             async (name, attributes)
             => await New<DistributedConnection>(name, null, attributes));
+
+        new TypeTemplate(typeof(IIPAuthPacketIAuthHeader), this);
+
+        new TypeTemplate(typeof(IIPAuthPacketIAuthDestination), this);
+        new TypeTemplate(typeof(IIPAuthPacketIAuthFormat), this);
     }
 
 
@@ -351,45 +357,45 @@ public class Warehouse
 
         if (resource is IStore && store == null)
             store = (IStore)resource;
-       
+
         if (store == null)
             throw new Exception("Resource store is not set.");
 
-            //if (store == null)
-            //{
-            //    // assign parent's store as a store
-            //    if (parent != null)
-            //    {
-            //        // assign parent as a store
-            //        if (parent is IStore)
-            //        {
-            //            store = (IStore)parent;
-            //            List<WeakReference<IResource>> list;
-            //            if (stores.TryGetValue(store, out list))
-            //                lock (((ICollection)list).SyncRoot)
-            //                    list.Add(resourceReference);
-            //            //stores[store].Add(resourceReference);
-            //        }
-            //        else
-            //        {
-            //            store = parent.Instance.Store;
+        //if (store == null)
+        //{
+        //    // assign parent's store as a store
+        //    if (parent != null)
+        //    {
+        //        // assign parent as a store
+        //        if (parent is IStore)
+        //        {
+        //            store = (IStore)parent;
+        //            List<WeakReference<IResource>> list;
+        //            if (stores.TryGetValue(store, out list))
+        //                lock (((ICollection)list).SyncRoot)
+        //                    list.Add(resourceReference);
+        //            //stores[store].Add(resourceReference);
+        //        }
+        //        else
+        //        {
+        //            store = parent.Instance.Store;
 
-            //            List<WeakReference<IResource>> list;
-            //            if (stores.TryGetValue(store, out list))
-            //                lock (((ICollection)list).SyncRoot)
-            //                    list.Add(resourceReference);
-            //        }
-            //    }
-            //    // assign self as a store (root store)
-            //    else if (resource is IStore)
-            //    {
-            //        store = (IStore)resource;
-            //    }
-            //    else
-            //        throw new Exception("Can't find a store for the resource.");
-            //}
+        //            List<WeakReference<IResource>> list;
+        //            if (stores.TryGetValue(store, out list))
+        //                lock (((ICollection)list).SyncRoot)
+        //                    list.Add(resourceReference);
+        //        }
+        //    }
+        //    // assign self as a store (root store)
+        //    else if (resource is IStore)
+        //    {
+        //        store = (IStore)resource;
+        //    }
+        //    else
+        //        throw new Exception("Can't find a store for the resource.");
+        //}
 
-            resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
+        resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
 
         if (attributes != null)
             if (attributes is Map<string, object> attrs)

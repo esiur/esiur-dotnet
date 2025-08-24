@@ -114,10 +114,16 @@ public static class DataSerializer
 
     public static (TransmissionTypeIdentifier, byte[]) EnumComposer(object value, DistributedConnection connection)
     {
+        Console.WriteLine(value.GetType().Name);
+
         if (value == null)
             return (TransmissionTypeIdentifier.Null, new byte[0]);
 
-        var template = connection.Instance.Warehouse.GetTemplateByType(value.GetType());
+        var warehouse = connection?.Instance?.Warehouse ?? connection?.Server?.Instance?.Warehouse;
+        if (warehouse == null)
+            throw new Exception("Warehouse not set.");
+
+        var template = warehouse.GetTemplateByType(value.GetType());
 
         var intVal = Convert.ChangeType(value, (value as Enum).GetTypeCode());
 

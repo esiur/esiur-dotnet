@@ -122,30 +122,30 @@ public static class Codec
             DataDeserializer.LocalResourceParser8,
             DataDeserializer.ResourceParser8,
         },
-        new SyncParser[]{
-            DataDeserializer.Int16Parser,
+        new SyncParser[]{            
             DataDeserializer.UInt16Parser,
+            DataDeserializer.Int16Parser,
             DataDeserializer.Char16Parser,
             DataDeserializer.LocalResourceParser16,
             DataDeserializer.ResourceParser16,
         },
-        new SyncParser[]{
-            DataDeserializer.Int32Parser,
+        new SyncParser[]{            
             DataDeserializer.UInt32Parser,
+            DataDeserializer.Int32Parser,
             DataDeserializer.Float32Parser,
             DataDeserializer.LocalResourceParser32,
             DataDeserializer.ResourceParser32,
         },
-        new SyncParser[]{
-            DataDeserializer.Int64Parser,
+        new SyncParser[]{           
             DataDeserializer.UInt64Parser,
+            DataDeserializer.Int64Parser,
             DataDeserializer.Float64Parser,
             DataDeserializer.DateTimeParser,
         },
         new SyncParser[]
-        {
-            DataDeserializer.Int128Parser, // int 128
+        {            
             DataDeserializer.UInt128Parser, // uint 128
+            DataDeserializer.Int128Parser, // int 128
             DataDeserializer.Float128Parser,
         }
 };

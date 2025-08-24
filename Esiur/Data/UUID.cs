@@ -57,6 +57,23 @@ namespace Esiur.Data
             //e6 = data[offset++];
         }
 
+        public unsafe override int GetHashCode()
+        {
+            unchecked
+            {
+                fixed (byte* p = Data)
+                {
+                    ulong u0 = *(ulong*)p;
+                    ulong u1 = *(ulong*)(p + 8);
+
+                    // simple mixing of two 64-bit halves
+                    return ((int)u0 ^ (int)(u0 >> 32)) ^
+                           ((int)u1 ^ (int)(u1 >> 32));
+                }
+            }
+
+        }
+
         public UUID(byte[] data) {
 
             if (data.Length != 16)
@@ -86,6 +103,14 @@ namespace Esiur.Data
             return $"{DC.ToHex(Data, 0, 4, null)}-{DC.ToHex(Data, 4, 2, null)}-{DC.ToHex(Data, 6, 2, null)}-{DC.ToHex(Data, 8, 2, null)}-{DC.ToHex(Data, 10, 6, null)}";
 
             //return $"{a1.ToString("x2")}{a2.ToString("x2")}{a3.ToString("x2")}{a4.ToString("x2")}-{b1.ToString("x2")}{b2.ToString("x2")}-{c1.ToString("x2")}{c2.ToString("x2")}-{d1.ToString("x2")}{d2.ToString("x2")}-{e1.ToString("x2")}{e2.ToString("x2")}{e3.ToString("x2")}{e4.ToString("x2")}{e5.ToString("x2")}{e6.ToString("x2")}";
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is UUID b)
+                return Data.SequenceEqual(b.Data);
+
+            return false;
         }
 
         public static bool operator == (UUID a, UUID b)

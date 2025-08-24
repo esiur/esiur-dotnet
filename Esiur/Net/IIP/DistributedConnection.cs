@@ -764,7 +764,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                 if (this.Instance == null)
                 {
-                    Instance.Warehouse.Put(Server + "/" + session.AuthorizedAccount.Replace("/", "_"), this)
+                    Server.Instance.Warehouse.Put(Server + "/" + session.AuthorizedAccount.Replace("/", "_"), this)
                         .Then(x =>
                     {
                         openReply?.Trigger(true);
@@ -896,7 +896,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             var dataType = authPacket.DataType.Value;
 
-            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
+            var (_, parsed) = Codec.ParseSync(data, dataType.Offset, Server.Instance.Warehouse, dataType);
 
             var rt = (Map<byte, object>)parsed;
 
@@ -1232,7 +1232,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             if (this.Instance == null)
             {
-                Instance.Warehouse.Put(
+                Server.Instance.Warehouse.Put(
                     Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
                     .Then(x =>
                 {
