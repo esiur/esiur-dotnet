@@ -55,6 +55,18 @@ class IIPPacket : Packet
         return base.Compose();
     }
 
+    public override string ToString()
+    {
+        return Method switch 
+        {
+            IIPPacketMethod.Notification => $"{Method} {Notification}",
+            IIPPacketMethod.Request =>  $"{Method} {Request}",
+            IIPPacketMethod.Reply =>  $"{Method} {Reply}",
+            IIPPacketMethod.Extension =>  $"{Method} {Extension}",
+            _ => $"{Method}"
+        };
+    }
+
     bool NotEnough(uint offset, uint ends, uint needed)
     {
         if (offset + needed > ends)
@@ -80,11 +92,11 @@ class IIPPacket : Packet
 
         if (Method == IIPPacketMethod.Notification)
         {
-            Notification = (IIPPacketNotification)(data[offset++] & 0x3f);
+            Notification = (IIPPacketNotification)(data[offset++] & 0x1f);
         }
         else if (Method == IIPPacketMethod.Request)
         {
-            Request = (IIPPacketRequest)(data[offset++] & 0x3f);
+            Request = (IIPPacketRequest)(data[offset++] & 0x1f);
 
             if (NotEnough(offset, ends, 4))
                 return -dataLengthNeeded;
@@ -94,7 +106,7 @@ class IIPPacket : Packet
         }
         else if (Method == IIPPacketMethod.Reply)
         {
-            Reply = (IIPPacketReply)(data[offset++] & 0x3f);
+            Reply = (IIPPacketReply)(data[offset++] & 0x1f);
 
             if (NotEnough(offset, ends, 4))
                 return -dataLengthNeeded;
@@ -104,7 +116,7 @@ class IIPPacket : Packet
         }
         else if (Method == IIPPacketMethod.Extension)
         {
-            Extension = (byte)(data[offset++] & 0x3f);
+            Extension = (byte)(data[offset++] & 0x1f);
         }
 
         if (hasDTU)

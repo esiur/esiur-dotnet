@@ -430,7 +430,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 if (packet.DataType == null)
                     return offset;
 
-
+                Console.WriteLine("Incoming: " +  packet);
                 if (packet.Method == IIPPacketMethod.Notification)
                 {
                     var dt = packet.DataType.Value;

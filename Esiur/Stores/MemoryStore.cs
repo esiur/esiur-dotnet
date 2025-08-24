@@ -65,19 +65,7 @@ public class MemoryStore : IStore
         return new AsyncReply<bool>(true);
     }
 
-    //public AsyncReply<IResource> Retrieve(uint iid)
-    //{
-    //    if (resources.ContainsKey(iid))
-    //    {
-    //        if (resources.ContainsKey(iid))// .TryGetTarget(out r))
-    //            return new AsyncReply<IResource>(resources[iid]);
-    //        else
-    //            return new AsyncReply<IResource>(null);
-    //    }
-    //    else
-    //        return new AsyncReply<IResource>(null);
-    //}
-
+ 
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {
         return new AsyncReply<bool>(true);
