@@ -169,7 +169,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     }
 
     /// <summary>
-    /// Export all properties with ResourceProperty attributed as bytes array.
+    /// Export properties as byte array.
     /// </summary>
     /// <returns></returns>
     internal PropertyValue[] _Serialize()

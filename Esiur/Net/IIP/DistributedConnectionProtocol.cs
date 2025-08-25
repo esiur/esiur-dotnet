@@ -1692,22 +1692,29 @@ partial class DistributedConnection
 
         var rt = new AsyncReply<IResource>();
 
-        Query(path).Then(ar =>
-        {
+        SendRequest(IIPPacketRequest.GetResourceIdByLink, path)
+            .Then(result =>
+            {
+                rt.Trigger(result);
+            }).Error(ex => rt.TriggerError(ex));
 
-            //if (filter != null)
-            //  ar = ar?.Where(filter).ToArray();
+        //Query(path).Then(ar =>
+        //{
 
-            // MISSING: should dispatch the unused resources. 
-            if (ar?.Length > 0)
-                rt.Trigger(ar[0]);
-            else
-                rt.Trigger(null);
-        }).Error(ex => rt.TriggerError(ex));
+        //    //if (filter != null)
+        //    //  ar = ar?.Where(filter).ToArray();
+
+        //    // MISSING: should dispatch the unused resources. 
+        //    if (ar?.Length > 0)
+        //        rt.Trigger(ar[0]);
+        //    else
+        //        rt.Trigger(null);
+        //}).Error(ex => rt.TriggerError(ex));
 
 
         return rt;
     }
+
 
     public AsyncReply<TypeTemplate[]> GetLinkTemplates(string link)
     {
@@ -1743,6 +1750,7 @@ partial class DistributedConnection
     /// <returns>DistributedResource</returns>
     public AsyncReply<DistributedResource> Fetch(uint id, uint[] requestSequence)
     {
+
         DistributedResource resource = null;
 
         attachedResources[id]?.TryGetTarget(out resource);
@@ -1758,22 +1766,30 @@ partial class DistributedConnection
         {
             if (resource != null && (requestSequence?.Contains(id) ?? false))
             {
+                Console.WriteLine("Fetching DL " + id);
+
                 // dead lock avoidance for loop reference.
                 return new AsyncReply<DistributedResource>(resource);
             }
             else if (resource != null && requestInfo.RequestSequence.Contains(id))
             {
+                Console.WriteLine("Fetching DL2 " + id);
+
                 // dead lock avoidance for dependent reference.
                 return new AsyncReply<DistributedResource>(resource);
             }
             else
             {
+                Console.WriteLine("Fetching DL3 " + id);
+
                 return requestInfo.Reply;
             }
         }
         else if (resource != null && !resource.DistributedResourceSuspended)
         {
             // @REVIEW: this should never happen
+            Console.WriteLine("Fetching DLWWW " + id);
+
             Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
             return new AsyncReply<DistributedResource>(resource);
 
@@ -1783,6 +1799,7 @@ partial class DistributedConnection
 
         var reply = new AsyncReply<DistributedResource>();
         resourceRequests.Add(id, new DistributedResourceAttachRequestInfo(reply, newSequence));
+        Console.WriteLine("Fetching " + id);
 
         SendRequest(IIPPacketRequest.AttachResource, id)
                     .Then((result) =>
@@ -1801,6 +1818,8 @@ partial class DistributedConnection
                         var link = (string)args[2];
                         var hops = (byte)args[3];
                         var pvData = (byte[])args[4];
+
+                        Console.WriteLine("Fetching CL " + id);
 
                         DistributedResource dr;
                         TypeTemplate template = null;

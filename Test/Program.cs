@@ -190,7 +190,7 @@ namespace Test
             var format = x.RequiredFormat;
 
             if (format == IIPAuthPacketIAuthFormat.Number)
-                return new AsyncReply<object>(Convert.ToInt32(Console.ReadLine()));
+                return new AsyncReply<object>(Convert.ToInt32(10));
             else if (format == IIPAuthPacketIAuthFormat.Text)
                 return new AsyncReply<object>(Console.ReadLine().Trim());
 

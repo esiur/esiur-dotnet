@@ -197,6 +197,8 @@ public static class Codec
 
         var tt = dataType.Value;
 
+        Console.WriteLine("Parsing " + tt.Class + " " + tt.Identifier);
+
         if (tt.Class == TransmissionTypeClass.Fixed)
         {
             return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
