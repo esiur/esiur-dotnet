@@ -114,8 +114,6 @@ public static class DataSerializer
 
     public static (TransmissionTypeIdentifier, byte[]) EnumComposer(object value, DistributedConnection connection)
     {
-        Console.WriteLine(value.GetType().Name);
-
         if (value == null)
             return (TransmissionTypeIdentifier.Null, new byte[0]);
 
@@ -389,6 +387,12 @@ public static class DataSerializer
             rt.AddRange(Codec.Compose(el, connection));
 
         return (TransmissionTypeIdentifier.Map, rt.ToArray());
+    }
+
+    public static unsafe (TransmissionTypeIdentifier, byte[]) UUIDComposer(object value, DistributedConnection connection)
+    {
+        return (TransmissionTypeIdentifier.UUID, ((UUID)value).Data);
+
     }
 
     public static unsafe (TransmissionTypeIdentifier, byte[]) RecordComposer(object value, DistributedConnection connection)

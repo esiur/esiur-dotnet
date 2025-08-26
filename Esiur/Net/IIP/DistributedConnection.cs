@@ -385,7 +385,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         SendRequest(IIPPacketRequest.KeepAlive, now, interval)
                 .Then(x =>
                 {
-                    Jitter = (uint)x;
+                    Jitter = (uint)((object[])x)[1];
                     keepAliveTimer.Start();
                 }).Error(ex =>
                 {
@@ -430,7 +430,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 if (packet.DataType == null)
                     return offset;
 
-                Console.WriteLine("Incoming: " +  packet);
+                //Console.WriteLine("Incoming: " +  packet);
                 if (packet.Method == IIPPacketMethod.Notification)
                 {
                     var dt = packet.DataType.Value;

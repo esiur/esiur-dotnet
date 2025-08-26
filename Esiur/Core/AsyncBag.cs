@@ -86,14 +86,15 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
 
         for (var i = 0; i < replies.Count; i++)
         {
+
             var k = replies[i];
             var index = i;
 
-            if (k is AsyncReply)
+            if (k is AsyncReply reply)
             {
-                (k as AsyncReply).Then((r) =>
+                reply.Then((r) =>
                 {
-                    results.SetValue(r, i);
+                    results.SetValue(r, index);
                     count++;
                     if (count == replies.Count)
                         Trigger(results);
@@ -101,7 +102,7 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
             }
             else
             {
-                results.SetValue(replies[i], i);
+                results.SetValue(replies[i], index);
                 count++;
                 if (count == replies.Count)
                     Trigger(results);

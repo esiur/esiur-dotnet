@@ -131,6 +131,10 @@ class IIPPacket : Packet
 
             offset += (uint)size;
         }
+        else
+        {
+            DataType = null;
+        }
 
         return offset - originalOffset;
     }

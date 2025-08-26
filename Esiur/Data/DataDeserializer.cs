@@ -169,17 +169,28 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object Float128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Decimal128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return *(decimal*)ptr;
     }
 
-    public static unsafe object Float128Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
+    public static unsafe object Decimal128Parser(byte[] data, uint offset, uint length, Warehouse warehouse)
     {
         fixed (byte* ptr = &data[offset])
             return *(decimal*)ptr;
     }
+
+    public static unsafe object UUIDParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    {
+        return new UUID(data, offset);
+    }
+
+    public static unsafe object UUIDParser(byte[] data, uint offset, uint length, Warehouse warehouse)
+    {
+        return new UUID(data, offset);
+    }
+
 
 
     public static unsafe object Int128ParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
@@ -961,6 +972,8 @@ public static class DataDeserializer
         while (length > 0)
         {
             var (cs, reply) = Codec.ParseAsync(data, offset, connection, requestSequence);
+
+             
 
             rt.Add(reply);
 

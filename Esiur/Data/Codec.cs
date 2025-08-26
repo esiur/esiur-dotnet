@@ -60,30 +60,31 @@ public static class Codec
             DataDeserializer.ResourceParser8Async,
         },
         new AsyncParser[]{
-            DataDeserializer.Int16ParserAsync,
             DataDeserializer.UInt16ParserAsync,
+            DataDeserializer.Int16ParserAsync,
             DataDeserializer.Char16ParserAsync,
             DataDeserializer.LocalResourceParser16Async,
             DataDeserializer.ResourceParser16Async,
         },
-        new AsyncParser[]{
-            DataDeserializer.Int32ParserAsync,
+        new AsyncParser[]{            
             DataDeserializer.UInt32ParserAsync,
+            DataDeserializer.Int32ParserAsync,
             DataDeserializer.Float32ParserAsync,
             DataDeserializer.LocalResourceParser32Async,
             DataDeserializer.ResourceParser32Async,
         },
         new AsyncParser[]{
-            DataDeserializer.Int64ParserAsync,
             DataDeserializer.UInt64ParserAsync,
+            DataDeserializer.Int64ParserAsync,
             DataDeserializer.Float64ParserAsync,
             DataDeserializer.DateTimeParserAsync,
         },
         new AsyncParser[]
-        {
-            DataDeserializer.Int128ParserAsync, // int 128
+        {            
             DataDeserializer.UInt128ParserAsync, // uint 128
-            DataDeserializer.Float128ParserAsync,
+            DataDeserializer.Int128ParserAsync, // int 128
+            DataDeserializer.Decimal128ParserAsync,
+            DataDeserializer.UUIDParserAsync
         }
     };
 
@@ -146,7 +147,8 @@ public static class Codec
         {            
             DataDeserializer.UInt128Parser, // uint 128
             DataDeserializer.Int128Parser, // int 128
-            DataDeserializer.Float128Parser,
+            DataDeserializer.Decimal128Parser,
+            DataDeserializer.UUIDParser
         }
 };
 
@@ -197,11 +199,11 @@ public static class Codec
 
         var tt = dataType.Value;
 
-        Console.WriteLine("Parsing " + tt.Class + " " + tt.Identifier);
+        //Console.WriteLine("Parsing " + tt.Class + " " + tt.Identifier);
 
         if (tt.Class == TransmissionTypeClass.Fixed)
         {
-            return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+                return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
         else if (tt.Class == TransmissionTypeClass.Dynamic)
         {
@@ -302,7 +304,7 @@ public static class Codec
         [typeof(List<byte>)] = DataSerializer.RawDataComposerFromList,
         //[typeof(List<byte?>)] = DataSerializer.RawDataComposerFromList,
         [typeof(string)] = DataSerializer.StringComposer,
-
+        [typeof(UUID)] = DataSerializer.UUIDComposer,
         // Special
         [typeof(object[])] = DataSerializer.ListComposer,
         [typeof(List<object>)] = DataSerializer.ListComposer,

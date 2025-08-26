@@ -39,6 +39,7 @@ public enum TransmissionTypeIdentifier : byte
     UInt128 = 0x28,
     Int128 = 0x29,
     Decimal128 = 0x2A,
+    UUID = 0x2B,
 
     RawData = 0x40,
     String = 0x41,

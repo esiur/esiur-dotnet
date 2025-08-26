@@ -78,7 +78,7 @@ partial class DistributedConnection
     /// <returns></returns>
     AsyncReply SendRequest(IIPPacketRequest action, params object[] args)
     {
-        var reply = new AsyncReply<object[]>();
+        var reply = new AsyncReply();
         var c = callbackCounter++; // avoid thread racing
         requests.Add(c, reply);
 
@@ -547,7 +547,7 @@ partial class DistributedConnection
                         r.Instance.Age,
                         r.Instance.Link,
                         r.Instance.Hops,
-                        dr._Serialize(), this);
+                        dr._Serialize());
                 }
                 else
                 {
@@ -557,7 +557,7 @@ partial class DistributedConnection
                         r.Instance.Age,
                         r.Instance.Link,
                         r.Instance.Hops,
-                        r.Instance.Serialize(), this);
+                        r.Instance.Serialize());
                 }
 
                 // subscribe
@@ -852,7 +852,7 @@ partial class DistributedConnection
 
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
-        var classId = new UUID((byte[])value);
+        var classId = (UUID)value;
 
         var t = Instance.Warehouse.GetTemplateByClassId(classId);
 
@@ -1637,11 +1637,11 @@ partial class DistributedConnection
         SendRequest(IIPPacketRequest.TemplateFromClassId, classId)
                     .Then((result) =>
                     {
-                        var args = (object[])result;
+                        var tt = TypeTemplate.Parse((byte[])result);
                         templateRequests.Remove(classId);
-                        templates.Add(((TypeTemplate)args[0]).ClassId, (TypeTemplate)args[0]);
-                        Instance.Warehouse.PutTemplate(args[0] as TypeTemplate);
-                        reply.Trigger(args[0]);
+                        templates.Add(tt.ClassId, tt);
+                        Instance.Warehouse.PutTemplate(tt);
+                        reply.Trigger(tt);
                     }).Error((ex) =>
                     {
                         reply.TriggerError(ex);
@@ -1766,30 +1766,22 @@ partial class DistributedConnection
         {
             if (resource != null && (requestSequence?.Contains(id) ?? false))
             {
-                Console.WriteLine("Fetching DL " + id);
-
                 // dead lock avoidance for loop reference.
                 return new AsyncReply<DistributedResource>(resource);
             }
             else if (resource != null && requestInfo.RequestSequence.Contains(id))
             {
-                Console.WriteLine("Fetching DL2 " + id);
-
                 // dead lock avoidance for dependent reference.
                 return new AsyncReply<DistributedResource>(resource);
             }
             else
             {
-                Console.WriteLine("Fetching DL3 " + id);
-
                 return requestInfo.Reply;
             }
         }
         else if (resource != null && !resource.DistributedResourceSuspended)
         {
             // @REVIEW: this should never happen
-            Console.WriteLine("Fetching DLWWW " + id);
-
             Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
             return new AsyncReply<DistributedResource>(resource);
 
@@ -1799,7 +1791,6 @@ partial class DistributedConnection
 
         var reply = new AsyncReply<DistributedResource>();
         resourceRequests.Add(id, new DistributedResourceAttachRequestInfo(reply, newSequence));
-        Console.WriteLine("Fetching " + id);
 
         SendRequest(IIPPacketRequest.AttachResource, id)
                     .Then((result) =>
@@ -1819,7 +1810,6 @@ partial class DistributedConnection
                         var hops = (byte)args[3];
                         var pvData = (byte[])args[4];
 
-                        Console.WriteLine("Fetching CL " + id);
 
                         DistributedResource dr;
                         TypeTemplate template = null;
@@ -1846,14 +1836,14 @@ partial class DistributedConnection
 
                             parsedReply.Then(results =>
                             {
-                                var ar = results as object[];
+                                var pvs = results as PropertyValue[];
 
-                                var pvs = new List<PropertyValue>();
+                                //var pvs = new List<PropertyValue>();
 
-                                for (var i = 0; i < ar.Length; i += 3)
-                                    pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
+                                //for (var i = 0; i < ar.Length; i += 3)
+                                //    pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
 
-                                dr._Attach(pvs.ToArray());
+                                dr._Attach(pvs);
                                 resourceRequests.Remove(id);
                                 // move from needed to attached.
                                 neededResources.Remove(id);
@@ -2085,7 +2075,7 @@ partial class DistributedConnection
             jitter = (uint)Math.Abs((int)diff - (int)interval);
         }
 
-        SendRequest(IIPPacketRequest.KeepAlive, now, jitter);
+        SendReply(IIPPacketReply.Completed, callback, now, jitter);
 
         lastKeepAliveReceived = now;
     }
