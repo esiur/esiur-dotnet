@@ -159,8 +159,8 @@ public partial class MyService
     [Export]
     public void InvokeEvents(string msg, InvocationContext context)
     {
-        if (context.Connection.Session.AuthorizedAccount != "Alice")
-            throw new Exception("Only Alice is allowed.");
+        //if (context.Connection.Session.AuthorizedAccount != "Alice")
+          //  throw new Exception("Only Alice is allowed.");
 
         StringEvent?.Invoke(msg);
         ArrayEvent?.Invoke(new object[] { DateTime.UtcNow, "Event", msg });

@@ -200,8 +200,7 @@ namespace Test
         private static async void TestClient(IResource local)
         {
 
-
-            var con = await Warehouse.Default.Get<DistributedConnection>("iip://localhost", new DistributedConnectionConfig
+            var con = await new Warehouse().Get<DistributedConnection>("iip://localhost", new DistributedConnectionConfig
             {
                 AutoReconnect = true,
                 Username = "admin",
@@ -210,7 +209,10 @@ namespace Test
             });
 
 
+
             dynamic remote = await con.Get("sys/service");
+
+            perodicTimer = new Timer(new TimerCallback(perodicTimerElapsed), remote, 0, 1000);
 
             var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);
 
@@ -259,7 +261,7 @@ namespace Test
 
             //Console.WriteLine(path);
 
-            perodicTimer = new Timer(new TimerCallback(perodicTimerElapsed), remote, 0, 1000);
+          
         }
 
         static async void perodicTimerElapsed(object state)
@@ -268,6 +270,8 @@ namespace Test
             try
             {
                 dynamic remote = state;
+                await remote.InvokeEvents("Hello");
+
                 Console.WriteLine("Perodic : " + await remote.AsyncHello());
             }
             catch (Exception ex)
