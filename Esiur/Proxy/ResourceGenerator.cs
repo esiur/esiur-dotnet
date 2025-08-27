@@ -19,7 +19,7 @@ namespace Esiur.Proxy;
 
 [Generator]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1036:Specify analyzer banned API enforcement setting", Justification = "<Pending>")]
-public class ResourceGenerator : ISourceGenerator
+public class ResourceGenerator : IIncrementalGenerator
 {
 
     private KeyList<string, TypeTemplate[]> cache = new();
@@ -248,5 +248,10 @@ namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
 
             context.AddSource("Error.g.cs", $"/*\r\n{ex}\r\n*/");
         }
+    }
+
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        context.RegisterForSyntaxNotifications(() => new ResourceGeneratorReceiver());
     }
 }
