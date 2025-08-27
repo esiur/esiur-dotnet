@@ -1,188 +1,81 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text;
-using System.Linq;
-using System.Text.RegularExpressions;
+﻿// ================================
+// FILE: ResourceIncrementalGenerator.cs
+// Replaces: ResourceGenerator.cs + ResourceGeneratorReceiver.cs
+// ================================
+using Esiur.Core;
+using Esiur.Data;
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using Esiur.Resource.Template;
-using Esiur.Data;
-using System.IO;
-using Esiur.Core;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
 
-namespace Esiur.Proxy;
-
-[Generator]
-[System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1036:Specify analyzer banned API enforcement setting", Justification = "<Pending>")]
-public class ResourceGenerator : IIncrementalGenerator
+namespace Esiur.Proxy
 {
-
-    private KeyList<string, TypeTemplate[]> cache = new();
-    // private List<string> inProgress = new();
-
-    public void Initialize(GeneratorInitializationContext context)
+    [Generator(LanguageNames.CSharp)]
+    public sealed class ResourceGenerator : IIncrementalGenerator
     {
-        // Register receiver
-
-        context.RegisterForSyntaxNotifications(() => new ResourceGeneratorReceiver());
-    }
-
-
-    void ReportError(GeneratorExecutionContext context, string title, string msg, string category)
-    {
-        context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("MySG001", title, msg, category, DiagnosticSeverity.Error, true), Location.None));
-    }
-
-
-    void GenerateModel(GeneratorExecutionContext context, TypeTemplate[] templates)
-    {
-        foreach (var tmp in templates)
+        public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            if (tmp.Type == TemplateType.Resource)
+            // 1) Discover candidate classes via a cheap syntax filter
+            var perClass = context.SyntaxProvider.CreateSyntaxProvider(
+                 (node, _) => node is ClassDeclarationSyntax cds && cds.AttributeLists.Count > 0,
+                 (ctx, _) => AnalyzeClass(ctx)
+            )
+            .Where( x => x is not null)!;
+
+            // 2) Aggregate import URLs (distinct)
+            var importUrls = perClass
+                .SelectMany((x, y) => x.Value.ImportUrls)
+                .Collect()
+                .Select( (urls, y) => urls.Distinct(StringComparer.Ordinal).ToImmutableArray());
+
+            // 3) Aggregate class infos and merge partials by stable key
+            var mergedResources = perClass
+                .Select( (x, y) => x.Value.ClassInfo)
+                .Where( ci => ci is not null)!
+                .Select( (ci, y) => ci!)
+                .Collect()
+                .Select( (list, y) => MergePartials(list));
+
+            // 4) Generate: A) remote templates (from ImportAttribute URLs)
+            context.RegisterSourceOutput(importUrls,  (spc, urls) =>
             {
-                var source = TemplateGenerator.GenerateClass(tmp, templates, false);
-                context.AddSource(tmp.ClassName + ".Generated.cs", source);
-            }
-            else if (tmp.Type == TemplateType.Record)
-            {
-                var source = TemplateGenerator.GenerateRecord(tmp, templates);
-                context.AddSource(tmp.ClassName + ".Generated.cs", source);
-            }
-        }
-
-        // generate info class
-
-
-        var typesFile = "using System; \r\n namespace Esiur { public static class Generated { public static Type[] Resources {get;} = new Type[] { " +
-                            string.Join(",", templates.Where(x => x.Type == TemplateType.Resource).Select(x => $"typeof({x.ClassName})"))
-                        + " }; \r\n public static Type[] Records { get; } = new Type[] { " +
-                            string.Join(",", templates.Where(x => x.Type == TemplateType.Record).Select(x => $"typeof({x.ClassName})"))
-                        + " }; " +
-
-                        "\r\n } \r\n}";
-
-        context.AddSource("Esiur.Generated.cs", typesFile);
-
-    }
-
-
-
-    public static string SuggestExportName(string fieldName)
-    {
-        if (Char.IsUpper(fieldName[0]))
-            return fieldName.Substring(0, 1).ToLower() + fieldName.Substring(1);
-        else
-            return fieldName.Substring(0, 1).ToUpper() + fieldName.Substring(1);
-    }
-
-    public static string FormatAttribute(AttributeData attribute)
-    {
-        if (!(attribute.AttributeClass is object))
-            throw new Exception("AttributeClass not found");
-
-        var className = attribute.AttributeClass.ToDisplayString();
-
-        if (!attribute.ConstructorArguments.Any() & !attribute.ConstructorArguments.Any())
-            return $"[{className}]";
-
-        var strBuilder = new StringBuilder();
-
-        strBuilder.Append("[");
-        strBuilder.Append(className);
-        strBuilder.Append("(");
-
-        strBuilder.Append(String.Join(", ", attribute.ConstructorArguments.Select(ca => FormatConstant(ca))));
-
-        strBuilder.Append(String.Join(", ", attribute.NamedArguments.Select(na => $"{na.Key} = {FormatConstant(na.Value)}")));
-
-        strBuilder.Append(")]");
-
-        return strBuilder.ToString();
-    }
-
-    public static string FormatConstant(TypedConstant constant)
-    {
-        if (constant.Kind == TypedConstantKind.Array)
-            return $"new {constant.Type.ToDisplayString()} {{{string.Join(", ", constant.Values.Select(v => FormatConstant(v)))}}}";
-        else
-            return constant.ToCSharpString();
-    }
-
-
-    public void Execute(GeneratorExecutionContext context)
-    {
-
-        try
-        {
-
-
-            if (!(context.SyntaxContextReceiver is ResourceGeneratorReceiver receiver))
-                return;
-
-            //if (receiver.Imports.Count > 0 && !Debugger.IsAttached)
-            //{
-            //    Debugger.Launch();
-            //}
-
-            foreach (var path in receiver.Imports)
-            {
-                if (!TemplateGenerator.urlRegex.IsMatch(path))
-                    continue;
-
-
-
-                if (cache.Contains(path))
+                if (urls.Length == 0) return;
+                foreach (var path in urls)
                 {
-                    GenerateModel(context, cache[path]);
-                    continue;
+                    try
+                    {
+                        if (!TemplateGenerator.urlRegex.IsMatch(path))
+                            continue;
+
+                        var parts = TemplateGenerator.urlRegex.Split(path);
+                        var con = Warehouse.Default.Get<DistributedConnection>($"{parts[1]}://{parts[2]}").Wait(20000);
+                        var templates = con.GetLinkTemplates(parts[3]).Wait(60000);
+
+                        EmitTemplates(spc, templates);
+                    }
+                    catch (Exception ex)
+                    {
+                        Report(spc, "Esiur", ex.Message, DiagnosticSeverity.Error);
+                    }
                 }
+            });
 
-                // Syncronization
-                //if (inProgress.Contains(path))
-                //  continue;
-
-                //inProgress.Add(path);
-
-                var url = TemplateGenerator.urlRegex.Split(path);
-
-
-                try
-                {
-                    var con = Warehouse.Default.Get<DistributedConnection>(url[1] + "://" + url[2]).Wait(20000);
-                    var templates = con.GetLinkTemplates(url[3]).Wait(60000);
-
-                    cache[path] = templates;
-
-                    // make sources
-                    GenerateModel(context, templates);
-
-                }
-                catch (Exception ex)
-                {
-                    ReportError(context, ex.Source, ex.Message, "Esiur");
-                }
-
-                //inProgress.Remove(path);
-            }
-
-
-            //#if DEBUG
-
-            //#endif
-
-            //var toImplement = receiver.Classes.Where(x => x.Fields.Length > 0);
-
-            foreach (var ci in receiver.Classes.Values)
+            // 4) Generate: B) per resource partials (properties/events, base IResource impl if needed)
+            context.RegisterSourceOutput(mergedResources, static (spc, classes) =>
             {
-                try
+                foreach (var ci in classes)
                 {
-
-                    var code = @$"using Esiur.Resource; 
+                    try
+                    {
+                        var code = @$"using Esiur.Resource; 
 using Esiur.Core;
 
 #nullable enable
@@ -190,68 +83,230 @@ using Esiur.Core;
 namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
 ";
 
-                    if (ci.IsInterfaceImplemented(receiver.Classes))
-                        code += $"public partial class {ci.Name} {{\r\n";
-                    else
-                    {
-                        code +=
-    @$" public partial class {ci.Name} : IResource {{
+                        if (IsInterfaceImplemented(ci, classes))
+                            code += $"public partial class {ci.Name} {{\r\n";
+                        else
+                        {
+                            code +=
+$@" public partial class {ci.Name} : IResource {{
     public virtual Instance? Instance {{ get; set; }}
     public virtual event DestroyedEvent? OnDestroy;
 
     public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
 ";
 
-                        if (!ci.HasTrigger)
-                            code +=
-    "\tpublic virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n\r\n";
+                            if (!ci.HasTrigger)
+                                code += "\tpublic virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n\r\n";
+                        }
+
+                        foreach (var f in ci.Fields)
+                        {
+                            var givenName = f.GetAttributes().FirstOrDefault(x => x.AttributeClass?.Name == "ExportAttribute")?.ConstructorArguments.FirstOrDefault().Value as string;
+
+                            var fn = f.Name;
+                            var pn = string.IsNullOrEmpty(givenName) ? SuggestExportName(fn) : givenName;
+
+                            var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => FormatAttribute(x)));
+
+                            if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
+                            {
+                                code += $"\t{attrs}\r\n\t public event {f.Type} {pn};\r\n";
+                            }
+                            else
+                            {
+                                code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
+                            }
+                        }
+
+                        code += "}}\r\n";
+
+                        spc.AddSource(ci.Name + ".g.cs", code);
                     }
-
-                    //Debugger.Launch();
-
-                    foreach (var f in ci.Fields)
+                    catch (Exception ex)
                     {
-                        var givenName = f.GetAttributes().Where(x => x.AttributeClass.Name == "ExportAttribute").FirstOrDefault()?.ConstructorArguments.FirstOrDefault().Value as string;
-
-                        var fn = f.Name;
-                        var pn = string.IsNullOrEmpty(givenName) ? SuggestExportName(fn) : givenName;
-
-                        // copy attributes 
-                        //Debugger.Launch();
-
-                        var attrs = string.Join("\r\n\t", f.GetAttributes().Select(x => FormatAttribute(x)));
-
-                        //Debugger.Launch();
-                        if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
-                        {
-                            code += $"\t{attrs}\r\n\t public event {f.Type} {pn};\r\n";
-                        }
-                        else
-                        {
-                            code += $"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n";
-                        }
+                        spc.AddSource(ci.Name + ".Error.g.cs", $"/*\r\n{ex}\r\n*/");
                     }
-
-                    code += "}}\r\n";
-
-                    context.AddSource(ci.Name + ".g.cs", code);
-
                 }
-                catch (Exception ex)
+            });
+        }
+
+
+        // === Analysis ===
+        private static PerClass? AnalyzeClass(GeneratorSyntaxContext ctx)
+        {
+            var cds = (ClassDeclarationSyntax)ctx.Node;
+            var cls = ctx.SemanticModel.GetDeclaredSymbol(cds) as ITypeSymbol;
+            if (cls is null) return null;
+
+            var attrs = cls.GetAttributes();
+
+            // Collect ImportAttribute URLs
+            var importUrls = attrs
+                .Where(a => a.AttributeClass?.ToDisplayString() == "Esiur.Resource.ImportAttribute")
+                .SelectMany(a => a.ConstructorArguments.Select(x => x.Value?.ToString()))
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Cast<string>()
+                .ToImmutableArray();
+
+            // If class has ResourceAttribute, gather details
+            var hasResource = attrs.Any(a => a.AttributeClass?.ToDisplayString() == "Esiur.Resource.ResourceAttribute");
+            ResourceClassInfo? classInfo = null;
+            if (hasResource)
+            {
+                bool hasTrigger = cds.Members
+                    .OfType<MethodDeclarationSyntax>()
+                    .Select(m => ctx.SemanticModel.GetDeclaredSymbol(m) as IMethodSymbol)
+                    .Where(s => s is not null)
+                    .Any(s => s!.Name == "Trigger" && s.Parameters.Length == 1 && s.Parameters[0].Type.ToDisplayString() == "Esiur.Resource.ResourceTrigger");
+
+                var exportedFields = cds.Members
+                    .OfType<FieldDeclarationSyntax>()
+                    .SelectMany(f => f.Declaration.Variables.Select(v => (f, v)))
+                    .Select(t => ctx.SemanticModel.GetDeclaredSymbol(t.v) as IFieldSymbol)
+                    .Where(f => f is not null && !f!.IsConst)
+                    .Where(f => f!.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Esiur.Resource.ExportAttribute"))
+                    .Cast<IFieldSymbol>()
+                    .ToList();
+
+                bool hasInterface = cls.AllInterfaces.Any(x => x.ToDisplayString() == "Esiur.Resource.IResource");
+
+                var key = $"{cls.ContainingAssembly.Name}:{cls.ContainingNamespace.ToDisplayString()}.{cls.Name}";
+
+                classInfo = new ResourceClassInfo
+                (
+                    Key: key,
+                    Name: cls.Name,
+                    ClassDeclaration: cds,
+                    ClassSymbol: cls,
+                    Fields: exportedFields,
+                    HasInterface: hasInterface,
+                    HasTrigger: hasTrigger
+                );
+            }
+
+            return new PerClass(importUrls, classInfo);
+        }
+
+        private static ImmutableArray<ResourceClassInfo> MergePartials(ImmutableArray<ResourceClassInfo> list)
+        {
+            var byKey = new Dictionary<string, ResourceClassInfo>(StringComparer.Ordinal);
+            foreach (var item in list)
+            {
+                if (byKey.TryGetValue(item.Key, out var existing))
                 {
-                    context.AddSource(ci.Name + ".Error.g.cs", $"/*\r\n{ex}\r\n*/");
+                    // merge fields + flags
+                    var mergedFields = existing.Fields.Concat(item.Fields).ToList();
+                    byKey[item.Key] = existing with
+                    {
+                        Fields = mergedFields,
+                        HasInterface = existing.HasInterface || item.HasInterface,
+                        HasTrigger = existing.HasTrigger || item.HasTrigger
+                    };
+                }
+                else
+                {
+                    byKey[item.Key] = item with { Fields = item.Fields.ToList() };
                 }
             }
+            return byKey.Values.ToImmutableArray();
         }
-        catch (Exception ex)
+
+        // Determine if the base already implements IResource (either directly or via another generated part)
+        private static bool IsInterfaceImplemented(ResourceClassInfo ci, ImmutableArray<ResourceClassInfo> merged)
         {
-
-            context.AddSource("Error.g.cs", $"/*\r\n{ex}\r\n*/");
+            if (ci.HasInterface) return true;
+            var baseType = ci.ClassSymbol.BaseType;
+            if (baseType is null) return false;
+            var baseKey = $"{baseType.ContainingAssembly.Name}:{baseType.ContainingNamespace.ToDisplayString()}.{baseType.Name}";
+            return merged.Any(x => x.Key == baseKey);
         }
-    }
 
-    public void Initialize(IncrementalGeneratorInitializationContext context)
-    {
-        context.RegisterForSyntaxNotifications(() => new ResourceGeneratorReceiver());
+        // === Emission helpers (ported from your original generator) ===
+        private static void EmitTemplates(SourceProductionContext spc, TypeTemplate[] templates)
+        {
+            foreach (var tmp in templates)
+            {
+                if (tmp.Type == TemplateType.Resource)
+                {
+                    var source = TemplateGenerator.GenerateClass(tmp, templates, false);
+                    spc.AddSource(tmp.ClassName + ".Generated.cs", source);
+                }
+                else if (tmp.Type == TemplateType.Record)
+                {
+                    var source = TemplateGenerator.GenerateRecord(tmp, templates);
+                    spc.AddSource(tmp.ClassName + ".Generated.cs", source);
+                }
+            }
+
+            var typesFile = "using System; \r\n namespace Esiur { public static class Generated { public static Type[] Resources {get;} = new Type[] { " +
+                                string.Join(",", templates.Where(x => x.Type == TemplateType.Resource).Select(x => $"typeof({x.ClassName})"))
+                            + " }; \r\n public static Type[] Records { get; } = new Type[] { " +
+                                string.Join(",", templates.Where(x => x.Type == TemplateType.Record).Select(x => $"typeof({x.ClassName})"))
+                            + " }; " +
+
+                            "\r\n } \r\n}";
+
+            spc.AddSource("Esiur.Generated.cs", typesFile);
+        }
+
+        private static void Report(SourceProductionContext ctx, string title, string message, DiagnosticSeverity severity)
+        {
+            var descriptor = new DiagnosticDescriptor("ESIUR001", title, message, "Esiur", severity, true);
+            ctx.ReportDiagnostic(Diagnostic.Create(descriptor, Location.None));
+        }
+
+        // === Formatting helpers from your original code ===
+        private static string SuggestExportName(string fieldName)
+        {
+            if (char.IsUpper(fieldName[0]))
+                return fieldName.Substring(0, 1).ToLowerInvariant() + fieldName.Substring(1);
+            else
+                return char.ToUpperInvariant(fieldName[0]) + fieldName.Substring(1);
+        }
+
+        private static string FormatAttribute(AttributeData attribute)
+        {
+            if (attribute.AttributeClass is null)
+                throw new Exception("AttributeClass not found");
+
+            var className = attribute.AttributeClass.ToDisplayString();
+            if (!attribute.ConstructorArguments.Any() & !attribute.NamedArguments.Any())
+                return $"[{className}]";
+
+            var sb = new StringBuilder();
+            sb.Append('[').Append(className).Append('(');
+            if (attribute.ConstructorArguments.Any())
+                sb.Append(string.Join(", ", attribute.ConstructorArguments.Select(FormatConstant)));
+            if (attribute.NamedArguments.Any())
+            {
+                if (attribute.ConstructorArguments.Any()) sb.Append(", ");
+                sb.Append(string.Join(", ", attribute.NamedArguments.Select(na => $"{na.Key} = {FormatConstant(na.Value)}")));
+            }
+            sb.Append(")] ");
+            return sb.ToString();
+        }
+
+        private static string FormatConstant(TypedConstant constant)
+        {
+            if (constant.Kind == TypedConstantKind.Array)
+                return $"new {constant.Type?.ToDisplayString()} {{{string.Join(", ", constant.Values.Select(FormatConstant))}}}";
+            return constant.ToCSharpString();
+        }
+
+        // === Data carriers for the pipeline ===
+        private readonly record struct PerClass(
+            ImmutableArray<string> ImportUrls,
+            ResourceClassInfo? ClassInfo
+        );
+
+        private sealed record ResourceClassInfo(
+            string Key,
+            string Name,
+            ClassDeclarationSyntax ClassDeclaration,
+            ITypeSymbol ClassSymbol,
+            List<IFieldSymbol> Fields,
+            bool HasInterface,
+            bool HasTrigger
+        );
     }
 }
