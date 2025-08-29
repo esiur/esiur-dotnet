@@ -5,7 +5,7 @@
 		<Copyright>Ahmed Kh. Zamil</Copyright>
 		<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<Version>2.4.13</Version>
+		<Version>3.0.0</Version>
 		<RepositoryUrl>https://github.com/esiur/esiur-dotnet</RepositoryUrl>
 		<Authors>Ahmed Kh. Zamil</Authors>
 		<AssemblyVersion></AssemblyVersion>
@@ -16,15 +16,16 @@
 		<PackageId>Esiur</PackageId>
 		<Product>Esiur</Product>
 		<LangVersion>latest</LangVersion>
-		<PackageLicenseFile>LICENSE</PackageLicenseFile>
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework>netstandard2.0</TargetFramework>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-
+		<ImplicitUsings>enable</ImplicitUsings>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<IsRoslynComponent>true</IsRoslynComponent>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-		<DefineConstants>TRACE;DEBUG;NETSTANDARD</DefineConstants>
+		<DefineConstants>TRACE;DEBUG</DefineConstants>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -43,7 +44,7 @@
 		<PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
 		<PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
 		<PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
-		<PackageReference Include="System.Text.Json" Version="8.0.6" GeneratePathProperty="true" />
+		<PackageReference Include="System.Text.Json" Version="9.0.8" GeneratePathProperty="true" />
 	</ItemGroup>
 
 

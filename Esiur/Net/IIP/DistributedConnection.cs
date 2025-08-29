@@ -81,7 +81,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
     // Fields
     bool invalidCredentials = false;
 
-    Timer keepAliveTimer;
+    System.Timers.Timer keepAliveTimer;
     DateTime? lastKeepAliveSent;
     DateTime? lastKeepAliveReceived;
 
@@ -362,12 +362,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
         // set local nonce
         session.LocalHeaders[IIPAuthPacketHeader.Nonce] = Global.GenerateBytes(32);
 
-        keepAliveTimer = new Timer(KeepAliveInterval * 1000);
-        keepAliveTimer.Elapsed += KeepAliveTimer_Elapsed;
+        keepAliveTimer = new System.Timers.Timer(KeepAliveInterval * 1000);
+        keepAliveTimer.Elapsed += KeepAliveTimer_Elapsed; ;
     }
 
-
-    private void KeepAliveTimer_Elapsed(object sender, ElapsedEventArgs e)
+    private void KeepAliveTimer_Elapsed(object? sender, ElapsedEventArgs e)
     {
         if (!IsConnected)
             return;

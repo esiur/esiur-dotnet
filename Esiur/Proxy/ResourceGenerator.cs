@@ -174,17 +174,17 @@ $@" public partial class {ci.Name} : IResource {{
 
                 classInfo = new ResourceClassInfo
                 (
-                    Key: key,
-                    Name: cls.Name,
-                    ClassDeclaration: cds,
-                    ClassSymbol: cls,
-                    Fields: exportedFields,
-                    HasInterface: hasInterface,
-                    HasTrigger: hasTrigger
+                    key,
+                    cls.Name,
+                    cds,
+                    cls,
+                    exportedFields,
+                    hasInterface,
+                    hasTrigger
                 );
             }
 
-            return new PerClass(importUrls, classInfo);
+            return new PerClass(classInfo, importUrls);
         }
 
         private static ImmutableArray<ResourceClassInfo> MergePartials(ImmutableArray<ResourceClassInfo> list)
@@ -294,19 +294,39 @@ $@" public partial class {ci.Name} : IResource {{
         }
 
         // === Data carriers for the pipeline ===
-        private readonly record struct PerClass(
-            ImmutableArray<string> ImportUrls,
-            ResourceClassInfo? ClassInfo
-        );
+        private readonly record struct PerClass {
+            public PerClass(ResourceClassInfo?  classInfo, ImmutableArray<string> importUrls)
+            {
+                this.ImportUrls = importUrls;
+                this.ClassInfo = classInfo;
+            }
 
-        private sealed record ResourceClassInfo(
-            string Key,
-            string Name,
-            ClassDeclarationSyntax ClassDeclaration,
-            ITypeSymbol ClassSymbol,
-            List<IFieldSymbol> Fields,
-            bool HasInterface,
-            bool HasTrigger
-        );
+            public readonly ImmutableArray<string> ImportUrls;
+            public readonly ResourceClassInfo? ClassInfo;
+        }
+
+        private sealed record ResourceClassInfo {
+
+            public ResourceClassInfo(string key, string name , 
+                ClassDeclarationSyntax classDeclaration, 
+                ITypeSymbol classSymbol, List<IFieldSymbol> fileds, bool hasInterface, bool hasTrigger)
+            {
+                Key = key;
+                Name = name;
+                ClassDeclaration = classDeclaration;
+                ClassSymbol = classSymbol;
+                Fields = fileds;
+                HasInterface = hasInterface;
+                HasTrigger = hasTrigger;
+            }
+
+            public string Key;
+            public string Name;
+            public ClassDeclarationSyntax ClassDeclaration;
+            public ITypeSymbol ClassSymbol;
+            public List<IFieldSymbol> Fields;
+            public bool HasInterface;
+            public bool HasTrigger;
+        }
     }
 }

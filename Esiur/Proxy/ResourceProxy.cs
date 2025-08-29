@@ -82,7 +82,7 @@ public static class ResourceProxy
 
             var props = from p in type.GetProperties()
                 where p.CanWrite && p.GetSetMethod().IsVirtual && 
-                p.GetCustomAttributes(typeof(ResourceProperty), false).Count() > 0
+                p.GetCustomAttributes(typeof(ExportAttribute), false).Count() > 0
                 select p;
 
 #endif
