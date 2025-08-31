@@ -105,9 +105,12 @@ public static class DC // Data Converter
                     {
                         return Convert.ChangeType(value, destinationType);
                     }
+
                 }
-                catch
+                catch (Exception ex)
                 {
+
+                    throw ex;
                     return null;
                 }
             }
@@ -317,7 +320,7 @@ public static class DC // Data Converter
 
 
 
-     
+
     public static byte[] ToBytes(this string value)
     {
         return Encoding.UTF8.GetBytes(value);

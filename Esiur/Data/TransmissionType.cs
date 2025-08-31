@@ -56,7 +56,9 @@ public enum TransmissionTypeIdentifier : byte
     TypedEnum = 0x84,
     TypedConstant = 0x85,
 
-    ResourceLink = 0xC0
+    ResourceLink = 0xC0,
+
+    Same = 0xFF
 }
 
 public enum TransmissionTypeClass

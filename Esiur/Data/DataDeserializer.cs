@@ -1,14 +1,15 @@
 ﻿using Esiur.Core;
+using Esiur.Data;
+using Esiur.Misc;
 using Esiur.Net.IIP;
 using Esiur.Resource;
+using Esiur.Resource.Template;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
-using System.Text;
-using Esiur.Data;
-using Esiur.Resource.Template;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using Esiur.Misc;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Text;
 
 namespace Esiur.Data;
 
@@ -676,8 +677,20 @@ public static class DataDeserializer
     {
         var rt = new List<object>();
 
+        //TransmissionTypeIdentifier? previous = null;
+        //byte[]? previousUUID = null;
+
+        TransmissionType? previous = null;
+
         while (length > 0)
         {
+            var (longLen, dataType) = TransmissionType.Parse(data, offset, (uint)data.Length);
+
+            if (dataType.Value.Identifier == TransmissionTypeIdentifier.Same)
+            {
+                // Add UUID
+            }
+
             var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
             rt.Add(reply);

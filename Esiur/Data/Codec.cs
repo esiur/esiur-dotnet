@@ -338,20 +338,11 @@ public static class Codec
     };
 
 
-
-    /// <summary>
-    /// Compose a variable
-    /// </summary>
-    /// <param name="value">Value to compose.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
-    /// <param name="prependType">If True, prepend the DataType at the beginning of the output.</param>
-    /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] Compose(object valueOrSource, Warehouse warehouse, DistributedConnection connection)//, bool prependType = true)
+    internal static (TransmissionTypeIdentifier identifier, byte[])
+        ComposeInternal(object valueOrSource, Warehouse warehouse, DistributedConnection connection)
     {
-
-
         if (valueOrSource == null)
-            return TransmissionType.Compose(TransmissionTypeIdentifier.Null, null);
+            return (TransmissionTypeIdentifier.Null, null);
 
         var type = valueOrSource.GetType();
 
@@ -377,11 +368,8 @@ public static class Codec
         if (valueOrSource is IUserType)
             valueOrSource = ((IUserType)valueOrSource).Get();
 
-        //if (valueOrSource is Func<DistributedConnection, object>)
-        //    valueOrSource = (valueOrSource as Func<DistributedConnection, object>)(connection);
-
         if (valueOrSource == null)
-            return TransmissionType.Compose(TransmissionTypeIdentifier.Null, null);
+            return (TransmissionTypeIdentifier.Null, null);
 
 
         type = valueOrSource.GetType();
@@ -390,32 +378,32 @@ public static class Codec
         if (Composers.ContainsKey(type))
         {
             var (hdr, data) = Composers[type](valueOrSource, warehouse, connection);
-            return TransmissionType.Compose(hdr, data);
+            return (hdr, data);
         }
         else
         {
             if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
                 var (hdr, data) = DataSerializer.ResourceComposer(valueOrSource, warehouse, connection);
-                return TransmissionType.Compose(hdr, data);
+                return (hdr, data);
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
                 var (hdr, data) = DataSerializer.RecordComposer(valueOrSource, warehouse, connection);
-                return TransmissionType.Compose(hdr, data);
+                return (hdr, data);
             }
             else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
-                if (genericType == typeof(List<>) 
-                    || genericType == typeof(VarList<>) 
+                if (genericType == typeof(List<>)
+                    || genericType == typeof(VarList<>)
                     || genericType == typeof(IList<>))
                 {
                     var args = type.GetGenericArguments();
                     //if (Composers.ContainsKey(args[0]))
                     //{
                     var (hdr, data) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, args[0], warehouse, connection);
-                    return TransmissionType.Compose(hdr, data);
+                    return (hdr, data);
                     //}
                 }
                 else if (genericType == typeof(Map<,>))
@@ -423,15 +411,15 @@ public static class Codec
                     var args = type.GetGenericArguments();
 
                     var (hdr, data) = DataSerializer.TypedMapComposer(valueOrSource, args[0], args[1], warehouse, connection);
-                    return TransmissionType.Compose(hdr, data);
+                    return (hdr, data);
 
                 }
                 else if (genericType == typeof(Dictionary<,>))
                 {
                     var args = type.GetGenericArguments();
-                    
+
                     var (hdr, data) = DataSerializer.TypedDictionaryComposer(valueOrSource, args[0], args[1], warehouse, connection);
-                    return TransmissionType.Compose(hdr, data);
+                    return (hdr, data);
 
                 }
 
@@ -444,7 +432,7 @@ public static class Codec
                   )
                 {
                     var (hdr, data) = DataSerializer.TupleComposer(valueOrSource, warehouse, connection);
-                    return TransmissionType.Compose(hdr, data);
+                    return (hdr, data);
                 }
             }
             else if (type.IsArray)
@@ -454,23 +442,35 @@ public static class Codec
                 //if (Composers.ContainsKey(elementType))
                 //{
                 var (hdr, data) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, elementType, warehouse, connection);
-                return TransmissionType.Compose(hdr, data);
+                return (hdr, data);
 
                 //}
             }
             else if (type.IsEnum)
             {
                 var (hdr, data) = DataSerializer.EnumComposer(valueOrSource, warehouse, connection);
-                return TransmissionType.Compose(hdr, data);
+                return (hdr, data);
             }
 
         }
 
-        return TransmissionType.Compose(TransmissionTypeIdentifier.Null, null);
+        return (TransmissionTypeIdentifier.Null, null);
 
     }
 
 
+    /// <summary>
+    /// Compose a variable
+    /// </summary>
+    /// <param name="value">Value to compose.</param>
+    /// <param name="connection">DistributedConnection is required to check locality.</param>
+    /// <param name="prependType">If True, prepend the DataType at the beginning of the output.</param>
+    /// <returns>Array of bytes in the network byte order.</returns>
+    public static byte[] Compose(object valueOrSource, Warehouse warehouse, DistributedConnection connection)//, bool prependType = true)
+    {
+        var (hdr, data) = ComposeInternal(valueOrSource, warehouse, connection);
+        return TransmissionType.Compose(hdr, data);
+    }
 
     public static bool IsAnonymous(Type type)
     {

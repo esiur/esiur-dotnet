@@ -225,7 +225,7 @@ public static class DataSerializer
             return (TransmissionTypeIdentifier.Null, new byte[0]);
 
         var header = RepresentationType.FromType(type).Compose();
-
+        
         var rt = new List<byte>();
 
         rt.AddRange(header);
@@ -320,8 +320,33 @@ public static class DataSerializer
 
         var rt = new List<byte>();
 
+        TransmissionTypeIdentifier? previous = null;
+        byte[]? previousUUID = null;
+
         foreach (var i in value)
+        {
+            var (hdr, data) = Codec.ComposeInternal(i, warehouse, connection);
+            if (previous == null)
+                previous = hdr;
+            else if (hdr == previous)
+            {
+                if (hdr == TransmissionTypeIdentifier.Record)
+                {
+                    var newUUID = data.Take(16).ToArray();
+                    // check same uuid
+                    if (newUUID.SequenceEqual(previousUUID))
+                        rt.AddRange(TransmissionType.Compose(TransmissionTypeIdentifier.Same,
+                            data.Skip(16).ToArray()));
+                    else
+                        rt.AddRange(TransmissionType.Compose(hdr, data));
+
+                    previous = hdr;
+                    previousUUID = newUUID;
+                }
+            }
+                
             rt.AddRange(Codec.Compose(i, warehouse, connection));
+        }
 
         return rt.ToArray();
     }

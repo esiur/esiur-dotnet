@@ -22,17 +22,18 @@ SOFTWARE.
 
 */
 
+using Esiur.Core;
+using Esiur.Data;
+using Esiur.Misc;
+using Esiur.Net.IIP;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Esiur.Data;
-using Esiur.Misc;
-using Esiur.Core;
-using System.Reflection;
-using System.Dynamic;
 
 namespace Esiur.Data;
 
@@ -54,68 +55,69 @@ namespace Esiur.Data;
 public interface IMap
 {
     public void Add(object key, object value);
-    public void Remove(object key);
-    public void Clear();
-    public bool ContainsKey(object key);
+    //public void Remove(object key);
+    //public void Clear();
+    //public bool ContainsKey(object key);
     public object[] Serialize();
 }
 
-public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
+public class Map<KT, VT> : Dictionary<KT, VT>, IMap // IEnumerable<KeyValuePair<KT, VT>>
 {
 
-    private Dictionary<KT, VT> dic = new Dictionary<KT, VT>();
+    //private Dictionary<KT, VT> dic = new Dictionary<KT, VT>();
     private object syncRoot = new object();
 
-    // Change map types
+    //public static implicit operator Map<KT, VT>(Dictionary<KT, VT> dictionary)
+    //                                => new Map<KT, VT>() { dic = dictionary };
+
+    //public static implicit operator Dictionary<KT, VT>(Map<KT, VT> map)
+    //                            => map.ToDictionary();
+
+    //Change map types
     public Map<NewKeyType, NewValueType> Select<NewKeyType, NewValueType>
                                         (Func<KeyValuePair<KT, VT>, KeyValuePair<NewKeyType, NewValueType>> selector)
     {
         var rt = new Map<NewKeyType, NewValueType>();
-        foreach(var kv in dic)
+        foreach (var kv in this)
         {
             var nt = selector(kv);
-            rt.dic.Add(nt.Key, nt.Value);
+            rt.Add(nt.Key, nt.Value);
         }
 
         return rt;
     }
 
-    public bool ContainsKey(KT key)
-    {
-        return dic.ContainsKey(key);
-    }
+    //public bool ContainsKey(KT key)
+    //{
+    //    return dic.ContainsKey(key);
+    //}
 
     public override string ToString()
     {
         var rt = "";
-        foreach (var kv in dic)
+        foreach (var kv in this)
             rt += kv.Key + ": " + kv.Value.ToString() + " \r\n";
 
         return rt.TrimEnd('\r', '\n');
     }
 
-    public Map(Map<KT,VT> source)
-    {
-        dic = source.dic;
-    }
+    //public Map(Map<KT,VT> source)
+    //{
+    //    dic = source.dic;
+    //}
     public Map()
     {
 
     }
 
-    public static Map<KT,VT> FromMap(Map<KT,VT> source, Type destinationType)
-    {
-        var rt = Activator.CreateInstance(destinationType) as Map<KT, VT>;
-        rt.dic = source.dic;
-        return rt;
-    }
-
-    //public static T FromStructure<T>(Map<KT, VT> source) where T : Map<KT, VT>
+    //public static Map<KT,VT> FromMap(Map<KT,VT> source, Type destinationType)
     //{
-    //    var rt = Activator.CreateInstance<T>();
+    //    var rt = Activator.CreateInstance(destinationType) as Map<KT, VT>;
     //    rt.dic = source.dic;
     //    return rt;
     //}
+
+
 
    // public static explicit operator Map<string, object>(ExpandoObject obj) => FromDynamic(obj);
 
@@ -127,10 +129,10 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
         return rt;
     }
 
-    public static Map<KT, VT> FromDictionary(Dictionary<KT, VT> dictionary)
-        => new Map<KT, VT>() { dic = dictionary };
+    //public static Map<KT, VT> FromDictionary(Dictionary<KT, VT> dictionary)
+    //    => new Map<KT, VT>() { dic = dictionary };
 
-    public Dictionary<KT, VT> ToDictionary() => dic;
+    //public Dictionary<KT, VT> ToDictionary() => dic;
 
     public static Map<string,object> FromObject(object obj)
     {
@@ -169,68 +171,65 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
         //    //  return null;
     }
 
-    public IEnumerator<KeyValuePair<KT, VT>> GetEnumerator()
-    {
-        return dic.GetEnumerator();
-    }
+    //public IEnumerator<KeyValuePair<KT, VT>> GetEnumerator()
+    //{
+    //    return dic.GetEnumerator();
+    //}
 
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return dic.GetEnumerator();
-    }
+    //IEnumerator IEnumerable.GetEnumerator()
+    //{
+    //    return dic.GetEnumerator();
+    //}
 
-    public int Length
-    {
-        get { return dic.Count; }
-    }
+    //public int Length
+    //{
+    //    get { return dic.Count; }
+    //}
 
-    public KeyValuePair<KT, VT> At(int index)
-    {
-        return dic.ElementAt(index);
-    }
+    //public KeyValuePair<KT, VT> At(int index)
+    //{
+    //    return dic.ElementAt(index);
+    //}
 
     public object SyncRoot
     {
         get { return syncRoot; }
     }
 
-    public KT[] GetKeys() => dic.Keys.ToArray();//GetKeys()
-                                                    //{
-                                                    //  return dic.Keys.ToArray();
-                                                    //}
+    //public KT[] GetKeys() => dic.Keys.ToArray();
 
-    public void Add(KT key, VT value)
-    {
-        if (dic.ContainsKey(key))
-            dic[key] = value;
-        else
-            dic.Add(key, value);
-     }
+    //public void Add(KT key, VT value)
+    //{
+    //    if (dic.ContainsKey(key))
+    //        dic[key] = value;
+    //    else
+    //        dic.Add(key, value);
+    // }
 
     public void Add(object key, object value)
     {
-        Add((KT)key, (VT)value);
+        base.Add((KT)key, (VT)value);
     }
 
-    public void Remove(object key)
-    {
-        Remove((KT)key);
-    }
+    //public void Remove(object key)
+    //{
+    //    Remove((KT)key);
+    //}
 
-    public void Clear()
-    {
-        dic.Clear();
-    }
+    //public void Clear()
+    //{
+    //    dic.Clear();
+    //}
 
-    public bool ContainsKey(object key)
-    {
-        return ContainsKey((KT)key);
-    }
+    //public bool ContainsKey(object key)
+    //{
+    //    return ContainsKey((KT)key);
+    //}
 
     public object[] Serialize()
     {
         var rt = new List<object>();
-        foreach(var kv in dic)
+        foreach(var kv in this)
         {
             rt.Add(kv.Key);
             rt.Add(kv.Value);
@@ -239,22 +238,22 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
         return rt.ToArray();
     }
 
-    public VT this[KT index]
-    {
-        get
-        {
-            if (dic.ContainsKey(index))
-                return dic[index];
-            else
-                return default;
-        }
-        set
-        {
-            if (dic.ContainsKey(index))
-                dic[index] = value;
-            else
-                dic.Add(index, value);
-        }
-    }
+    //public VT this[KT index]
+    //{
+    //    get
+    //    {
+    //        if (dic.ContainsKey(index))
+    //            return dic[index];
+    //        else
+    //            return default;
+    //    }
+    //    set
+    //    {
+    //        if (dic.ContainsKey(index))
+    //            dic[index] = value;
+    //        else
+    //            dic.Add(index, value);
+    //    }
+    //}
 
 }
