@@ -119,7 +119,7 @@ namespace Esiur.Security.Membership
             // local nonce + password or token + remote nonce
             var challenge = hashFunc.ComputeHash(new BinaryList()
                                                 .AddUInt8Array(remoteNonce)
-                                                .AddUInt8Array(Codec.Compose(qa.Answer, null))
+                                                .AddUInt8Array(Codec.Compose(qa.Answer, null, null))
                                                 .AddUInt8Array(localNonce)
                                                 .ToArray());
 

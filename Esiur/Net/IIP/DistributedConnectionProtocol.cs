@@ -94,7 +94,7 @@ partial class DistributedConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x60 | (byte)action))
               .AddUInt32(c)
-              .AddUInt8Array(Codec.Compose(args[0], this));
+              .AddUInt8Array(Codec.Compose(args[0], this.Instance.Warehouse, this));
             Send(bl.ToArray());
         }
         else
@@ -102,7 +102,7 @@ partial class DistributedConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x60 | (byte)action))
               .AddUInt32(c)
-              .AddUInt8Array(Codec.Compose(args, this));
+              .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this));
             Send(bl.ToArray());
         }
 
@@ -127,14 +127,14 @@ partial class DistributedConnection
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x20 | (byte)action))
-              .AddUInt8Array(Codec.Compose(args[0], this));
+              .AddUInt8Array(Codec.Compose(args[0], this.Instance.Warehouse, this));
             Send(bl.ToArray());
         }
         else
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x20 | (byte)action))
-              .AddUInt8Array(Codec.Compose(args, this));
+              .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this));
             Send(bl.ToArray());
         }
 
@@ -155,7 +155,7 @@ partial class DistributedConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0xA0 | (byte)action))
               .AddUInt32(callbackId)
-              .AddUInt8Array(Codec.Compose(args[0], this));
+              .AddUInt8Array(Codec.Compose(args[0], this.Instance.Warehouse, this));
             Send(bl.ToArray());
         }
         else
@@ -163,7 +163,7 @@ partial class DistributedConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0xA0 | (byte)action))
               .AddUInt32(callbackId)
-              .AddUInt8Array(Codec.Compose(args, this));
+              .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this));
             Send(bl.ToArray());
         }
     }

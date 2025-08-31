@@ -216,9 +216,8 @@ namespace Esiur.Data
                 return new RepresentationType(RepresentationTypeIdentifier.Resource, nullable);
             else if (type == typeof(IRecord) || type == typeof(Record))
                 return new RepresentationType(RepresentationTypeIdentifier.Record, nullable);
-            else if (type.IsInterface)
-                return null; // other interfaces are not supported
-            else if (type == typeof(Map<object, object>))
+            else if (type == typeof(Map<object, object>)
+                || type == typeof(Dictionary<object, object>))
                 return new RepresentationType(RepresentationTypeIdentifier.Map, nullable);
             else if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
@@ -239,7 +238,9 @@ namespace Esiur.Data
             else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
-                if (genericType == typeof(List<>) || genericType == typeof(VarList<>))
+                if (genericType == typeof(List<>)
+                    || genericType == typeof(VarList<>)
+                    || genericType == typeof(IList<>))
                 {
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object))
@@ -257,7 +258,8 @@ namespace Esiur.Data
 
                     }
                 }
-                else if (genericType == typeof(Map<,>))
+                else if (genericType == typeof(Map<,>)
+                    || genericType == typeof(Dictionary<,>))
                 {
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object) && args[1] == typeof(object))
@@ -397,6 +399,11 @@ namespace Esiur.Data
             {
                 return new RepresentationType(RepresentationTypeIdentifier.Enum, nullable, TypeTemplate.GetTypeUUID(type));
             }
+            else if (type.IsInterface)
+            {
+                return null; // other interfaces are not supported
+            }
+
             //else if (typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject) => RepresentationTypeIdentifier.Structure)
             //{
 

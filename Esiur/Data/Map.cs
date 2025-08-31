@@ -127,6 +127,11 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
         return rt;
     }
 
+    public static Map<KT, VT> FromDictionary(Dictionary<KT, VT> dictionary)
+        => new Map<KT, VT>() { dic = dictionary };
+
+    public Dictionary<KT, VT> ToDictionary() => dic;
+
     public static Map<string,object> FromObject(object obj)
     {
         var type = obj.GetType();

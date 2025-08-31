@@ -49,7 +49,7 @@ public class ConstantTemplate : MemberTemplate
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
                     .AddUInt8Array(ValueType.Compose())
-                    .AddUInt8Array(Codec.Compose(Value, null))
+                    .AddUInt8Array(Codec.Compose(Value, null, null))
                     .AddInt32(exp.Length)
                     .AddUInt8Array(exp)
                     .ToArray();
@@ -63,7 +63,7 @@ public class ConstantTemplate : MemberTemplate
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
                     .AddUInt8Array(ValueType.Compose())
-                    .AddUInt8Array(Codec.Compose(Value, null))
+                    .AddUInt8Array(Codec.Compose(Value, null, null))
                     .ToArray();
         }
     }

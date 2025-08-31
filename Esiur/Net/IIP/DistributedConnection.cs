@@ -240,7 +240,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             && session.RemoteMethod == AuthenticationMethod.None)
         {
             // change to Map<byte, object> for compatibility
-            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
+            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
 
             // declare (Credentials -> No Auth, No Enctypt)
             SendParams()
@@ -253,7 +253,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             && session.RemoteMethod == AuthenticationMethod.None)
         {
             // change to Map<byte, object> for compatibility
-            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
+            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
 
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketInitialize.TokenNoAuth)
@@ -264,7 +264,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
             && session.RemoteMethod == AuthenticationMethod.None)
         {
             // change to Map<byte, object> for compatibility
-            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this);
+            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
 
             // @REVIEW: MITM Attack can still occur
             SendParams()
@@ -814,7 +814,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         SendParams()
                             .AddUInt8((byte)IIPAuthPacketAction.IAuthPlain)
                             .AddUInt32((uint)headers[IIPAuthPacketIAuthHeader.Reference])
-                            .AddUInt8Array(Codec.Compose(response, this))
+                            .AddUInt8Array(Codec.Compose(response, this.Instance.Warehouse, this))
                             .Done();
                     })
                     .Timeout(iAuthRequest.Timeout * 1000,
@@ -856,7 +856,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                         var sha = SHA256.Create();
                         var hash = sha.ComputeHash(new BinaryList()
                             .AddUInt8Array((byte[])session.LocalHeaders[IIPAuthPacketHeader.Nonce])
-                            .AddUInt8Array(Codec.Compose(response, this))
+                            .AddUInt8Array(Codec.Compose(response, this.Instance.Warehouse, this))
                             .AddUInt8Array((byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce])
                             .ToArray());
 
@@ -934,7 +934,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                             SendParams()
                                         .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthCredentials)
-                                        .AddUInt8Array(Codec.Compose(localHeaders, this))
+                                        .AddUInt8Array(Codec.Compose(localHeaders, this.Instance.Warehouse, this))
                                         .Done();
                         }
                         else
@@ -992,7 +992,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                                 SendParams()
                                             .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthToken)
-                                            .AddUInt8Array(Codec.Compose(localHeaders, this))
+                                            .AddUInt8Array(Codec.Compose(localHeaders, this.Instance.Warehouse, this))
                                             .Done();
 
                             }
@@ -1038,7 +1038,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                         SendParams()
                                     .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthNoAuth)
-                                    .AddUInt8Array(Codec.Compose(localHeaders, this))
+                                    .AddUInt8Array(Codec.Compose(localHeaders,this.Instance.Warehouse, this))
                                     .Done();
                     }
                     else
@@ -1303,7 +1303,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketEvent.IAuthPlain)
-                .AddUInt8Array(Codec.Compose(args, this))
+                .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
                 .Done();
 
         }
@@ -1321,7 +1321,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketEvent.IAuthHashed)
-                .AddUInt8Array(Codec.Compose(args, this))
+                .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
                 .Done();
 
         }
@@ -1337,7 +1337,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketEvent.IAuthEncrypted)
-                .AddUInt8Array(Codec.Compose(args, this))
+                .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
                 .Done();
         }
     }
