@@ -51,9 +51,9 @@ public partial class DistributedConnection : NetworkConnection, IStore
 {
 
 
-    public delegate void ProtocolGeneralHandler(DistributedConnection connection, TransmissionType dataType, byte[] data);
+    public delegate void ProtocolGeneralHandler(DistributedConnection connection, TransmissionDataUnit dataType, byte[] data);
 
-    public delegate void ProtocolRequestReplyHandler(DistributedConnection connection, uint callbackId, TransmissionType dataType, byte[] data);
+    public delegate void ProtocolRequestReplyHandler(DistributedConnection connection, uint callbackId, TransmissionDataUnit dataType, byte[] data);
 
     // Delegates
     public delegate void ReadyEvent(DistributedConnection sender);

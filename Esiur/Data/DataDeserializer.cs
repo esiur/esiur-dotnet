@@ -677,16 +677,16 @@ public static class DataDeserializer
     {
         var rt = new List<object>();
 
-        //TransmissionTypeIdentifier? previous = null;
+        //TransmissionDataUnitIdentifier? previous = null;
         //byte[]? previousUUID = null;
 
-        TransmissionType? previous = null;
+        TransmissionDataUnit? previous = null;
 
         while (length > 0)
         {
-            var (longLen, dataType) = TransmissionType.Parse(data, offset, (uint)data.Length);
+            var (longLen, dataType) = TransmissionDataUnit.Parse(data, offset, (uint)data.Length);
 
-            if (dataType.Value.Identifier == TransmissionTypeIdentifier.Same)
+            if (dataType.Value.Identifier == TransmissionDataUnitIdentifier.Same)
             {
                 // Add UUID
             }

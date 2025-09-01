@@ -44,7 +44,7 @@ class IIPPacket : Packet
 
     public byte Extension { get; set; }
 
-    public TransmissionType? DataType { get; set; }
+    public TransmissionDataUnit? DataType { get; set; }
 
 
     private uint dataLengthNeeded;
@@ -124,7 +124,7 @@ class IIPPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            (var size, DataType) = TransmissionType.Parse(data, offset, ends);
+            (var size, DataType) = TransmissionDataUnit.Parse(data, offset, ends);
 
             if (DataType == null)
                 return -(int)size;

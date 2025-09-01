@@ -76,42 +76,42 @@ namespace Esiur.Data
                     RepresentationTypeIdentifier.TypedResource
           };
 
-        static Map<TransmissionTypeIdentifier, RepresentationTypeIdentifier> typesMap = new Map<TransmissionTypeIdentifier, RepresentationTypeIdentifier>()
+        static Map<TransmissionDataUnitIdentifier, RepresentationTypeIdentifier> typesMap = new Map<TransmissionDataUnitIdentifier, RepresentationTypeIdentifier>()
         {
-            [TransmissionTypeIdentifier.UInt8] = RepresentationTypeIdentifier.UInt8,
-            [TransmissionTypeIdentifier.Int8] = RepresentationTypeIdentifier.Int8,
-            [TransmissionTypeIdentifier.UInt16] = RepresentationTypeIdentifier.UInt16,
-            [TransmissionTypeIdentifier.Int16] = RepresentationTypeIdentifier.Int16,
-            [TransmissionTypeIdentifier.UInt32] = RepresentationTypeIdentifier.UInt32,
-            [TransmissionTypeIdentifier.Int32] = RepresentationTypeIdentifier.Int32,
-            [TransmissionTypeIdentifier.UInt64] = RepresentationTypeIdentifier.UInt64,
-            [TransmissionTypeIdentifier.Int64] = RepresentationTypeIdentifier.Int64,
-            [TransmissionTypeIdentifier.UInt128] = RepresentationTypeIdentifier.UInt128,
-            [TransmissionTypeIdentifier.Int128] = RepresentationTypeIdentifier.Int128,
-            [TransmissionTypeIdentifier.Char8] = RepresentationTypeIdentifier.Char,
-            [TransmissionTypeIdentifier.DateTime] = RepresentationTypeIdentifier.DateTime,
-            [TransmissionTypeIdentifier.Float32] = RepresentationTypeIdentifier.Float32,
-            [TransmissionTypeIdentifier.Float64] = RepresentationTypeIdentifier.Float64,
-            [TransmissionTypeIdentifier.Decimal128] = RepresentationTypeIdentifier.Decimal,
-            [TransmissionTypeIdentifier.False] = RepresentationTypeIdentifier.Bool,
-            [TransmissionTypeIdentifier.True] = RepresentationTypeIdentifier.Bool,
-            [TransmissionTypeIdentifier.Map] = RepresentationTypeIdentifier.Map,
-            [TransmissionTypeIdentifier.List] = RepresentationTypeIdentifier.List,
-            [TransmissionTypeIdentifier.RawData] = RepresentationTypeIdentifier.RawData,
-            [TransmissionTypeIdentifier.Record] = RepresentationTypeIdentifier.Record,
-            [TransmissionTypeIdentifier.String] = RepresentationTypeIdentifier.String,
+            [TransmissionDataUnitIdentifier.UInt8] = RepresentationTypeIdentifier.UInt8,
+            [TransmissionDataUnitIdentifier.Int8] = RepresentationTypeIdentifier.Int8,
+            [TransmissionDataUnitIdentifier.UInt16] = RepresentationTypeIdentifier.UInt16,
+            [TransmissionDataUnitIdentifier.Int16] = RepresentationTypeIdentifier.Int16,
+            [TransmissionDataUnitIdentifier.UInt32] = RepresentationTypeIdentifier.UInt32,
+            [TransmissionDataUnitIdentifier.Int32] = RepresentationTypeIdentifier.Int32,
+            [TransmissionDataUnitIdentifier.UInt64] = RepresentationTypeIdentifier.UInt64,
+            [TransmissionDataUnitIdentifier.Int64] = RepresentationTypeIdentifier.Int64,
+            [TransmissionDataUnitIdentifier.UInt128] = RepresentationTypeIdentifier.UInt128,
+            [TransmissionDataUnitIdentifier.Int128] = RepresentationTypeIdentifier.Int128,
+            [TransmissionDataUnitIdentifier.Char8] = RepresentationTypeIdentifier.Char,
+            [TransmissionDataUnitIdentifier.DateTime] = RepresentationTypeIdentifier.DateTime,
+            [TransmissionDataUnitIdentifier.Float32] = RepresentationTypeIdentifier.Float32,
+            [TransmissionDataUnitIdentifier.Float64] = RepresentationTypeIdentifier.Float64,
+            [TransmissionDataUnitIdentifier.Decimal128] = RepresentationTypeIdentifier.Decimal,
+            [TransmissionDataUnitIdentifier.False] = RepresentationTypeIdentifier.Bool,
+            [TransmissionDataUnitIdentifier.True] = RepresentationTypeIdentifier.Bool,
+            [TransmissionDataUnitIdentifier.Map] = RepresentationTypeIdentifier.Map,
+            [TransmissionDataUnitIdentifier.List] = RepresentationTypeIdentifier.List,
+            [TransmissionDataUnitIdentifier.RawData] = RepresentationTypeIdentifier.RawData,
+            [TransmissionDataUnitIdentifier.Record] = RepresentationTypeIdentifier.Record,
+            [TransmissionDataUnitIdentifier.String] = RepresentationTypeIdentifier.String,
         };
 
-        public bool IsCompatible(TransmissionType tdu)
+        public bool IsCompatible(TransmissionDataUnit tdu)
         {
             var tru = typesMap[tdu.Identifier];
 
             if (tru != Identifier)
                 return false;
 
-            if (tdu.Class == TransmissionTypeClass.Typed)
+            if (tdu.Class == TransmissionDataUnitClass.Typed)
             {
-                if (tdu.Identifier == TransmissionTypeIdentifier.)
+                if (tdu.Identifier == TransmissionDataUnitIdentifier.)
             }
             return true;
         }
