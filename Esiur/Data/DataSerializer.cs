@@ -483,10 +483,10 @@ public static class DataSerializer
         return rt.ToArray();
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) TupleComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnitIdentifier TupleComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return (TransmissionDataUnitIdentifier.Null, new byte[0], new byte[0]);
 
         var rt = new List<byte>();
 
@@ -494,7 +494,6 @@ public static class DataSerializer
         var list = fields.Select(x => x.GetValue(value)).ToArray();
         var types = fields.Select(x => RepresentationType.FromType(x.FieldType).Compose()).ToArray();
 
-        rt.Add((byte)list.Length);
 
         foreach (var t in types)
             rt.AddRange(t);
@@ -502,11 +501,11 @@ public static class DataSerializer
         var composed = ArrayComposer(list, warehouse, connection);
 
         if (composed == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return (TransmissionDataUnitIdentifier.Null, new byte[0], new byte[0]);
         else
         {
             rt.AddRange(composed);
-            return (TransmissionDataUnitIdentifier.TypedTuple, rt.ToArray());
+            return (TransmissionDataUnitIdentifier.TypedTuple, rt.ToArray(), composed);
         }
     }
 }

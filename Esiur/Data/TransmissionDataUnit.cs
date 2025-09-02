@@ -39,7 +39,7 @@ public struct TransmissionDataUnit
 
     }
 
-    public static byte[] Compose(TransmissionDataUnitIdentifier identifier, byte[] data, byte[] typeMetadata = null)
+    public static byte[] Compose(TransmissionDataUnitIdentifier identifier, byte[] data, byte[] typeMetadata)
     {
 
         if (data == null || data.Length == 0)
@@ -50,7 +50,8 @@ public struct TransmissionDataUnit
         {
             return DC.Combine(new byte[] { (byte)identifier }, 0, 1, data, 0, (uint)data.Length);
         }
-        else if (cls == TransmissionDataUnitClass.Dynamic)
+        else if (cls == TransmissionDataUnitClass.Dynamic
+            || cls == TransmissionDataUnitClass.Extension)
         {
             var len = (ulong)data.LongLength;
 
@@ -151,8 +152,8 @@ public struct TransmissionDataUnit
                 rt[0] = (byte)((byte)identifier | 0x8);
                 rt[1] = (byte)len;
 
-
-                Buffer.BlockCopy(data, 0, rt, 2, (int)len);
+                Buffer.BlockCopy(typeMetadata, 0, rt, 2, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 2 + typeMetadata.Length, data.Length);
                 return rt;
             }
             else if (len <= 0xFF_FF)
@@ -161,7 +162,9 @@ public struct TransmissionDataUnit
                 rt[0] = (byte)((byte)identifier | 0x10);
                 rt[1] = (byte)((len >> 8) & 0xFF);
                 rt[2] = (byte)(len & 0xFF);
-                Buffer.BlockCopy(data, 0, rt, 3, (int)len);
+
+                Buffer.BlockCopy(typeMetadata, 0, rt, 3, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 3 + typeMetadata.Length, data.Length);
                 return rt;
             }
             else if (len <= 0xFF_FF_FF)
@@ -171,7 +174,10 @@ public struct TransmissionDataUnit
                 rt[1] = (byte)((len >> 16) & 0xFF);
                 rt[2] = (byte)((len >> 8) & 0xFF);
                 rt[3] = (byte)(len & 0xFF);
-                Buffer.BlockCopy(data, 0, rt, 4, (int)len);
+
+                Buffer.BlockCopy(typeMetadata, 0, rt, 4, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 4 + typeMetadata.Length, data.Length);
+
                 return rt;
             }
             else if (len <= 0xFF_FF_FF_FF)
@@ -182,7 +188,10 @@ public struct TransmissionDataUnit
                 rt[2] = (byte)((len >> 16) & 0xFF);
                 rt[3] = (byte)((len >> 8) & 0xFF);
                 rt[4] = (byte)(len & 0xFF);
-                Buffer.BlockCopy(data, 0, rt, 5, (int)len);
+
+                Buffer.BlockCopy(typeMetadata, 0, rt, 5, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 5 + typeMetadata.Length, data.Length);
+
                 return rt;
             }
             else if (len <= 0xFF_FF_FF_FF_FF)
@@ -194,7 +203,10 @@ public struct TransmissionDataUnit
                 rt[3] = (byte)((len >> 16) & 0xFF);
                 rt[4] = (byte)((len >> 8) & 0xFF);
                 rt[5] = (byte)(len & 0xFF);
-                Buffer.BlockCopy(data, 0, rt, 6, (int)len);
+
+                Buffer.BlockCopy(typeMetadata, 0, rt, 6, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 6 + typeMetadata.Length, data.Length);
+
                 return rt;
             }
             else if (len <= 0xFF_FF_FF_FF_FF_FF)
@@ -207,7 +219,10 @@ public struct TransmissionDataUnit
                 rt[4] = (byte)((len >> 16) & 0xFF);
                 rt[5] = (byte)((len >> 8) & 0xFF);
                 rt[6] = (byte)(len & 0xFF);
-                Buffer.BlockCopy(data, 0, rt, 7, (int)len);
+
+                Buffer.BlockCopy(typeMetadata, 0, rt, 7, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 7 + typeMetadata.Length, data.Length);
+
                 return rt;
             }
             else //if (len <= 0xFF_FF_FF_FF_FF_FF_FF)
@@ -221,10 +236,15 @@ public struct TransmissionDataUnit
                 rt[5] = (byte)((len >> 16) & 0xFF);
                 rt[6] = (byte)((len >> 8) & 0xFF);
                 rt[7] = (byte)(len & 0xFF);
-                Buffer.BlockCopy(data, 0, rt, 8, (int)len);
+
+                Buffer.BlockCopy(typeMetadata, 0, rt, 8, typeMetadata.Length);
+                Buffer.BlockCopy(data, 0, rt, 8 + typeMetadata.Length, data.Length);
+
                 return rt;
             }
         }
+
+        throw new Exception("Not supported class type.");
     }
 
     public static (ulong, TransmissionDataUnit?) Parse(byte[] data, uint offset, uint ends)

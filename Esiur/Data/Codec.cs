@@ -338,11 +338,11 @@ public static class Codec
     };
 
 
-    internal static (TransmissionDataUnitIdentifier identifier, byte[])
+    internal static (TransmissionDataUnitIdentifier identifier, byte[] data, byte[] metadata)
         ComposeInternal(object valueOrSource, Warehouse warehouse, DistributedConnection connection)
     {
         if (valueOrSource == null)
-            return (TransmissionDataUnitIdentifier.Null, null);
+            return (TransmissionDataUnitIdentifier.Null, null, null);
 
         var type = valueOrSource.GetType();
 
@@ -369,7 +369,7 @@ public static class Codec
             valueOrSource = ((IUserType)valueOrSource).Get();
 
         if (valueOrSource == null)
-            return (TransmissionDataUnitIdentifier.Null, null);
+            return (TransmissionDataUnitIdentifier.Null, null, null);
 
 
         type = valueOrSource.GetType();
@@ -377,20 +377,20 @@ public static class Codec
 
         if (Composers.ContainsKey(type))
         {
-            var (hdr, data) = Composers[type](valueOrSource, warehouse, connection);
-            return (hdr, data);
+            var (hdr, data, metadata) = Composers[type](valueOrSource, warehouse, connection);
+            return (hdr, data, metadata);
         }
         else
         {
             if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
-                var (hdr, data) = DataSerializer.ResourceComposer(valueOrSource, warehouse, connection);
-                return (hdr, data);
+                var (hdr, data, metadata) = DataSerializer.ResourceComposer(valueOrSource, warehouse, connection);
+                return (hdr, data, metadata);
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
-                var (hdr, data) = DataSerializer.RecordComposer(valueOrSource, warehouse, connection);
-                return (hdr, data);
+                var (hdr, data, metadata) = DataSerializer.RecordComposer(valueOrSource, warehouse, connection);
+                return (hdr, data, metadata);
             }
             else if (type.IsGenericType)
             {
@@ -402,24 +402,24 @@ public static class Codec
                     var args = type.GetGenericArguments();
                     //if (Composers.ContainsKey(args[0]))
                     //{
-                    var (hdr, data) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, args[0], warehouse, connection);
-                    return (hdr, data);
+                    var (hdr, data, metadata) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, args[0], warehouse, connection);
+                    return (hdr, data, metadata);
                     //}
                 }
                 else if (genericType == typeof(Map<,>))
                 {
                     var args = type.GetGenericArguments();
 
-                    var (hdr, data) = DataSerializer.TypedMapComposer(valueOrSource, args[0], args[1], warehouse, connection);
-                    return (hdr, data);
+                    var (hdr, data, metadata) = DataSerializer.TypedMapComposer(valueOrSource, args[0], args[1], warehouse, connection);
+                    return (hdr, data, metadata);
 
                 }
                 else if (genericType == typeof(Dictionary<,>))
                 {
                     var args = type.GetGenericArguments();
 
-                    var (hdr, data) = DataSerializer.TypedDictionaryComposer(valueOrSource, args[0], args[1], warehouse, connection);
-                    return (hdr, data);
+                    var (hdr, data, metadata) = DataSerializer.TypedDictionaryComposer(valueOrSource, args[0], args[1], warehouse, connection);
+                    return (hdr, data, metadata);
 
                 }
 
@@ -431,8 +431,8 @@ public static class Codec
                       || genericType == typeof(ValueTuple<,,,,,,>)
                   )
                 {
-                    var (hdr, data) = DataSerializer.TupleComposer(valueOrSource, warehouse, connection);
-                    return (hdr, data);
+                    var (hdr, data, metadata) = DataSerializer.TupleComposer(valueOrSource, warehouse, connection);
+                    return (hdr, data, metadata);
                 }
             }
             else if (type.IsArray)
