@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml.Linq;
 
 namespace Esiur.Data;
 
@@ -17,6 +18,8 @@ public struct TransmissionDataUnit
     public byte[] Data;
     public byte[] Metadata;
 
+    public ulong Size;
+
     public TransmissionDataUnit(TransmissionDataUnitIdentifier identifier,
                                 byte[] data, uint offset,
                                 ulong length, byte[] metadata = null,
@@ -30,6 +33,8 @@ public struct TransmissionDataUnit
         Exponent = exponent;
         Data = data;
         Metadata = metadata;
+
+        Size = Class == TransmissionDataUnitClass.Fixed ? 1 + length: 1 + length +
     }
 
     public byte[] GetTypeMetadata()
@@ -277,7 +282,7 @@ public struct TransmissionDataUnit
             var exp = (h & 0x38) >> 3;
 
             if (exp == 0)
-                return (1, new TransmissionDataUnit(data, (TransmissionDataUnitIdentifier)h, cls, h & 0x7, 0, (byte)exp));
+                return (1, new TransmissionDataUnit((TransmissionDataUnitIdentifier)h, data, offset, 0));
 
             ulong cl = (ulong)(1 << (exp - 1));
 
@@ -286,9 +291,29 @@ public struct TransmissionDataUnit
 
             //offset += (uint)cl;
 
-            return (1 + cl, new TransmissionDataUnit(data, (TransmissionDataUnitIdentifier)h, cls, h & 0x7, offset, cl, (byte)exp));
+            return (1 + cl, new TransmissionDataUnit((TransmissionDataUnitIdentifier)h, data, offset, cl, null, (byte)exp));
         }
-        else
+        else if (cls == TransmissionDataUnitClass.Typed)
+        {
+            ulong cll = (ulong)(h >> 3) & 0x7;
+
+            if (ends - offset < cll)
+                return (cll - (ends - offset), null);
+
+            ulong cl = 0;
+
+            for (uint i = 0; i < cll; i++)
+                cl = cl << 8 | data[offset++];
+
+            if (ends - offset < cl)
+                return (cl - (ends - offset), null);
+
+            var metaData = DC.Clip(data, offset + 1, data[offset]);
+            offset += data[offset];
+
+            return (1 + cl + cll, new TransmissionDataUnit((TransmissionDataUnitIdentifier)(h & 0xC7), data, offset, cl, metaData));
+        }
+        else 
         {
             ulong cll = (ulong)(h >> 3) & 0x7;
 
@@ -304,7 +329,8 @@ public struct TransmissionDataUnit
                 return (cl - (ends - offset), null);
 
 
-            return (1 + cl + cll, new TransmissionDataUnit(data, (TransmissionDataUnitIdentifier)(h & 0xC7), cls, h & 0x7, offset, cl));
+            return (1 + cl + cll, new TransmissionDataUnit((TransmissionDataUnitIdentifier)(h & 0xC7), data, offset, cl));
+
         }
     }
 
