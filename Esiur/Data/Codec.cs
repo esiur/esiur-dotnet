@@ -66,7 +66,7 @@ public static class Codec
             DataDeserializer.LocalResourceParser16Async,
             DataDeserializer.ResourceParser16Async,
         },
-        new AsyncParser[]{            
+        new AsyncParser[]{
             DataDeserializer.UInt32ParserAsync,
             DataDeserializer.Int32ParserAsync,
             DataDeserializer.Float32ParserAsync,
@@ -80,7 +80,7 @@ public static class Codec
             DataDeserializer.DateTimeParserAsync,
         },
         new AsyncParser[]
-        {            
+        {
             DataDeserializer.UInt128ParserAsync, // uint 128
             DataDeserializer.Int128ParserAsync, // int 128
             DataDeserializer.Decimal128ParserAsync,
@@ -123,28 +123,28 @@ public static class Codec
             DataDeserializer.LocalResourceParser8,
             DataDeserializer.ResourceParser8,
         },
-        new SyncParser[]{            
+        new SyncParser[]{
             DataDeserializer.UInt16Parser,
             DataDeserializer.Int16Parser,
             DataDeserializer.Char16Parser,
             DataDeserializer.LocalResourceParser16,
             DataDeserializer.ResourceParser16,
         },
-        new SyncParser[]{            
+        new SyncParser[]{
             DataDeserializer.UInt32Parser,
             DataDeserializer.Int32Parser,
             DataDeserializer.Float32Parser,
             DataDeserializer.LocalResourceParser32,
             DataDeserializer.ResourceParser32,
         },
-        new SyncParser[]{           
+        new SyncParser[]{
             DataDeserializer.UInt64Parser,
             DataDeserializer.Int64Parser,
             DataDeserializer.Float64Parser,
             DataDeserializer.DateTimeParser,
         },
         new SyncParser[]
-        {            
+        {
             DataDeserializer.UInt128Parser, // uint 128
             DataDeserializer.Int128Parser, // int 128
             DataDeserializer.Decimal128Parser,
@@ -203,7 +203,7 @@ public static class Codec
 
         if (tt.Class == TransmissionDataUnitClass.Fixed)
         {
-                return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
         else if (tt.Class == TransmissionDataUnitClass.Dynamic)
         {
@@ -265,7 +265,7 @@ public static class Codec
         return false;
     }
 
-    public delegate (TransmissionDataUnitIdentifier, byte[]) Composer(object value, Warehouse warehouse, DistributedConnection connection);
+    public delegate TransmissionDataUnit Composer(object value, Warehouse warehouse, DistributedConnection connection);
 
     public static Dictionary<Type, Composer> Composers = new Dictionary<Type, Composer>()
     {
@@ -297,8 +297,8 @@ public static class Codec
         [typeof(double?)] = DataSerializer.Float64Composer,
         [typeof(DateTime)] = DataSerializer.DateTimeComposer,
         [typeof(DateTime?)] = DataSerializer.DateTimeComposer,
-        [typeof(decimal)] = DataSerializer.Float128Composer,
-        [typeof(decimal?)] = DataSerializer.Float128Composer,
+        [typeof(decimal)] = DataSerializer.Decimal128Composer,
+        [typeof(decimal?)] = DataSerializer.Decimal128Composer,
         [typeof(byte[])] = DataSerializer.RawDataComposerFromArray,
         //[typeof(byte?[])] = DataSerializer.RawDataComposerFromArray,
         [typeof(List<byte>)] = DataSerializer.RawDataComposerFromList,
@@ -338,11 +338,11 @@ public static class Codec
     };
 
 
-    internal static (TransmissionDataUnitIdentifier identifier, byte[] data, byte[] metadata)
+    internal static TransmissionDataUnit
         ComposeInternal(object valueOrSource, Warehouse warehouse, DistributedConnection connection)
     {
         if (valueOrSource == null)
-            return (TransmissionDataUnitIdentifier.Null, null, null);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
 
         var type = valueOrSource.GetType();
 
@@ -369,7 +369,7 @@ public static class Codec
             valueOrSource = ((IUserType)valueOrSource).Get();
 
         if (valueOrSource == null)
-            return (TransmissionDataUnitIdentifier.Null, null, null);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
 
 
         type = valueOrSource.GetType();
@@ -377,20 +377,17 @@ public static class Codec
 
         if (Composers.ContainsKey(type))
         {
-            var (hdr, data, metadata) = Composers[type](valueOrSource, warehouse, connection);
-            return (hdr, data, metadata);
+            return Composers[type](valueOrSource, warehouse, connection);
         }
         else
         {
             if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
-                var (hdr, data, metadata) = DataSerializer.ResourceComposer(valueOrSource, warehouse, connection);
-                return (hdr, data, metadata);
+                return DataSerializer.ResourceComposer(valueOrSource, warehouse, connection);
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
-                var (hdr, data, metadata) = DataSerializer.RecordComposer(valueOrSource, warehouse, connection);
-                return (hdr, data, metadata);
+                return DataSerializer.RecordComposer(valueOrSource, warehouse, connection);
             }
             else if (type.IsGenericType)
             {
@@ -402,24 +399,21 @@ public static class Codec
                     var args = type.GetGenericArguments();
                     //if (Composers.ContainsKey(args[0]))
                     //{
-                    var (hdr, data, metadata) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, args[0], warehouse, connection);
-                    return (hdr, data, metadata);
+                    return DataSerializer.TypedListComposer((IEnumerable)valueOrSource, args[0], warehouse, connection);
                     //}
                 }
                 else if (genericType == typeof(Map<,>))
                 {
                     var args = type.GetGenericArguments();
 
-                    var (hdr, data, metadata) = DataSerializer.TypedMapComposer(valueOrSource, args[0], args[1], warehouse, connection);
-                    return (hdr, data, metadata);
+                    return DataSerializer.TypedMapComposer(valueOrSource, args[0], args[1], warehouse, connection);
 
                 }
                 else if (genericType == typeof(Dictionary<,>))
                 {
                     var args = type.GetGenericArguments();
 
-                    var (hdr, data, metadata) = DataSerializer.TypedDictionaryComposer(valueOrSource, args[0], args[1], warehouse, connection);
-                    return (hdr, data, metadata);
+                    return DataSerializer.TypedDictionaryComposer(valueOrSource, args[0], args[1], warehouse, connection);
 
                 }
 
@@ -431,8 +425,7 @@ public static class Codec
                       || genericType == typeof(ValueTuple<,,,,,,>)
                   )
                 {
-                    var (hdr, data, metadata) = DataSerializer.TupleComposer(valueOrSource, warehouse, connection);
-                    return (hdr, data, metadata);
+                    return DataSerializer.TupleComposer(valueOrSource, warehouse, connection);
                 }
             }
             else if (type.IsArray)
@@ -441,20 +434,18 @@ public static class Codec
 
                 //if (Composers.ContainsKey(elementType))
                 //{
-                var (hdr, data) = DataSerializer.TypedListComposer((IEnumerable)valueOrSource, elementType, warehouse, connection);
-                return (hdr, data);
+                return DataSerializer.TypedListComposer((IEnumerable)valueOrSource, elementType, warehouse, connection);
 
                 //}
             }
             else if (type.IsEnum)
             {
-                var (hdr, data) = DataSerializer.EnumComposer(valueOrSource, warehouse, connection);
-                return (hdr, data);
+                return DataSerializer.EnumComposer(valueOrSource, warehouse, connection);
             }
 
         }
 
-        return (TransmissionDataUnitIdentifier.Null, null);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
 
     }
 
@@ -468,8 +459,8 @@ public static class Codec
     /// <returns>Array of bytes in the network byte order.</returns>
     public static byte[] Compose(object valueOrSource, Warehouse warehouse, DistributedConnection connection)//, bool prependType = true)
     {
-        var (hdr, data) = ComposeInternal(valueOrSource, warehouse, connection);
-        return TransmissionDataUnit.Compose(hdr, data);
+        var tdu = ComposeInternal(valueOrSource, warehouse, connection);
+        return tdu.Compose();
     }
 
     public static bool IsAnonymous(Type type)

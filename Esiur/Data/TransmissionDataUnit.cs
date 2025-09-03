@@ -15,18 +15,21 @@ public struct TransmissionDataUnit
     public ulong ContentLength;
     public byte Exponent;
     public byte[] Data;
-    
-    public TransmissionDataUnit(byte[] data, TransmissionDataUnitIdentifier identifier, 
-                                TransmissionDataUnitClass cls, int index, uint offset, 
-                                ulong contentLength, byte exponent = 0)
+    public byte[] Metadata;
+
+    public TransmissionDataUnit(TransmissionDataUnitIdentifier identifier,
+                                byte[] data, uint offset,
+                                ulong length, byte[] metadata = null,
+                                byte exponent = 0)
     {
         Identifier = identifier;
-        Index = index;
-        Class = cls;
-        Offset=offset;
-        ContentLength = contentLength;
+        Index = (byte)identifier & 0x7;
+        Class = (TransmissionDataUnitClass)((byte)identifier >> 6);
+        Offset = offset;
+        ContentLength = length;
         Exponent = exponent;
         Data = data;
+        Metadata = metadata;
     }
 
     public byte[] GetTypeMetadata()
@@ -37,6 +40,22 @@ public struct TransmissionDataUnit
         var size = Data[Offset];
         return Data.Clip(Offset + 1, size);
 
+    }
+    public bool MatchType(TransmissionDataUnit with)
+    {
+        if (Identifier != with.Identifier)
+            return false;
+
+        if (Class == TransmissionDataUnitClass.Typed)
+            if (!Metadata.SequenceEqual(with.Metadata))
+                return false;
+
+        return true;
+    }
+
+    public byte[] Compose()
+    {
+        return null;
     }
 
     public static byte[] Compose(TransmissionDataUnitIdentifier identifier, byte[] data, byte[] typeMetadata)
@@ -57,7 +76,7 @@ public struct TransmissionDataUnit
 
             if (len == 0)
             {
-                return new byte[1] { (byte) identifier };
+                return new byte[1] { (byte)identifier };
             }
             else if (len <= 0xFF)
             {
@@ -72,7 +91,7 @@ public struct TransmissionDataUnit
                 var rt = new byte[3 + len];
                 rt[0] = (byte)((byte)identifier | 0x10);
                 rt[1] = (byte)((len >> 8) & 0xFF);
-                rt[2] = (byte)(len & 0xFF);   
+                rt[2] = (byte)(len & 0xFF);
                 Buffer.BlockCopy(data, 0, rt, 3, (int)len);
                 return rt;
             }
@@ -139,7 +158,7 @@ public struct TransmissionDataUnit
         }
         else if (cls == TransmissionDataUnitClass.Typed)
         {
-            
+
             var len = 1 + (ulong)typeMetadata.LongLength + (ulong)data.LongLength;
 
             if (len == 0)
@@ -250,7 +269,7 @@ public struct TransmissionDataUnit
     public static (ulong, TransmissionDataUnit?) Parse(byte[] data, uint offset, uint ends)
     {
         var h = data[offset++];
- 
+
         var cls = (TransmissionDataUnitClass)(h >> 6);
 
         if (cls == TransmissionDataUnitClass.Fixed)
@@ -260,9 +279,9 @@ public struct TransmissionDataUnit
             if (exp == 0)
                 return (1, new TransmissionDataUnit(data, (TransmissionDataUnitIdentifier)h, cls, h & 0x7, 0, (byte)exp));
 
-            ulong cl = (ulong)(1 << (exp -1));
+            ulong cl = (ulong)(1 << (exp - 1));
 
-            if (ends - offset < cl)  
+            if (ends - offset < cl)
                 return (cl - (ends - offset), null);
 
             //offset += (uint)cl;
@@ -277,14 +296,14 @@ public struct TransmissionDataUnit
                 return (cll - (ends - offset), null);
 
             ulong cl = 0;
-             
+
             for (uint i = 0; i < cll; i++)
                 cl = cl << 8 | data[offset++];
 
             if (ends - offset < cl)
                 return (cl - (ends - offset), null);
 
-            
+
             return (1 + cl + cll, new TransmissionDataUnit(data, (TransmissionDataUnitIdentifier)(h & 0xC7), cls, h & 0x7, offset, cl));
         }
     }

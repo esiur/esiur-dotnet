@@ -102,19 +102,7 @@ namespace Esiur.Data
             [TransmissionDataUnitIdentifier.String] = RepresentationTypeIdentifier.String,
         };
 
-        public bool IsCompatible(TransmissionDataUnit tdu)
-        {
-            var tru = typesMap[tdu.Identifier];
-
-            if (tru != Identifier)
-                return false;
-
-            if (tdu.Class == TransmissionDataUnitClass.Typed)
-            {
-                if (tdu.Identifier == TransmissionDataUnitIdentifier.)
-            }
-            return true;
-        }
+        
 
         public void SetNull(List<byte> flags)
         {

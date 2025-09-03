@@ -14,108 +14,116 @@ public static class DataSerializer
 {
     public delegate byte[] Serializer(object value);
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Int32Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Int32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (int)value;
         var rt = new byte[4];
         fixed (byte* ptr = rt)
             *((int*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Int32, rt);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Int32, rt, 0, 4);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) UInt32Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit UInt32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (uint)value;
         var rt = new byte[4];
         fixed (byte* ptr = rt)
             *((uint*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.UInt32, rt);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.UInt32, rt, 0, 4);
+
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Int16Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Int16Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (short)value;
         var rt = new byte[2];
         fixed (byte* ptr = rt)
             *((short*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Int16, rt);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Int16, rt, 0, 2);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) UInt16Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit UInt16Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (ushort)value;
         var rt = new byte[2];
         fixed (byte* ptr = rt)
             *((ushort*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.UInt16, rt);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.UInt16, rt, 0, 2);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Float32Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Float32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (float)value;
         var rt = new byte[4];
         fixed (byte* ptr = rt)
             *((float*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Float32, rt);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Float32, rt, 0, 4);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Float64Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Float64Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (double)value;
         var rt = new byte[8];
         fixed (byte* ptr = rt)
             *((double*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Float64, rt);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Float64, rt, 0, 8);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Int64Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Int64Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (long)value;
         var rt = new byte[8];
         fixed (byte* ptr = rt)
             *((long*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Int64, rt);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Int64, rt, 0, 8);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) UIn64Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit UIn64Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (ulong)value;
         var rt = new byte[8];
         fixed (byte* ptr = rt)
             *((ulong*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.UInt64, rt);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.UInt64, rt, 0, 8);
     }
 
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) DateTimeComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit DateTimeComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = ((DateTime)value).ToUniversalTime().Ticks;
         var rt = new byte[8];
         fixed (byte* ptr = rt)
             *((long*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.DateTime, rt);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.DateTime, rt, 0, 8);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Float128Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Decimal128Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (decimal)value;
         var rt = new byte[16];
         fixed (byte* ptr = rt)
             *((decimal*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Decimal128, rt);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Decimal128, rt, 0, 16);
     }
 
 
 
-    public static (TransmissionDataUnitIdentifier, byte[]) StringComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit StringComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.String, Encoding.UTF8.GetBytes((string)value));
+        var b = Encoding.UTF8.GetBytes((string)value);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.String, b, 0, (uint)b.Length);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) EnumComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit EnumComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
 
         //var warehouse = connection?.Instance?.Warehouse ?? connection?.Server?.Instance?.Warehouse;
         //if (warehouse == null)
@@ -128,61 +136,70 @@ public static class DataSerializer
         var ct = template.Constants.FirstOrDefault(x => x.Value.Equals(intVal));
 
         if (ct == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
 
 
-        var rt = new List<byte>();
-        rt.AddRange(template.ClassId.Data);
-        rt.Add(ct.Index);
-
-        return (TransmissionDataUnitIdentifier.TypedEnum, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.TypedEnum,
+            new byte[] { ct.Index }, 0, 1, template.ClassId.Data);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) UInt8Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit UInt8Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.UInt8, new byte[] { (byte)value });
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.UInt8,
+            new byte[] { (byte)value }, 0, 1);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) Int8Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit Int8Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.Int8, new byte[] { (byte)(sbyte)value });
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Int8,
+            new byte[] { (byte)(sbyte)value }, 0, 1);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Char8Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit Char8Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.Char8, new byte[] { (byte)(char)value });
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Int8,
+            new byte[] { (byte)(char)value }, 0, 1);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) Char16Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit Char16Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-
         var v = (char)value;
         var rt = new byte[2];
         fixed (byte* ptr = rt)
             *((char*)ptr) = v;
-        return (TransmissionDataUnitIdentifier.Char16, rt);
+
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Char16, rt, 0, 2);
 
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) BoolComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit BoolComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return ((bool)value ? TransmissionDataUnitIdentifier.True : TransmissionDataUnitIdentifier.False, new byte[0]);
+        if ((bool)value)
+        {
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.True, null, 0, 0);
+        }
+        else
+        {
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.True, null, 0, 0);
+        }
     }
 
 
-    public static (TransmissionDataUnitIdentifier, byte[]) NotModifiedComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit NotModifiedComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.NotModified, new byte[0]);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.NotModified, null, 0, 0);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) RawDataComposerFromArray(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit RawDataComposerFromArray(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.RawData, (byte[])value);
+        var b = (byte[])value;
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RawData, b, 0, (uint)b.Length);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) RawDataComposerFromList(dynamic value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit RawDataComposerFromList(dynamic value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.RawData, (value as List<byte>).ToArray());
+        var b = value as List<byte>;
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RawData, b.ToArray(), 0, (uint)b.Count);
     }
 
     //public static (TransmissionDataUnitIdentifier, byte[]) ListComposerFromArray(dynamic value, DistributedConnection connection)
@@ -196,42 +213,29 @@ public static class DataSerializer
     //    return (TransmissionDataUnitIdentifier.List, rt.ToArray());
     //}
 
-    public static (TransmissionDataUnitIdentifier, byte[]) ListComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit ListComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-
         var rt = ArrayComposer((IEnumerable)value, warehouse, connection);
 
         if (rt == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
         else
-            return (TransmissionDataUnitIdentifier.List, rt);
-
-
-        //var rt = new List<byte>();
-        //var list = (IEnumerable)value;// ((List<object>)value);
-
-        //foreach (var o in list)
-        //    rt.AddRange(Codec.Compose(o, connection));
-
-        //return (TransmissionDataUnitIdentifier.List, rt.ToArray());
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.List, rt, 0, (uint)rt.Length);
     }
 
 
-    public static (TransmissionDataUnitIdentifier, byte[]) TypedListComposer(IEnumerable value, Type type, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit TypedListComposer(IEnumerable value, Type type, Warehouse warehouse, DistributedConnection connection)
     {
         var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
 
         if (composed == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
 
-        var header = RepresentationType.FromType(type).Compose();
-        
-        var rt = new List<byte>();
+        var metadata = RepresentationType.FromType(type).Compose();
 
-        rt.AddRange(header);
-        rt.AddRange(composed);
 
-        return (TransmissionDataUnitIdentifier.TypedList, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.TypedList, composed, 0,
+            (uint)composed.Length, metadata);
     }
 
     //public static byte[] PropertyValueComposer(PropertyValue propertyValue, DistributedConnection connection)//, bool includeAge = true)
@@ -245,10 +249,10 @@ public static class DataSerializer
     //        .ToArray();
     //}
 
-    public static (TransmissionDataUnitIdentifier, byte[]) PropertyValueArrayComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit PropertyValueArrayComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
 
         var rt = new List<byte>();
         var ar = value as PropertyValue[];
@@ -260,21 +264,19 @@ public static class DataSerializer
             rt.AddRange(Codec.Compose(pv.Value, warehouse, connection));
         }
 
-        return (TransmissionDataUnitIdentifier.RawData, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RawData, rt.ToArray(), 0,
+            (uint)rt.Count);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) TypedMapComposer(object value, Type keyType, Type valueType, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit TypedMapComposer(object value, Type keyType, Type valueType, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
 
         var kt = RepresentationType.FromType(keyType).Compose();
         var vt = RepresentationType.FromType(valueType).Compose();
 
         var rt = new List<byte>();
-
-        rt.AddRange(kt);
-        rt.AddRange(vt);
 
         var map = (IMap)value;
 
@@ -282,20 +284,21 @@ public static class DataSerializer
             rt.AddRange(Codec.Compose(el, warehouse, connection));
 
 
-        return (TransmissionDataUnitIdentifier.TypedMap, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.TypedMap, rt.ToArray(), 0, (uint)rt.Count,
+            DC.Combine(kt, 0, (uint)kt.Length, vt, 0, (uint)vt.Length));
     }
-    public static (TransmissionDataUnitIdentifier, byte[]) TypedDictionaryComposer(object value, Type keyType, Type valueType, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit TypedDictionaryComposer(object value, Type keyType, Type valueType, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
 
         var kt = RepresentationType.FromType(keyType).Compose();
         var vt = RepresentationType.FromType(valueType).Compose();
 
         var rt = new List<byte>();
 
-        rt.AddRange(kt);
-        rt.AddRange(vt);
+        //rt.AddRange(kt);
+        //rt.AddRange(vt);
 
         var dic = (IDictionary)value;
 
@@ -310,7 +313,8 @@ public static class DataSerializer
             rt.AddRange(Codec.Compose(el, warehouse, connection));
 
 
-        return (TransmissionDataUnitIdentifier.TypedMap, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.TypedMap, rt.ToArray(), 0, (uint)rt.Count,
+            DC.Combine(kt, 0, (uint)kt.Length, vt, 0, (uint)vt.Length));
     }
 
     public static byte[] ArrayComposer(IEnumerable value, Warehouse warehouse, DistributedConnection connection)
@@ -320,63 +324,57 @@ public static class DataSerializer
 
         var rt = new List<byte>();
 
-        TransmissionDataUnitIdentifier? previous = null;
-        byte[]? previousUUID = null;
+        TransmissionDataUnit? previous = null;
 
         foreach (var i in value)
         {
-            var (hdr, data) = Codec.ComposeInternal(i, warehouse, connection);
-            if (previous == null)
-                previous = hdr;
-            else if (hdr == previous)
+            var tdu = Codec.ComposeInternal(i, warehouse, connection);
+            if (tdu.MatchType(previous.Value))
             {
-                if (hdr == TransmissionDataUnitIdentifier.Record)
-                {
-                    var newUUID = data.Take(16).ToArray();
-                    // check same uuid
-                    if (newUUID.SequenceEqual(previousUUID))
-                        rt.AddRange(TransmissionDataUnit.Compose(TransmissionDataUnitIdentifier.Same,
-                            data.Skip(16).ToArray()));
-                    else
-                        rt.AddRange(TransmissionDataUnit.Compose(hdr, data));
-
-                    previous = hdr;
-                    previousUUID = newUUID;
-                }
+                rt.AddRange(TransmissionDataUnit.Compose(TransmissionDataUnitIdentifier.NotModified,
+                    tdu.Data, null));
             }
-                
-            rt.AddRange(Codec.Compose(i, warehouse, connection));
+            else
+            {
+                rt.AddRange(tdu.Compose());
+            }
+
+            previous = tdu;
         }
 
         return rt.ToArray();
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) ResourceListComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit ResourceListComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
 
+        var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
 
-        return (TransmissionDataUnitIdentifier.ResourceList, ArrayComposer((IEnumerable)value, warehouse, connection));
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.ResourceList, composed, 0,
+            (uint)composed.Length);
     }
 
-    public static (TransmissionDataUnitIdentifier, byte[]) RecordListComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit RecordListComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
 
+        var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
 
-        return (TransmissionDataUnitIdentifier.RecordList, ArrayComposer((IEnumerable)value, warehouse, connection));
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RecordList,
+            composed, 0, (uint)composed.Length);
     }
 
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) ResourceComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit ResourceComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var resource = (IResource)value;
 
         if (resource.Instance == null || resource.Instance.IsDestroyed)
         {
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
         }
 
         if (Codec.IsLocalResource(resource, connection))
@@ -384,21 +382,21 @@ public static class DataSerializer
             var rid = (resource as DistributedResource).DistributedResourceInstanceId;
 
             if (rid <= 0xFF)
-                return (TransmissionDataUnitIdentifier.LocalResource8, new byte[] { (byte)rid });
+                return new TransmissionDataUnit(TransmissionDataUnitIdentifier.LocalResource8, new byte[] { (byte)rid }, 0, 1);
             else if (rid <= 0xFFFF)
             {
                 var rt = new byte[2];
                 fixed (byte* ptr = rt)
                     *((ushort*)ptr) = (ushort)rid;
 
-                return (TransmissionDataUnitIdentifier.LocalResource16, rt);
+                return new TransmissionDataUnit(TransmissionDataUnitIdentifier.LocalResource16, rt, 0, 2);
             }
             else
             {
                 var rt = new byte[4];
                 fixed (byte* ptr = rt)
                     *((uint*)ptr) = rid;
-                return (TransmissionDataUnitIdentifier.LocalResource32, rt);
+                return new TransmissionDataUnit(TransmissionDataUnitIdentifier.LocalResource32, rt, 0, 4);
             }
         }
         else
@@ -410,29 +408,29 @@ public static class DataSerializer
             var rid = resource.Instance.Id;
 
             if (rid <= 0xFF)
-                return (TransmissionDataUnitIdentifier.RemoteResource8, new byte[] { (byte)rid });
+                return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RemoteResource8, new byte[] { (byte)rid }, 0, 1);
             else if (rid <= 0xFFFF)
             {
                 var rt = new byte[2];
                 fixed (byte* ptr = rt)
                     *((ushort*)ptr) = (ushort)rid;
 
-                return (TransmissionDataUnitIdentifier.RemoteResource16, rt);
+                return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RemoteResource16, rt, 0, 2);
             }
             else
             {
                 var rt = new byte[4];
                 fixed (byte* ptr = rt)
                     *((uint*)ptr) = rid;
-                return (TransmissionDataUnitIdentifier.RemoteResource32, rt);
+                return new TransmissionDataUnit(TransmissionDataUnitIdentifier.RemoteResource32, rt, 0, 4);
             }
         }
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) MapComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit MapComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 1);
 
         var rt = new List<byte>();
         var map = (IMap)value;
@@ -440,16 +438,16 @@ public static class DataSerializer
         foreach (var el in map.Serialize())
             rt.AddRange(Codec.Compose(el, warehouse, connection));
 
-        return (TransmissionDataUnitIdentifier.Map, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Map, rt.ToArray(), 0, (uint)rt.Count);
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) UUIDComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit UUIDComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return (TransmissionDataUnitIdentifier.UUID, ((UUID)value).Data);
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.UUID, ((UUID)value).Data, 0, 16);
 
     }
 
-    public static unsafe (TransmissionDataUnitIdentifier, byte[]) RecordComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TransmissionDataUnit RecordComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var rt = new List<byte>();// BinaryList();
         var record = (IRecord)value;
@@ -457,15 +455,15 @@ public static class DataSerializer
         var template = warehouse.GetTemplateByType(record.GetType());
 
 
-        rt.AddRange(template.ClassId.Data);
-
         foreach (var pt in template.Properties)
         {
             var propValue = pt.PropertyInfo.GetValue(record, null);
             rt.AddRange(Codec.Compose(propValue, warehouse, connection));
         }
 
-        return (TransmissionDataUnitIdentifier.Record, rt.ToArray());
+        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Record, rt.ToArray(), 0,
+            (uint)rt.Count,
+            template.ClassId.Data);
     }
     public static byte[] HistoryComposer(KeyList<PropertyTemplate, PropertyValue[]> history, Warehouse warehouse,
                                         DistributedConnection connection, bool prependLength = false)
@@ -483,29 +481,28 @@ public static class DataSerializer
         return rt.ToArray();
     }
 
-    public static TransmissionDataUnitIdentifier TupleComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static TransmissionDataUnit TupleComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0], new byte[0]);
-
-        var rt = new List<byte>();
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
 
         var fields = value.GetType().GetFields();
         var list = fields.Select(x => x.GetValue(value)).ToArray();
         var types = fields.Select(x => RepresentationType.FromType(x.FieldType).Compose()).ToArray();
 
 
+        var metadata = new List<byte>();
         foreach (var t in types)
-            rt.AddRange(t);
+            metadata.AddRange(t);
 
         var composed = ArrayComposer(list, warehouse, connection);
 
         if (composed == null)
-            return (TransmissionDataUnitIdentifier.Null, new byte[0], new byte[0]);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, new byte[0], 0, 0);
         else
         {
-            rt.AddRange(composed);
-            return (TransmissionDataUnitIdentifier.TypedTuple, rt.ToArray(), composed);
+            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.TypedTuple, composed, 0,
+                        (uint)composed.Length, metadata.ToArray());
         }
     }
 }
