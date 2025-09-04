@@ -136,7 +136,7 @@ public class IIPAuthPacket : Packet
         set;
     }
 
-    public TransmissionDataUnit? DataType
+    public ParsedTDU? DataType
     {
         get;
         set;
@@ -188,7 +188,7 @@ public class IIPAuthPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            (var size, DataType) = TransmissionDataUnit.Parse(data, offset, ends);
+            (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
 
             if (DataType == null)
                 return -(int)size;
@@ -208,7 +208,7 @@ public class IIPAuthPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            (var size, DataType) = TransmissionDataUnit.Parse(data, offset, ends);
+            (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
 
             if (DataType == null)
                 return -(int)size;
@@ -280,7 +280,7 @@ public class IIPAuthPacket : Packet
                 Reference = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
-                (var size, DataType) = TransmissionDataUnit.Parse(data, offset, ends);
+                (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;
@@ -445,7 +445,7 @@ public class IIPAuthPacket : Packet
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                (var size, DataType) = TransmissionDataUnit.Parse(data, offset, ends);
+                (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
 
                 if (DataType == null)
                     return -(int)size;

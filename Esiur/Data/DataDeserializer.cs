@@ -680,13 +680,13 @@ public static class DataDeserializer
         //TransmissionDataUnitIdentifier? previous = null;
         //byte[]? previousUUID = null;
 
-        TransmissionDataUnit? previous = null;
+        ParsedTDU? previous = null;
 
         while (length > 0)
         {
-            var (longLen, dataType) = TransmissionDataUnit.Parse(data, offset, (uint)data.Length);
+            var (longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
 
-            if (dataType.Value.Identifier == TransmissionDataUnitIdentifier.Same)
+            if (dataType.Value.Identifier == TDUIdentifier.Same)
             {
                 // Add UUID
             }

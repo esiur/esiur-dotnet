@@ -76,30 +76,30 @@ namespace Esiur.Data
                     RepresentationTypeIdentifier.TypedResource
           };
 
-        static Map<TransmissionDataUnitIdentifier, RepresentationTypeIdentifier> typesMap = new Map<TransmissionDataUnitIdentifier, RepresentationTypeIdentifier>()
+        static Map<TDUIdentifier, RepresentationTypeIdentifier> typesMap = new Map<TDUIdentifier, RepresentationTypeIdentifier>()
         {
-            [TransmissionDataUnitIdentifier.UInt8] = RepresentationTypeIdentifier.UInt8,
-            [TransmissionDataUnitIdentifier.Int8] = RepresentationTypeIdentifier.Int8,
-            [TransmissionDataUnitIdentifier.UInt16] = RepresentationTypeIdentifier.UInt16,
-            [TransmissionDataUnitIdentifier.Int16] = RepresentationTypeIdentifier.Int16,
-            [TransmissionDataUnitIdentifier.UInt32] = RepresentationTypeIdentifier.UInt32,
-            [TransmissionDataUnitIdentifier.Int32] = RepresentationTypeIdentifier.Int32,
-            [TransmissionDataUnitIdentifier.UInt64] = RepresentationTypeIdentifier.UInt64,
-            [TransmissionDataUnitIdentifier.Int64] = RepresentationTypeIdentifier.Int64,
-            [TransmissionDataUnitIdentifier.UInt128] = RepresentationTypeIdentifier.UInt128,
-            [TransmissionDataUnitIdentifier.Int128] = RepresentationTypeIdentifier.Int128,
-            [TransmissionDataUnitIdentifier.Char8] = RepresentationTypeIdentifier.Char,
-            [TransmissionDataUnitIdentifier.DateTime] = RepresentationTypeIdentifier.DateTime,
-            [TransmissionDataUnitIdentifier.Float32] = RepresentationTypeIdentifier.Float32,
-            [TransmissionDataUnitIdentifier.Float64] = RepresentationTypeIdentifier.Float64,
-            [TransmissionDataUnitIdentifier.Decimal128] = RepresentationTypeIdentifier.Decimal,
-            [TransmissionDataUnitIdentifier.False] = RepresentationTypeIdentifier.Bool,
-            [TransmissionDataUnitIdentifier.True] = RepresentationTypeIdentifier.Bool,
-            [TransmissionDataUnitIdentifier.Map] = RepresentationTypeIdentifier.Map,
-            [TransmissionDataUnitIdentifier.List] = RepresentationTypeIdentifier.List,
-            [TransmissionDataUnitIdentifier.RawData] = RepresentationTypeIdentifier.RawData,
-            [TransmissionDataUnitIdentifier.Record] = RepresentationTypeIdentifier.Record,
-            [TransmissionDataUnitIdentifier.String] = RepresentationTypeIdentifier.String,
+            [TDUIdentifier.UInt8] = RepresentationTypeIdentifier.UInt8,
+            [TDUIdentifier.Int8] = RepresentationTypeIdentifier.Int8,
+            [TDUIdentifier.UInt16] = RepresentationTypeIdentifier.UInt16,
+            [TDUIdentifier.Int16] = RepresentationTypeIdentifier.Int16,
+            [TDUIdentifier.UInt32] = RepresentationTypeIdentifier.UInt32,
+            [TDUIdentifier.Int32] = RepresentationTypeIdentifier.Int32,
+            [TDUIdentifier.UInt64] = RepresentationTypeIdentifier.UInt64,
+            [TDUIdentifier.Int64] = RepresentationTypeIdentifier.Int64,
+            [TDUIdentifier.UInt128] = RepresentationTypeIdentifier.UInt128,
+            [TDUIdentifier.Int128] = RepresentationTypeIdentifier.Int128,
+            [TDUIdentifier.Char8] = RepresentationTypeIdentifier.Char,
+            [TDUIdentifier.DateTime] = RepresentationTypeIdentifier.DateTime,
+            [TDUIdentifier.Float32] = RepresentationTypeIdentifier.Float32,
+            [TDUIdentifier.Float64] = RepresentationTypeIdentifier.Float64,
+            [TDUIdentifier.Decimal128] = RepresentationTypeIdentifier.Decimal,
+            [TDUIdentifier.False] = RepresentationTypeIdentifier.Bool,
+            [TDUIdentifier.True] = RepresentationTypeIdentifier.Bool,
+            [TDUIdentifier.Map] = RepresentationTypeIdentifier.Map,
+            [TDUIdentifier.List] = RepresentationTypeIdentifier.List,
+            [TDUIdentifier.RawData] = RepresentationTypeIdentifier.RawData,
+            [TDUIdentifier.Record] = RepresentationTypeIdentifier.Record,
+            [TDUIdentifier.String] = RepresentationTypeIdentifier.String,
         };
 
         

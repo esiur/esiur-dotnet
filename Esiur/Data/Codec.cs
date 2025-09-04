@@ -180,13 +180,13 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static (uint, object) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, TransmissionDataUnit? dataType = null)
+    public static (uint, object) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, ParsedTDU? dataType = null)
     {
         uint len = 0;
 
         if (dataType == null)
         {
-            (var longLen, dataType) = TransmissionDataUnit.Parse(data, offset, (uint)data.Length);
+            (var longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
 
             if (dataType == null)
                 throw new NullReferenceException("DataType can't be parsed.");
@@ -201,11 +201,11 @@ public static class Codec
 
         //Console.WriteLine("Parsing " + tt.Class + " " + tt.Identifier);
 
-        if (tt.Class == TransmissionDataUnitClass.Fixed)
+        if (tt.Class == TDUClass.Fixed)
         {
             return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
-        else if (tt.Class == TransmissionDataUnitClass.Dynamic)
+        else if (tt.Class == TDUClass.Dynamic)
         {
             return (len, DynamicAsyncParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
         }
@@ -215,13 +215,13 @@ public static class Codec
         }
     }
 
-    public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse, TransmissionDataUnit? dataType = null)
+    public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse, ParsedTDU? dataType = null)
     {
         uint len = 0;
 
         if (dataType == null)
         {
-            (var longLen, dataType) = TransmissionDataUnit.Parse(data, offset, (uint)data.Length);
+            (var longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
 
             if (dataType == null)
                 throw new NullReferenceException("DataType can't be parsed.");
@@ -234,11 +234,11 @@ public static class Codec
 
         var tt = dataType.Value;
 
-        if (tt.Class == TransmissionDataUnitClass.Fixed)
+        if (tt.Class == TDUClass.Fixed)
         {
             return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
         }
-        else if (tt.Class == TransmissionDataUnitClass.Dynamic)
+        else if (tt.Class == TDUClass.Dynamic)
         {
             return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
         }
@@ -265,7 +265,7 @@ public static class Codec
         return false;
     }
 
-    public delegate TransmissionDataUnit Composer(object value, Warehouse warehouse, DistributedConnection connection);
+    public delegate TDU Composer(object value, Warehouse warehouse, DistributedConnection connection);
 
     public static Dictionary<Type, Composer> Composers = new Dictionary<Type, Composer>()
     {
@@ -338,11 +338,11 @@ public static class Codec
     };
 
 
-    internal static TransmissionDataUnit
+    internal static TDU
         ComposeInternal(object valueOrSource, Warehouse warehouse, DistributedConnection connection)
     {
         if (valueOrSource == null)
-            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
+            return new TDU(TDUIdentifier.Null);
 
         var type = valueOrSource.GetType();
 
@@ -369,7 +369,7 @@ public static class Codec
             valueOrSource = ((IUserType)valueOrSource).Get();
 
         if (valueOrSource == null)
-            return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
+            return new TDU(TDUIdentifier.Null);
 
 
         type = valueOrSource.GetType();
@@ -445,7 +445,7 @@ public static class Codec
 
         }
 
-        return new TransmissionDataUnit(TransmissionDataUnitIdentifier.Null, null, 0, 0);
+        return new TDU(TDUIdentifier.Null);
 
     }
 
@@ -460,7 +460,7 @@ public static class Codec
     public static byte[] Compose(object valueOrSource, Warehouse warehouse, DistributedConnection connection)//, bool prependType = true)
     {
         var tdu = ComposeInternal(valueOrSource, warehouse, connection);
-        return tdu.Compose();
+        return tdu.Composed;
     }
 
     public static bool IsAnonymous(Type type)

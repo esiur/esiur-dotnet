@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public enum TransmissionDataUnitClass
+    public enum TDUClass
     {
         Fixed = 0x0,
         Dynamic = 0x1,

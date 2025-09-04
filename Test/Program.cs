@@ -59,10 +59,11 @@ namespace Test
         static void TestSerialization(object x, DistributedConnection connection = null)
         {
 
-            var y = Codec.Compose(x, connection);
-            var rr = DC.ToHex(y);
+            var d = Codec.Compose(x, Warehouse.Default, connection);
+            //            var rr = DC.ToHex(y);
 
-            Console.WriteLine(x.GetType().Name + ": " + rr);
+            var y = Codec.ParseSync(d, 0, Warehouse.Default);
+            Console.WriteLine($"{x.GetType().Name}: {x} == {y}, {d.ToHex()}");
         }
 
 
@@ -81,7 +82,13 @@ namespace Test
 
         static async Task Main(string[] args)
         {
-
+            TestSerialization("Hello");
+            TestSerialization(10);
+            TestSerialization(10.1);
+            TestSerialization(10.1d);
+            TestSerialization((byte)1);
+            TestSerialization((byte)2);
+            TestSerialization(new int[] { 1, 2, 3, 4 });
             //var x = LogLevel.Warning;
 
             //TestSerialization(LogLevel.Warning);
@@ -93,7 +100,7 @@ namespace Test
             //    ["JS"] = null
             //});
 
-             
+
 
             //TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90 });
 
@@ -107,7 +114,7 @@ namespace Test
             //Console.WriteLine(g);
 
 
- 
+
             var a = new ECDH();
             var b = new ECDH();
 
@@ -175,7 +182,7 @@ namespace Test
                 sender.Send("Hello");
             });
 
-            await   wh.Open();
+            await wh.Open();
 
             // Start testing
             TestClient(service);
@@ -261,7 +268,7 @@ namespace Test
 
             //Console.WriteLine(path);
 
-          
+
         }
 
         static async void perodicTimerElapsed(object state)

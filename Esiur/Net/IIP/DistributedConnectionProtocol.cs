@@ -262,7 +262,7 @@ partial class DistributedConnection
         SendReply(IIPPacketReply.Chunk, callbackId, chunk);
     }
 
-    void IIPReplyCompleted(uint callbackId, TransmissionDataUnit dataType, byte[] data)
+    void IIPReplyCompleted(uint callbackId, ParsedTDU dataType, byte[] data)
     {
         var req = requests.Take(callbackId);
 
@@ -286,12 +286,12 @@ partial class DistributedConnection
         }
     }
 
-    void IIPExtensionAction(byte actionId, TransmissionDataUnit? dataType, byte[] data)
+    void IIPExtensionAction(byte actionId, ParsedTDU? dataType, byte[] data)
     {
         // nothing is supported now
     }
 
-    void IIPReplyPropagated(uint callbackId, TransmissionDataUnit dataType, byte[] data)
+    void IIPReplyPropagated(uint callbackId, ParsedTDU dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -315,7 +315,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPReplyError(uint callbackId, TransmissionDataUnit dataType, byte[] data, ErrorType type)
+    void IIPReplyError(uint callbackId, ParsedTDU dataType, byte[] data, ErrorType type)
     {
         var req = requests.Take(callbackId);
 
@@ -334,7 +334,7 @@ partial class DistributedConnection
         req.TriggerError(new AsyncException(type, errorCode, errorMsg));
     }
 
-    void IIPReplyProgress(uint callbackId, TransmissionDataUnit dataType, byte[] data)
+    void IIPReplyProgress(uint callbackId, ParsedTDU dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -353,7 +353,7 @@ partial class DistributedConnection
         req.TriggerProgress(ProgressType.Execution, current, total);
     }
 
-    void IIPReplyWarning(uint callbackId, TransmissionDataUnit dataType, byte[] data)
+    void IIPReplyWarning(uint callbackId, ParsedTDU dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -374,7 +374,7 @@ partial class DistributedConnection
 
 
 
-    void IIPReplyChunk(uint callbackId, TransmissionDataUnit dataType, byte[] data)
+    void IIPReplyChunk(uint callbackId, ParsedTDU dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -389,16 +389,16 @@ partial class DistributedConnection
             req.TriggerChunk(parsed);
     }
 
-    void IIPNotificationResourceReassigned(TransmissionDataUnit dataType, byte[] data)
+    void IIPNotificationResourceReassigned(ParsedTDU dataType, byte[] data)
     {
         // uint resourceId, uint newResourceId
     }
 
-    void IIPNotificationResourceMoved(TransmissionDataUnit dataType, byte[] data) { }
+    void IIPNotificationResourceMoved(ParsedTDU dataType, byte[] data) { }
 
-    void IIPNotificationSystemFailure(TransmissionDataUnit dataType, byte[] data) { }
+    void IIPNotificationSystemFailure(ParsedTDU dataType, byte[] data) { }
 
-    void IIPNotificationResourceDestroyed(TransmissionDataUnit dataType, byte[] data)
+    void IIPNotificationResourceDestroyed(ParsedTDU dataType, byte[] data)
     {
         var (size, rt) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
 
@@ -429,7 +429,7 @@ partial class DistributedConnection
 
     }
 
-    void IIPNotificationPropertyModified(TransmissionDataUnit dataType, byte[] data)
+    void IIPNotificationPropertyModified(ParsedTDU dataType, byte[] data)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
@@ -468,7 +468,7 @@ partial class DistributedConnection
     }
 
 
-    void IIPNotificationEventOccurred(TransmissionDataUnit dataType, byte[] data)
+    void IIPNotificationEventOccurred(ParsedTDU dataType, byte[] data)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
@@ -517,7 +517,7 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestAttachResource(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestAttachResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
@@ -572,7 +572,7 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestReattachResource(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestReattachResource(uint callback, ParsedTDU dataType, byte[] data)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
@@ -630,7 +630,7 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestDetachResource(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestDetachResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
@@ -661,7 +661,7 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestCreateResource(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestCreateResource(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (_, parsed) = Codec.ParseAsync(data, 0, this, null, dataType);
 
@@ -722,7 +722,7 @@ partial class DistributedConnection
     }
 
 
-    void IIPRequestDeleteResource(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestDeleteResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
@@ -751,7 +751,7 @@ partial class DistributedConnection
         });
     }
 
-    void IIPRequestMoveResource(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestMoveResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -790,12 +790,12 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestToken(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestToken(uint callback, ParsedTDU dataType, byte[] data)
     {
         // @TODO: To be implemented
     }
 
-    void IIPRequestLinkTemplates(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestLinkTemplates(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
@@ -828,7 +828,7 @@ partial class DistributedConnection
             Instance.Warehouse.Query(resourceLink).Then(queryCallback);
     }
 
-    void IIPRequestTemplateFromClassName(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestTemplateFromClassName(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
@@ -847,7 +847,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPRequestTemplateFromClassId(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestTemplateFromClassId(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
@@ -869,7 +869,7 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestTemplateFromResourceId(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestTemplateFromResourceId(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
@@ -892,7 +892,7 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestGetResourceIdByLink(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestGetResourceIdByLink(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (_, parsed) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
         var resourceLink = (string)parsed;
@@ -920,7 +920,7 @@ partial class DistributedConnection
 
     }
 
-    void IIPRequestQueryResources(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestQueryResources(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (_, parsed) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
 
@@ -978,7 +978,7 @@ partial class DistributedConnection
     }
 
 
-    void IIPRequestProcedureCall(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestProcedureCall(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse, 1);
@@ -1038,7 +1038,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPRequestStaticCall(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestStaticCall(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse, 2);
@@ -1115,7 +1115,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPRequestInvokeFunction(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestInvokeFunction(uint callback, ParsedTDU dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                              dataType.ContentLength, Instance.Warehouse, 2);
@@ -1371,7 +1371,7 @@ partial class DistributedConnection
         }
     }
 
-    void IIPRequestSubscribe(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestSubscribe(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -1430,7 +1430,7 @@ partial class DistributedConnection
 
     }
 
-    void IIPRequestUnsubscribe(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestUnsubscribe(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -1491,7 +1491,7 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestSetProperty(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestSetProperty(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -2056,7 +2056,7 @@ partial class DistributedConnection
 
 
 
-    void IIPRequestKeepAlive(uint callback, TransmissionDataUnit dataType, byte[] data)
+    void IIPRequestKeepAlive(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
