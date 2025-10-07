@@ -82,12 +82,12 @@ namespace Test
 
         static async Task Main(string[] args)
         {
-            TestSerialization("Hello");
-            TestSerialization(10);
-            TestSerialization(10.1);
-            TestSerialization(10.1d);
-            TestSerialization((byte)1);
-            TestSerialization((byte)2);
+            //TestSerialization("Hello");
+            //TestSerialization(10);
+            //TestSerialization(10.1);
+            //TestSerialization(10.1d);
+            //TestSerialization((byte)1);
+            //TestSerialization((byte)2);
             TestSerialization(new int[] { 1, 2, 3, 4 });
             //var x = LogLevel.Warning;
 

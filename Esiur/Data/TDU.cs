@@ -15,11 +15,13 @@ public struct TDU
     //public int Index;
     public TDUClass Class;
     //public ulong ContentLength;
-    
-    public byte[] Composed;    
+
+    public byte[] Composed;
     //public uint Offset;
 
     public byte[] Metadata;
+
+    public uint ContentOffset;
 
     //public ulong Size
     //{
@@ -87,6 +89,7 @@ public struct TDU
                 Composed = new byte[2 + length];
                 Composed[0] = (byte)((byte)Identifier | 0x8);
                 Composed[1] = (byte)length;
+                ContentOffset = 2;
                 Buffer.BlockCopy(data, 0, Composed, 2, (int)length);
             }
             else if (length <= 0xFF_FF)
@@ -95,6 +98,8 @@ public struct TDU
                 Composed[0] = (byte)((byte)Identifier | 0x10);
                 Composed[1] = (byte)((length >> 8) & 0xFF);
                 Composed[2] = (byte)(length & 0xFF);
+                ContentOffset = 3;
+
                 Buffer.BlockCopy(data, 0, Composed, 3, (int)length);
             }
             else if (length <= 0xFF_FF_FF)
@@ -104,6 +109,8 @@ public struct TDU
                 Composed[1] = (byte)((length >> 16) & 0xFF);
                 Composed[2] = (byte)((length >> 8) & 0xFF);
                 Composed[3] = (byte)(length & 0xFF);
+                ContentOffset = 4;
+
                 Buffer.BlockCopy(data, 0, Composed, 4, (int)length);
             }
             else if (length <= 0xFF_FF_FF_FF)
@@ -114,6 +121,8 @@ public struct TDU
                 Composed[2] = (byte)((length >> 16) & 0xFF);
                 Composed[3] = (byte)((length >> 8) & 0xFF);
                 Composed[4] = (byte)(length & 0xFF);
+                ContentOffset = 5;
+
                 Buffer.BlockCopy(data, 0, Composed, 5, (int)length);
             }
             else if (length <= 0xFF_FF_FF_FF_FF)
@@ -125,6 +134,8 @@ public struct TDU
                 Composed[3] = (byte)((length >> 16) & 0xFF);
                 Composed[4] = (byte)((length >> 8) & 0xFF);
                 Composed[5] = (byte)(length & 0xFF);
+                ContentOffset = 6;
+
                 Buffer.BlockCopy(data, 0, Composed, 6, (int)length);
             }
             else if (length <= 0xFF_FF_FF_FF_FF_FF)
@@ -137,6 +148,7 @@ public struct TDU
                 Composed[4] = (byte)((length >> 16) & 0xFF);
                 Composed[5] = (byte)((length >> 8) & 0xFF);
                 Composed[6] = (byte)(length & 0xFF);
+                ContentOffset = 7;
                 Buffer.BlockCopy(data, 0, Composed, 7, (int)length);
             }
             else //if (len <= 0xFF_FF_FF_FF_FF_FF_FF)
@@ -150,6 +162,7 @@ public struct TDU
                 Composed[5] = (byte)((length >> 16) & 0xFF);
                 Composed[6] = (byte)((length >> 8) & 0xFF);
                 Composed[7] = (byte)(length & 0xFF);
+                ContentOffset = 8;
                 Buffer.BlockCopy(data, 0, Composed, 8, (int)length);
             }
         }
@@ -165,7 +178,7 @@ public struct TDU
             var metaLen = (byte)metadata.Length;
 
             var len = 1 + (ulong)metaLen + length;
-            
+
 
             if (length == 0)
             {
@@ -181,6 +194,7 @@ public struct TDU
                 Composed[0] = (byte)((byte)Identifier | 0x8);
                 Composed[1] = (byte)len;
                 Composed[2] = metaLen;
+                ContentOffset = 2;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 3, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 3 + metaLen, (int)length);
@@ -192,6 +206,7 @@ public struct TDU
                 Composed[1] = (byte)((len >> 8) & 0xFF);
                 Composed[2] = (byte)(len & 0xFF);
                 Composed[3] = metaLen;
+                ContentOffset = 3;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 4, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 4 + metaLen, (int)length);
@@ -204,6 +219,7 @@ public struct TDU
                 Composed[2] = (byte)((len >> 8) & 0xFF);
                 Composed[3] = (byte)(len & 0xFF);
                 Composed[4] = metaLen;
+                ContentOffset = 4;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 5, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 5 + metaLen, (int)length);
@@ -218,6 +234,7 @@ public struct TDU
                 Composed[3] = (byte)((len >> 8) & 0xFF);
                 Composed[4] = (byte)(len & 0xFF);
                 Composed[5] = metaLen;
+                ContentOffset = 5;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 6, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 6 + metaLen, (int)length);
@@ -232,6 +249,7 @@ public struct TDU
                 Composed[4] = (byte)((len >> 8) & 0xFF);
                 Composed[5] = (byte)(len & 0xFF);
                 Composed[6] = metaLen;
+                ContentOffset = 6;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 7, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 7 + metaLen, (int)length);
@@ -247,6 +265,7 @@ public struct TDU
                 Composed[5] = (byte)((len >> 8) & 0xFF);
                 Composed[6] = (byte)(len & 0xFF);
                 Composed[7] = metaLen;
+                ContentOffset = 7;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 8, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 8 + metaLen, (int)length);
@@ -263,6 +282,7 @@ public struct TDU
                 Composed[6] = (byte)((len >> 8) & 0xFF);
                 Composed[7] = (byte)(len & 0xFF);
                 Composed[8] = metaLen;
+                ContentOffset = 8;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 9, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 9 + metaLen, (int)length);
@@ -278,9 +298,11 @@ public struct TDU
         if (Identifier != with.Identifier)
             return false;
 
-        if (Class == TDUClass.Typed)
-            if (!Metadata.SequenceEqual(with.Metadata))
-                return false;
+        if (Class != TDUClass.Typed || with.Class != TDUClass.Typed)
+            return false;
+
+        if (!Metadata.SequenceEqual(with.Metadata))
+            return false;
 
         return true;
     }
