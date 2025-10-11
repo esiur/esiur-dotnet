@@ -94,7 +94,7 @@ public struct TDU
             }
             else if (length <= 0xFF_FF)
             {
-                var Composed = new byte[3 + length];
+                Composed = new byte[3 + length];
                 Composed[0] = (byte)((byte)Identifier | 0x10);
                 Composed[1] = (byte)((length >> 8) & 0xFF);
                 Composed[2] = (byte)(length & 0xFF);
@@ -194,7 +194,7 @@ public struct TDU
                 Composed[0] = (byte)((byte)Identifier | 0x8);
                 Composed[1] = (byte)len;
                 Composed[2] = metaLen;
-                ContentOffset = 2;
+                ContentOffset = metaLen + (uint)3;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 3, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 3 + metaLen, (int)length);
@@ -206,7 +206,7 @@ public struct TDU
                 Composed[1] = (byte)((len >> 8) & 0xFF);
                 Composed[2] = (byte)(len & 0xFF);
                 Composed[3] = metaLen;
-                ContentOffset = 3;
+                ContentOffset = metaLen + (uint)4;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 4, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 4 + metaLen, (int)length);
@@ -219,7 +219,7 @@ public struct TDU
                 Composed[2] = (byte)((len >> 8) & 0xFF);
                 Composed[3] = (byte)(len & 0xFF);
                 Composed[4] = metaLen;
-                ContentOffset = 4;
+                ContentOffset = metaLen + (uint)5;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 5, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 5 + metaLen, (int)length);
@@ -234,7 +234,7 @@ public struct TDU
                 Composed[3] = (byte)((len >> 8) & 0xFF);
                 Composed[4] = (byte)(len & 0xFF);
                 Composed[5] = metaLen;
-                ContentOffset = 5;
+                ContentOffset = metaLen + (uint)6;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 6, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 6 + metaLen, (int)length);
@@ -249,7 +249,7 @@ public struct TDU
                 Composed[4] = (byte)((len >> 8) & 0xFF);
                 Composed[5] = (byte)(len & 0xFF);
                 Composed[6] = metaLen;
-                ContentOffset = 6;
+                ContentOffset = metaLen + (uint)7;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 7, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 7 + metaLen, (int)length);
@@ -265,7 +265,7 @@ public struct TDU
                 Composed[5] = (byte)((len >> 8) & 0xFF);
                 Composed[6] = (byte)(len & 0xFF);
                 Composed[7] = metaLen;
-                ContentOffset = 7;
+                ContentOffset = metaLen + (uint)8;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 8, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 8 + metaLen, (int)length);
@@ -282,7 +282,7 @@ public struct TDU
                 Composed[6] = (byte)((len >> 8) & 0xFF);
                 Composed[7] = (byte)(len & 0xFF);
                 Composed[8] = metaLen;
-                ContentOffset = 8;
+                ContentOffset = metaLen + (uint)9;
 
                 Buffer.BlockCopy(metadata, 0, Composed, 9, metaLen);
                 Buffer.BlockCopy(data, 0, Composed, 9 + metaLen, (int)length);

@@ -332,8 +332,8 @@ public static class DataSerializer
             if (previous != null  && tdu.MatchType(previous.Value))
             {
                 rt.Add((byte)TDUIdentifier.NotModified);
-                rt.AddRange(tdu.Composed.Clip(tdu.Composed[tdu.ContentOffset], 
-                    (uint)tdu.Composed.Length - tdu.Composed[tdu.ContentOffset]));
+                rt.AddRange(tdu.Composed.Clip(tdu.ContentOffset, 
+                    (uint)tdu.Composed.Length - tdu.ContentOffset));
             }
             else
             {
@@ -459,7 +459,8 @@ public static class DataSerializer
         foreach (var pt in template.Properties)
         {
             var propValue = pt.PropertyInfo.GetValue(record, null);
-            rt.AddRange(Codec.Compose(propValue, warehouse, connection));
+            var rr = Codec.Compose(propValue, warehouse, connection);
+            rt.AddRange(rr);
         }
 
         return new TDU(TDUIdentifier.Record, rt.ToArray(),
