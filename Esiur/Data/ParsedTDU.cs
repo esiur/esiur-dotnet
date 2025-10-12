@@ -74,7 +74,7 @@ namespace Esiur.Data
                     return (cl - (ends - offset), null);
 
                 var metaData = DC.Clip(data, offset + 1, data[offset]);
-                offset += data[offset];
+                offset += data[offset] + (uint)1;
 
 
                 return (1 + cl + cll, new ParsedTDU()
