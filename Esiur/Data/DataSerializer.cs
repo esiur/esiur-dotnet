@@ -228,6 +228,8 @@ public static class DataSerializer
     {
         var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
 
+        Console.WriteLine(composed.ToHex());
+
         if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 

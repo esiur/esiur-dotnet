@@ -325,7 +325,7 @@ partial class DistributedConnection
             return;
         }
 
-        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength, Instance.Warehouse)
+        var args = DataDeserializer.ListParser(dataType, Instance.Warehouse)
                                                 as object[];
 
         var errorCode = (ushort)args[0];
@@ -344,7 +344,7 @@ partial class DistributedConnection
             return;
         }
 
-        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength, Instance.Warehouse)
+        var args = DataDeserializer.ListParser(dataType, Instance.Warehouse)
                                                 as object[];
 
         var current = (uint)args[0];
@@ -363,7 +363,7 @@ partial class DistributedConnection
             return;
         }
 
-        var args = DataDeserializer.ListParser(data, dataType.Offset, (uint)dataType.ContentLength, Instance.Warehouse)
+        var args = DataDeserializer.ListParser(dataType, Instance.Warehouse)
                                                 as object[];
 
         var level = (byte)args[0];

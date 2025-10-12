@@ -42,7 +42,7 @@ public static class Codec
     //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
     delegate object AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
-    delegate object SyncParser(byte[] data, uint offset, uint length, Warehouse warehouse);
+    delegate object SyncParser(ParsedTDU tdu, Warehouse warehouse);
 
     static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
     {
@@ -236,15 +236,15 @@ public static class Codec
 
         if (tt.Class == TDUClass.Fixed)
         {
-            return (len, FixedParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
+            return (len, FixedParsers[tt.Exponent][tt.Index](tt, warehouse));
         }
         else if (tt.Class == TDUClass.Dynamic)
         {
-            return (len, DynamicParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
+            return (len, DynamicParsers[tt.Index](tt, warehouse));
         }
         else //if (tt.Class == TransmissionDataUnitClass.Typed)
         {
-            return (len, TypedParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, warehouse));
+            return (len, TypedParsers[tt.Index](tt, warehouse));
         }
     }
     /// <summary>
