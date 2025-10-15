@@ -3,6 +3,7 @@ using Esiur.Net.IIP;
 using Esiur.Resource;
 using Esiur.Resource.Template;
 using System;
+using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,77 +18,271 @@ public static class DataSerializer
     public static unsafe TDU Int32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (int)value;
-        var rt = new byte[4];
-        fixed (byte* ptr = rt)
-            *((int*)ptr) = v;
-        return new TDU(TDUIdentifier.Int32, rt, 4);
+
+        if (v >= sbyte.MinValue && v <= sbyte.MaxValue)
+        {
+            return new TDU(TDUIdentifier.Int8, new byte[] { (byte)(sbyte)v }, 1);
+        }
+        else if (v >= short.MinValue && v <= short.MaxValue)
+        {
+            // Fits in 2 bytes
+            var rt = new byte[2];
+            fixed (byte* ptr = rt)
+                *((short*)ptr) = (short)v;
+
+            return new TDU(TDUIdentifier.Int16, rt, 2);
+        }
+        else
+        {
+            // Use full 4 bytes
+            var rt = new byte[4];
+            fixed (byte* ptr = rt)
+                *((int*)ptr) = v;
+            return new TDU(TDUIdentifier.Int32, rt, 4);
+        }
     }
 
     public static unsafe TDU UInt32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (uint)value;
-        var rt = new byte[4];
-        fixed (byte* ptr = rt)
-            *((uint*)ptr) = v;
 
-        return new TDU(TDUIdentifier.UInt32, rt, 4);
+        if (v <= byte.MaxValue)
+        {
+            // Fits in 1 byte
+            return new TDU(TDUIdentifier.UInt8, new byte[] { (byte)v }, 1);
+        }
+        else if (v <= ushort.MaxValue)
+        {
+            // Fits in 2 bytes
+            var rt = new byte[2];
+            fixed (byte* ptr = rt)
+                *((ushort*)ptr) = (ushort)v;
 
+            return new TDU(TDUIdentifier.UInt16, rt, 2);
+        }
+        else
+        {
+            // Use full 4 bytes
+            var rt = new byte[4];
+            fixed (byte* ptr = rt)
+                *((uint*)ptr) = v;
+
+            return new TDU(TDUIdentifier.UInt32, rt, 4);
+        }
     }
 
     public static unsafe TDU Int16Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (short)value;
-        var rt = new byte[2];
-        fixed (byte* ptr = rt)
-            *((short*)ptr) = v;
 
-        return new TDU(TDUIdentifier.Int16, rt, 2);
+        if (v >= sbyte.MinValue && v <= sbyte.MaxValue)
+        {
+            // Fits in 1 byte
+            return new TDU(TDUIdentifier.Int8, new byte[] { (byte)(sbyte)v }, 1);
+        }
+        else
+        {
+            // Use full 2 bytes
+            var rt = new byte[2];
+            fixed (byte* ptr = rt)
+                *((short*)ptr) = v;
+
+            return new TDU(TDUIdentifier.Int16, rt, 2);
+        }
     }
 
     public static unsafe TDU UInt16Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (ushort)value;
-        var rt = new byte[2];
-        fixed (byte* ptr = rt)
-            *((ushort*)ptr) = v;
 
-        return new TDU(TDUIdentifier.UInt16, rt, 2);
+        if (v <= byte.MaxValue)
+        {
+            // Fits in 1 byte
+            return new TDU(TDUIdentifier.UInt8, new byte[] { (byte)v }, 1);
+        }
+        else
+        {
+            // Use full 2 bytes
+            var rt = new byte[2];
+            fixed (byte* ptr = rt)
+                *((ushort*)ptr) = v;
+
+            return new TDU(TDUIdentifier.UInt16, rt, 2);
+        }
     }
 
-    public static unsafe TDU Float32Composer(object value, Warehouse warehouse, DistributedConnection connection)
+
+    public static  unsafe TDU Float32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        var v = (float)value;
-        var rt = new byte[4];
-        fixed (byte* ptr = rt)
-            *((float*)ptr) = v;
-        return new TDU(TDUIdentifier.Float32, rt, 4);
+        float v = (float)value;
+
+        // Special IEEE-754 values
+        if (float.IsNaN(v) || float.IsInfinity(v))
+        {
+            return new TDU(TDUIdentifier.Infinity, new byte[0], 0);
+        }
+
+        // If v is an exact integer, prefer smallest signed width up to Int32
+        if (v == Math.Truncate(v))
+        {
+            // Note: casts are safe because we check bounds first.
+            if (v >= sbyte.MinValue && v <= sbyte.MaxValue)
+            {
+                return new TDU(TDUIdentifier.Int8, new byte[] { (byte)(sbyte)v }, 1);
+            }
+
+            if (v >= short.MinValue && v <= short.MaxValue)
+            {
+                var rt = new byte[2];
+                fixed (byte* ptr = rt)
+                    *((short*)ptr) = (short)v;
+                return new TDU(TDUIdentifier.Int16, rt, 2);
+            }
+        }
+
+        // Default: Float32
+        {
+            var rt = new byte[4];
+            fixed (byte* ptr = rt)
+                *((float*)ptr) = v;
+            return new TDU(TDUIdentifier.Float32, rt, 4);
+        }
     }
 
-    public static unsafe TDU Float64Composer(object value, Warehouse warehouse, DistributedConnection connection)
+
+    public unsafe static TDU Float64Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        var v = (double)value;
-        var rt = new byte[8];
-        fixed (byte* ptr = rt)
-            *((double*)ptr) = v;
-        return new TDU(TDUIdentifier.Float64, rt, 8);
-    }
+        double v = (double)value;
 
+        // Special IEEE-754 values
+        if (double.IsNaN(v) || double.IsInfinity(v))
+        {
+            return new TDU(TDUIdentifier.Infinity, new byte[0], 0);
+        }
+
+        // If v is an exact integer, choose the smallest signed width
+        if (v == Math.Truncate(v))
+        {
+            if (v >= sbyte.MinValue && v <= sbyte.MaxValue)
+                return new TDU(TDUIdentifier.Int8, new byte[] { (byte)(sbyte)v }, 1);
+
+            if (v >= short.MinValue && v <= short.MaxValue)
+            {
+                var rt = new byte[2];
+
+                fixed (byte* ptr = rt)
+                    *((short*)ptr) = (short)v;
+
+                return new TDU(TDUIdentifier.Int16, rt, 2);
+            }
+
+            if (v >= int.MinValue && v <= int.MaxValue)
+            {
+                var rt = new byte[4];
+
+                fixed (byte* ptr = rt)
+                    *((int*)ptr) = (int)v;
+
+                return new TDU(TDUIdentifier.Int32, rt, 4);
+            }
+
+            // If it's integral but outside Int64 range, fall through to Float64.
+        }
+
+        // Try exact Float32 (decimal subset of doubles)
+        var f = (float)v;
+        if ((double)f == v)
+        {
+            var rt = new byte[4];
+
+            fixed (byte* ptr = rt)
+                *((float*)ptr) = (byte)v;
+
+            return new TDU(TDUIdentifier.Float32, rt, 4);
+        }
+
+        // Default: Float64
+        {
+            var rt = new byte[8];
+            fixed (byte* ptr = rt)
+                *((double*)ptr) = v;
+            return new TDU(TDUIdentifier.Float64, rt, 8);
+        }
+    }
     public static unsafe TDU Int64Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (long)value;
-        var rt = new byte[8];
-        fixed (byte* ptr = rt)
-            *((long*)ptr) = v;
-        return new TDU(TDUIdentifier.Int64, rt, 8);
+
+        if (v >= sbyte.MinValue && v <= sbyte.MaxValue)
+        {
+            // Fits in 1 byte
+            return new TDU(TDUIdentifier.Int8, new byte[] { (byte)(sbyte)v }, 1);
+        }
+        else if (v >= short.MinValue && v <= short.MaxValue)
+        {
+            // Fits in 2 bytes
+            var rt = new byte[2];
+            fixed (byte* ptr = rt)
+                *((short*)ptr) = (short)v;
+
+            return new TDU(TDUIdentifier.Int16, rt, 2);
+        }
+        else if (v >= int.MinValue && v <= int.MaxValue)
+        {
+            // Fits in 4 bytes
+            var rt = new byte[4];
+            fixed (byte* ptr = rt)
+                *((int*)ptr) = (int)v;
+
+            return new TDU(TDUIdentifier.Int32, rt, 4);
+        }
+        else
+        {
+            // Use full 8 bytes
+            var rt = new byte[8];
+            fixed (byte* ptr = rt)
+                *((long*)ptr) = v;
+
+            return new TDU(TDUIdentifier.Int64, rt, 8);
+        }
     }
 
-    public static unsafe TDU UIn64Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TDU UInt64Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (ulong)value;
-        var rt = new byte[8];
-        fixed (byte* ptr = rt)
-            *((ulong*)ptr) = v;
-        return new TDU(TDUIdentifier.UInt64, rt, 8);
+
+        if (v <= byte.MaxValue)
+        {
+            // Fits in 1 byte
+            return new TDU(TDUIdentifier.UInt8, new byte[] { (byte)v }, 1);
+        }
+        else if (v <= ushort.MaxValue)
+        {
+            // Fits in 2 bytes
+            var rt = new byte[2];
+            fixed (byte* ptr = rt)
+                *((ushort*)ptr) = (ushort)v;
+
+            return new TDU(TDUIdentifier.UInt16, rt, 2);
+        }
+        else if (v <= uint.MaxValue)
+        {
+            // Fits in 4 bytes
+            var rt = new byte[4];
+            fixed (byte* ptr = rt)
+                *((uint*)ptr) = (uint)v;
+
+            return new TDU(TDUIdentifier.UInt32, rt, 4);
+        }
+        else
+        {
+            // Use full 8 bytes
+            var rt = new byte[8];
+            fixed (byte* ptr = rt)
+                *((ulong*)ptr) = v;
+
+            return new TDU(TDUIdentifier.UInt64, rt, 8);
+        }
     }
 
 
@@ -101,17 +296,88 @@ public static class DataSerializer
         return new TDU(TDUIdentifier.DateTime, rt, 8);
     }
 
+    //public static unsafe TDU Decimal128Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    //{
+    //    var v = (decimal)value;
+    //    var rt = new byte[16];
+    //    fixed (byte* ptr = rt)
+    //        *((decimal*)ptr) = v;
+
+    //    return new TDU(TDUIdentifier.Decimal128, rt, 16);
+    //}
+
     public static unsafe TDU Decimal128Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         var v = (decimal)value;
-        var rt = new byte[16];
-        fixed (byte* ptr = rt)
-            *((decimal*)ptr) = v;
 
-        return new TDU(TDUIdentifier.Decimal128, rt, 16);
+        // Prefer smallest exact signed integer if no fractional part
+        int[] bits = decimal.GetBits(v);
+        int flags = bits[3];
+        int scale = (flags >> 16) & 0x7F;
+
+        if (scale == 0)
+        {
+            if (v >= sbyte.MinValue && v <= sbyte.MaxValue)
+                return new TDU(TDUIdentifier.Int8, new byte[] { (byte)(sbyte)v }, 1);
+
+            if (v >= short.MinValue && v <= short.MaxValue)
+            {
+                var b = new byte[2];
+                BinaryPrimitives.WriteInt16LittleEndian(b, (short)v);
+                return new TDU(TDUIdentifier.Int16, b, 2);
+            }
+
+            if (v >= int.MinValue && v <= int.MaxValue)
+            {
+                var b = new byte[4];
+                BinaryPrimitives.WriteInt32LittleEndian(b, (int)v);
+                return new TDU(TDUIdentifier.Int32, b, 4);
+            }
+
+            if (v >= long.MinValue && v <= long.MaxValue)
+            {
+                var b = new byte[8];
+                BinaryPrimitives.WriteInt64LittleEndian(b, (long)v);
+                return new TDU(TDUIdentifier.Int64, b, 8);
+            }
+            // else fall through (needs 96+ bits)
+        }
+
+        // Try exact Float32 (4 bytes)
+        // Exactness test: decimal -> float -> decimal must equal original
+        float f = (float)v;
+        if ((decimal)f == v)
+        {
+            var rt = new byte[4];
+
+            fixed (byte* ptr = rt)
+                *((float*)ptr) = f;
+
+            return new TDU(TDUIdentifier.Float32, rt, 4);
+        }
+
+        // Try exact Float64 (8 bytes)
+        double d = (double)v;
+        if ((decimal)d == v)
+        {
+            var rt = new byte[4];
+
+            fixed (byte* ptr = rt)
+                *((double*)ptr) = d;
+
+            return new TDU(TDUIdentifier.Float64, rt, 8);
+        }
+
+        {
+            // Fallback: full .NET decimal (16 bytes): lo, mid, hi, flags (scale/sign)
+            var rt = new byte[16];
+
+            fixed (byte* ptr = rt)
+                *((decimal*)ptr) = v;
+
+            return new TDU(TDUIdentifier.Decimal128, rt, 16);
+        }
     }
-
-
 
     public static TDU StringComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
@@ -228,8 +494,6 @@ public static class DataSerializer
     {
         var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
 
-        Console.WriteLine(composed.ToHex());
-
         if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
@@ -331,12 +595,12 @@ public static class DataSerializer
         foreach (var i in value)
         {
             var tdu = Codec.ComposeInternal(i, warehouse, connection);
-            if (previous != null  && tdu.MatchType(previous.Value))
+            if (previous != null && tdu.MatchType(previous.Value))
             {
                 var d = tdu.Composed.Clip(tdu.ContentOffset,
                     (uint)tdu.Composed.Length - tdu.ContentOffset);
 
-                var ntd = new TDU(TDUIdentifier.TypeContinuation, d,(ulong) d.Length);
+                var ntd = new TDU(TDUIdentifier.TypeContinuation, d, (ulong)d.Length);
                 rt.AddRange(ntd.Composed);
             }
             else

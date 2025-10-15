@@ -10,6 +10,7 @@ namespace Esiur.Data
         False = 0x1,
         True = 0x2,
         NotModified = 0x3,
+        Infinity = 0x4,
         UInt8 = 0x8,
         Int8 = 0x9,
         Char8 = 0xA,

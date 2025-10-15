@@ -450,7 +450,7 @@ public static class DataDeserializer
     {
 
         var classId = tdu.Metadata.GetUUID(0);
-        
+
 
         var template = warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
@@ -535,7 +535,7 @@ public static class DataDeserializer
     {
 
         var classId = tdu.Metadata.GetUUID(0);
-        
+
         var index = tdu.Data[tdu.Offset];
 
         var template = warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
@@ -794,7 +794,7 @@ public static class DataDeserializer
 
         var (keyCs, keyRepType) = RepresentationType.Parse(tdu.Metadata, 0);
         var (valueCs, valueRepType) = RepresentationType.Parse(tdu.Metadata, keyCs);
-        
+
         var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(warehouse), valueRepType.GetRuntimeType(warehouse)));
 
 
@@ -828,8 +828,9 @@ public static class DataDeserializer
 
     public static AsyncReply TupleParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
+        var rt = new AsyncReply();
 
-        var results = new List<object>();
+        var results = new AsyncBag<object>();
         var tupleSize = tdu.Metadata[0];
 
         var types = new List<Type>();
@@ -919,7 +920,7 @@ public static class DataDeserializer
 
         var length = tdu.ContentLength;
         var offset = tdu.Offset;
-        
+
         while (length > 0)
         {
             var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
@@ -977,20 +978,37 @@ public static class DataDeserializer
         var rt = new AsyncBag<object>();
 
         // get the type
-        var (hdrCs, rep) = RepresentationType.Parse(data, offset);
+        var (hdrCs, rep) = RepresentationType.Parse(tdu.Metadata, 0);
 
-        offset += hdrCs;
-        length -= hdrCs;
 
         var runtimeType = rep.GetRuntimeType(connection.Instance.Warehouse);
 
         rt.ArrayType = runtimeType;
 
+        ParsedTDU current;
+        ParsedTDU? previous = null;
+
+        var offset = tdu.Offset;
+        var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
+
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseAsync(data, offset, connection, requestSequence);
 
-             
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+            if (current.Class == TDUClass.Invalid)
+                throw new Exception("Unknown type.");
+
+
+            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            {
+                current.Class = previous.Value.Class;
+                current.Identifier = previous.Value.Identifier;
+                current.Metadata = previous.Value.Metadata;
+            }
+
+            var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
 
             rt.Add(reply);
 
@@ -1021,7 +1039,7 @@ public static class DataDeserializer
 
         var list = new List<object>();
 
-        ParsedTDU? current;
+        ParsedTDU current;
         ParsedTDU? previous = null;
 
         var offset = tdu.Offset;
@@ -1030,21 +1048,20 @@ public static class DataDeserializer
 
         while (length > 0)
         {
-            (var longLen, current) = ParsedTDU.Parse(tdu.Data, offset, ends);
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
 
-            if (current == null)
+            if (current.Class == TDUClass.Invalid)
                 throw new Exception("Unknown type.");
 
-            var cur = (ParsedTDU)current.Value;
 
-            if (cur.Identifier == TDUIdentifier.TypeContinuation)
+            if (current.Identifier == TDUIdentifier.TypeContinuation)
             {
-                cur.Class = previous.Value.Class;
-                cur.Identifier = previous.Value.Identifier;
-                cur.Metadata = previous.Value.Metadata;
+                current.Class = previous.Value.Class;
+                current.Identifier = previous.Value.Identifier;
+                current.Metadata = previous.Value.Metadata;
             }
 
-            var (cs, reply) = Codec.ParseSync(cur, warehouse);
+            var (cs, reply) = Codec.ParseSync(current, warehouse);
 
             list.Add(reply);
 
@@ -1052,7 +1069,7 @@ public static class DataDeserializer
             {
                 offset += (uint)cs;
                 length -= (uint)cs;
-                previous = cur;
+                previous = current;
             }
             else
                 throw new Exception("Error while parsing structured data");
@@ -1061,7 +1078,7 @@ public static class DataDeserializer
 
         var rt = Array.CreateInstance(runtimeType, list.Count);
         Array.Copy(list.ToArray(), rt, rt.Length);
-        
+
         return rt;
     }
 
@@ -1070,7 +1087,8 @@ public static class DataDeserializer
         var rt = new AsyncBag<PropertyValue>();
 
 
-        ListParserAsync(data, offset, length, connection, requestSequence).Then(x =>
+        ListParserAsync(new ParsedTDU() { Data = data, Offset = offset, ContentLength = length }
+                        , connection, requestSequence).Then(x =>
         {
             var ar = (object[])x;
             var pvs = new List<PropertyValue>();

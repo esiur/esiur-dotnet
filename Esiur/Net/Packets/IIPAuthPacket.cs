@@ -188,13 +188,13 @@ public class IIPAuthPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
+            DataType = ParsedTDU.Parse(data, offset, ends);
 
-            if (DataType == null)
-                return -(int)size;
+            if (DataType.Value.Class == TDUClass.Invalid)
+                return -(int)DataType.Value.TotalLength;
 
 
-            offset += (uint)size;
+            offset += (uint)DataType.Value.TotalLength;
 
         }
         else if (Command == IIPAuthPacketCommand.Acknowledge)
@@ -208,13 +208,13 @@ public class IIPAuthPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
+            DataType = ParsedTDU.Parse(data, offset, ends);
 
-            if (DataType == null)
-                return -(int)size;
+            if (DataType.Value.Class == TDUClass.Invalid)
+                return -(int)DataType.Value.TotalLength;
 
 
-            offset += (uint)size;
+            offset += (uint)DataType.Value.TotalLength;
         }
         else if (Command == IIPAuthPacketCommand.Action)
         {
@@ -280,12 +280,12 @@ public class IIPAuthPacket : Packet
                 Reference = data.GetUInt32(offset, Endian.Little);
                 offset += 4;
 
-                (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
+                DataType = ParsedTDU.Parse(data, offset, ends);
 
-                if (DataType == null)
-                    return -(int)size;
+                if (DataType.Value.Class == TDUClass.Invalid)
+                    return -(int)DataType.Value.TotalLength;
 
-                offset += (uint)size;
+                offset += (uint)DataType.Value.TotalLength;
 
             }
             else if (Action == IIPAuthPacketAction.IAuthHashed)
@@ -445,12 +445,12 @@ public class IIPAuthPacket : Packet
                 if (NotEnough(offset, ends, 1))
                     return -dataLengthNeeded;
 
-                (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
+                DataType = ParsedTDU.Parse(data, offset, ends);
 
-                if (DataType == null)
-                    return -(int)size;
+                if (DataType.Value.Class == TDUClass.Invalid)
+                    return -(int)DataType.Value.TotalLength;
 
-                offset += (uint)size;
+                offset += (uint)DataType.Value.TotalLength;
 
             }
         }

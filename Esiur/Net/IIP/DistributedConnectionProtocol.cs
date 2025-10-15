@@ -262,7 +262,7 @@ partial class DistributedConnection
         SendReply(IIPPacketReply.Chunk, callbackId, chunk);
     }
 
-    void IIPReplyCompleted(uint callbackId, ParsedTDU dataType, byte[] data)
+    void IIPReplyCompleted(uint callbackId, ParsedTDU dataType)
     {
         var req = requests.Take(callbackId);
 
@@ -272,7 +272,7 @@ partial class DistributedConnection
             return;
         }
 
-        var (_, parsed) = Codec.ParseAsync(data, 0, this, null, dataType);
+        var (_, parsed) = Codec.ParseAsync(dataType, this, null);
         if (parsed is AsyncReply reply)
         {
             reply.Then(result =>
@@ -374,14 +374,14 @@ partial class DistributedConnection
 
 
 
-    void IIPReplyChunk(uint callbackId, ParsedTDU dataType, byte[] data)
+    void IIPReplyChunk(uint callbackId, ParsedTDU dataType)
     {
         var req = requests[callbackId];
 
         if (req == null)
             return;
 
-        var (_, parsed) = Codec.ParseAsync(data, dataType.Offset, this, null, dataType);
+        var (_, parsed) = Codec.ParseAsync(dataType, this, null);
 
         if (parsed is AsyncReply reply)
             reply.Then(result => req.TriggerChunk(result));
@@ -389,7 +389,7 @@ partial class DistributedConnection
             req.TriggerChunk(parsed);
     }
 
-    void IIPNotificationResourceReassigned(ParsedTDU dataType, byte[] data)
+    void IIPNotificationResourceReassigned(ParsedTDU dataType)
     {
         // uint resourceId, uint newResourceId
     }
@@ -429,11 +429,11 @@ partial class DistributedConnection
 
     }
 
-    void IIPNotificationPropertyModified(ParsedTDU dataType, byte[] data)
+    void IIPNotificationPropertyModified(ParsedTDU dataType)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
-            DataDeserializer.LimitedCountListParser(data, dataType.Offset, dataType.ContentLength, Instance.Warehouse, 2);
+            DataDeserializer.LimitedCountListParser(dataType.Data, dataType.Offset, dataType.ContentLength, Instance.Warehouse, 2);
 
         var rid = (uint)args[0];
         var index = (byte)args[1];
@@ -447,7 +447,7 @@ partial class DistributedConnection
             var item = new AsyncReply<DistributedResourceQueueItem>();
             queue.Add(item);
 
-            var (_, parsed) = Codec.ParseAsync(data, valueOffset, this, null);
+            var (_, parsed) = Codec.ParseAsync(dataType.Data, valueOffset, this, null);
 
             if (parsed is AsyncReply)
             {
@@ -663,7 +663,7 @@ partial class DistributedConnection
 
     void IIPRequestCreateResource(uint callback, ParsedTDU dataType, byte[] data)
     {
-        var (_, parsed) = Codec.ParseAsync(data, 0, this, null, dataType);
+        var (_, parsed) = Codec.ParseAsync(dataType, this, null);
 
         var args = (object[])parsed;
 

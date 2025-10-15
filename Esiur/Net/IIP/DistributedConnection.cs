@@ -438,7 +438,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     {
                         // Invoke
                         case IIPPacketNotification.PropertyModified:
-                            IIPNotificationPropertyModified(dt, msg);
+                            IIPNotificationPropertyModified(dt);
                             break;
                         case IIPPacketNotification.EventOccurred:
                             IIPNotificationEventOccurred(dt, msg);
@@ -448,7 +448,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPNotificationResourceDestroyed(dt, msg);
                             break;
                         case IIPPacketNotification.ResourceReassigned:
-                            IIPNotificationResourceReassigned(dt, msg);
+                            IIPNotificationResourceReassigned(dt);
                             break;
                         case IIPPacketNotification.ResourceMoved:
                             IIPNotificationResourceMoved(dt, msg);
@@ -537,7 +537,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                     switch (packet.Reply)
                     {
                         case IIPPacketReply.Completed:
-                            IIPReplyCompleted(packet.CallbackId, dt, msg);
+                            IIPReplyCompleted(packet.CallbackId, dt);
                             break;
                         case IIPPacketReply.Propagated:
                             IIPReplyPropagated(packet.CallbackId, dt, msg);
@@ -554,7 +554,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             break;
 
                         case IIPPacketReply.Chunk:
-                            IIPReplyChunk(packet.CallbackId, dt, msg);
+                            IIPReplyChunk(packet.CallbackId, dt);
                             break;
 
                         case IIPPacketReply.Warning:
@@ -1344,7 +1344,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     protected override void DataReceived(NetworkBuffer data)
     {
-        //Console.WriteLine("DR " + data.Available + " " + RemoteEndPoint.ToString());
         var msg = data.Read();
         uint offset = 0;
         uint ends = (uint)msg.Length;
@@ -1352,8 +1351,6 @@ public partial class DistributedConnection : NetworkConnection, IStore
         var packs = new List<string>();
 
         var chunkId = (new Random()).Next(1000, 1000000);
-
-        //var list = new List<Map<string, object>>();// double, IIPPacketCommand>();
 
 
         this.Socket.Hold();

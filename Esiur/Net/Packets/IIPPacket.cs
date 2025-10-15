@@ -37,10 +37,10 @@ class IIPPacket : Packet
 
     public uint CallbackId { get; set; }
     public IIPPacketMethod Method { get; set; }
-    public IIPPacketRequest Request {  get; set; }  
-    public IIPPacketReply Reply {  get; set; }  
+    public IIPPacketRequest Request { get; set; }
+    public IIPPacketReply Reply { get; set; }
 
-    public IIPPacketNotification Notification {  get; set; }
+    public IIPPacketNotification Notification { get; set; }
 
     public byte Extension { get; set; }
 
@@ -57,12 +57,12 @@ class IIPPacket : Packet
 
     public override string ToString()
     {
-        return Method switch 
+        return Method switch
         {
             IIPPacketMethod.Notification => $"{Method} {Notification}",
-            IIPPacketMethod.Request =>  $"{Method} {Request}",
-            IIPPacketMethod.Reply =>  $"{Method} {Reply}",
-            IIPPacketMethod.Extension =>  $"{Method} {Extension}",
+            IIPPacketMethod.Request => $"{Method} {Request}",
+            IIPPacketMethod.Reply => $"{Method} {Reply}",
+            IIPPacketMethod.Extension => $"{Method} {Extension}",
             _ => $"{Method}"
         };
     }
@@ -124,12 +124,12 @@ class IIPPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            (var size, DataType) = ParsedTDU.Parse(data, offset, ends);
+            DataType = ParsedTDU.Parse(data, offset, ends);
 
-            if (DataType == null)
-                return -(int)size;
+            if (DataType.Value.Class == TDUClass.Invalid)
+                return -(int)DataType.Value.TotalLength;
 
-            offset += (uint)size;
+            offset += (uint)DataType.Value.TotalLength;
         }
         else
         {

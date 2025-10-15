@@ -117,7 +117,7 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
 
                     if (s == null)
                     {
-                        Console.Write("sock == null");
+                        Global.Log("NetworkServer", LogType.Error, "sock == null");
                         return;
                     }
 

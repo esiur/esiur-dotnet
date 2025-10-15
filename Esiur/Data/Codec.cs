@@ -189,42 +189,53 @@ public static class Codec
     /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static (uint, object) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence, ParsedTDU? dataType = null)
+    public static (uint, object) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence)
     {
-        uint len = 0;
 
-        if (dataType == null)
+        var tdu = ParsedTDU.Parse(data, offset, (uint)data.Length);
+
+        if (tdu.Class == TDUClass.Invalid)
+            throw new NullReferenceException("DataType can't be parsed.");
+
+        if (tdu.Class == TDUClass.Fixed)
         {
-            (var longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
-
-            if (dataType == null)
-                throw new NullReferenceException("DataType can't be parsed.");
-
-            len = (uint)longLen;
-            offset = dataType.Value.Offset;
+            return ((uint)tdu.TotalLength, FixedAsyncParsers[tdu.Exponent][tdu.Index](tdu, connection, requestSequence));
         }
-        else
-            len = (uint)dataType.Value.ContentLength;
-
-        var tt = dataType.Value;
-
-        //Console.WriteLine("Parsing " + tt.Class + " " + tt.Identifier);
-
-        if (tt.Class == TDUClass.Fixed)
+        else if (tdu.Class == TDUClass.Dynamic)
         {
-            return (len, FixedAsyncParsers[tt.Exponent][tt.Index](tt, connection, requestSequence));
+            return ((uint)tdu.TotalLength, DynamicAsyncParsers[tdu.Index](tdu, connection, requestSequence));
         }
-        else if (tt.Class == TDUClass.Dynamic)
+        else if (tdu.Class == TDUClass.Typed)
         {
-            return (len, DynamicAsyncParsers[tt.Index](tt, connection, requestSequence));
+            return ((uint)tdu.TotalLength, TypedAsyncParsers[tdu.Index](tdu, connection, requestSequence));
         }
-        else if (tt.Class == TDUClass.Typed)
+        else // if (tt.Class == TDUClass.Extension)
         {
-            return (len, TypedAsyncParsers[tt.Index](tt, connection, requestSequence));
+            return ((uint)tdu.TotalLength, ExtendedAsyncParsers[tdu.Index](tdu, connection, requestSequence));
+
         }
-        else if (tt.Class == TDUClass.Extension)
+    }
+
+    public static (uint, object) ParseAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    {
+        if (tdu.Class == TDUClass.Invalid)
+            throw new NullReferenceException("DataType can't be parsed.");
+
+        if (tdu.Class == TDUClass.Fixed)
         {
-            return (len, ExtendedAsyncParsers[tt.Index](tt, connection, requestSequence));
+            return ((uint)tdu.TotalLength, FixedAsyncParsers[tdu.Exponent][tdu.Index](tdu, connection, requestSequence));
+        }
+        else if (tdu.Class == TDUClass.Dynamic)
+        {
+            return ((uint)tdu.TotalLength, DynamicAsyncParsers[tdu.Index](tdu, connection, requestSequence));
+        }
+        else if (tdu.Class == TDUClass.Typed)
+        {
+            return ((uint)tdu.TotalLength, TypedAsyncParsers[tdu.Index](tdu, connection, requestSequence));
+        }
+        else // if (tt.Class == TDUClass.Extension)
+        {
+            return ((uint)tdu.TotalLength, ExtendedAsyncParsers[tdu.Index](tdu, connection, requestSequence));
 
         }
     }
@@ -252,34 +263,27 @@ public static class Codec
 
     public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse)
     {
-        uint len = 0;
+        var tdu = ParsedTDU.Parse(data, offset, (uint)data.Length);
 
-
-        var  (longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
-
-        if (dataType == null)
+        if (tdu.Class == TDUClass.Invalid)
             throw new NullReferenceException("DataType can't be parsed.");
 
-        len = (uint)longLen;
-        offset = dataType.Value.Offset;
 
-        var tt = dataType.Value;
-
-        if (tt.Class == TDUClass.Fixed)
+        if (tdu.Class == TDUClass.Fixed)
         {
-            return (len, FixedParsers[tt.Exponent][tt.Index](tt, warehouse));
+            return ((uint)tdu.TotalLength, FixedParsers[tdu.Exponent][tdu.Index](tdu, warehouse));
         }
-        else if (tt.Class == TDUClass.Dynamic)
+        else if (tdu.Class == TDUClass.Dynamic)
         {
-            return (len, DynamicParsers[tt.Index](tt, warehouse));
+            return ((uint)tdu.TotalLength, DynamicParsers[tdu.Index](tdu, warehouse));
         }
-        else if (tt.Class == TDUClass.Typed)
+        else if (tdu.Class == TDUClass.Typed)
         {
-            return (len, TypedParsers[tt.Index](tt, warehouse));
+            return ((uint)tdu.TotalLength, TypedParsers[tdu.Index](tdu, warehouse));
         }
         else
         {
-            return (len, ExtendedParsers[tt.Index](tt, warehouse));
+            return ((uint)tdu.TotalLength, ExtendedParsers[tdu.Index](tdu, warehouse));
         }
     }
     /// <summary>
@@ -326,8 +330,8 @@ public static class Codec
         [typeof(float?)] = DataSerializer.Float32Composer,
         [typeof(long)] = DataSerializer.Int64Composer,
         [typeof(long?)] = DataSerializer.Int64Composer,
-        [typeof(ulong)] = DataSerializer.UIn64Composer,
-        [typeof(ulong?)] = DataSerializer.UIn64Composer,
+        [typeof(ulong)] = DataSerializer.UInt64Composer,
+        [typeof(ulong?)] = DataSerializer.UInt64Composer,
         [typeof(double)] = DataSerializer.Float64Composer,
         [typeof(double?)] = DataSerializer.Float64Composer,
         [typeof(DateTime)] = DataSerializer.DateTimeComposer,

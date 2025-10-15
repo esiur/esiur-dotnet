@@ -9,6 +9,7 @@ namespace Esiur.Data
         Fixed = 0x0,
         Dynamic = 0x1,
         Typed = 0x2,
-        Extension = 0x3
+        Extension = 0x3,
+        Invalid
     }
 }

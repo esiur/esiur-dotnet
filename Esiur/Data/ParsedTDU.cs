@@ -16,7 +16,7 @@ namespace Esiur.Data
         public ulong TotalLength;
         public byte[] Metadata;
 
-        public static (ulong, ParsedTDU?) Parse(byte[] data, uint offset, uint ends)
+        public static ParsedTDU Parse(byte[] data, uint offset, uint ends)
         {
             var h = data[offset++];
 
@@ -27,7 +27,7 @@ namespace Esiur.Data
                 var exp = (h & 0x38) >> 3;
 
                 if (exp == 0)
-                    return (1, new ParsedTDU()
+                    return new ParsedTDU()
                     {
                         Identifier = (TDUIdentifier)h,
                         Data = data,
@@ -37,16 +37,20 @@ namespace Esiur.Data
                         Index = (byte)h & 0x7,
                         ContentLength = 0,
                         TotalLength = 1,
-                    });
+                    };
 
                 ulong cl = (ulong)(1 << (exp - 1));
 
                 if (ends - offset < cl)
-                    return (cl - (ends - offset), null);
+                    return new ParsedTDU()
+                    {
+                        Class = TDUClass.Invalid,
+                        TotalLength = (cl - (ends - offset))
+                    };
 
                 //offset += (uint)cl;
 
-                return (1 + cl, new ParsedTDU()
+                return new ParsedTDU()
                 {
                     Identifier = (TDUIdentifier)h,
                     Data = data,
@@ -56,14 +60,18 @@ namespace Esiur.Data
                     TotalLength = 1 + cl,
                     Exponent = (byte)exp,
                     Index = (byte)h & 0x7,
-                });
+                };
             }
             else if (cls == TDUClass.Typed)
             {
                 ulong cll = (ulong)(h >> 3) & 0x7;
 
                 if (ends - offset < cll)
-                    return (cll - (ends - offset), null);
+                    return new ParsedTDU()
+                    {
+                        Class = TDUClass.Invalid,
+                        TotalLength = (cll - (ends - offset))
+                    };
 
                 ulong cl = 0;
 
@@ -71,13 +79,17 @@ namespace Esiur.Data
                     cl = cl << 8 | data[offset++];
 
                 if (ends - offset < cl)
-                    return (cl - (ends - offset), null);
+                    return new ParsedTDU()
+                    {
+                        TotalLength = (cl - (ends - offset)),
+                        Class = TDUClass.Invalid,
+                    };
 
                 var metaData = DC.Clip(data, offset + 1, data[offset]);
                 offset += data[offset] + (uint)1;
 
 
-                return (1 + cl + cll, new ParsedTDU()
+                return new ParsedTDU()
                 {
                     Identifier = (TDUIdentifier)(h & 0xC7),
                     Data = data,
@@ -87,14 +99,18 @@ namespace Esiur.Data
                     TotalLength = 1 + cl + cll,
                     Index = (byte)h & 0x7,
                     Metadata = metaData,
-                });
+                };
             }
             else
             {
                 ulong cll = (ulong)(h >> 3) & 0x7;
 
                 if (ends - offset < cll)
-                    return (cll - (ends - offset), null);
+                    return new ParsedTDU()
+                    {
+                        Class = TDUClass.Invalid,
+                        TotalLength = (cll - (ends - offset))
+                    };
 
                 ulong cl = 0;
 
@@ -102,10 +118,14 @@ namespace Esiur.Data
                     cl = cl << 8 | data[offset++];
 
                 if (ends - offset < cl)
-                    return (cl - (ends - offset), null);
+                    return new ParsedTDU()
+                    {
+                        Class = TDUClass.Invalid,
+                        TotalLength = (cl - (ends - offset))
+                    };
 
 
-                return (1 + cl + cll,
+                return
                     new ParsedTDU()
                     {
                         Identifier = (TDUIdentifier)(h & 0xC7),
@@ -115,7 +135,7 @@ namespace Esiur.Data
                         ContentLength = cl,
                         TotalLength = 1 + cl + cll,
                         Index = (byte)h & 0x7
-                    });
+                    };
             }
         }
 
