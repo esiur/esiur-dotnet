@@ -41,7 +41,7 @@ public static class Codec
 
     //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
 
-    delegate object AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
+    delegate object AsyncParser(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence);
     delegate object SyncParser(ParsedTDU tdu, Warehouse warehouse);
 
     static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
@@ -107,6 +107,10 @@ public static class Codec
         DataDeserializer.ConstantParserAsync,
     };
 
+    static AsyncParser[] ExtendedAsyncParsers = new AsyncParser[]
+    {
+
+    };
 
     static SyncParser[][] FixedParsers = new SyncParser[][]
 {
@@ -171,6 +175,11 @@ public static class Codec
         DataDeserializer.ConstantParser,
     };
 
+    static SyncParser[] ExtendedParsers = new SyncParser[]
+    {
+
+    };
+
     /// <summary>
     /// Parse a value
     /// </summary>
@@ -203,34 +212,56 @@ public static class Codec
 
         if (tt.Class == TDUClass.Fixed)
         {
-            return (len, FixedAsyncParsers[tt.Exponent][tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, FixedAsyncParsers[tt.Exponent][tt.Index](tt, connection, requestSequence));
         }
         else if (tt.Class == TDUClass.Dynamic)
         {
-            return (len, DynamicAsyncParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, DynamicAsyncParsers[tt.Index](tt, connection, requestSequence));
         }
-        else //if (tt.Class == TransmissionDataUnitClass.Typed)
+        else if (tt.Class == TDUClass.Typed)
         {
-            return (len, TypedAsyncParsers[tt.Index](data, dataType.Value.Offset, (uint)tt.ContentLength, connection, requestSequence));
+            return (len, TypedAsyncParsers[tt.Index](tt, connection, requestSequence));
+        }
+        else if (tt.Class == TDUClass.Extension)
+        {
+            return (len, ExtendedAsyncParsers[tt.Index](tt, connection, requestSequence));
+
         }
     }
 
-    public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse, ParsedTDU? dataType = null)
+    public static (uint, object) ParseSync(ParsedTDU tdu, Warehouse warehouse)
+    {
+        if (tdu.Class == TDUClass.Fixed)
+        {
+            return ((uint)tdu.TotalLength, FixedParsers[tdu.Exponent][tdu.Index](tdu, warehouse));
+        }
+        else if (tdu.Class == TDUClass.Dynamic)
+        {
+            return ((uint)tdu.TotalLength, DynamicParsers[tdu.Index](tdu, warehouse));
+        }
+        else if (tdu.Class == TDUClass.Typed)
+        {
+            return ((uint)tdu.TotalLength, TypedParsers[tdu.Index](tdu, warehouse));
+        }
+        else // Extension
+        {
+            return ((uint)tdu.TotalLength, ExtendedParsers[tdu.Index](tdu, warehouse));
+        }
+
+    }
+
+    public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse)
     {
         uint len = 0;
 
+
+        var  (longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
+
         if (dataType == null)
-        {
-            (var longLen, dataType) = ParsedTDU.Parse(data, offset, (uint)data.Length);
+            throw new NullReferenceException("DataType can't be parsed.");
 
-            if (dataType == null)
-                throw new NullReferenceException("DataType can't be parsed.");
-
-            len = (uint)longLen;
-            offset = dataType.Value.Offset;
-        }
-        else
-            len = (uint)dataType.Value.ContentLength;
+        len = (uint)longLen;
+        offset = dataType.Value.Offset;
 
         var tt = dataType.Value;
 
@@ -242,9 +273,13 @@ public static class Codec
         {
             return (len, DynamicParsers[tt.Index](tt, warehouse));
         }
-        else //if (tt.Class == TransmissionDataUnitClass.Typed)
+        else if (tt.Class == TDUClass.Typed)
         {
             return (len, TypedParsers[tt.Index](tt, warehouse));
+        }
+        else
+        {
+            return (len, ExtendedParsers[tt.Index](tt, warehouse));
         }
     }
     /// <summary>

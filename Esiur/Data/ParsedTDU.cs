@@ -83,7 +83,7 @@ namespace Esiur.Data
                     Data = data,
                     Offset = offset,
                     Class = cls,
-                    ContentLength = cl,
+                    ContentLength = cl - 1 - (uint)metaData.Length,
                     TotalLength = 1 + cl + cll,
                     Index = (byte)h & 0x7,
                     Metadata = metaData,

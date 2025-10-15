@@ -333,9 +333,11 @@ public static class DataSerializer
             var tdu = Codec.ComposeInternal(i, warehouse, connection);
             if (previous != null  && tdu.MatchType(previous.Value))
             {
-                rt.Add((byte)TDUIdentifier.NotModified);
-                rt.AddRange(tdu.Composed.Clip(tdu.ContentOffset, 
-                    (uint)tdu.Composed.Length - tdu.ContentOffset));
+                var d = tdu.Composed.Clip(tdu.ContentOffset,
+                    (uint)tdu.Composed.Length - tdu.ContentOffset);
+
+                var ntd = new TDU(TDUIdentifier.TypeContinuation, d,(ulong) d.Length);
+                rt.AddRange(ntd.Composed);
             }
             else
             {

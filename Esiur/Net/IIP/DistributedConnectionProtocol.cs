@@ -400,7 +400,7 @@ partial class DistributedConnection
 
     void IIPNotificationResourceDestroyed(ParsedTDU dataType, byte[] data)
     {
-        var (size, rt) = Codec.ParseSync(data, dataType.Offset, Instance.Warehouse, dataType);
+        var (size, rt) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceId = (uint)rt;
 
@@ -520,7 +520,7 @@ partial class DistributedConnection
     void IIPRequestAttachResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceId = (uint)value;
 
@@ -633,7 +633,7 @@ partial class DistributedConnection
     void IIPRequestDetachResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceId = (uint)value;
 
@@ -725,7 +725,7 @@ partial class DistributedConnection
     void IIPRequestDeleteResource(uint callback, ParsedTDU dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceId = (uint)value;
 
@@ -797,7 +797,7 @@ partial class DistributedConnection
 
     void IIPRequestLinkTemplates(uint callback, ParsedTDU dataType, byte[] data)
     {
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceLink = (string)value;
 
@@ -830,7 +830,7 @@ partial class DistributedConnection
 
     void IIPRequestTemplateFromClassName(uint callback, ParsedTDU dataType, byte[] data)
     {
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var className = (string)value;
 
@@ -850,7 +850,7 @@ partial class DistributedConnection
     void IIPRequestTemplateFromClassId(uint callback, ParsedTDU dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var classId = (UUID)value;
 
@@ -872,7 +872,7 @@ partial class DistributedConnection
     void IIPRequestTemplateFromResourceId(uint callback, ParsedTDU dataType, byte[] data)
     {
 
-        var (_, value) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceId = (uint)value;
 
@@ -894,7 +894,7 @@ partial class DistributedConnection
 
     void IIPRequestGetResourceIdByLink(uint callback, ParsedTDU dataType, byte[] data)
     {
-        var (_, parsed) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
         var resourceLink = (string)parsed;
 
         Action<IResource> queryCallback = (r) =>
@@ -922,7 +922,7 @@ partial class DistributedConnection
 
     void IIPRequestQueryResources(uint callback, ParsedTDU dataType, byte[] data)
     {
-        var (_, parsed) = Codec.ParseSync(data, 0, Instance.Warehouse, dataType);
+        var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var resourceLink = (string)parsed;
 

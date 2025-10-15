@@ -47,6 +47,7 @@ namespace Esiur.Data
         RecordList = 0x44,
         Map = 0x45,
         MapList = 0x46,
+        ResourceLink = 0x47,
 
         Record = 0x80,
         TypedList = 0x81,
@@ -55,9 +56,8 @@ namespace Esiur.Data
         TypedEnum = 0x84,
         TypedConstant = 0x85,
 
-        ResourceLink = 0xC0,
+        TypeContinuation = 0xC0,
 
-        Same = 0xFF
 
     }
 }
