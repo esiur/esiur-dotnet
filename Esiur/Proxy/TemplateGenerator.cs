@@ -121,28 +121,28 @@ public static class TemplateGenerator
     }
 
 
-    static string GetTypeName(RepresentationType representationType, TypeTemplate[] templates)
+    static string GetTypeName(TRU representationType, TypeTemplate[] templates)
     {
         string name;
 
-        if (representationType.Identifier == RepresentationTypeIdentifier.TypedResource)// == DataType.Resource)
+        if (representationType.Identifier == TRUIdentifier.TypedResource)// == DataType.Resource)
             name = templates.First(x => x.ClassId == representationType.UUID && (x.Type == TemplateType.Resource)).ClassName;
-        else if (representationType.Identifier == RepresentationTypeIdentifier.TypedRecord)
+        else if (representationType.Identifier == TRUIdentifier.TypedRecord)
             name = templates.First(x => x.ClassId == representationType.UUID && x.Type == TemplateType.Record).ClassName;
-        else if (representationType.Identifier == RepresentationTypeIdentifier.Enum)
+        else if (representationType.Identifier == TRUIdentifier.Enum)
             name = templates.First(x => x.ClassId == representationType.UUID && x.Type == TemplateType.Enum).ClassName;
-        else if (representationType.Identifier == RepresentationTypeIdentifier.TypedList)
+        else if (representationType.Identifier == TRUIdentifier.TypedList)
             name = GetTypeName(representationType.SubTypes[0], templates) + "[]";
-        else if (representationType.Identifier == RepresentationTypeIdentifier.TypedMap)
+        else if (representationType.Identifier == TRUIdentifier.TypedMap)
             name = "Map<" + GetTypeName(representationType.SubTypes[0], templates)
                     + "," + GetTypeName(representationType.SubTypes[1], templates)
                     + ">";
-        else if (representationType.Identifier == RepresentationTypeIdentifier.Tuple2 ||
-                 representationType.Identifier == RepresentationTypeIdentifier.Tuple3 ||
-                 representationType.Identifier == RepresentationTypeIdentifier.Tuple4 ||
-                 representationType.Identifier == RepresentationTypeIdentifier.Tuple5 ||
-                 representationType.Identifier == RepresentationTypeIdentifier.Tuple6 ||
-                 representationType.Identifier == RepresentationTypeIdentifier.Tuple7)
+        else if (representationType.Identifier == TRUIdentifier.Tuple2 ||
+                 representationType.Identifier == TRUIdentifier.Tuple3 ||
+                 representationType.Identifier == TRUIdentifier.Tuple4 ||
+                 representationType.Identifier == TRUIdentifier.Tuple5 ||
+                 representationType.Identifier == TRUIdentifier.Tuple6 ||
+                 representationType.Identifier == TRUIdentifier.Tuple7)
             name = "(" + String.Join(",", representationType.SubTypes.Select(x => GetTypeName(x, templates)))
                     + ")";
         else
@@ -150,26 +150,26 @@ public static class TemplateGenerator
 
             name = representationType.Identifier switch
             {
-                RepresentationTypeIdentifier.Dynamic => "object",
-                RepresentationTypeIdentifier.Bool => "bool",
-                RepresentationTypeIdentifier.Char => "char",
-                RepresentationTypeIdentifier.DateTime => "DateTime",
-                RepresentationTypeIdentifier.Decimal => "decimal",
-                RepresentationTypeIdentifier.Float32 => "float",
-                RepresentationTypeIdentifier.Float64 => "double",
-                RepresentationTypeIdentifier.Int16 => "short",
-                RepresentationTypeIdentifier.Int32 => "int",
-                RepresentationTypeIdentifier.Int64 => "long",
-                RepresentationTypeIdentifier.Int8 => "sbyte",
-                RepresentationTypeIdentifier.String => "string",
-                RepresentationTypeIdentifier.Map => "Map<object, object>",
-                RepresentationTypeIdentifier.UInt16 => "ushort",
-                RepresentationTypeIdentifier.UInt32 => "uint",
-                RepresentationTypeIdentifier.UInt64 => "ulong",
-                RepresentationTypeIdentifier.UInt8 => "byte",
-                RepresentationTypeIdentifier.List => "object[]",
-                RepresentationTypeIdentifier.Resource => "IResource",
-                RepresentationTypeIdentifier.Record => "IRecord",
+                TRUIdentifier.Dynamic => "object",
+                TRUIdentifier.Bool => "bool",
+                TRUIdentifier.Char => "char",
+                TRUIdentifier.DateTime => "DateTime",
+                TRUIdentifier.Decimal => "decimal",
+                TRUIdentifier.Float32 => "float",
+                TRUIdentifier.Float64 => "double",
+                TRUIdentifier.Int16 => "short",
+                TRUIdentifier.Int32 => "int",
+                TRUIdentifier.Int64 => "long",
+                TRUIdentifier.Int8 => "sbyte",
+                TRUIdentifier.String => "string",
+                TRUIdentifier.Map => "Map<object, object>",
+                TRUIdentifier.UInt16 => "ushort",
+                TRUIdentifier.UInt32 => "uint",
+                TRUIdentifier.UInt64 => "ulong",
+                TRUIdentifier.UInt8 => "byte",
+                TRUIdentifier.List => "object[]",
+                TRUIdentifier.Resource => "IResource",
+                TRUIdentifier.Record => "IRecord",
                 _ => "object"
             };
         }

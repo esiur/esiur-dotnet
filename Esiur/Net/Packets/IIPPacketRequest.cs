@@ -32,6 +32,11 @@ namespace Esiur.Net.Packets
         // Request Static
         KeepAlive = 0x18,
         ProcedureCall = 0x19,
-        StaticCall = 0x1A
+        StaticCall = 0x1A,
+        IndirectCall = 0x1B,
+        PullStream = 0x1C,
+        TerminateExecution = 0x1D,
+        HaltExecution = 0x1E,
+
     }
 }

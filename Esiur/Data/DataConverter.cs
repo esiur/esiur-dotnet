@@ -36,11 +36,15 @@ using System.Reflection;
 using Esiur.Data;
 using Esiur.Core;
 using Esiur.Resource;
+using System.Collections;
+using Esiur.Data.GVWIE;
 
 namespace Esiur.Data;
 
 public static class DC // Data Converter
 {
+
+
     public static object CastConvert(object value, Type destinationType)
     {
         if (value == null)

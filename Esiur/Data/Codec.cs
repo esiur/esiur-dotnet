@@ -381,7 +381,7 @@ public static class Codec
         ComposeInternal(object valueOrSource, Warehouse warehouse, DistributedConnection connection)
     {
         if (valueOrSource == null)
-            return new TDU(TDUIdentifier.Null);
+            return new TDU(TDUIdentifier.Null, null, 0);
 
         var type = valueOrSource.GetType();
 
@@ -408,7 +408,7 @@ public static class Codec
             valueOrSource = ((IUserType)valueOrSource).Get();
 
         if (valueOrSource == null)
-            return new TDU(TDUIdentifier.Null);
+            return new TDU(TDUIdentifier.Null, null, 0);
 
 
         type = valueOrSource.GetType();
@@ -484,7 +484,7 @@ public static class Codec
 
         }
 
-        return new TDU(TDUIdentifier.Null);
+        return new TDU(TDUIdentifier.Null, null, 0);
 
     }
 

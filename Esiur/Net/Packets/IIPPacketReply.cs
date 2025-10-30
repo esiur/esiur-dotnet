@@ -9,6 +9,7 @@ namespace Esiur.Net.Packets
         // Success
         Completed = 0x0,
         Propagated = 0x1,
+        Stream = 0x2,
 
         // Error
         PermissionError = 0x81,

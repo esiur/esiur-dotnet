@@ -58,7 +58,7 @@ namespace Esiur.Data
         TypedConstant = 0x85,
 
         TypeContinuation = 0xC0,
-
+        TypeOfTarget = 0xC1,
 
     }
 }

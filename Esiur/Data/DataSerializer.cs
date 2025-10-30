@@ -1,4 +1,5 @@
 ﻿using Esiur.Core;
+using Esiur.Data.GVWIE;
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using Esiur.Resource.Template;
@@ -112,7 +113,7 @@ public static class DataSerializer
     }
 
 
-    public static  unsafe TDU Float32Composer(object value, Warehouse warehouse, DistributedConnection connection)
+    public static unsafe TDU Float32Composer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         float v = (float)value;
 
@@ -404,6 +405,7 @@ public static class DataSerializer
         if (ct == null)
             return new TDU(TDUIdentifier.Null, null, 0);
 
+        return Codec.ComposeInternal(intVal, warehouse, connection);
 
         return new TDU(TDUIdentifier.TypedEnum,
             new byte[] { ct.Index }, 1, template.ClassId.Data);
@@ -442,18 +444,18 @@ public static class DataSerializer
     {
         if ((bool)value)
         {
-            return new TDU(TDUIdentifier.True);
+            return new TDU(TDUIdentifier.True, null, 0);
         }
         else
         {
-            return new TDU(TDUIdentifier.True);
+            return new TDU(TDUIdentifier.True, null, 0);
         }
     }
 
 
     public static TDU NotModifiedComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        return new TDU(TDUIdentifier.NotModified);
+        return new TDU(TDUIdentifier.NotModified, null, 0);
     }
 
     public static TDU RawDataComposerFromArray(object value, Warehouse warehouse, DistributedConnection connection)
@@ -492,16 +494,85 @@ public static class DataSerializer
 
     public static TDU TypedListComposer(IEnumerable value, Type type, Warehouse warehouse, DistributedConnection connection)
     {
-        var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
+        byte[] composed;
+
+        if (value == null)
+            return new TDU(TDUIdentifier.Null, new byte[0], 0);
+
+        var tru = TRU.FromType(type);
+
+        if (type == typeof(int))
+        {
+            composed = GroupInt32Codec.Encode((IList<int>)value);
+        }
+        else if (type == typeof(long))
+        {
+            composed = GroupInt64Codec.Encode((IList<long>)value);
+        }
+        else if (type == typeof(short))
+        {
+            composed = GroupInt16Codec.Encode((IList<short>)value);
+        }
+        else if (type == typeof(uint))
+        {
+            composed = GroupUInt32Codec.Encode((IList<uint>)value);
+        }
+        else if (type == typeof(ulong))
+        {
+            composed = GroupUInt64Codec.Encode((IList<ulong>)value);
+        }
+        else if (type == typeof(ushort))
+        {
+            composed = GroupUInt16Codec.Encode((IList<ushort>)value);
+        }
+        else
+        {
+            var rt = new List<byte>();
+
+            TDU? previous = null;
+
+            foreach (var i in value)
+            {
+                var tdu = Codec.ComposeInternal(i, warehouse, connection);
+
+                var currentTru = TRU.FromType(i.GetType());
+
+                if (tru.Match(currentTru))
+                {
+                    var d = tdu.Composed.Clip(tdu.ContentOffset,
+                        (uint)tdu.Composed.Length - tdu.ContentOffset);
+
+                    var ntd = new TDU(TDUIdentifier.TypeOfTarget, d, (ulong)d.Length);
+                    rt.AddRange(ntd.Composed);
+                }
+                else
+
+                if (previous != null && tdu.MatchType(previous.Value))
+                {
+                    var d = tdu.Composed.Clip(tdu.ContentOffset,
+                        (uint)tdu.Composed.Length - tdu.ContentOffset);
+
+                    var ntd = new TDU(TDUIdentifier.TypeContinuation, d, (ulong)d.Length);
+                    rt.AddRange(ntd.Composed);
+                }
+                else
+                {
+                    rt.AddRange(tdu.Composed);
+                }
+
+                previous = tdu;
+            }
+
+            composed = rt.ToArray();
+
+        }
 
         if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
-        var metadata = RepresentationType.FromType(type).Compose();
+        var metadata = tru.Compose();
 
-
-        return new TDU(TDUIdentifier.TypedList, composed,
-            (uint)composed.Length, metadata);
+        return new TDU(TDUIdentifier.TypedList, composed, (uint)composed.Length, metadata);
     }
 
     //public static byte[] PropertyValueComposer(PropertyValue propertyValue, DistributedConnection connection)//, bool includeAge = true)
@@ -539,8 +610,8 @@ public static class DataSerializer
         if (value == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
-        var kt = RepresentationType.FromType(keyType).Compose();
-        var vt = RepresentationType.FromType(valueType).Compose();
+        var kt = TRU.FromType(keyType).Compose();
+        var vt = TRU.FromType(valueType).Compose();
 
         var rt = new List<byte>();
 
@@ -558,8 +629,8 @@ public static class DataSerializer
         if (value == null)
             return new TDU(TDUIdentifier.Null, null, 0);
 
-        var kt = RepresentationType.FromType(keyType).Compose();
-        var vt = RepresentationType.FromType(valueType).Compose();
+        var kt = TRU.FromType(keyType).Compose();
+        var vt = TRU.FromType(valueType).Compose();
 
         var rt = new List<byte>();
 
@@ -583,7 +654,7 @@ public static class DataSerializer
             DC.Combine(kt, 0, (uint)kt.Length, vt, 0, (uint)vt.Length));
     }
 
-    public static byte[] ArrayComposer(IEnumerable value, Warehouse warehouse, DistributedConnection connection)
+    public static byte[] DynamicArrayComposer(IEnumerable value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)
             return null;
@@ -727,14 +798,29 @@ public static class DataSerializer
         foreach (var pt in template.Properties)
         {
             var propValue = pt.PropertyInfo.GetValue(record, null);
-            var rr = Codec.Compose(propValue, warehouse, connection);
-            rt.AddRange(rr);
+
+            if (propValue == null)
+                return new TDU(TDUIdentifier.Null, null, 0);
+            var tru = TRU.FromType(propValue.GetType());
+            var tdu = Codec.ComposeInternal(propValue, warehouse, connection);
+
+
+            if (pt.ValueType.Identifier == TRUIdentifier.TypedRecord && pt.ValueType.Match(tru))
+            {
+                // strip metadata
+                var len = (uint)tdu.Composed.Length - tdu.ContentOffset;
+                tdu = new TDU(TDUIdentifier.TypeOfTarget, 
+                    tdu.Composed.Clip(tdu.ContentOffset, len), len);
+            }
+
+            rt.AddRange(tdu.Composed);
         }
 
         return new TDU(TDUIdentifier.Record, rt.ToArray(),
             (uint)rt.Count,
             template.ClassId.Data);
     }
+
     public static byte[] HistoryComposer(KeyList<PropertyTemplate, PropertyValue[]> history, Warehouse warehouse,
                                         DistributedConnection connection, bool prependLength = false)
     {
@@ -758,7 +844,7 @@ public static class DataSerializer
 
         var fields = value.GetType().GetFields();
         var list = fields.Select(x => x.GetValue(value)).ToArray();
-        var types = fields.Select(x => RepresentationType.FromType(x.FieldType).Compose()).ToArray();
+        var types = fields.Select(x => TRU.FromType(x.FieldType).Compose()).ToArray();
 
 
         var metadata = new List<byte>();

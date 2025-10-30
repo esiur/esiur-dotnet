@@ -11,7 +11,7 @@ public class ArgumentTemplate
 
     public bool Optional { get; set; }
 
-    public RepresentationType Type { get; set; }
+    public TRU Type { get; set; }
 
     public ParameterInfo ParameterInfo { get; set; }
 
@@ -24,7 +24,7 @@ public class ArgumentTemplate
         var cs = (uint)data[offset++];
         var name = data.GetString(offset, cs);
         offset += cs;
-        var (size, type) = RepresentationType.Parse(data, offset);
+        var (size, type) = TRU.Parse(data, offset);
 
         return (cs + 2 + size, new ArgumentTemplate(name, index, type, optional));
     }
@@ -34,7 +34,7 @@ public class ArgumentTemplate
 
     }
 
-    public ArgumentTemplate(string name, int index, RepresentationType type, bool optional)
+    public ArgumentTemplate(string name, int index, TRU type, bool optional)
     {
         Name = name;
         Index = index;

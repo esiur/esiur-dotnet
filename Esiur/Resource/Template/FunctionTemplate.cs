@@ -25,7 +25,7 @@ public class FunctionTemplate : MemberTemplate
     //    set;
     //}
 
-    public RepresentationType ReturnType { get; set; }
+    public TRU ReturnType { get; set; }
 
     public bool IsStatic { get; set; }
 
@@ -66,7 +66,7 @@ public class FunctionTemplate : MemberTemplate
         return bl.ToArray();
     }
 
-    public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, RepresentationType returnType, string annotation = null)
+    public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, string annotation = null)
        : base(template, index, name, inherited)
     {
         this.Arguments = arguments;
@@ -82,20 +82,20 @@ public class FunctionTemplate : MemberTemplate
 
         var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
 
-        RepresentationType rtType;
+        TRU rtType;
 
         if (genericRtType == typeof(AsyncReply<>))
         {
-            rtType = RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]);
+            rtType = TRU.FromType(mi.ReturnType.GetGenericArguments()[0]);
         }
         else if (genericRtType == typeof(IEnumerable<>))// || genericRtType == typeof(IAsyncEnumerable<>))
         {
             // get export
-            rtType = RepresentationType.FromType(mi.ReturnType.GetGenericArguments()[0]);
+            rtType = TRU.FromType(mi.ReturnType.GetGenericArguments()[0]);
         }
         else
         {
-            rtType = RepresentationType.FromType(mi.ReturnType);
+            rtType = TRU.FromType(mi.ReturnType);
         }
 
         if (rtType == null)
@@ -165,7 +165,7 @@ public class FunctionTemplate : MemberTemplate
 
         var arguments = args.Select(x =>
         {
-            var argType = RepresentationType.FromType(x.ParameterType);
+            var argType = TRU.FromType(x.ParameterType);
 
             if (argType == null)
                 throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");

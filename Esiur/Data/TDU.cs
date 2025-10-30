@@ -61,6 +61,7 @@ public struct TDU
     public TDU(TDUIdentifier identifier)
     {
         Identifier = identifier;
+        Composed = new byte[0];
     }
 
     public TDU(TDUIdentifier identifier,
@@ -74,7 +75,10 @@ public struct TDU
 
         if (Class == TDUClass.Fixed)
         {
-            Composed = DC.Combine(new byte[] { (byte)Identifier }, 0, 1, data, 0, (uint)length);
+            if (length == 0)
+                Composed = new byte[1] { (byte)identifier };
+            else
+                Composed = DC.Combine(new byte[] { (byte)Identifier }, 0, 1, data, 0, (uint)length);
         }
         else if (Class == TDUClass.Dynamic
             || Class == TDUClass.Extension)

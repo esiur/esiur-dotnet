@@ -380,7 +380,7 @@ public class TypeTemplate
     {
         var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
 
-        var valueType = RepresentationType.FromType(ci.FieldType);
+        var valueType = TRU.FromType(ci.FieldType);
 
         if (valueType == null)
             throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
@@ -783,7 +783,7 @@ public class TypeTemplate
                 offset += (uint)data[offset] + 1;
 
                 // return type
-                var (rts, returnType) = RepresentationType.Parse(data, offset);
+                var (rts, returnType) = TRU.Parse(data, offset);
                 offset += rts;
 
                 // arguments count
@@ -823,7 +823,7 @@ public class TypeTemplate
 
                 offset += (uint)data[offset] + 1;
 
-                var (dts, valueType) = RepresentationType.Parse(data, offset);
+                var (dts, valueType) = TRU.Parse(data, offset);
 
                 offset += dts;
 
@@ -857,7 +857,7 @@ public class TypeTemplate
                 var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
                 offset += (uint)data[offset] + 1;
 
-                var (dts, argType) = RepresentationType.Parse(data, offset);
+                var (dts, argType) = TRU.Parse(data, offset);
 
                 offset += dts;
 
@@ -883,7 +883,7 @@ public class TypeTemplate
                 var name = data.GetString(offset + 1, data[offset]);
                 offset += (uint)data[offset] + 1;
 
-                var (dts, valueType) = RepresentationType.Parse(data, offset);
+                var (dts, valueType) = TRU.Parse(data, offset);
 
                 offset += dts;
 

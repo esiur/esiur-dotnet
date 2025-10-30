@@ -12,11 +12,11 @@ public class ConstantTemplate : MemberTemplate
     public readonly object Value;
     //public readonly byte[] ValueData;
     public readonly string Annotation;
-    public readonly RepresentationType ValueType;
+    public readonly TRU ValueType;
 
     public  FieldInfo FieldInfo { get; set; }
 
-    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType valueType, object value, string annotation)
+    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU valueType, object value, string annotation)
         : base(template, index, name, inherited)
     {
         Annotation = annotation;
@@ -73,7 +73,7 @@ public class ConstantTemplate : MemberTemplate
     {
         var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
 
-        var valueType = RepresentationType.FromType(ci.FieldType);
+        var valueType = TRU.FromType(ci.FieldType);
 
         if (valueType == null)
             throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");

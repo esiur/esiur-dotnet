@@ -21,7 +21,7 @@ public class EventTemplate : MemberTemplate
 
     public EventInfo EventInfo { get; set; }
 
-    public RepresentationType ArgumentType { get; set; }
+    public TRU ArgumentType { get; set; }
 
     public override byte[] Compose()
     {
@@ -55,7 +55,7 @@ public class EventTemplate : MemberTemplate
                 .ToArray();
     }
 
-    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, RepresentationType argumentType, string annotation = null, bool subscribable = false)
+    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU argumentType, string annotation = null, bool subscribable = false)
        : base(template, index, name, inherited)
     {
         this.Annotation = annotation;
@@ -75,7 +75,7 @@ public class EventTemplate : MemberTemplate
 
 
         var argType = ei.EventHandlerType.GenericTypeArguments[0];
-        var evtType = RepresentationType.FromType(argType);
+        var evtType = TRU.FromType(argType);
 
         if (evtType == null)
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");

@@ -25,7 +25,7 @@ public class PropertyTemplate : MemberTemplate
         set;
     }
 
-    public RepresentationType ValueType { get; set; }
+    public TRU ValueType { get; set; }
 
 
     /*
@@ -136,7 +136,7 @@ public class PropertyTemplate : MemberTemplate
     }
 
     public PropertyTemplate(TypeTemplate template, byte index, string name, bool inherited, 
-        RepresentationType valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
+        TRU valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
         : base(template, index, name, inherited)
     {
         this.Recordable = recordable;
@@ -152,8 +152,8 @@ public class PropertyTemplate : MemberTemplate
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
 
         var propType = genericPropType == typeof(PropertyContext<>) ?
-                RepresentationType.FromType(pi.PropertyType.GetGenericArguments()[0]) :
-                RepresentationType.FromType(pi.PropertyType);
+                TRU.FromType(pi.PropertyType.GetGenericArguments()[0]) :
+                TRU.FromType(pi.PropertyType);
 
         if (propType == null)
             throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
