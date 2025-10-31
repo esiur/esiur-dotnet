@@ -210,6 +210,8 @@ namespace Esiur.Data
 
         public static TRU? FromType(Type type)
         {
+            if (type == null)
+                return new TRU(TRUIdentifier.Void, true);
 
             var nullable = false;
 

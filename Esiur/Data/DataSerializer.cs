@@ -483,12 +483,35 @@ public static class DataSerializer
 
     public static TDU ListComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        var rt = ArrayComposer((IEnumerable)value, warehouse, connection);
-
-        if (rt == null)
+        if (value == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
-        else
-            return new TDU(TDUIdentifier.List, rt, (uint)rt.Length);
+
+        var list = (IEnumerable)value;
+
+        var rt = new List<byte>();
+
+        TDU? previous = null;
+
+        foreach (var i in list)
+        {
+            var tdu = Codec.ComposeInternal(i, warehouse, connection);
+            if (previous != null && tdu.MatchType(previous.Value))
+            {
+                var d = tdu.Composed.Clip(tdu.ContentOffset,
+                    (uint)tdu.Composed.Length - tdu.ContentOffset);
+
+                var ntd = new TDU(TDUIdentifier.TypeContinuation, d, (ulong)d.Length);
+                rt.AddRange(ntd.Composed);
+            }
+            else
+            {
+                rt.AddRange(tdu.Composed);
+            }
+
+            previous = tdu;
+        }
+
+        return new TDU(TDUIdentifier.List, rt.ToArray(), (uint)rt.Count);
     }
 
 
@@ -690,7 +713,7 @@ public static class DataSerializer
         if (value == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
-        var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
+        var composed = DynamicArrayComposer((IEnumerable)value, warehouse, connection);
 
         return new TDU(TDUIdentifier.ResourceList, composed,
             (uint)composed.Length);
@@ -701,7 +724,7 @@ public static class DataSerializer
         if (value == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
-        var composed = ArrayComposer((IEnumerable)value, warehouse, connection);
+        var composed = DynamicArrayComposer((IEnumerable)value, warehouse, connection);
 
         return new TDU(TDUIdentifier.RecordList,
             composed, (uint)composed.Length);
@@ -799,9 +822,9 @@ public static class DataSerializer
         {
             var propValue = pt.PropertyInfo.GetValue(record, null);
 
-            if (propValue == null)
-                return new TDU(TDUIdentifier.Null, null, 0);
-            var tru = TRU.FromType(propValue.GetType());
+            //if (propValue == null)
+            //    return  TDU(TDUIdentifier.Null, null, 0);
+            var tru = TRU.FromType(propValue?.GetType());
             var tdu = Codec.ComposeInternal(propValue, warehouse, connection);
 
 
@@ -851,7 +874,7 @@ public static class DataSerializer
         foreach (var t in types)
             metadata.AddRange(t);
 
-        var composed = ArrayComposer(list, warehouse, connection);
+        var composed = DynamicArrayComposer(list, warehouse, connection);
 
         if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);

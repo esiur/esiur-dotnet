@@ -370,7 +370,7 @@ public class TypeTemplate
             return name;
         }
         else
-            return $"{type.Namespace.Replace('.', separator)}{separator}{type.Name}";
+            return $"{type.Namespace?.Replace('.', separator) ?? "Global"}{separator}{type.Name}";
     }
 
 
