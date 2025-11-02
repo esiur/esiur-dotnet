@@ -198,7 +198,7 @@ public static class DataSerializer
             var rt = new byte[4];
 
             fixed (byte* ptr = rt)
-                *((float*)ptr) = (byte)v;
+                *((float*)ptr) = f;
 
             return new TDU(TDUIdentifier.Float32, rt, 4);
         }
