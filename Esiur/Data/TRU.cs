@@ -2,6 +2,7 @@
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using Esiur.Resource.Template;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -207,6 +208,47 @@ namespace Esiur.Data
 
             return true;
         }
+
+
+        public (TDUIdentifier, byte[]) GetMetadata()
+        {
+            switch (Identifier)
+            {
+                case TRUIdentifier.TypedList: 
+                    return (TDUIdentifier.TypedList, SubTypes[0].Compose());
+                case TRUIdentifier.TypedRecord:
+                    return (TDUIdentifier.Record, UUID?.Data);
+                case TRUIdentifier.TypedMap:
+                    return (TDUIdentifier.TypedMap,
+                        SubTypes[0].Compose().Concat(SubTypes[1].Compose()).ToArray());
+                default:
+                    
+                    throw new NotImplementedException();
+            }
+        }
+
+        //public TDUIdentifier GetTDUIdentifer()
+        //{
+        //    switch (Identifier)
+        //    {
+
+        //        case TRUIdentifier.TypedList: return TDUIdentifier.TypedList
+
+        //        case TRUIdentifier.Int8: return TDUIdentifier.Int8;
+        //        case TRUIdentifier.Int16: return TDUIdentifier.Int16;
+        //        case TRUIdentifier.Int32: return TDUIdentifier.Int32;
+        //        case TRUIdentifier.Int64: return TDUIdentifier.Int64;
+
+        //        case TRUIdentifier.UInt8: return TDUIdentifier.UInt8;
+        //        case TRUIdentifier.UInt16: return TDUIdentifier.UInt16;
+        //        case TRUIdentifier.UInt32: return TDUIdentifier.UInt32;
+        //        case TRUIdentifier.UInt64: return TDUIdentifier.UInt64;
+
+        //        case TRUIdentifier.String: return TDUIdentifier.String;
+        //        case TRUIdentifier.Float32: return TDUIdentifier.Float32;
+        //        case TRUIdentifier.Float64: return TDUIdentifier.Float64;
+        //        case TRUIdentifier.            }
+        //}
 
         public static TRU? FromType(Type type)
         {

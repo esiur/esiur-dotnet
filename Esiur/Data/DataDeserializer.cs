@@ -449,15 +449,15 @@ public static class DataDeserializer
 
     public static unsafe object RecordParser(ParsedTDU tdu, Warehouse warehouse)
     {
-
         var classId = tdu.Metadata.GetUUID(0);
-
-
         var template = warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
-        var r = ListParser(tdu, warehouse);
 
-        var ar = (object[])r;
+
+
+        //var r = ListParser(tdu, warehouse);
+
+        //var ar = (object[])r;
 
         if (template == null)
         {
@@ -465,15 +465,68 @@ public static class DataDeserializer
             throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
                     "Template not found for record.");
         }
-        else if (template.DefinedType != null)
+
+        var list = new List<object>();
+
+        ParsedTDU current;
+        ParsedTDU? previous = null;
+
+        var offset = tdu.Offset;
+        var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
+
+
+        for (var i = 0; i < template.Properties.Length; i++)
         {
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+            if (current.Class == TDUClass.Invalid)
+                throw new Exception("Unknown type.");
+
+
+            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            {
+                current.Class = previous.Value.Class;
+                current.Identifier = previous.Value.Identifier;
+                current.Metadata = previous.Value.Metadata;
+            }
+            else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+            {
+                var (idf, mt) = template.Properties[i].ValueType.GetMetadata();
+                current.Class = TDUClass.Typed;
+                current.Identifier = idf;
+                current.Metadata = mt;
+                current.Index = (int)idf & 0x7;
+            }
+
+            var (cs, reply) = Codec.ParseSync(current, warehouse);
+
+            list.Add(reply);
+
+            if (cs > 0)
+            {
+                offset += (uint)cs;
+                length -= (uint)cs;
+                previous = current;
+            }
+            else
+                throw new Exception("Error while parsing structured data");
+
+        }
+
+
+
+
+        if (template.DefinedType != null)
+        {
+
             var record = Activator.CreateInstance(template.DefinedType) as IRecord;
             for (var i = 0; i < template.Properties.Length; i++)
             {
                 try
                 {
                     //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
-                    var v = DC.CastConvert(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+                    var v = DC.CastConvert(list[i], template.Properties[i].PropertyInfo.PropertyType);
                     template.Properties[i].PropertyInfo.SetValue(record, v);
                 }
                 catch (Exception ex)
@@ -489,7 +542,7 @@ public static class DataDeserializer
             var record = new Record();
 
             for (var i = 0; i < template.Properties.Length; i++)
-                record.Add(template.Properties[i].Name, ar[i]);
+                record.Add(template.Properties[i].Name, list[i]);
 
             return record;
         }
@@ -690,28 +743,72 @@ public static class DataDeserializer
 
     public static object ListParser(ParsedTDU tdu, Warehouse warehouse)
     {
-        var rt = new List<object>();
+        var list = new List<object>();
+
+        ParsedTDU current;
+        ParsedTDU? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
 
-            rt.Add(reply);
+            if (current.Class == TDUClass.Invalid)
+                throw new Exception("Unknown type.");
+
+
+            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            {
+                current.Class = previous.Value.Class;
+                current.Identifier = previous.Value.Identifier;
+                current.Metadata = previous.Value.Metadata;
+            }
+
+
+            var (cs, reply) = Codec.ParseSync(current, warehouse);
+
+            list.Add(reply);
 
             if (cs > 0)
             {
                 offset += (uint)cs;
                 length -= (uint)cs;
+                previous = current;
             }
             else
                 throw new Exception("Error while parsing structured data");
 
         }
 
-        return rt.ToArray();
+        return list.ToArray();
+
+
+
+        //var rt = new List<object>();
+
+        //var offset = tdu.Offset;
+        //var length = tdu.ContentLength;
+
+        //while (length > 0)
+        //{
+        //    var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
+
+        //    rt.Add(reply);
+
+        //    if (cs > 0)
+        //    {
+        //        offset += (uint)cs;
+        //        length -= (uint)cs;
+        //    }
+        //    else
+        //        throw new Exception("Error while parsing structured data");
+
+        //}
+
+        //return rt.ToArray();
     }
 
 
@@ -1054,6 +1151,7 @@ public static class DataDeserializer
         // get the type
         var (hdrCs, rep) = TRU.Parse(tdu.Metadata, 0);
 
+
         switch (rep.Identifier)
         {
             case TRUIdentifier.Int32:
@@ -1099,6 +1197,14 @@ public static class DataDeserializer
                         current.Class = previous.Value.Class;
                         current.Identifier = previous.Value.Identifier;
                         current.Metadata = previous.Value.Metadata;
+                    }
+                    else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+                    {
+                        var (idf, mt) = rep.GetMetadata();
+                        current.Class = TDUClass.Typed;
+                        current.Identifier = idf;
+                        current.Metadata = mt;
+                        current.Index = (int)idf & 0x7;
                     }
 
                     var (cs, reply) = Codec.ParseSync(current, warehouse);

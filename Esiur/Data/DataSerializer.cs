@@ -3,6 +3,7 @@ using Esiur.Data.GVWIE;
 using Esiur.Net.IIP;
 using Esiur.Resource;
 using Esiur.Resource.Template;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Buffers.Binary;
 using System.Collections;
@@ -483,35 +484,45 @@ public static class DataSerializer
 
     public static TDU ListComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        if (value == null)
+
+        var composed = DynamicArrayComposer((IEnumerable)value, warehouse, connection);
+
+        if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
-
-        var list = (IEnumerable)value;
-
-        var rt = new List<byte>();
-
-        TDU? previous = null;
-
-        foreach (var i in list)
+        else
         {
-            var tdu = Codec.ComposeInternal(i, warehouse, connection);
-            if (previous != null && tdu.MatchType(previous.Value))
-            {
-                var d = tdu.Composed.Clip(tdu.ContentOffset,
-                    (uint)tdu.Composed.Length - tdu.ContentOffset);
-
-                var ntd = new TDU(TDUIdentifier.TypeContinuation, d, (ulong)d.Length);
-                rt.AddRange(ntd.Composed);
-            }
-            else
-            {
-                rt.AddRange(tdu.Composed);
-            }
-
-            previous = tdu;
+            return new TDU(TDUIdentifier.List, composed, (uint)composed.Length);
         }
 
-        return new TDU(TDUIdentifier.List, rt.ToArray(), (uint)rt.Count);
+        //if (value == null)
+        //    return new TDU(TDUIdentifier.Null, new byte[0], 0);
+
+        //var list = value;
+
+        //var rt = new List<byte>();
+
+        //TDU? previous = null;
+
+        //foreach (var i in list)
+        //{
+        //    var tdu = Codec.ComposeInternal(i, warehouse, connection);
+        //    if (previous != null && tdu.MatchType(previous.Value))
+        //    {
+        //        var d = tdu.Composed.Clip(tdu.ContentOffset,
+        //            (uint)tdu.Composed.Length - tdu.ContentOffset);
+
+        //        var ntd = new TDU(TDUIdentifier.TypeContinuation, d, (ulong)d.Length);
+        //        rt.AddRange(ntd.Composed);
+        //    }
+        //    else
+        //    {
+        //        rt.AddRange(tdu.Composed);
+        //    }
+
+        //    previous = tdu;
+        //}
+
+        //return new TDU(TDUIdentifier.List, rt.ToArray(), (uint)rt.Count);
     }
 
 
