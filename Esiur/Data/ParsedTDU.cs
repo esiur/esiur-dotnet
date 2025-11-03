@@ -15,9 +15,11 @@ namespace Esiur.Data
         public byte Exponent;
         public ulong TotalLength;
         public byte[] Metadata;
+        public uint Ends;
 
         public static ParsedTDU Parse(byte[] data, uint offset, uint ends)
         {
+
             var h = data[offset++];
 
             var cls = (TDUClass)(h >> 6);
@@ -37,6 +39,7 @@ namespace Esiur.Data
                         Index = (byte)h & 0x7,
                         ContentLength = 0,
                         TotalLength = 1,
+                        Ends = ends
                     };
 
                 ulong cl = (ulong)(1 << (exp - 1));
@@ -60,6 +63,7 @@ namespace Esiur.Data
                     TotalLength = 1 + cl,
                     Exponent = (byte)exp,
                     Index = (byte)h & 0x7,
+                    Ends = ends
                 };
             }
             else if (cls == TDUClass.Typed)
@@ -99,6 +103,7 @@ namespace Esiur.Data
                     TotalLength = 1 + cl + cll,
                     Index = (byte)h & 0x7,
                     Metadata = metaData,
+                    Ends = ends
                 };
             }
             else
@@ -134,7 +139,8 @@ namespace Esiur.Data
                         Class = cls,
                         ContentLength = cl,
                         TotalLength = 1 + cl + cll,
-                        Index = (byte)h & 0x7
+                        Index = (byte)h & 0x7,
+                        Ends = ends
                     };
             }
         }

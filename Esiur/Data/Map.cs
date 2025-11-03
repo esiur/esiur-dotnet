@@ -59,6 +59,9 @@ public interface IMap
     //public void Clear();
     //public bool ContainsKey(object key);
     public object[] Serialize();
+
+    public IEnumerable GetKeys();
+    public IEnumerable GetValues();
 }
 
 public class Map<KT, VT> : Dictionary<KT, VT>, IMap // IEnumerable<KeyValuePair<KT, VT>>
@@ -237,6 +240,9 @@ public class Map<KT, VT> : Dictionary<KT, VT>, IMap // IEnumerable<KeyValuePair<
 
         return rt.ToArray();
     }
+
+    public IEnumerable GetKeys() => Keys.ToArray();
+    public IEnumerable GetValues() => Values.ToArray();
 
     //public VT this[KT index]
     //{

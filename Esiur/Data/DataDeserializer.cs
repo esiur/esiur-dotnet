@@ -7,6 +7,7 @@ using Esiur.Resource;
 using Esiur.Resource.Template;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -505,8 +506,8 @@ public static class DataDeserializer
 
             if (cs > 0)
             {
-                offset += (uint)cs;
-                length -= (uint)cs;
+                offset += (uint)current.TotalLength;
+                length -= (uint)current.TotalLength;
                 previous = current;
             }
             else
@@ -886,42 +887,138 @@ public static class DataDeserializer
 
     }
 
+    public static Array TypedArrayParser(ParsedTDU tdu, TRU tru, Warehouse warehouse)
+    {
+        switch (tru.Identifier)
+        {
+            case TRUIdentifier.Int32:
+                return GroupInt32Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.Offset, (int)tdu.ContentLength));
+            case TRUIdentifier.Int64:
+                return GroupInt64Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.Offset, (int)tdu.ContentLength));
+            case TRUIdentifier.Int16:
+                return GroupInt16Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.Offset, (int)tdu.ContentLength));
+            case TRUIdentifier.UInt32:
+                return GroupUInt32Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.Offset, (int)tdu.ContentLength));
+            case TRUIdentifier.UInt64:
+                return GroupUInt64Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.Offset, (int)tdu.ContentLength));
+            case TRUIdentifier.UInt16:
+                return GroupUInt16Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.Offset, (int)tdu.ContentLength));
+            default:
+
+
+                var list = new List<object>();
+
+                ParsedTDU current;
+                ParsedTDU? previous = null;
+
+                var offset = tdu.Offset;
+                var length = tdu.ContentLength;
+                var ends = offset + (uint)length;
+
+                while (length > 0)
+                {
+                    current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+                    if (current.Class == TDUClass.Invalid)
+                        throw new Exception("Unknown type.");
+                    
+
+                    if (current.Identifier == TDUIdentifier.TypeContinuation)
+                    {
+                        current.Class = previous.Value.Class;
+                        current.Identifier = previous.Value.Identifier;
+                        current.Metadata = previous.Value.Metadata;
+                    }
+                    else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+                    {
+                        var (idf, mt) = tru.GetMetadata();
+                        current.Class = TDUClass.Typed;
+                        current.Identifier = idf;
+                        current.Metadata = mt;
+                        current.Index = (int)idf & 0x7;
+                    }
+
+                    var (cs, reply) = Codec.ParseSync(current, warehouse);
+
+                    list.Add(reply);
+
+                    if (cs > 0)
+                    {
+                        offset += (uint)current.TotalLength;
+                        length -= (uint)current.TotalLength;
+                        previous = current;
+                    }
+                    else
+                        throw new Exception("Error while parsing structured data");
+
+                }
+
+                var runtimeType = tru.GetRuntimeType(warehouse);
+                var rt = Array.CreateInstance(runtimeType, list.Count);
+                Array.Copy(list.ToArray(), rt, rt.Length);
+
+                return rt;
+        }
+
+    }
+
     public static object TypedMapParser(ParsedTDU tdu, Warehouse warehouse)
     {
         // get key type
 
-        var (keyCs, keyRepType) = TRU.Parse(tdu.Metadata, 0);
-        var (valueCs, valueRepType) = TRU.Parse(tdu.Metadata, keyCs);
+        var (keyCs, keysTru) = TRU.Parse(tdu.Metadata, 0);
+        var (valueCs, valuesTru) = TRU.Parse(tdu.Metadata, keyCs);
 
-        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(warehouse), valueRepType.GetRuntimeType(warehouse)));
-
-
-        var results = new List<object>();
-
-        var offset = tdu.Offset;
-        var length = tdu.ContentLength;
-
-        while (length > 0)
-        {
-            var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
+        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keysTru.GetRuntimeType(warehouse), valuesTru.GetRuntimeType(warehouse)));
 
 
-            results.Add(reply);
 
-            if (cs > 0)
-            {
-                offset += (uint)cs;
-                length -= (uint)cs;
-            }
-            else
-                throw new Exception("Error while parsing structured data");
+        var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset, 
+                                      (uint)(tdu.Offset + tdu.ContentLength));
 
-        }
+        var valuesTdu = ParsedTDU.Parse(tdu.Data, 
+                                        (uint)(keysTdu.Offset+keysTdu.ContentLength), 
+                                        tdu.Ends);
 
-        for (var i = 0; i < results.Count; i += 2)
-            map.Add(results[i], results[i + 1]);
+        var keys = TypedArrayParser(keysTdu, keysTru, warehouse);
+        var values = TypedArrayParser(valuesTdu, valuesTru, warehouse);
+
+        for (var i = 0; i < keys.Length; i++)
+            map.Add(keys.GetValue(i), values.GetValue(i));
 
         return map;
+        //var results = new List<object>();
+
+        //var offset = tdu.Offset;
+        //var length = tdu.ContentLength;
+
+        //while (length > 0)
+        //{
+        //    var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
+
+
+        //    results.Add(reply);
+
+        //    if (cs > 0)
+        //    {
+        //        offset += (uint)cs;
+        //        length -= (uint)cs;
+        //    }
+        //    else
+        //        throw new Exception("Error while parsing structured data");
+
+        //}
+
+        //for (var i = 0; i < results.Count; i += 2)
+        //    map.Add(results[i], results[i + 1]);
+
+        //return map;
     }
 
     public static AsyncReply TupleParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
@@ -1071,6 +1168,11 @@ public static class DataDeserializer
 
     }
 
+    public static AsyncReply TypedArrayParserAsync(byte[] data, uint offset, TRU tru, DistributedConnection connection, uint[] requestSequence)
+    {
+        throw new NotImplementedException();
+    }
+
     public static AsyncReply TypedListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
         // get the type
@@ -1149,85 +1251,9 @@ public static class DataDeserializer
     public static object TypedListParser(ParsedTDU tdu, Warehouse warehouse)
     {
         // get the type
-        var (hdrCs, rep) = TRU.Parse(tdu.Metadata, 0);
+        var (hdrCs, tru) = TRU.Parse(tdu.Metadata, 0);
 
-
-        switch (rep.Identifier)
-        {
-            case TRUIdentifier.Int32:
-                return GroupInt32Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.Int64:
-                return GroupInt64Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.Int16:
-                return GroupInt16Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.UInt32:
-                return GroupUInt32Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.UInt64:
-                return GroupUInt64Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.UInt16:
-                return GroupUInt16Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.Offset, (int)tdu.ContentLength));
-            default:
-
-
-                var list = new List<object>();
-
-                ParsedTDU current;
-                ParsedTDU? previous = null;
-
-                var offset = tdu.Offset;
-                var length = tdu.ContentLength;
-                var ends = offset + (uint)length;
-
-                while (length > 0)
-                {
-                    current = ParsedTDU.Parse(tdu.Data, offset, ends);
-
-                    if (current.Class == TDUClass.Invalid)
-                        throw new Exception("Unknown type.");
-
-
-                    if (current.Identifier == TDUIdentifier.TypeContinuation)
-                    {
-                        current.Class = previous.Value.Class;
-                        current.Identifier = previous.Value.Identifier;
-                        current.Metadata = previous.Value.Metadata;
-                    }
-                    else if (current.Identifier == TDUIdentifier.TypeOfTarget)
-                    {
-                        var (idf, mt) = rep.GetMetadata();
-                        current.Class = TDUClass.Typed;
-                        current.Identifier = idf;
-                        current.Metadata = mt;
-                        current.Index = (int)idf & 0x7;
-                    }
-
-                    var (cs, reply) = Codec.ParseSync(current, warehouse);
-
-                    list.Add(reply);
-
-                    if (cs > 0)
-                    {
-                        offset += (uint)cs;
-                        length -= (uint)cs;
-                        previous = current;
-                    }
-                    else
-                        throw new Exception("Error while parsing structured data");
-
-                }
-
-                var runtimeType = rep.GetRuntimeType(warehouse);
-                var rt = Array.CreateInstance(runtimeType, list.Count);
-                Array.Copy(list.ToArray(), rt, rt.Length);
-
-                return rt;
-        }
+        return TypedArrayParser(tdu, tru, warehouse);
     }
 
     public static AsyncBag<PropertyValue> PropertyValueArrayParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)

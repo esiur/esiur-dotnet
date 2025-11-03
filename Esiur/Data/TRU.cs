@@ -189,8 +189,19 @@ namespace Esiur.Data
             return new TRU(Identifier, true, UUID, SubTypes);
         }
 
+        public bool IsTyped()
+        {
+            if (Identifier == TRUIdentifier.TypedList && SubTypes[0].Identifier == TRUIdentifier.UInt8)
+                return false;
+
+            return (UUID != null) || (SubTypes != null && SubTypes.Length > 0);
+        }
+
         public bool Match(TRU other)
         {
+            //if (UUID == null && (SubTypes == null || SubTypes.Length == 0))
+            //    return false;
+
             if (other.Identifier != Identifier)
                 return false;
             if (other.UUID != UUID)
@@ -221,6 +232,8 @@ namespace Esiur.Data
                 case TRUIdentifier.TypedMap:
                     return (TDUIdentifier.TypedMap,
                         SubTypes[0].Compose().Concat(SubTypes[1].Compose()).ToArray());
+                case TRUIdentifier.Enum:
+                    return (TDUIdentifier.TypedEnum, UUID?.Data);
                 default:
                     
                     throw new NotImplementedException();

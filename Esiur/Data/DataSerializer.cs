@@ -406,7 +406,7 @@ public static class DataSerializer
         if (ct == null)
             return new TDU(TDUIdentifier.Null, null, 0);
 
-        return Codec.ComposeInternal(intVal, warehouse, connection);
+        //return Codec.ComposeInternal(intVal, warehouse, connection);
 
         return new TDU(TDUIdentifier.TypedEnum,
             new byte[] { ct.Index }, 1, template.ClassId.Data);
@@ -525,37 +525,35 @@ public static class DataSerializer
         //return new TDU(TDUIdentifier.List, rt.ToArray(), (uint)rt.Count);
     }
 
-
-    public static TDU TypedListComposer(IEnumerable value, Type type, Warehouse warehouse, DistributedConnection connection)
+    public static byte[] TypedArrayComposer(IEnumerable value, TRU tru, Warehouse warehouse, DistributedConnection connection)
     {
         byte[] composed;
 
         if (value == null)
-            return new TDU(TDUIdentifier.Null, new byte[0], 0);
+            return null;
 
-        var tru = TRU.FromType(type);
 
-        if (type == typeof(int))
+        if (tru.Identifier == TRUIdentifier.Int32)
         {
             composed = GroupInt32Codec.Encode((IList<int>)value);
         }
-        else if (type == typeof(long))
+        else if (tru.Identifier == TRUIdentifier.Int64)
         {
             composed = GroupInt64Codec.Encode((IList<long>)value);
         }
-        else if (type == typeof(short))
+        else if (tru.Identifier == TRUIdentifier.Int16)
         {
             composed = GroupInt16Codec.Encode((IList<short>)value);
         }
-        else if (type == typeof(uint))
+        else if (tru.Identifier == TRUIdentifier.UInt32)
         {
             composed = GroupUInt32Codec.Encode((IList<uint>)value);
         }
-        else if (type == typeof(ulong))
+        else if (tru.Identifier == TRUIdentifier.UInt64)
         {
             composed = GroupUInt64Codec.Encode((IList<ulong>)value);
         }
-        else if (type == typeof(ushort))
+        else if (tru.Identifier == TRUIdentifier.UInt16)
         {
             composed = GroupUInt16Codec.Encode((IList<ushort>)value);
         }
@@ -564,6 +562,7 @@ public static class DataSerializer
             var rt = new List<byte>();
 
             TDU? previous = null;
+            var isTyped = tru.IsTyped();
 
             foreach (var i in value)
             {
@@ -571,7 +570,7 @@ public static class DataSerializer
 
                 var currentTru = TRU.FromType(i.GetType());
 
-                if (tru.Match(currentTru))
+                if (isTyped && tru.Match(currentTru))
                 {
                     var d = tdu.Composed.Clip(tdu.ContentOffset,
                         (uint)tdu.Composed.Length - tdu.ContentOffset);
@@ -601,6 +600,16 @@ public static class DataSerializer
 
         }
 
+        return composed;
+
+    }
+
+    public static TDU TypedListComposer(IEnumerable value, Type type, Warehouse warehouse, DistributedConnection connection)
+    {
+        var tru = TRU.FromType(type);
+
+        byte[] composed = TypedArrayComposer(value, tru, warehouse, connection);
+   
         if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
@@ -644,48 +653,100 @@ public static class DataSerializer
         if (value == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
-        var kt = TRU.FromType(keyType).Compose();
-        var vt = TRU.FromType(valueType).Compose();
+        var kt = TRU.FromType(keyType);
+        var vt = TRU.FromType(valueType);
 
-        var rt = new List<byte>();
+        //var rt = new List<byte>();
 
         var map = (IMap)value;
 
-        foreach (var el in map.Serialize())
-            rt.AddRange(Codec.Compose(el, warehouse, connection));
+        var keys = map.GetKeys();
+        var values = map.GetValues();
 
+        var compsedKeys = TypedArrayComposer(keys, kt, warehouse, connection);
+        var compsedValues = TypedArrayComposer(values, vt, warehouse, connection);
 
-        return new TDU(TDUIdentifier.TypedMap, rt.ToArray(), (uint)rt.Count,
-            DC.Combine(kt, 0, (uint)kt.Length, vt, 0, (uint)vt.Length));
+        var ktb = kt.Compose();
+        var vtb = vt.Compose();
+
+        var metadata = DC.Combine(ktb, 0, (uint)ktb.Length, vtb, 0, (uint)vtb.Length);
+
+        //foreach (var el in map.Serialize())
+        //    rt.AddRange(Codec.Compose(el, warehouse, connection));
+
+        var keysTdu = new TDU(TDUIdentifier.TypeOfTarget, compsedKeys, (uint)compsedKeys.Length).Composed;
+        var valuesTdu = new TDU(TDUIdentifier.TypeOfTarget, compsedValues, (uint)compsedValues.Length).Composed;
+
+        var all = DC.Combine(keysTdu, 0, (uint)keysTdu.Length, valuesTdu, 0, (uint)valuesTdu.Length);
+
+        return new TDU(TDUIdentifier.TypedMap, all, (uint)all.Length, metadata);
+
+    
+
+        //return new TDU(TDUIdentifier.TypedMap, rt.ToArray(), (uint)rt.Count,
+        //    );
     }
     public static TDU TypedDictionaryComposer(object value, Type keyType, Type valueType, Warehouse warehouse, DistributedConnection connection)
     {
+
         if (value == null)
-            return new TDU(TDUIdentifier.Null, null, 0);
+            return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
-        var kt = TRU.FromType(keyType).Compose();
-        var vt = TRU.FromType(valueType).Compose();
+        var kt = TRU.FromType(keyType);
+        var vt = TRU.FromType(valueType);
 
-        var rt = new List<byte>();
+        //var rt = new List<byte>();
 
-        //rt.AddRange(kt);
-        //rt.AddRange(vt);
+        var map = (IDictionary)value;
 
-        var dic = (IDictionary)value;
+        var keys = map.Keys;
+        var values = map.Values;
 
-        var ar = new List<object>();
-        foreach (var k in dic.Keys)
-        {
-            ar.Add(k);
-            ar.Add(dic[k]);
-        }
+        var compsedKeys = TypedArrayComposer(keys, kt, warehouse, connection);
+        var compsedValues = TypedArrayComposer(values, vt, warehouse, connection);
 
-        foreach (var el in ar)
-            rt.AddRange(Codec.Compose(el, warehouse, connection));
+        var ktb = kt.Compose();
+        var vtb = vt.Compose();
+
+        var metadata = DC.Combine(ktb, 0, (uint)ktb.Length, vtb, 0, (uint)vtb.Length);
+
+        //foreach (var el in map.Serialize())
+        //    rt.AddRange(Codec.Compose(el, warehouse, connection));
+
+        var keysTdu = new TDU(TDUIdentifier.TypeOfTarget, compsedKeys, (uint)compsedKeys.Length).Composed;
+        var valuesTdu = new TDU(TDUIdentifier.TypeOfTarget, compsedValues, (uint)compsedValues.Length).Composed;
+
+        var all = DC.Combine(keysTdu, 0, (uint)keysTdu.Length, valuesTdu, 0, (uint)valuesTdu.Length);
+
+        return new TDU(TDUIdentifier.TypedMap, all, (uint)all.Length, metadata);
 
 
-        return new TDU(TDUIdentifier.TypedMap, rt.ToArray(), (uint)rt.Count,
-            DC.Combine(kt, 0, (uint)kt.Length, vt, 0, (uint)vt.Length));
+        //if (value == null)
+        //    return new TDU(TDUIdentifier.Null, null, 0);
+
+        //var kt = TRU.FromType(keyType).Compose();
+        //var vt = TRU.FromType(valueType).Compose();
+
+        //var rt = new List<byte>();
+
+        ////rt.AddRange(kt);
+        ////rt.AddRange(vt);
+
+        //var dic = (IDictionary)value;
+
+        //var ar = new List<object>();
+        //foreach (var k in dic.Keys)
+        //{
+        //    ar.Add(k);
+        //    ar.Add(dic[k]);
+        //}
+
+        //foreach (var el in ar)
+        //    rt.AddRange(Codec.Compose(el, warehouse, connection));
+
+
+        //return new TDU(TDUIdentifier.TypedMap, rt.ToArray(), (uint)rt.Count,
+        //    DC.Combine(kt, 0, (uint)kt.Length, vt, 0, (uint)vt.Length));
     }
 
     public static byte[] DynamicArrayComposer(IEnumerable value, Warehouse warehouse, DistributedConnection connection)
@@ -839,7 +900,8 @@ public static class DataSerializer
             var tdu = Codec.ComposeInternal(propValue, warehouse, connection);
 
 
-            if (pt.ValueType.Identifier == TRUIdentifier.TypedRecord && pt.ValueType.Match(tru))
+            if (pt.ValueType.IsTyped() && //  pt.ValueType.Identifier == TRUIdentifier.TypedRecord && 
+                pt.ValueType.Match(tru))
             {
                 // strip metadata
                 var len = (uint)tdu.Composed.Length - tdu.ContentOffset;
