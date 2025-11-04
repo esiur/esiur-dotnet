@@ -384,7 +384,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         SendRequest(IIPPacketRequest.KeepAlive, now, interval)
                 .Then(x =>
                 {
-                    Jitter = (uint)((object[])x)[1];
+                    Jitter =Convert.ToUInt32(((object[])x)[1]);
                     keepAliveTimer.Start();
                 }).Error(ex =>
                 {
@@ -429,7 +429,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 if (packet.DataType == null)
                     return offset;
 
-                //Console.WriteLine("Incoming: " +  packet);
+                Console.WriteLine("Incoming: " +  packet);
+
                 if (packet.Method == IIPPacketMethod.Notification)
                 {
                     var dt = packet.DataType.Value;
@@ -934,7 +935,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                             SendParams()
                                         .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthCredentials)
-                                        .AddUInt8Array(Codec.Compose(localHeaders, this.Instance.Warehouse, this))
+                                        .AddUInt8Array(Codec.Compose(localHeaders, Server.Instance.Warehouse, this))
                                         .Done();
                         }
                         else
@@ -1321,7 +1322,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
             SendParams()
                 .AddUInt8((byte)IIPAuthPacketEvent.IAuthHashed)
-                .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
+                .AddUInt8Array(Codec.Compose(args, Server.Instance.Warehouse, this))
                 .Done();
 
         }

@@ -194,6 +194,9 @@ namespace Esiur.Data
             if (Identifier == TRUIdentifier.TypedList && SubTypes[0].Identifier == TRUIdentifier.UInt8)
                 return false;
 
+            if (Identifier == TRUIdentifier.TypedResource)
+                return false;
+
             return (UUID != null) || (SubTypes != null && SubTypes.Length > 0);
         }
 
@@ -234,6 +237,7 @@ namespace Esiur.Data
                         SubTypes[0].Compose().Concat(SubTypes[1].Compose()).ToArray());
                 case TRUIdentifier.Enum:
                     return (TDUIdentifier.TypedEnum, UUID?.Data);
+
                 default:
                     
                     throw new NotImplementedException();

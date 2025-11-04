@@ -184,7 +184,7 @@ public class Instance
 
                 if (at != null)
                     if (at.PropertyInfo.CanWrite)
-                        at.PropertyInfo.SetValue(res, DC.CastConvert(kv.Value, at.PropertyInfo.PropertyType));
+                        at.PropertyInfo.SetValue(res, RuntimeCaster.Cast(kv.Value, at.PropertyInfo.PropertyType));
 
             }
         }
@@ -363,7 +363,7 @@ public class Instance
             {
                 loading = true;
 
-                pt.PropertyInfo.SetValue(res, DC.CastConvert(value, pt.PropertyInfo.PropertyType));
+                pt.PropertyInfo.SetValue(res, RuntimeCaster.Cast(value, pt.PropertyInfo.PropertyType));
             }
             catch (Exception ex)
             {

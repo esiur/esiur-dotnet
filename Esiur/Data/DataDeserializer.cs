@@ -376,34 +376,74 @@ public static class DataDeserializer
 
     public static unsafe object RecordParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
-
-        var reply = new AsyncReply<IRecord>();
-
         var classId = tdu.Metadata.GetUUID(0);
+        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId,
+                                                                    TemplateType.Record);
+        var rt = new AsyncReply<IRecord>();
 
-        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
+
+        var list = new AsyncBag<object>();
+
+        ParsedTDU current;
+        ParsedTDU? previous = null;
+
+        var offset = tdu.Offset;
+        var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
 
         var initRecord = (TypeTemplate template) =>
         {
-            ListParserAsync(tdu, connection, requestSequence).Then(r =>
+            for (var i = 0; i < template.Properties.Length; i++)
             {
-                var ar = (object[])r;
+                current = ParsedTDU.Parse(tdu.Data, offset, ends);
 
-                if (template == null)
+                if (current.Class == TDUClass.Invalid)
+                    throw new Exception("Unknown type.");
+
+
+                if (current.Identifier == TDUIdentifier.TypeContinuation)
                 {
-                    // @TODO: add parse if no template settings
-                    reply.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
-                            "Template not found for record."));
+                    current.Class = previous.Value.Class;
+                    current.Identifier = previous.Value.Identifier;
+                    current.Metadata = previous.Value.Metadata;
                 }
-                else if (template.DefinedType != null)
+                else if (current.Identifier == TDUIdentifier.TypeOfTarget)
                 {
+                    var (idf, mt) = template.Properties[i].ValueType.GetMetadata();
+                    current.Class = TDUClass.Typed;
+                    current.Identifier = idf;
+                    current.Metadata = mt;
+                    current.Index = (int)idf & 0x7;
+                }
+
+                var (cs, reply) = Codec.ParseAsync(current, connection, requestSequence);
+
+                list.Add(reply);
+
+                if (cs > 0)
+                {
+                    offset += (uint)current.TotalLength;
+                    length -= (uint)current.TotalLength;
+                    previous = current;
+                }
+                else
+                    throw new Exception("Error while parsing structured data");
+
+            }
+
+            list.Seal();
+
+            list.Then(results =>
+            {
+                if (template.DefinedType != null)
+                {
+
                     var record = Activator.CreateInstance(template.DefinedType) as IRecord;
                     for (var i = 0; i < template.Properties.Length; i++)
                     {
                         try
                         {
-                            //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
-                            var v = DC.CastConvert(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+                            var v = RuntimeCaster.Cast(results[i], template.Properties[i].PropertyInfo.PropertyType);
                             template.Properties[i].PropertyInfo.SetValue(record, v);
                         }
                         catch (Exception ex)
@@ -412,20 +452,22 @@ public static class DataDeserializer
                         }
                     }
 
-                    reply.Trigger(record);
+                    rt.Trigger(record);
                 }
                 else
                 {
                     var record = new Record();
 
                     for (var i = 0; i < template.Properties.Length; i++)
-                        record.Add(template.Properties[i].Name, ar[i]);
+                        record.Add(template.Properties[i].Name, results[i]);
 
-                    reply.Trigger(record);
+                    rt.Trigger(record);
                 }
 
             });
+
         };
+
 
         if (template != null)
         {
@@ -437,14 +479,83 @@ public static class DataDeserializer
             connection.GetTemplate(classId).Then(tmp =>
             {
                 initRecord(tmp);
-            }).Error(x => reply.TriggerError(x));
+            }).Error(x => rt.TriggerError(x));
         }
         else
         {
             initRecord(null);
         }
 
-        return reply;
+        return rt;
+
+
+
+        //var classId = tdu.Metadata.GetUUID(0);
+
+        //var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
+
+        //var initRecord = (TypeTemplate template) =>
+        //{
+        //    ListParserAsync(tdu, connection, requestSequence).Then(r =>
+        //    {
+        //        var ar = (object[])r;
+
+        //        if (template == null)
+        //        {
+        //            // @TODO: add parse if no template settings
+        //            reply.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
+        //                    "Template not found for record."));
+        //        }
+        //        else if (template.DefinedType != null)
+        //        {
+        //            var record = Activator.CreateInstance(template.DefinedType) as IRecord;
+        //            for (var i = 0; i < template.Properties.Length; i++)
+        //            {
+        //                try
+        //                {
+        //                    //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+        //                    var v = RuntimeCaster.Cast(ar[i], template.Properties[i].PropertyInfo.PropertyType);
+        //                    template.Properties[i].PropertyInfo.SetValue(record, v);
+        //                }
+        //                catch (Exception ex)
+        //                {
+        //                    Global.Log(ex);
+        //                }
+        //            }
+
+        //            reply.Trigger(record);
+        //        }
+        //        else
+        //        {
+        //            var record = new Record();
+
+        //            for (var i = 0; i < template.Properties.Length; i++)
+        //                record.Add(template.Properties[i].Name, ar[i]);
+
+        //            reply.Trigger(record);
+        //        }
+
+        //    });
+        //};
+
+        //if (template != null)
+        //{
+        //    initRecord(template);
+        //}
+        //else if (connection != null)
+        //{
+        //    // try to get the template from the other end
+        //    connection.GetTemplate(classId).Then(tmp =>
+        //    {
+        //        initRecord(tmp);
+        //    }).Error(x => reply.TriggerError(x));
+        //}
+        //else
+        //{
+        //    initRecord(null);
+        //}
+
+        //return reply;
     }
 
 
@@ -452,13 +563,6 @@ public static class DataDeserializer
     {
         var classId = tdu.Metadata.GetUUID(0);
         var template = warehouse.GetTemplateByClassId(classId, TemplateType.Record);
-
-
-
-
-        //var r = ListParser(tdu, warehouse);
-
-        //var ar = (object[])r;
 
         if (template == null)
         {
@@ -515,9 +619,6 @@ public static class DataDeserializer
 
         }
 
-
-
-
         if (template.DefinedType != null)
         {
 
@@ -526,8 +627,7 @@ public static class DataDeserializer
             {
                 try
                 {
-                    //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
-                    var v = DC.CastConvert(list[i], template.Properties[i].PropertyInfo.PropertyType);
+                    var v = RuntimeCaster.Cast(list[i], template.Properties[i].PropertyInfo.PropertyType);
                     template.Properties[i].PropertyInfo.SetValue(record, v);
                 }
                 catch (Exception ex)
@@ -567,7 +667,8 @@ public static class DataDeserializer
 
         var index = tdu.Data[tdu.Offset];
 
-        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
+        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, 
+                                                                        TemplateType.Enum);
 
         if (template != null)
         {
@@ -839,51 +940,89 @@ public static class DataDeserializer
 
     public static AsyncReply TypedMapParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
-        // get key type
-
-        var (keyCs, keyRepType) = TRU.Parse(tdu.Metadata, 0);
-        var (valueCs, valueRepType) = TRU.Parse(tdu.Metadata, keyCs);
-
-        var wh = connection.Instance.Warehouse;
-
-        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(wh), valueRepType.GetRuntimeType(wh)));
 
         var rt = new AsyncReply();
 
-        var results = new AsyncBag<object>();
+        // get key type
 
-        var offset = tdu.Offset;
-        var length = tdu.ContentLength;
+        var (keyCs, keysTru) = TRU.Parse(tdu.Metadata, 0);
+        var (valueCs, valuesTru) = TRU.Parse(tdu.Metadata, keyCs);
 
-        while (length > 0)
+        var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(
+            keysTru.GetRuntimeType(connection.Instance.Warehouse),
+            valuesTru.GetRuntimeType(connection.Instance.Warehouse)));
+
+
+
+        var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset,
+                                      (uint)(tdu.Offset + tdu.ContentLength));
+
+        var valuesTdu = ParsedTDU.Parse(tdu.Data,
+                                        (uint)(keysTdu.Offset + keysTdu.ContentLength),
+                                        tdu.Ends);
+
+        var keysReply = TypedArrayParserAsync(keysTdu, keysTru, connection, requestSequence);
+        var valuesReply = TypedArrayParserAsync(valuesTdu, valuesTru, connection, requestSequence);
+
+
+        keysReply.Then(keys =>
         {
-            var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
-
-
-            results.Add(reply);
-
-            if (cs > 0)
+            valuesReply.Then(values =>
             {
-                offset += (uint)cs;
-                length -= (uint)cs;
-            }
-            else
-                throw new Exception("Error while parsing structured data");
-
-        }
-
-        results.Seal();
-
-        results.Then(ar =>
-        {
-            for (var i = 0; i < ar.Length; i += 2)
-                map.Add(ar[i], ar[i + 1]);
-
-            rt.Trigger(map);
+                for (var i = 0; i < ((Array)keys).Length; i++)
+                    map.Add(((Array)keys).GetValue(i), ((Array)values).GetValue(i));
+            });
         });
 
 
         return rt;
+
+
+        //// get key type
+
+        //var (keyCs, keyRepType) = TRU.Parse(tdu.Metadata, 0);
+        //var (valueCs, valueRepType) = TRU.Parse(tdu.Metadata, keyCs);
+
+        //var wh = connection.Instance.Warehouse;
+
+        //var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keyRepType.GetRuntimeType(wh), valueRepType.GetRuntimeType(wh)));
+
+        //var rt = new AsyncReply();
+
+        //var results = new AsyncBag<object>();
+
+        //var offset = tdu.Offset;
+        //var length = tdu.ContentLength;
+
+        //while (length > 0)
+        //{
+        //    var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
+
+
+        //    results.Add(reply);
+
+        //    if (cs > 0)
+        //    {
+        //        offset += (uint)cs;
+        //        length -= (uint)cs;
+        //    }
+        //    else
+        //        throw new Exception("Error while parsing structured data");
+
+        //}
+
+        //results.Seal();
+
+        //results.Then(ar =>
+        //{
+        //    for (var i = 0; i < ar.Length; i += 2)
+        //        map.Add(ar[i], ar[i + 1]);
+
+        //    rt.Trigger(map);
+        //});
+
+
+        //return rt;
 
     }
 
@@ -927,7 +1066,7 @@ public static class DataDeserializer
 
                     if (current.Class == TDUClass.Invalid)
                         throw new Exception("Unknown type.");
-                    
+
 
                     if (current.Identifier == TDUIdentifier.TypeContinuation)
                     {
@@ -979,11 +1118,11 @@ public static class DataDeserializer
 
 
 
-        var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset, 
+        var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset,
                                       (uint)(tdu.Offset + tdu.ContentLength));
 
-        var valuesTdu = ParsedTDU.Parse(tdu.Data, 
-                                        (uint)(keysTdu.Offset+keysTdu.ContentLength), 
+        var valuesTdu = ParsedTDU.Parse(tdu.Data,
+                                        (uint)(keysTdu.Offset + keysTdu.ContentLength),
                                         tdu.Ends);
 
         var keys = TypedArrayParser(keysTdu, keysTru, warehouse);
@@ -1168,17 +1307,9 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TypedArrayParserAsync(byte[] data, uint offset, TRU tru, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedArrayParserAsync(ParsedTDU tdu, TRU tru, DistributedConnection connection, uint[] requestSequence)
     {
-        throw new NotImplementedException();
-    }
-
-    public static AsyncReply TypedListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
-    {
-        // get the type
-        var (hdrCs, rep) = TRU.Parse(tdu.Metadata, 0);
-
-        switch (rep.Identifier)
+        switch (tru.Identifier)
         {
             case TRUIdentifier.Int32:
                 return new AsyncReply(GroupInt32Codec.Decode(tdu.Data.AsSpan(
@@ -1200,11 +1331,10 @@ public static class DataDeserializer
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
             default:
 
-                var rt = new AsyncBag<object>();
 
-                var runtimeType = rep.GetRuntimeType(connection.Instance.Warehouse);
+                var list = new AsyncBag<object>();
 
-                rt.ArrayType = runtimeType;
+                list.ArrayType = tru.GetRuntimeType(connection.Instance.Warehouse);
 
                 ParsedTDU current;
                 ParsedTDU? previous = null;
@@ -1215,7 +1345,6 @@ public static class DataDeserializer
 
                 while (length > 0)
                 {
-
                     current = ParsedTDU.Parse(tdu.Data, offset, ends);
 
                     if (current.Class == TDUClass.Invalid)
@@ -1228,24 +1357,111 @@ public static class DataDeserializer
                         current.Identifier = previous.Value.Identifier;
                         current.Metadata = previous.Value.Metadata;
                     }
+                    else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+                    {
+                        var (idf, mt) = tru.GetMetadata();
+                        current.Class = TDUClass.Typed;
+                        current.Identifier = idf;
+                        current.Metadata = mt;
+                        current.Index = (int)idf & 0x7;
+                    }
 
-                    var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
+                    var (cs, reply) = Codec.ParseAsync(current, connection, requestSequence);
 
-                    rt.Add(reply);
+                    list.Add(reply);
 
                     if (cs > 0)
                     {
-                        offset += (uint)cs;
-                        length -= (uint)cs;
+                        offset += (uint)current.TotalLength;
+                        length -= (uint)current.TotalLength;
+                        previous = current;
                     }
                     else
                         throw new Exception("Error while parsing structured data");
 
                 }
 
-                rt.Seal();
-                return rt;
+                list.Seal();
+                return list;
         }
+
+    }
+
+    public static AsyncReply TypedListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    {
+        // get the type
+        var (hdrCs, tru) = TRU.Parse(tdu.Metadata, 0);
+
+        return TypedArrayParserAsync(tdu, tru, connection, requestSequence);
+
+        //switch (rep.Identifier)
+        //{
+        //    case TRUIdentifier.Int32:
+        //        return new AsyncReply(GroupInt32Codec.Decode(tdu.Data.AsSpan(
+        //                                            (int)tdu.Offset, (int)tdu.ContentLength)));
+        //    case TRUIdentifier.Int64:
+        //        return new AsyncReply(GroupInt64Codec.Decode(tdu.Data.AsSpan(
+        //                                            (int)tdu.Offset, (int)tdu.ContentLength)));
+        //    case TRUIdentifier.Int16:
+        //        return new AsyncReply(GroupInt16Codec.Decode(tdu.Data.AsSpan(
+        //                                            (int)tdu.Offset, (int)tdu.ContentLength)));
+        //    case TRUIdentifier.UInt32:
+        //        return new AsyncReply(GroupUInt32Codec.Decode(tdu.Data.AsSpan(
+        //                                            (int)tdu.Offset, (int)tdu.ContentLength)));
+        //    case TRUIdentifier.UInt64:
+        //        return new AsyncReply(GroupUInt64Codec.Decode(tdu.Data.AsSpan(
+        //                                            (int)tdu.Offset, (int)tdu.ContentLength)));
+        //    case TRUIdentifier.UInt16:
+        //        return new AsyncReply(GroupUInt16Codec.Decode(tdu.Data.AsSpan(
+        //                                            (int)tdu.Offset, (int)tdu.ContentLength)));
+        //    default:
+
+        //        var rt = new AsyncBag<object>();
+
+        //        var runtimeType = rep.GetRuntimeType(connection.Instance.Warehouse);
+
+        //        rt.ArrayType = runtimeType;
+
+        //        ParsedTDU current;
+        //        ParsedTDU? previous = null;
+
+        //        var offset = tdu.Offset;
+        //        var length = tdu.ContentLength;
+        //        var ends = offset + (uint)length;
+
+        //        while (length > 0)
+        //        {
+
+        //            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+        //            if (current.Class == TDUClass.Invalid)
+        //                throw new Exception("Unknown type.");
+
+
+        //            if (current.Identifier == TDUIdentifier.TypeContinuation)
+        //            {
+        //                current.Class = previous.Value.Class;
+        //                current.Identifier = previous.Value.Identifier;
+        //                current.Metadata = previous.Value.Metadata;
+        //            }
+
+        //            var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
+
+        //            rt.Add(reply);
+
+        //            if (cs > 0)
+        //            {
+        //                offset += (uint)cs;
+        //                length -= (uint)cs;
+        //            }
+        //            else
+        //                throw new Exception("Error while parsing structured data");
+
+        //        }
+
+        //        rt.Seal();
+        //        return rt;
+        //}
     }
 
     public static object TypedListParser(ParsedTDU tdu, Warehouse warehouse)
@@ -1268,7 +1484,7 @@ public static class DataDeserializer
             var pvs = new List<PropertyValue>();
 
             for (var i = 0; i < ar.Length; i += 3)
-                pvs.Add(new PropertyValue(ar[2], (ulong?)ar[0], (DateTime?)ar[1]));
+                pvs.Add(new PropertyValue(ar[2], Convert.ToUInt64(ar[0]), (DateTime?)ar[1]));
 
 
             rt.Trigger(pvs.ToArray());

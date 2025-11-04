@@ -22,6 +22,7 @@ SOFTWARE.
 
 */
 
+using Esiur.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -102,6 +103,9 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
             }
             else
             {
+                if (ArrayType != null)
+                    replies[i] = RuntimeCaster.Cast(replies[i], ArrayType);
+                
                 results.SetValue(replies[i], index);
                 count++;
                 if (count == replies.Count)

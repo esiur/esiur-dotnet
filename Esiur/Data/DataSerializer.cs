@@ -568,7 +568,7 @@ public static class DataSerializer
             {
                 var tdu = Codec.ComposeInternal(i, warehouse, connection);
 
-                var currentTru = TRU.FromType(i.GetType());
+                var currentTru = TRU.FromType(i?.GetType());
 
                 if (isTyped && tru.Match(currentTru))
                 {

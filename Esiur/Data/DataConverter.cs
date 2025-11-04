@@ -45,7 +45,7 @@ public static class DC // Data Converter
 {
 
 
-    public static object CastConvert(object value, Type destinationType)
+    public static object CastConvertOld(object value, Type destinationType)
     {
         if (value == null)
             return null;
@@ -68,7 +68,7 @@ public static class DC // Data Converter
 
                 for (var i = 0; i < rt.Length; i++)
                 {
-                    rt.SetValue(CastConvert(v.GetValue(i), destinationType), i);
+                    rt.SetValue(CastConvertOld(v.GetValue(i), destinationType), i);
                 }
 
                 return rt;

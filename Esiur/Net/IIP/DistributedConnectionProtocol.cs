@@ -402,7 +402,7 @@ partial class DistributedConnection
     {
         var (size, rt) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var resourceId = (uint)rt;
+        var resourceId = Convert.ToUInt32(rt);
 
         if (attachedResources.Contains(resourceId))
         {
@@ -475,7 +475,7 @@ partial class DistributedConnection
             DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                     dataType.ContentLength, Instance.Warehouse, 2);
 
-        var resourceId = (uint)args[0];
+        var resourceId = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         Fetch(resourceId, null).Then(r =>
@@ -522,7 +522,7 @@ partial class DistributedConnection
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var resourceId = (uint)value;
+        var resourceId = Convert.ToUInt32(value);
 
         Instance.Warehouse.GetById(resourceId).Then((res) =>
         {
@@ -579,7 +579,8 @@ partial class DistributedConnection
             DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                     dataType.ContentLength, Instance.Warehouse, 2);
 
-        var resourceId = (uint)args[0];
+        var resourceId = Convert.ToUInt32(args[0]);
+
         var age = (ulong)args[1];
 
         Instance.Warehouse.GetById(resourceId).Then((res) =>
@@ -635,7 +636,7 @@ partial class DistributedConnection
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var resourceId = (uint)value;
+        var resourceId = Convert.ToUInt32(value);
 
         Instance.Warehouse.GetById(resourceId).Then((res) =>
         {
@@ -727,7 +728,7 @@ partial class DistributedConnection
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var resourceId = (uint)value;
+        var resourceId = Convert.ToUInt32(value);
 
         Instance.Warehouse.GetById(resourceId).Then(r =>
         {
@@ -757,7 +758,9 @@ partial class DistributedConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse);
 
-        var resourceId = (uint)args[0];
+
+        var resourceId = Convert.ToUInt32(args[0]);
+
         var name = (string)args[1];
 
         if (name.Contains("/"))
@@ -874,7 +877,7 @@ partial class DistributedConnection
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var resourceId = (uint)value;
+        var resourceId = Convert.ToUInt32(value);
 
         Instance.Warehouse.GetById(resourceId).Then((r) =>
         {
@@ -1120,7 +1123,7 @@ partial class DistributedConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                              dataType.ContentLength, Instance.Warehouse, 2);
 
-        var resourceId = (uint)args[0];
+        var resourceId = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         Instance.Warehouse.GetById(resourceId).Then((r) =>
@@ -1239,7 +1242,7 @@ partial class DistributedConnection
                 for (byte i = 0; i < pis.Length - 1; i++)
                 {
                     if (arguments.ContainsKey(i))
-                        args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
+                        args[i] = RuntimeCaster.Cast(arguments[i], pis[i].ParameterType);
                     else if (ft.Arguments[i].Type.Nullable)
                         args[i] = null;
                     else
@@ -1256,7 +1259,7 @@ partial class DistributedConnection
                 for (byte i = 0; i < pis.Length - 1; i++)
                 {
                     if (arguments.ContainsKey(i))
-                        args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
+                        args[i] = RuntimeCaster.Cast(arguments[i], pis[i].ParameterType);
                     else if (ft.Arguments[i].Type.Nullable)
                         args[i] = null;
                     else
@@ -1272,7 +1275,7 @@ partial class DistributedConnection
                 for (byte i = 0; i < pis.Length; i++)
                 {
                     if (arguments.ContainsKey(i))
-                        args[i] = DC.CastConvert(arguments[i], pis[i].ParameterType);
+                        args[i] = RuntimeCaster.Cast(arguments[i], pis[i].ParameterType);
                     else if (ft.Arguments[i].Type.Nullable) //Nullable.GetUnderlyingType(pis[i].ParameterType) != null)
                         args[i] = null;
                     else
@@ -1377,7 +1380,7 @@ partial class DistributedConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse);
 
-        var resourceId = (uint)args[0];
+        var resourceId = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         Instance.Warehouse.GetById(resourceId).Then((r) =>
@@ -1436,7 +1439,7 @@ partial class DistributedConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse);
 
-        var resourceId = (uint)args[0];
+        var resourceId = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         Instance.Warehouse.GetById(resourceId).Then((r) =>
@@ -1576,7 +1579,7 @@ partial class DistributedConnection
                         else
                         {
                             // cast new value type to property type
-                            value = DC.CastConvert(value, pi.PropertyType);
+                            value = RuntimeCaster.Cast(value, pi.PropertyType);
                         }
 
                         try
@@ -1601,7 +1604,7 @@ partial class DistributedConnection
                     else
                     {
                         // cast new value type to property type
-                        parsed = DC.CastConvert(parsed, pi.PropertyType);
+                        parsed = RuntimeCaster.Cast(parsed, pi.PropertyType);
                     }
 
                     try
@@ -1805,7 +1808,7 @@ partial class DistributedConnection
                         // ClassId, Age, Link, Hops, PropertyValue[]
                         var args = (object[])result;
                         var classId = (UUID)args[0];
-                        var age = (ulong)args[1];
+                        var age = Convert.ToUInt64(args[1]);
                         var link = (string)args[2];
                         var hops = (byte)args[3];
                         var pvData = (byte[])args[4];
@@ -1820,7 +1823,7 @@ partial class DistributedConnection
                             if (template?.DefinedType != null && template.IsWrapper)
                                 dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)args[1], (string)args[2]) as DistributedResource;
                             else
-                                dr = new DistributedResource(this, id, (ulong)args[1], (string)args[2]);
+                                dr = new DistributedResource(this, id, Convert.ToUInt64( args[1]), (string)args[2]);
                         }
                         else
                         {
@@ -2063,7 +2066,7 @@ partial class DistributedConnection
                                                                      dataType.ContentLength, Instance.Warehouse);
 
         var peerTime = (DateTime)args[0];
-        var interval = (uint)args[1];
+        var interval = Convert.ToUInt32(args[1]);
 
         uint jitter = 0;
 

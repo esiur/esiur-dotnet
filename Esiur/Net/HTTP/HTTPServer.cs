@@ -113,7 +113,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
             foreach (var kv in ParameterIndex)
             {
                 var g = match.Groups[kv.Key];
-                args[kv.Value.Position] = DC.CastConvert(g.Value, kv.Value.ParameterType);
+                args[kv.Value.Position] = RuntimeCaster.Cast(g.Value, kv.Value.ParameterType);
             }
 
             if (SenderIndex != null)
