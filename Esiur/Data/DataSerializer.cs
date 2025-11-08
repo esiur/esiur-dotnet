@@ -609,7 +609,7 @@ public static class DataSerializer
         var tru = TRU.FromType(type);
 
         byte[] composed = TypedArrayComposer(value, tru, warehouse, connection);
-   
+
         if (composed == null)
             return new TDU(TDUIdentifier.Null, new byte[0], 0);
 
@@ -681,7 +681,7 @@ public static class DataSerializer
 
         return new TDU(TDUIdentifier.TypedMap, all, (uint)all.Length, metadata);
 
-    
+
 
         //return new TDU(TDUIdentifier.TypedMap, rt.ToArray(), (uint)rt.Count,
         //    );
@@ -884,7 +884,7 @@ public static class DataSerializer
 
     public static unsafe TDU RecordComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
-        var rt = new List<byte>();// BinaryList();
+        var rt = new List<byte>();
         var record = (IRecord)value;
 
         var template = warehouse.GetTemplateByType(record.GetType());
@@ -900,12 +900,12 @@ public static class DataSerializer
             var tdu = Codec.ComposeInternal(propValue, warehouse, connection);
 
 
-            if (pt.ValueType.IsTyped() && //  pt.ValueType.Identifier == TRUIdentifier.TypedRecord && 
+            if (pt.ValueType.IsTyped() &&
                 pt.ValueType.Match(tru))
             {
                 // strip metadata
                 var len = (uint)tdu.Composed.Length - tdu.ContentOffset;
-                tdu = new TDU(TDUIdentifier.TypeOfTarget, 
+                tdu = new TDU(TDUIdentifier.TypeOfTarget,
                     tdu.Composed.Clip(tdu.ContentOffset, len), len);
             }
 
@@ -940,22 +940,40 @@ public static class DataSerializer
 
         var fields = value.GetType().GetFields();
         var list = fields.Select(x => x.GetValue(value)).ToArray();
-        var types = fields.Select(x => TRU.FromType(x.FieldType).Compose()).ToArray();
+        var trus = fields.Select(x => TRU.FromType(x.FieldType)).ToArray();
 
 
         var metadata = new List<byte>();
-        foreach (var t in types)
-            metadata.AddRange(t);
 
-        var composed = DynamicArrayComposer(list, warehouse, connection);
+        foreach (var t in trus)
+            metadata.AddRange(t.Compose());
 
-        if (composed == null)
-            return new TDU(TDUIdentifier.Null, new byte[0], 0);
-        else
+        var rt = new List<byte>();
+
+        for (var i = 0; i < fields.Length; i++)
         {
-            return new TDU(TDUIdentifier.TypedTuple, composed,
-                        (uint)composed.Length, metadata.ToArray());
+            var tupleValue = list[i];
+            var targetTru = trus[i];
+
+            var tdu = Codec.ComposeInternal(tupleValue, warehouse, connection);
+
+            var valueTru = TRU.FromType(tupleValue?.GetType());
+
+            if (targetTru.IsTyped() &&
+                targetTru.Match(valueTru))
+            {
+                // strip metadata
+                var len = (uint)tdu.Composed.Length - tdu.ContentOffset;
+                tdu = new TDU(TDUIdentifier.TypeOfTarget,
+                    tdu.Composed.Clip(tdu.ContentOffset, len), len);
+            }
+
+            rt.AddRange(tdu.Composed);
         }
+
+        return new TDU(TDUIdentifier.TypedTuple, rt.ToArray(),
+            (uint)rt.Count, metadata.ToArray());
+
     }
 }
 

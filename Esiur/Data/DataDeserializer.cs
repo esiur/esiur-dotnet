@@ -464,6 +464,10 @@ public static class DataDeserializer
                     rt.Trigger(record);
                 }
 
+            }).Error(e =>
+            {
+                Console.WriteLine(e);
+                rt.TriggerError(e);
             });
 
         };
@@ -817,22 +821,71 @@ public static class DataDeserializer
 
     public static AsyncBag<object> ListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
+        //var rt = new AsyncBag<object>();
+
+
+        //var offset = tdu.Offset;
+        //var length = tdu.ContentLength;
+
+        //while (length > 0)
+        //{
+        //    var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
+
+        //    rt.Add(reply);
+
+        //    if (cs > 0)
+        //    {
+        //        offset += (uint)cs;
+        //        length -= (uint)cs;
+        //    }
+        //    else
+        //        throw new Exception("Error while parsing structured data");
+
+        //}
+
+        //rt.Seal();
+        //return rt;
+
+
+
+
+
         var rt = new AsyncBag<object>();
 
+        //var list = new List<object>();
+
+        ParsedTDU current;
+        ParsedTDU? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
 
         while (length > 0)
         {
-            var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+            if (current.Class == TDUClass.Invalid)
+                throw new Exception("Unknown type.");
+
+
+            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            {
+                current.Class = previous.Value.Class;
+                current.Identifier = previous.Value.Identifier;
+                current.Metadata = previous.Value.Metadata;
+            }
+
+
+            var (cs, reply) = Codec.ParseAsync(current, connection, requestSequence);
 
             rt.Add(reply);
 
             if (cs > 0)
             {
-                offset += (uint)cs;
-                length -= (uint)cs;
+                offset += (uint)current.TotalLength;
+                length -= (uint)current.TotalLength;
+                previous = current;
             }
             else
                 throw new Exception("Error while parsing structured data");
@@ -840,7 +893,9 @@ public static class DataDeserializer
         }
 
         rt.Seal();
+
         return rt;
+
     }
 
     public static object ListParser(ParsedTDU tdu, Warehouse warehouse)
@@ -876,8 +931,8 @@ public static class DataDeserializer
 
             if (cs > 0)
             {
-                offset += (uint)cs;
-                length -= (uint)cs;
+                offset += (uint)current.TotalLength;
+                length -= (uint)current.TotalLength;
                 previous = current;
             }
             else
@@ -887,35 +942,13 @@ public static class DataDeserializer
 
         return list.ToArray();
 
-
-
-        //var rt = new List<object>();
-
-        //var offset = tdu.Offset;
-        //var length = tdu.ContentLength;
-
-        //while (length > 0)
-        //{
-        //    var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
-
-        //    rt.Add(reply);
-
-        //    if (cs > 0)
-        //    {
-        //        offset += (uint)cs;
-        //        length -= (uint)cs;
-        //    }
-        //    else
-        //        throw new Exception("Error while parsing structured data");
-
-        //}
-
-        //return rt.ToArray();
     }
 
 
     public static (uint, ulong, object[]) LimitedCountListParser(byte[] data, uint offset, ulong length, Warehouse warehouse, uint countLimit = uint.MaxValue)
     {
+
+        // @TODO: add TypeContinuation
         var rt = new List<object>();
 
         while (length > 0 && rt.Count < countLimit)
@@ -953,7 +986,6 @@ public static class DataDeserializer
             valuesTru.GetRuntimeType(connection.Instance.Warehouse)));
 
 
-
         var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset,
                                       (uint)(tdu.Offset + tdu.ContentLength));
 
@@ -971,8 +1003,9 @@ public static class DataDeserializer
             {
                 for (var i = 0; i < ((Array)keys).Length; i++)
                     map.Add(((Array)keys).GetValue(i), ((Array)values).GetValue(i));
-            });
-        });
+                rt.Trigger(map);
+            }).Error(e => rt.TriggerError(e));
+        }).Error(e => rt.TriggerError(e));
 
 
         return rt;
@@ -1132,73 +1165,70 @@ public static class DataDeserializer
             map.Add(keys.GetValue(i), values.GetValue(i));
 
         return map;
-        //var results = new List<object>();
-
-        //var offset = tdu.Offset;
-        //var length = tdu.ContentLength;
-
-        //while (length > 0)
-        //{
-        //    var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
-
-
-        //    results.Add(reply);
-
-        //    if (cs > 0)
-        //    {
-        //        offset += (uint)cs;
-        //        length -= (uint)cs;
-        //    }
-        //    else
-        //        throw new Exception("Error while parsing structured data");
-
-        //}
-
-        //for (var i = 0; i < results.Count; i += 2)
-        //    map.Add(results[i], results[i + 1]);
-
-        //return map;
+      
     }
 
     public static AsyncReply TupleParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
+
         var rt = new AsyncReply();
 
-        var results = new AsyncBag<object>();
-        var tupleSize = tdu.Metadata[0];
+        // var tupleSize = tdu.Metadata[0];
 
-        var types = new List<Type>();
+        var trus = new List<TRU>();
 
-        uint mtOffset = 1;
-        for (var i = 0; i < tupleSize; i++)
+        uint mtOffset = 0;
+
+        while (mtOffset < tdu.Metadata.Length)
         {
-            var (cs, rep) = TRU.Parse(tdu.Metadata, mtOffset);
-            types.Add(rep.GetRuntimeType(connection.Instance.Warehouse));
+            var (cs, tru) = TRU.Parse(tdu.Metadata, mtOffset);
+            trus.Add(tru);
             mtOffset += cs;
         }
 
-        var length = tdu.ContentLength;
+        var results = new AsyncBag<object>();
+        var types = trus.Select(x => x.GetRuntimeType(connection.Instance.Warehouse)).ToArray();
+
+        ParsedTDU current;
+        ParsedTDU? previous = null;
+
         var offset = tdu.Offset;
+        var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
 
 
-        while (length > 0)
+        for (var i = 0; i < trus.Count; i++)
         {
-            var (cs, reply) = Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+            if (current.Class == TDUClass.Invalid)
+                throw new Exception("Unknown type.");
+
+            if (current.Identifier == TDUIdentifier.TypeOfTarget)
+            {
+                var (idf, mt) = trus[i].GetMetadata();
+                current.Class = TDUClass.Typed;
+                current.Identifier = idf;
+                current.Metadata = mt;
+                current.Index = (int)idf & 0x7;
+            }
+
+            var (_, reply) = Codec.ParseAsync(current, connection, requestSequence);
 
             results.Add(reply);
 
-            if (cs > 0)
+            if (current.TotalLength > 0)
             {
-                offset += (uint)cs;
-                length -= (uint)cs;
+                offset += (uint)current.TotalLength;
+                length -= (uint)current.TotalLength;
             }
             else
                 throw new Exception("Error while parsing structured data");
 
         }
 
-        results.Seal();
 
+        results.Seal();
 
         results.Then(ar =>
                 {
@@ -1239,32 +1269,53 @@ public static class DataDeserializer
 
     public static object TupleParser(ParsedTDU tdu, Warehouse warehouse)
     {
-        var results = new List<object>();
         var tupleSize = tdu.Metadata[0];
 
-        var types = new List<Type>();
+        var trus = new List<TRU>();
 
         uint mtOffset = 1;
         for (var i = 0; i < tupleSize; i++)
         {
-            var (cs, rep) = TRU.Parse(tdu.Metadata, mtOffset);
-            types.Add(rep.GetRuntimeType(warehouse));
+            var (cs, tru) = TRU.Parse(tdu.Metadata, mtOffset);
+            trus.Add(tru);
             mtOffset += cs;
         }
 
-        var length = tdu.ContentLength;
-        var offset = tdu.Offset;
+        var results = new List<object>();
+        var types = trus.Select(x => x.GetRuntimeType(warehouse)).ToArray();
 
-        while (length > 0)
+        ParsedTDU current;
+        ParsedTDU? previous = null;
+
+        var offset = tdu.Offset;
+        var length = tdu.ContentLength;
+        var ends = offset + (uint)length;
+
+
+        for (var i = 0; i < tupleSize; i++)
         {
-            var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
+            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+
+            if (current.Class == TDUClass.Invalid)
+                throw new Exception("Unknown type.");
+
+            if (current.Identifier == TDUIdentifier.TypeOfTarget)
+            {
+                var (idf, mt) = trus[i].GetMetadata();
+                current.Class = TDUClass.Typed;
+                current.Identifier = idf;
+                current.Metadata = mt;
+                current.Index = (int)idf & 0x7;
+            }
+
+            var (_, reply) = Codec.ParseSync(current, warehouse);
 
             results.Add(reply);
 
-            if (cs > 0)
+            if (current.TotalLength > 0)
             {
-                offset += (uint)cs;
-                length -= (uint)cs;
+                offset += (uint)current.TotalLength;
+                length -= (uint)current.TotalLength;
             }
             else
                 throw new Exception("Error while parsing structured data");
@@ -1274,32 +1325,32 @@ public static class DataDeserializer
 
         if (results.Count == 2)
         {
-            var type = typeof(ValueTuple<,>).MakeGenericType(types.ToArray());
+            var type = typeof(ValueTuple<,>).MakeGenericType(types);
             return Activator.CreateInstance(type, results[0], results[1]);
         }
         else if (results.Count == 3)
         {
-            var type = typeof(ValueTuple<,,>).MakeGenericType(types.ToArray());
+            var type = typeof(ValueTuple<,,>).MakeGenericType(types);
             return Activator.CreateInstance(type, results[0], results[1], results[2]);
         }
         else if (results.Count == 4)
         {
-            var type = typeof(ValueTuple<,,,>).MakeGenericType(types.ToArray());
+            var type = typeof(ValueTuple<,,,>).MakeGenericType(types);
             return Activator.CreateInstance(type, results[0], results[1], results[2], results[3]);
         }
         else if (results.Count == 5)
         {
-            var type = typeof(ValueTuple<,,,,>).MakeGenericType(types.ToArray());
+            var type = typeof(ValueTuple<,,,,>).MakeGenericType(types);
             return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4]);
         }
         else if (results.Count == 6)
         {
-            var type = typeof(ValueTuple<,,,,,>).MakeGenericType(types.ToArray());
+            var type = typeof(ValueTuple<,,,,,>).MakeGenericType(types);
             return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4], results[5]);
         }
         else if (results.Count == 7)
         {
-            var type = typeof(ValueTuple<,,,,,,>).MakeGenericType(types.ToArray());
+            var type = typeof(ValueTuple<,,,,,,>).MakeGenericType(types);
             return Activator.CreateInstance(type, results[0], results[1], results[2], results[3], results[4], results[5], results[6]);
         }
 
@@ -1476,10 +1527,13 @@ public static class DataDeserializer
     {
         var rt = new AsyncBag<PropertyValue>();
 
+        Console.WriteLine("PropertyValueArrayParserAsync " + length);
 
         ListParserAsync(new ParsedTDU() { Data = data, Offset = offset, ContentLength = length }
                         , connection, requestSequence).Then(x =>
         {
+            Console.WriteLine("PropertyValueArrayParserAsync:Done " + length);
+
             var ar = (object[])x;
             var pvs = new List<PropertyValue>();
 

@@ -846,7 +846,7 @@ public static class DC // Data Converter
     public static byte[] Clip(this byte[] data, uint offset, uint length)
     {
         if (data.Length < offset + length)
-            return null;
+            throw new ArgumentException("Length exceeds array boundary.");
 
         // if (length == data.Length && offset == 0)
         //   return data.ToArray();

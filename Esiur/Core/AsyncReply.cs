@@ -86,9 +86,11 @@ public class AsyncReply
         return result;
     }
 
-
+    //int timeoutMilliseconds = 0;
     public AsyncReply Timeout(int milliseconds, Action callback = null)
     {
+
+        //timeoutMilliseconds = milliseconds;
 
         Task.Delay(milliseconds).ContinueWith(x =>
         {
@@ -131,8 +133,15 @@ public class AsyncReply
     }
 
 
-    public AsyncReply Then(Action<object> callback)
+    protected string codePath, codeMethod;
+    protected int codeLine;
+
+    public AsyncReply Then(Action<object> callback, [CallerMemberName] string methodName = null, [CallerFilePath] string filePath = null, [CallerLineNumber] int lineNumber = 0)
     {
+        if (codeLine == 0)
+        {
+            codeLine = lineNumber; codeMethod = methodName; codePath = filePath;
+        }
         //lock (callbacksLock)
         //{
         lock (asyncLock)
@@ -164,8 +173,6 @@ public class AsyncReply
 
             //if (Debug)
             //    Console.WriteLine($"AsyncReply: {Id} Then pending");
-
-
 
             callbacks.Add(callback);
 

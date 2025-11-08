@@ -184,6 +184,10 @@ namespace Test
 
             await wh.Open();
 
+
+            //var sc = service.GetGenericRecord();
+            //var d = Codec.Compose(sc, Warehouse.Default, null);
+
             // Start testing
             TestClient(service);
         }
@@ -216,9 +220,13 @@ namespace Test
             });
 
 
-
             dynamic remote = await con.Get("sys/service");
+            var gr = await remote.GetGenericRecord();
+            Console.WriteLine(gr);
+            //return;
 
+            Console.WriteLine("OK");
+ 
             perodicTimer = new Timer(new TimerCallback(perodicTimerElapsed), remote, 0, 1000);
 
             var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);
@@ -231,8 +239,6 @@ namespace Test
 
             TestObjectProps(local, remote);
 
-            var gr = await remote.GetGenericRecord();
-            Console.WriteLine(gr);
 
             var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
             Console.WriteLine(opt);

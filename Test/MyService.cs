@@ -119,7 +119,7 @@ public partial class MyService
     int MyPasscode = 2025;
     public PropertyContext<int> Passcode
     {
-        get => new ((sender) => sender.Session.AuthorizedAccount == "alice" ? MyPasscode : 0);
+        get => new((sender) => sender.Session.AuthorizedAccount == "alice" ? MyPasscode : 0);
         set
         {
             if (value.Connection.Session.AuthorizedAccount != "alice")
@@ -141,7 +141,7 @@ public partial class MyService
     [Export] public IRecord[] RecordsArray => new IRecord[] { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
     [Export] public List<MyRecord> RecordsList => new() { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
 
-    //[Export] public IMyRecord myrecord { get; set; }
+    [Export] public IMyRecord myrecord { get; set; }
 
     [Export] public MyResource[]? myResources;
 
@@ -160,7 +160,7 @@ public partial class MyService
     public void InvokeEvents(string msg, InvocationContext context)
     {
         //if (context.Connection.Session.AuthorizedAccount != "Alice")
-          //  throw new Exception("Only Alice is allowed.");
+        //  throw new Exception("Only Alice is allowed.");
 
         StringEvent?.Invoke(msg);
         ArrayEvent?.Invoke(new object[] { DateTime.UtcNow, "Event", msg });

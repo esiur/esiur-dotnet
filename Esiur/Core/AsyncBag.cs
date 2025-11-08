@@ -50,6 +50,14 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
 
     public AsyncBag<T> Then(Action<T[]> callback)
     {
+        //if (!sealedBag && !resultReady)
+        //    throw new Exception("Not sealed");
+
+        Timeout(6000, () =>
+        {
+            Console.WriteLine("Timeout " + count + this.Result);
+        });
+
         base.Then(new Action<object>(o => callback((T[])o)));
         return this;
     }
@@ -99,7 +107,7 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
                     count++;
                     if (count == replies.Count)
                         Trigger(results);
-                });
+                }).Error(e => TriggerError(e));
             }
             else
             {

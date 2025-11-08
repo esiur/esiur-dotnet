@@ -357,6 +357,11 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 x.Resource._EmitEventByIndex(x.Index, x.Value);
             else
                 x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
+        }).Error(e =>
+        {
+            // do nothing
+            Console.WriteLine("Queue is empty");
+            //throw e;
         });
 
         // set local nonce
@@ -429,7 +434,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 if (packet.DataType == null)
                     return offset;
 
-                Console.WriteLine("Incoming: " +  packet);
+                Console.WriteLine("Incoming: " +  packet + " " + packet.CallbackId);
 
                 if (packet.Method == IIPPacketMethod.Notification)
                 {

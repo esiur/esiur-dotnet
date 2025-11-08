@@ -266,6 +266,8 @@ partial class DistributedConnection
     {
         var req = requests.Take(callbackId);
 
+        Console.WriteLine("Completed " + callbackId);
+
         if (req == null)
         {
             // @TODO: Send general failure
@@ -278,6 +280,11 @@ partial class DistributedConnection
             reply.Then(result =>
             {
                 req.Trigger(result);
+            })
+            .Error(e =>
+            {
+                Console.WriteLine(callbackId + ": failed");
+                req.TriggerError(e);
             });
         }
         else
@@ -1640,11 +1647,14 @@ partial class DistributedConnection
         SendRequest(IIPPacketRequest.TemplateFromClassId, classId)
                     .Then((result) =>
                     {
+                        Console.WriteLine("Parsing template...");
                         var tt = TypeTemplate.Parse((byte[])result);
                         templateRequests.Remove(classId);
                         templates.Add(tt.ClassId, tt);
                         Instance.Warehouse.PutTemplate(tt);
                         reply.Trigger(tt);
+                        Console.WriteLine("Done parsing template...");
+
                     }).Error((ex) =>
                     {
                         reply.TriggerError(ex);
@@ -1695,11 +1705,14 @@ partial class DistributedConnection
 
         var rt = new AsyncReply<IResource>();
 
-        SendRequest(IIPPacketRequest.GetResourceIdByLink, path)
-            .Then(result =>
+        var req = SendRequest(IIPPacketRequest.GetResourceIdByLink, path);
+
+
+        req.Then(result =>
             {
                 rt.Trigger(result);
             }).Error(ex => rt.TriggerError(ex));
+
 
         //Query(path).Then(ar =>
         //{
@@ -1823,7 +1836,7 @@ partial class DistributedConnection
                             if (template?.DefinedType != null && template.IsWrapper)
                                 dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)args[1], (string)args[2]) as DistributedResource;
                             else
-                                dr = new DistributedResource(this, id, Convert.ToUInt64( args[1]), (string)args[2]);
+                                dr = new DistributedResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
                         }
                         else
                         {

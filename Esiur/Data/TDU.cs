@@ -184,9 +184,10 @@ public struct TDU
             var len = 1 + (ulong)metaLen + length;
 
 
-            if (length == 0)
+            if (length == 0 && (metadata == null || metadata.Length == 0))
             {
                 Composed = new byte[1] { (byte)Identifier };
+                throw new Exception("Need check");
             }
             else if (metadata.Length > 0xFF)
             {

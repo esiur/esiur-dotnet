@@ -39,8 +39,13 @@ namespace Esiur.Core;
 public class AsyncReply<T> : AsyncReply
 {
 
-    public AsyncReply<T> Then(Action<T> callback)
+    public AsyncReply<T> Then(Action<T> callback, [CallerMemberName] string methodName = null, [CallerFilePath] string filePath = null, [CallerLineNumber] int lineNumber = 0)
     {
+        if (base.codeLine == 0)
+        {
+            base.codeLine = lineNumber; base.codeMethod = methodName; base.codePath = filePath;
+        }
+
         base.Then((x) => callback((T)x));
         return this;
     }
