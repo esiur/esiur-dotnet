@@ -53,10 +53,10 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
         //if (!sealedBag && !resultReady)
         //    throw new Exception("Not sealed");
 
-        Timeout(6000, () =>
-        {
-            Console.WriteLine("Timeout " + count + this.Result);
-        });
+        //Timeout(6000, () =>
+        //{
+        //Console.WriteLine("Timeout " + count + this.Result);
+        //});
 
         base.Then(new Action<object>(o => callback((T[])o)));
         return this;

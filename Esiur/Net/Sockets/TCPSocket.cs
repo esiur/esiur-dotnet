@@ -45,6 +45,12 @@ public class TCPSocket : ISocket
 
     bool held;
 
+    public Socket Socket => sock;
+
+    int bytesSent, bytesReceived;
+
+    public int BytesSent => bytesSent;
+    public int BytesReceived => bytesReceived; 
     //ArraySegment<byte> receiveBufferSegment;
 
     NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
@@ -117,6 +123,7 @@ public class TCPSocket : ISocket
 
             if (recCount > 0)
             {
+                socket.bytesReceived += recCount;
                 socket.receiveNetworkBuffer.Write(socket.receiveBuffer, 0, (uint)recCount);
                 socket.Receiver?.NetworkReceive(socket, socket.receiveNetworkBuffer);
 
@@ -286,6 +293,8 @@ public class TCPSocket : ISocket
     {
         if (state == SocketState.Closed)// || state == SocketState.Terminated)
             return;
+
+        bytesSent += size;
 
         var msg = message.Clip((uint)offset, (uint)size);
 

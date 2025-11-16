@@ -1,190 +1,270 @@
-﻿using System;
+﻿#nullable enable
+using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Text;
-
-#nullable enable
+using System.Globalization;
+using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 
 namespace Esiur.Data;
 
-using System;
-using System.Collections.Concurrent;
-using System.Globalization;
-using System.Linq.Expressions;
+// --- Policies & Options (NET Standard 2.0 compatible) --------------------
 
 public enum NaNInfinityPolicy
 {
-    Throw,          // Default: throw on NaN/∞ when converting to non-floating types
-    NullIfNullable, // If target is Nullable<decimal>, return null; otherwise throw
-    CoerceZero      // Replace NaN/∞ with 0
+    Throw,
+    NullIfNullable,
+    CoerceZero
 }
 
 public sealed class RuntimeCastOptions
 {
+    // Reusable default to avoid per-call allocations
+    public static readonly RuntimeCastOptions Default = new RuntimeCastOptions();
+
     public bool CheckedNumeric { get; set; } = true;
 
-    // For DateTime/DateTimeOffset parsing
     public CultureInfo Culture { get; set; } = CultureInfo.InvariantCulture;
-    public DateTimeStyles DateTimeStyles { get; set; } = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
 
-    // For enums
+    public DateTimeStyles DateTimeStyles { get; set; } =
+        DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
+
     public bool EnumIgnoreCase { get; set; } = true;
     public bool EnumMustBeDefined { get; set; } = false;
 
-    // float/double → decimal behavior
     public NaNInfinityPolicy NaNInfinityPolicy { get; set; } = NaNInfinityPolicy.Throw;
 }
 
+// --- Core Caster ----------------------------------------------------------
+
 public static class RuntimeCaster
 {
+    // (fromType, toType) -> converter(value, options)
+    private static readonly ConcurrentDictionary<(Type from, Type to),
+        Func<object?, RuntimeCastOptions, object?>> _cache =
+        new ConcurrentDictionary<(Type, Type), Func<object?, RuntimeCastOptions, object?>>();
 
-    public static readonly RuntimeCastOptions Default = new RuntimeCastOptions();
+    // Numeric-only compiled converters
+    private static readonly ConcurrentDictionary<(Type from, Type to, bool @checked),
+        Func<object, object>> _numericCache =
+        new ConcurrentDictionary<(Type, Type, bool), Func<object, object>>();
 
-    // (fromType, toType) -> converter(value, options)  (options captured at call time)
-    private static readonly ConcurrentDictionary<(Type from, Type to), Func<object, RuntimeCastOptions, object>> _cache = new();
+    // Per-element converters for collections
+    private static readonly ConcurrentDictionary<(Type from, Type to),
+        Func<object?, RuntimeCastOptions, object?>> _elemConvCache =
+        new ConcurrentDictionary<(Type, Type), Func<object?, RuntimeCastOptions, object?>>();
 
-    // Numeric-only compiled converters (fast path), keyed by checked/unchecked
-    private static readonly ConcurrentDictionary<(Type from, Type to, bool @checked), Func<object, object>> _numericCache = new();
+    // --------- Zero-allocation convenience overloads ---------
+    public static object? Cast(object? value, Type toType)
+        => Cast(value, toType, RuntimeCastOptions.Default);
 
-    public static object Cast(object value, Type toType, RuntimeCastOptions? options = null)
+    public static object? CastSequence(object? value, Type toType)
+        => CastSequence(value, toType, RuntimeCastOptions.Default);
+
+    // --------- Main API (options accepted if you want different policies) ---------
+    public static object? Cast(object? value, Type toType, RuntimeCastOptions? options)
     {
-        options ??= Default;
+        if (toType == null) throw new ArgumentNullException(nameof(toType));
+        var opts = options ?? RuntimeCastOptions.Default;
 
-        if (toType is null) throw new ArgumentNullException(nameof(toType));
-        if (value is null)
+        if (value == null)
         {
             if (IsNonNullableValueType(toType))
-                throw new InvalidCastException($"Cannot cast null to non-nullable {toType}.");
+                throw new InvalidCastException("Cannot cast null to non-nullable " + toType + ".");
             return null;
         }
 
         var fromType = value.GetType();
-        if (toType.IsAssignableFrom(fromType)) return value; // already compatible
+        if (toType.IsAssignableFrom(fromType)) return value;
 
         var fn = _cache.GetOrAdd((fromType, toType), k => BuildConverter(k.from, k.to));
-        return fn(value, options);
+        return fn(value, opts);
+    }
+
+    public static object? CastSequence(object? value, Type toType, RuntimeCastOptions? options)
+    {
+        var opts = options ?? RuntimeCastOptions.Default;
+        if (value == null) return null;
+
+        var fromType = value.GetType();
+        var toUnderlying = Nullable.GetUnderlyingType(toType) ?? toType;
+
+        if (!IsSupportedSeqType(fromType) || !IsSupportedSeqType(toUnderlying))
+            throw new InvalidCastException("Only 1D arrays and List<T> are supported. " + fromType + " → " + toType);
+
+        var fromElem = GetElementType(fromType)!;
+        var toElem = GetElementType(toUnderlying)!;
+
+        // Fast path: same element type
+        if (fromElem == toElem)
+        {
+            if (fromType.IsArray && IsListType(toUnderlying))
+                return ArrayToListDirect((Array)value, toUnderlying);
+
+            if (IsListType(fromType) && toUnderlying.IsArray)
+                return ListToArrayDirect((IList)value, toElem);
+
+            if (fromType.IsArray && toUnderlying.IsArray)
+                return ArrayToArrayDirect((Array)value, toElem);
+
+            if (IsListType(fromType) && IsListType(toUnderlying))
+                return ListToListDirect((IList)value, toUnderlying, toElem);
+        }
+
+        // General path with per-element converter
+        var elemConv = _elemConvCache.GetOrAdd((fromElem, toElem),
+            k => (object? elem, RuntimeCastOptions o) =>
+            {
+                if (elem == null) return null;
+                return Cast(elem, toElem, o);
+            });
+
+        if (fromType.IsArray && IsListType(toUnderlying))
+            return ArrayToListConverted((Array)value, toUnderlying, toElem, elemConv, opts);
+
+        if (IsListType(fromType) && toUnderlying.IsArray)
+            return ListToArrayConverted((IList)value, toElem, elemConv, opts);
+
+        if (fromType.IsArray && toUnderlying.IsArray)
+            return ArrayToArrayConverted((Array)value, toElem, elemConv, opts);
+
+        if (IsListType(fromType) && IsListType(toUnderlying))
+            return ListToListConverted((IList)value, toUnderlying, toElem, elemConv, opts);
+
+        throw new InvalidCastException("Unsupported sequence cast " + fromType + " → " + toType + ".");
     }
 
     // ------------------------ Builder ------------------------
-    private static Func<object, RuntimeCastOptions, object> BuildConverter(Type fromType, Type toType)
+
+    private static Func<object?, RuntimeCastOptions, object?> BuildConverter(Type fromType, Type toType)
     {
-        // Nullable handling is done inside ConvertCore.
-        return (value, opts) => ConvertCore(value, fromType, toType, opts);
+        return (value, opts) => ConvertCore(value!, fromType, toType, opts);
     }
 
     // ------------------------ Core Routing ------------------------
-    private static object ConvertCore(object value, Type fromType, Type toType, RuntimeCastOptions opts)
+
+    private static object? ConvertCore(object value, Type fromType, Type toType, RuntimeCastOptions opts)
     {
         var toUnderlying = Nullable.GetUnderlyingType(toType) ?? toType;
         var fromUnderlying = Nullable.GetUnderlyingType(fromType) ?? fromType;
 
-        // If converting nullable source and it's null → result is null if target nullable, else throw
-        if (!fromType.IsValueType && value is null)
+        // Collections early
         {
-            if (IsNonNullableValueType(toType))
-                throw new InvalidCastException($"Cannot cast null to non-nullable {toType}.");
-            return null;
+            bool handled;
+            var coll = ConvertCollectionsIfAny(value, fromType, toType, opts, out handled);
+            if (handled) return coll;
         }
 
-        // Special cases first
-        // 1) Enum targets
+        // Enum
         if (toUnderlying.IsEnum)
             return ConvertToEnum(value, fromUnderlying, toType, toUnderlying, opts);
 
-        // 2) Guid targets
+        // Guid
         if (toUnderlying == typeof(Guid))
             return ConvertToGuid(value, fromUnderlying, toType);
 
-        // 3) DateTime / DateTimeOffset targets
+        // Date/Time
         if (toUnderlying == typeof(DateTime))
             return ConvertToDateTime(value, fromUnderlying, toType, opts);
+
         if (toUnderlying == typeof(DateTimeOffset))
             return ConvertToDateTimeOffset(value, fromUnderlying, toType, opts);
 
-        // 4) decimal from float/double with NaN/∞ policy
-        if (toUnderlying == typeof(decimal) && (fromUnderlying == typeof(float) || fromUnderlying == typeof(double)))
+        // float/double -> decimal with policy
+        if (toUnderlying == typeof(decimal) &&
+            (fromUnderlying == typeof(float) || fromUnderlying == typeof(double)))
         {
-            var dec = ConvertFloatDoubleToDecimal(value, fromUnderlying, opts, out bool useNull);
-            if (toType != toUnderlying) // wrap in Nullable<decimal>
+            bool useNull;
+            var dec = ConvertFloatDoubleToDecimal(value, fromUnderlying, opts, out useNull);
+            if (toType != toUnderlying) // Nullable<decimal>
                 return useNull ? null : (decimal?)dec;
             if (useNull) throw new OverflowException("NaN/Infinity cannot be converted to decimal.");
             return dec;
         }
 
-        // 5) General numeric conversions via compiled expression
+        // Numeric -> Numeric
         if (IsNumeric(fromUnderlying) && IsNumeric(toUnderlying))
         {
             var nc = _numericCache.GetOrAdd((fromUnderlying, toUnderlying, opts.CheckedNumeric),
                 k => BuildNumericConverter(k.from, k.to, k.@checked));
             var result = nc(value);
-            // Wrap into nullable if needed
             if (toType != toUnderlying) return BoxNullable(result, toUnderlying);
             return result;
         }
 
-        // 6) String <-> other basics (Use TypeConverter first; if no path, fall through)
+        // To string
         if (toUnderlying == typeof(string))
-            return value?.ToString();
+            return value != null ? value.ToString() : null;
 
-        // 7) Last-resort: TypeConverter or ChangeType once, inside this compiled path
-        // Try TypeConverter(target)
+        // TypeConverter(target)
         var tc = System.ComponentModel.TypeDescriptor.GetConverter(toUnderlying);
         if (tc.CanConvertFrom(fromUnderlying))
         {
             var r = tc.ConvertFrom(null, opts.Culture, value);
-            if (toType != toUnderlying) return BoxNullable(r, toUnderlying);
+            if (toType != toUnderlying) return BoxNullable(r!, toUnderlying);
             return r!;
         }
 
-        // Try TypeConverter(source)
+        // TypeConverter(source)
         var tc2 = System.ComponentModel.TypeDescriptor.GetConverter(fromUnderlying);
         if (tc2.CanConvertTo(toUnderlying))
         {
             var r = tc2.ConvertTo(null, opts.Culture, value, toUnderlying);
-            if (toType != toUnderlying) return BoxNullable(r, toUnderlying);
+            if (toType != toUnderlying) return BoxNullable(r!, toUnderlying);
             return r!;
         }
 
-        // Try Convert.ChangeType for IConvertible fallbacks
+        // Convert.ChangeType fallback
         try
         {
             var r = Convert.ChangeType(value, toUnderlying, opts.Culture);
-            if (toType != toUnderlying) return BoxNullable(r, toUnderlying);
+            if (toType != toUnderlying) return BoxNullable(r!, toUnderlying);
             return r!;
         }
         catch
         {
-            // Final attempt: assignable cast via reflection (e.g., interfaces)
             if (toUnderlying.IsInstanceOfType(value))
             {
                 if (toType != toUnderlying) return BoxNullable(value, toUnderlying);
                 return value;
             }
-            throw new InvalidCastException($"Cannot cast {fromType} to {toType}.");
+            throw new InvalidCastException("Cannot cast " + fromType + " to " + toType + ".");
         }
     }
 
-    // ------------------------ Helpers: Numeric ------------------------
+    private static object? ConvertCollectionsIfAny(object value, Type fromType, Type toType, RuntimeCastOptions opts, out bool handled)
+    {
+        handled = false;
+        var toUnderlying = Nullable.GetUnderlyingType(toType) ?? toType;
+
+        if (!IsSupportedSeqType(fromType) || !IsSupportedSeqType(toUnderlying))
+            return value;
+
+        handled = true;
+        return CastSequence(value, toUnderlying, opts);
+    }
+
+    // ------------------------ Numeric Helpers ------------------------
+
     private static Func<object, object> BuildNumericConverter(Type from, Type to, bool @checked)
     {
         var p = Expression.Parameter(typeof(object), "v");
-
-        Expression val = from.IsValueType
-            ? Expression.Unbox(p, from)
-            : Expression.Convert(p, from);
+        Expression val = from.IsValueType ? (Expression)Expression.Unbox(p, from)
+                                          : (Expression)Expression.Convert(p, from);
 
         Expression body;
         try
         {
-            body = @checked ? Expression.ConvertChecked(val, to) : Expression.Convert(val, to);
+            body = @checked ? (Expression)Expression.ConvertChecked(val, to)
+                            : (Expression)Expression.Convert(val, to);
         }
         catch (InvalidOperationException)
         {
-            // Non-legal numeric convert — should be rare given IsNumeric check.
-            throw new InvalidCastException($"Numeric conversion not supported: {from} -> {to}");
+            throw new InvalidCastException("Numeric conversion not supported: " + from + " -> " + to);
         }
 
-        // Box result to object
-        Expression boxed = to.IsValueType ? Expression.Convert(body, typeof(object)) : body;
+        Expression boxed = to.IsValueType ? (Expression)Expression.Convert(body, typeof(object)) : body;
         return Expression.Lambda<Func<object, object>>(boxed, p).Compile();
     }
 
@@ -200,17 +280,19 @@ public static class RuntimeCaster
     }
 
     private static bool IsNonNullableValueType(Type t)
-        => t.IsValueType && Nullable.GetUnderlyingType(t) is null;
+    {
+        return t.IsValueType && Nullable.GetUnderlyingType(t) == null;
+    }
 
     private static object BoxNullable(object value, Type underlying)
     {
-        // Create Nullable<T>(value) then box
         var nt = typeof(Nullable<>).MakeGenericType(underlying);
-        var ctor = nt.GetConstructor(new[] { underlying })!;
-        return ctor.Invoke(new[] { value });
+        var ctor = nt.GetConstructor(new[] { underlying });
+        return ctor!.Invoke(new[] { value });
     }
 
-    // ------------------------ Helpers: NaN/∞ to decimal ------------------------
+    // ------------------------ NaN/∞ to decimal ------------------------
+
     private static decimal ConvertFloatDoubleToDecimal(object value, Type fromUnderlying, RuntimeCastOptions opts, out bool useNull)
     {
         useNull = false;
@@ -220,76 +302,79 @@ public static class RuntimeCaster
             var f = (float)value;
             if (float.IsNaN(f) || float.IsInfinity(f))
             {
-                switch (opts.NaNInfinityPolicy)
-                {
-                    case NaNInfinityPolicy.NullIfNullable: useNull = true; return default;
-                    case NaNInfinityPolicy.CoerceZero: return 0m;
-                    default: throw new OverflowException("Cannot convert NaN/Infinity to decimal.");
-                }
+                if (opts.NaNInfinityPolicy == NaNInfinityPolicy.NullIfNullable) { useNull = true; return 0m; }
+                if (opts.NaNInfinityPolicy == NaNInfinityPolicy.CoerceZero) return 0m;
+                throw new OverflowException("Cannot convert NaN/Infinity to decimal.");
             }
             return opts.CheckedNumeric ? checked((decimal)f) : (decimal)f;
         }
-        else // double
+        else
         {
             var d = (double)value;
             if (double.IsNaN(d) || double.IsInfinity(d))
             {
-                switch (opts.NaNInfinityPolicy)
-                {
-                    case NaNInfinityPolicy.NullIfNullable: useNull = true; return default;
-                    case NaNInfinityPolicy.CoerceZero: return 0m;
-                    default: throw new OverflowException("Cannot convert NaN/Infinity to decimal.");
-                }
+                if (opts.NaNInfinityPolicy == NaNInfinityPolicy.NullIfNullable) { useNull = true; return 0m; }
+                if (opts.NaNInfinityPolicy == NaNInfinityPolicy.CoerceZero) return 0m;
+                throw new OverflowException("Cannot convert NaN/Infinity to decimal.");
             }
             return opts.CheckedNumeric ? checked((decimal)d) : (decimal)d;
         }
     }
 
-    // ------------------------ Helpers: Enum ------------------------
-    private static object ConvertToEnum(object value, Type fromUnderlying, Type toType, Type enumType, RuntimeCastOptions opts)
+    // ------------------------ Enum ------------------------
+    // Note: .NET Standard 2.0 lacks non-generic TryParse(Type, …, ignoreCase).
+    // We use Enum.Parse(Type, string, bool ignoreCase) with try/catch.
+
+    private static object? ConvertToEnum(object value, Type fromUnderlying, Type toType, Type enumType, RuntimeCastOptions opts)
     {
-        // Nullable<Enum> wrapping
         bool wrapNullable = toType != enumType;
 
-        // String → Enum
         if (fromUnderlying == typeof(string))
         {
-            var parsed = Enum.Parse(enumType, (string)value, opts.EnumIgnoreCase);
+            object parsed;
+            try
+            {
+                parsed = Enum.Parse(enumType, (string)value, opts.EnumIgnoreCase);
+            }
+            catch (ArgumentException)
+            {
+                throw new InvalidCastException("Cannot parse '" + value + "' to " + enumType.Name + ".");
+            }
 
-            if (opts.EnumMustBeDefined && !Enum.IsDefined(enumType, parsed!))
-                throw new InvalidCastException($"Value '{value}' is not a defined member of {enumType.Name}.");
+            if (opts.EnumMustBeDefined && !Enum.IsDefined(enumType, parsed))
+                throw new InvalidCastException("Value '" + value + "' is not a defined member of " + enumType.Name + ".");
 
-            return wrapNullable ? BoxNullable(parsed!, enumType) : parsed!;
+            return wrapNullable ? BoxNullable(parsed, enumType) : parsed;
         }
 
-        // Numeric → Enum
         if (IsNumeric(fromUnderlying))
         {
-            // Convert numeric to enum’s underlying integral type first (checked/unchecked handled by compiled numeric path)
             var et = Enum.GetUnderlyingType(enumType);
-            var numConv = _numericCache.GetOrAdd((fromUnderlying, et, true), k => BuildNumericConverter(k.from, k.to, k.@checked));
+            var numConv = _numericCache.GetOrAdd((fromUnderlying, et, true),
+                k => BuildNumericConverter(k.from, k.to, k.@checked));
             var integral = numConv(value);
 
             var enumObj = Enum.ToObject(enumType, integral);
             if (opts.EnumMustBeDefined && !Enum.IsDefined(enumType, enumObj))
-                throw new InvalidCastException($"Numeric value {integral} is not a defined member of {enumType.Name}.");
+                throw new InvalidCastException("Numeric value " + integral + " is not a defined member of " + enumType.Name + ".");
 
             return wrapNullable ? BoxNullable(enumObj, enumType) : enumObj;
         }
 
-        // Fallback: not supported
-        throw new InvalidCastException($"Cannot cast {fromUnderlying} to enum {enumType.Name}.");
+        throw new InvalidCastException("Cannot cast " + fromUnderlying + " to enum " + enumType.Name + ".");
     }
 
-    // ------------------------ Helpers: Guid ------------------------
-    private static object ConvertToGuid(object value, Type fromUnderlying, Type toType)
+    // ------------------------ Guid ------------------------
+
+    private static object? ConvertToGuid(object value, Type fromUnderlying, Type toType)
     {
         bool wrapNullable = toType != typeof(Guid);
 
         if (fromUnderlying == typeof(string))
         {
-            if (!Guid.TryParse((string)value, out var g))
-                throw new InvalidCastException($"Cannot parse '{value}' to Guid.");
+            Guid g;
+            if (!Guid.TryParse((string)value, out g))
+                throw new InvalidCastException("Cannot parse '" + value + "' to Guid.");
             return wrapNullable ? (Guid?)g : g;
         }
 
@@ -302,31 +387,31 @@ public static class RuntimeCaster
             return wrapNullable ? (Guid?)g : g;
         }
 
-        throw new InvalidCastException($"Cannot cast {fromUnderlying} to Guid.");
+        throw new InvalidCastException("Cannot cast " + fromUnderlying + " to Guid.");
     }
 
-    // ------------------------ Helpers: DateTime / DateTimeOffset ------------------------
-    private static object ConvertToDateTime(object value, Type fromUnderlying, Type toType, RuntimeCastOptions opts)
+    // ------------------------ DateTime / DateTimeOffset ------------------------
+
+    private static object? ConvertToDateTime(object value, Type fromUnderlying, Type toType, RuntimeCastOptions opts)
     {
         bool wrapNullable = toType != typeof(DateTime);
 
         if (fromUnderlying == typeof(string))
         {
-            if (!DateTime.TryParse((string)value, opts.Culture, opts.DateTimeStyles, out var dt))
-                throw new InvalidCastException($"Cannot parse '{value}' to DateTime.");
+            DateTime dt;
+            if (!DateTime.TryParse((string)value, opts.Culture, opts.DateTimeStyles, out dt))
+                throw new InvalidCastException("Cannot parse '" + value + "' to DateTime.");
             return wrapNullable ? (DateTime?)dt : dt;
         }
 
         if (fromUnderlying == typeof(long))
         {
-            // Treat as ticks
             var dt = new DateTime((long)value, DateTimeKind.Unspecified);
             return wrapNullable ? (DateTime?)dt : dt;
         }
 
         if (fromUnderlying == typeof(double))
         {
-            // Treat as OADate if finite
             var d = (double)value;
             if (double.IsNaN(d) || double.IsInfinity(d))
                 throw new InvalidCastException("Cannot convert NaN/Infinity to DateTime.");
@@ -334,23 +419,23 @@ public static class RuntimeCaster
             return wrapNullable ? (DateTime?)dt : dt;
         }
 
-        throw new InvalidCastException($"Cannot cast {fromUnderlying} to DateTime.");
+        throw new InvalidCastException("Cannot cast " + fromUnderlying + " to DateTime.");
     }
 
-    private static object ConvertToDateTimeOffset(object value, Type fromUnderlying, Type toType, RuntimeCastOptions opts)
+    private static object? ConvertToDateTimeOffset(object value, Type fromUnderlying, Type toType, RuntimeCastOptions opts)
     {
         bool wrapNullable = toType != typeof(DateTimeOffset);
 
         if (fromUnderlying == typeof(string))
         {
-            if (!DateTimeOffset.TryParse((string)value, opts.Culture, opts.DateTimeStyles, out var dto))
-                throw new InvalidCastException($"Cannot parse '{value}' to DateTimeOffset.");
+            DateTimeOffset dto;
+            if (!DateTimeOffset.TryParse((string)value, opts.Culture, opts.DateTimeStyles, out dto))
+                throw new InvalidCastException("Cannot parse '" + value + "' to DateTimeOffset.");
             return wrapNullable ? (DateTimeOffset?)dto : dto;
         }
 
         if (fromUnderlying == typeof(long))
         {
-            // Treat as ticks since 0001-01-01
             var dto = new DateTimeOffset(new DateTime((long)value, DateTimeKind.Unspecified));
             return wrapNullable ? (DateTimeOffset?)dto : dto;
         }
@@ -365,6 +450,111 @@ public static class RuntimeCaster
             return wrapNullable ? (DateTimeOffset?)dto : dto;
         }
 
-        throw new InvalidCastException($"Cannot cast {fromUnderlying} to DateTimeOffset.");
+        throw new InvalidCastException("Cannot cast " + fromUnderlying + " to DateTimeOffset.");
+    }
+
+    // ------------------------ Collections (arrays/lists) ------------------------
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsListType(Type t)
+    {
+        return t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsSupportedSeqType(Type t)
+    {
+        return (t.IsArray && t.GetArrayRank() == 1) || IsListType(t);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Type? GetElementType(Type t)
+    {
+        if (t.IsArray) return t.GetElementType();
+        if (IsListType(t)) return t.GetGenericArguments()[0];
+        return null;
+    }
+
+    // Fast-path (same element types)
+    private static object ArrayToListDirect(Array src, Type listTarget)
+    {
+        var list = (IList)Activator.CreateInstance(listTarget, src.Length)!;
+        foreach (var e in src) list.Add(e);
+        return list;
+    }
+
+    private static object ListToArrayDirect(IList src, Type elemType)
+    {
+        var arr = Array.CreateInstance(elemType, src.Count);
+        for (int i = 0; i < src.Count; i++) arr.SetValue(src[i], i);
+        return arr;
+    }
+
+    private static object ArrayToArrayDirect(Array src, Type elemType)
+    {
+        var dst = Array.CreateInstance(elemType, src.Length);
+        Array.Copy(src, dst, src.Length);
+        return dst;
+    }
+
+    private static object ListToListDirect(IList src, Type listTarget, Type elemType)
+    {
+        var list = (IList)Activator.CreateInstance(listTarget, src.Count)!;
+        for (int i = 0; i < src.Count; i++) list.Add(src[i]);
+        return list;
+    }
+
+    // Converted element paths
+    private static object ArrayToListConverted(
+        Array src, Type listTarget, Type toElem,
+        Func<object?, RuntimeCastOptions, object?> elemConv, RuntimeCastOptions opts)
+    {
+        var list = (IList)Activator.CreateInstance(listTarget, src.Length)!;
+        for (int i = 0; i < src.Length; i++)
+        {
+            var v = src.GetValue(i);
+            list.Add(elemConv(v, opts));
+        }
+        return list;
+    }
+
+    private static object ListToArrayConverted(
+        IList src, Type toElem,
+        Func<object?, RuntimeCastOptions, object?> elemConv, RuntimeCastOptions opts)
+    {
+        var arr = Array.CreateInstance(toElem, src.Count);
+        for (int i = 0; i < src.Count; i++)
+        {
+            var v = src[i];
+            arr.SetValue(elemConv(v, opts), i);
+        }
+        return arr;
+    }
+
+    private static object ArrayToArrayConverted(
+        Array src, Type toElem,
+        Func<object?, RuntimeCastOptions, object?> elemConv, RuntimeCastOptions opts)
+    {
+        var dst = Array.CreateInstance(toElem, src.Length);
+        for (int i = 0; i < src.Length; i++)
+        {
+            var v = src.GetValue(i);
+            dst.SetValue(elemConv(v, opts), i);
+        }
+        return dst;
+    }
+
+    private static object ListToListConverted(
+        IList src, Type listTarget, Type toElem,
+        Func<object?, RuntimeCastOptions, object?> elemConv, RuntimeCastOptions opts)
+    {
+        var dst = (IList)Activator.CreateInstance(listTarget, src.Count)!;
+        for (int i = 0; i < src.Count; i++)
+        {
+            var v = src[i];
+            dst.Add(elemConv(v, opts));
+        }
+        return dst;
     }
 }
+

@@ -35,6 +35,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
@@ -180,17 +181,19 @@ partial class DistributedConnection
     }
 
 
-    public AsyncReply StaticCall(UUID classId, byte index, Map<byte, object> parameters)
+    public AsyncReply StaticCall(UUID classId, byte index, object parameters)
     {
         return SendRequest(IIPPacketRequest.StaticCall, classId, index, parameters);
     }
 
     public AsyncReply Call(string procedureCall, params object[] parameters)
     {
-        var args = new Map<byte, object>();
-        for (byte i = 0; i < parameters.Length; i++)
-            args.Add(i, parameters[i]);
-        return Call(procedureCall, args);
+        //var args = new Map<byte, object>();
+        //for (byte i = 0; i < parameters.Length; i++)
+        //    args.Add(i, parameters[i]);
+        //        return Call(procedureCall, parameters);
+
+        return SendRequest(IIPPacketRequest.ProcedureCall, procedureCall, parameters);
     }
 
     public AsyncReply Call(string procedureCall, Map<byte, object> parameters)
@@ -198,7 +201,7 @@ partial class DistributedConnection
         return SendRequest(IIPPacketRequest.ProcedureCall, procedureCall, parameters);
     }
 
-    internal AsyncReply SendInvoke(uint instanceId, byte index, Map<byte, object> parameters)
+    internal AsyncReply SendInvoke(uint instanceId, byte index, object parameters)
     {
         return SendRequest(IIPPacketRequest.InvokeFunction, instanceId, index, parameters);
     }
@@ -266,7 +269,7 @@ partial class DistributedConnection
     {
         var req = requests.Take(callbackId);
 
-        Console.WriteLine("Completed " + callbackId);
+        //Console.WriteLine("Completed " + callbackId);
 
         if (req == null)
         {
@@ -283,7 +286,7 @@ partial class DistributedConnection
             })
             .Error(e =>
             {
-                Console.WriteLine(callbackId + ": failed");
+                //Console.WriteLine(callbackId + ": failed");
                 req.TriggerError(e);
             });
         }
@@ -1016,7 +1019,7 @@ partial class DistributedConnection
         {
             reply.Then(results =>
             {
-                var arguments = (Map<byte, object>)results;
+                //var arguments = (Map<byte, object>)results;
 
                 // un hold the socket to send data immediately
                 this.Socket.Unhold();
@@ -1029,7 +1032,7 @@ partial class DistributedConnection
                 //    return;
                 //}
 
-                InvokeFunction(call.Value.Template, callback, arguments, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+                InvokeFunction(call.Value.Template, callback, results, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
 
             }).Error(x =>
             {
@@ -1038,13 +1041,13 @@ partial class DistributedConnection
         }
         else
         {
-            var arguments = (Map<byte, object>)parsed;
+            //var arguments = (Map<byte, object>)parsed;
 
             // un hold the socket to send data immediately
             this.Socket.Unhold();
 
             // @TODO: Make managers for procedure calls
-            InvokeFunction(call.Value.Template, callback, arguments, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+            InvokeFunction(call.Value.Template, callback, parsed, IIPPacketRequest.ProcedureCall, call.Value.Delegate.Target);
         }
     }
 
@@ -1090,7 +1093,7 @@ partial class DistributedConnection
         {
             reply.Then(results =>
             {
-                var arguments = (Map<byte, object>)results;
+                //var arguments = (Map<byte, object>)results;
 
                 // un hold the socket to send data immediately
                 this.Socket.Unhold();
@@ -1104,7 +1107,7 @@ partial class DistributedConnection
                 //    return;
                 //}
 
-                InvokeFunction(ft, callback, arguments, IIPPacketRequest.StaticCall, null);
+                InvokeFunction(ft, callback, results, IIPPacketRequest.StaticCall, null);
 
             }).Error(x =>
             {
@@ -1113,7 +1116,7 @@ partial class DistributedConnection
         }
         else
         {
-            var arguments = (Map<byte, object>)parsed;
+            //var arguments = (Map<byte, object>)parsed;
 
             // un hold the socket to send data immediately
             this.Socket.Unhold();
@@ -1121,7 +1124,7 @@ partial class DistributedConnection
             // @TODO: Make managers for static calls
 
 
-            InvokeFunction(ft, callback, arguments, IIPPacketRequest.StaticCall, null);
+            InvokeFunction(ft, callback, parsed, IIPPacketRequest.StaticCall, null);
         }
     }
 
@@ -1157,14 +1160,14 @@ partial class DistributedConnection
             {
                 (parsed as AsyncReply).Then(result =>
                 {
-                    var arguments = (Map<byte, object>)result;
+                    // var arguments = result;
 
                     // un hold the socket to send data immediately
                     this.Socket.Unhold();
 
                     if (r is DistributedResource)
                     {
-                        var rt = (r as DistributedResource)._Invoke(index, arguments);
+                        var rt = (r as DistributedResource)._Invoke(index, result);
                         if (rt != null)
                         {
                             rt.Then(res =>
@@ -1187,20 +1190,20 @@ partial class DistributedConnection
                             return;
                         }
 
-                        InvokeFunction(ft, callback, arguments, IIPPacketRequest.InvokeFunction, r);
+                        InvokeFunction(ft, callback, result, IIPPacketRequest.InvokeFunction, r);
                     }
                 });
             }
             else
             {
-                var arguments = (Map<byte, object>)parsed;
+                //var arguments = (Map<byte, object>)parsed;
 
                 // un hold the socket to send data immediately
                 this.Socket.Unhold();
 
                 if (r is DistributedResource)
                 {
-                    var rt = (r as DistributedResource)._Invoke(index, arguments);
+                    var rt = (r as DistributedResource)._Invoke(index, parsed);
                     if (rt != null)
                     {
                         rt.Then(res =>
@@ -1223,7 +1226,7 @@ partial class DistributedConnection
                         return;
                     }
 
-                    InvokeFunction(ft, callback, arguments, IIPPacketRequest.InvokeFunction, r);
+                    InvokeFunction(ft, callback, parsed, IIPPacketRequest.InvokeFunction, r);
                 }
 
             }
@@ -1232,7 +1235,7 @@ partial class DistributedConnection
 
 
 
-    void InvokeFunction(FunctionTemplate ft, uint callback, Map<byte, object> arguments, IIPPacketRequest actionType, object target = null)
+    void InvokeFunction(FunctionTemplate ft, uint callback, object arguments, IIPPacketRequest actionType, object target = null)
     {
 
         // cast arguments
@@ -1246,15 +1249,36 @@ partial class DistributedConnection
         {
             if (pis.Last().ParameterType == typeof(DistributedConnection))
             {
-                for (byte i = 0; i < pis.Length - 1; i++)
+                if (arguments is Map<byte, object> indexedArguments)
                 {
-                    if (arguments.ContainsKey(i))
-                        args[i] = RuntimeCaster.Cast(arguments[i], pis[i].ParameterType);
-                    else if (ft.Arguments[i].Type.Nullable)
-                        args[i] = null;
-                    else
-                        args[i] = Type.Missing;
+                    for (byte i = 0; i < pis.Length - 1; i++)
+                    {
+                        if (indexedArguments.ContainsKey(i))
+                            args[i] = RuntimeCaster.Cast(indexedArguments[i], pis[i].ParameterType);
+                        else if (ft.Arguments[i].Type.Nullable)
+                            args[i] = null;
+                        else
+                            args[i] = Type.Missing;
+                    }
+                }
+                else if (arguments is object[] arrayArguments)
+                {
+                    for (var i = 0; (i < arrayArguments.Length) && (i < pis.Length - 1); i++)
+                    {
+                        args[i] = RuntimeCaster.Cast(arrayArguments[i], pis[i].ParameterType);
+                    }
 
+                    for (var i = arrayArguments.Length; i < pis.Length - 1; i++)
+                    {
+                        args[i] = Type.Missing;
+                    }
+                }
+                else
+                {
+                    // assume first argument
+                    // Note: if object[] is intended, sender should send nest it withing object[] { object[] }
+                    if (pis.Length > 1)
+                        args[0] = RuntimeCaster.Cast(arguments, pis[0].ParameterType);
                 }
 
                 args[args.Length - 1] = this;
@@ -1262,16 +1286,39 @@ partial class DistributedConnection
             else if (pis.Last().ParameterType == typeof(InvocationContext))
             {
                 context = new InvocationContext(this, callback);
-
-                for (byte i = 0; i < pis.Length - 1; i++)
+                if (arguments is Map<byte, object> indexedArguments)
                 {
-                    if (arguments.ContainsKey(i))
-                        args[i] = RuntimeCaster.Cast(arguments[i], pis[i].ParameterType);
-                    else if (ft.Arguments[i].Type.Nullable)
-                        args[i] = null;
-                    else
-                        args[i] = Type.Missing;
+                    for (byte i = 0; i < pis.Length - 1; i++)
+                    {
+                        if (indexedArguments.ContainsKey(i))
+                            args[i] = RuntimeCaster.Cast(indexedArguments[i], pis[i].ParameterType);
+                        else if (ft.Arguments[i].Type.Nullable)
+                            args[i] = null;
+                        else
+                            args[i] = Type.Missing;
 
+                    }
+                }
+                else if (arguments is object[] arrayArguments)
+                {
+                    for (var i = 0; (i < arrayArguments.Length) && (i < pis.Length - 1); i++)
+                    {
+                        args[i] = RuntimeCaster.Cast(arrayArguments[i], pis[i].ParameterType);
+                    }
+
+                    for (var i = arrayArguments.Length; i < pis.Length - 1; i++)
+                    {
+                        args[i] = Type.Missing;
+                    }
+                }
+                else
+                {
+                    // assume first argument
+                    // Note: if object[] is intended, sender should send nest it withing object[] { object[] }
+                    if (pis.Length > 1)
+                        args[0] = RuntimeCaster.Cast(arguments, pis[0].ParameterType);
+
+                    //throw new NotImplementedException("Arguments type not supported.");
                 }
 
                 args[args.Length - 1] = context;
@@ -1279,15 +1326,38 @@ partial class DistributedConnection
             }
             else
             {
-                for (byte i = 0; i < pis.Length; i++)
+                if (arguments is Map<byte, object> indexedArguments)
                 {
-                    if (arguments.ContainsKey(i))
-                        args[i] = RuntimeCaster.Cast(arguments[i], pis[i].ParameterType);
-                    else if (ft.Arguments[i].Type.Nullable) //Nullable.GetUnderlyingType(pis[i].ParameterType) != null)
-                        args[i] = null;
-                    else
-                        args[i] = Type.Missing;
+                    for (byte i = 0; i < pis.Length; i++)
+                    {
+                        if (indexedArguments.ContainsKey(i))
+                            args[i] = RuntimeCaster.Cast(indexedArguments[i], pis[i].ParameterType);
+                        else if (ft.Arguments[i].Type.Nullable) //Nullable.GetUnderlyingType(pis[i].ParameterType) != null)
+                            args[i] = null;
+                        else
+                            args[i] = Type.Missing;
+                    }
                 }
+                else if (arguments is object[] arrayArguments)
+                {
+                    for (var i = 0; (i < arrayArguments.Length) && (i < pis.Length); i++)
+                    {
+                        args[i] = RuntimeCaster.Cast(arrayArguments[i], pis[i].ParameterType);
+                    }
+
+                    for (var i = arrayArguments.Length; i < pis.Length; i++)
+                    {
+                        args[i] = Type.Missing;
+                    }
+                }
+                else
+                {
+                    // assume first argument
+                    // Note: if object[] is intended, sender should send nest it withing object[] { object[] }
+                    if (pis.Length > 0)
+                        args[0] = RuntimeCaster.Cast(arguments, pis[0].ParameterType);
+                }
+
             }
         }
 
@@ -1647,13 +1717,11 @@ partial class DistributedConnection
         SendRequest(IIPPacketRequest.TemplateFromClassId, classId)
                     .Then((result) =>
                     {
-                        Console.WriteLine("Parsing template...");
                         var tt = TypeTemplate.Parse((byte[])result);
                         templateRequests.Remove(classId);
                         templates.Add(tt.ClassId, tt);
                         Instance.Warehouse.PutTemplate(tt);
                         reply.Trigger(tt);
-                        Console.WriteLine("Done parsing template...");
 
                     }).Error((ex) =>
                     {
@@ -1834,7 +1902,7 @@ partial class DistributedConnection
                         {
                             template = Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Resource);
                             if (template?.DefinedType != null && template.IsWrapper)
-                                dr = Activator.CreateInstance(template.DefinedType, this, id, (ulong)args[1], (string)args[2]) as DistributedResource;
+                                dr = Activator.CreateInstance(template.DefinedType, this, id,Convert.ToUInt64( args[1]), (string)args[2]) as DistributedResource;
                             else
                                 dr = new DistributedResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
                         }

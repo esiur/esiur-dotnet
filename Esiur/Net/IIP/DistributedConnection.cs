@@ -360,8 +360,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
         }).Error(e =>
         {
             // do nothing
-            Console.WriteLine("Queue is empty");
-            //throw e;
+            //Console.WriteLine("Queue is empty");
+            throw e;
         });
 
         // set local nonce
@@ -434,7 +434,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
                 if (packet.DataType == null)
                     return offset;
 
-                Console.WriteLine("Incoming: " +  packet + " " + packet.CallbackId);
+                //Console.WriteLine("Incoming: " +  packet + " " + packet.CallbackId);
 
                 if (packet.Method == IIPPacketMethod.Notification)
                 {
@@ -1044,7 +1044,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                         SendParams()
                                     .AddUInt8((byte)IIPAuthPacketAcknowledge.NoAuthNoAuth)
-                                    .AddUInt8Array(Codec.Compose(localHeaders,this.Instance.Warehouse, this))
+                                    .AddUInt8Array(Codec.Compose(localHeaders,Server.Instance.Warehouse, this))
                                     .Done();
                     }
                     else
@@ -1711,7 +1711,8 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
     AsyncReply<bool> IStore.Remove(IResource resource)
     {
-        throw new NotImplementedException();
+        // @TODO: this is called when no connection is possible
+        return new AsyncReply<bool>(true);
     }
 
     public AsyncReply<bool> Remove(string path)

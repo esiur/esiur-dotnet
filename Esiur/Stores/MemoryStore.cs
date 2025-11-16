@@ -83,11 +83,6 @@ public class MemoryStore : IStore
         throw new NotImplementedException();
     }
 
-    public bool Remove(IResource resource)
-    {
-        resources.Remove(resource.Instance.Id);
-        return true;
-    }
 
     public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
     {
@@ -153,7 +148,8 @@ public class MemoryStore : IStore
 
     AsyncReply<bool> IStore.Remove(IResource resource)
     {
-        throw new NotImplementedException();
+        resources.Remove(resource.Instance.Id);
+        return AsyncReply.FromResult(true);
     }
 
     public AsyncReply<bool> Remove(string path)

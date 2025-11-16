@@ -177,8 +177,8 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         var props = new PropertyValue[properties.Length];
 
         for (byte i = 0; i < properties.Length; i++)
-            props[i] = new PropertyValue(properties[i], 
-                                        Instance.GetAge(i), 
+            props[i] = new PropertyValue(properties[i],
+                                        Instance.GetAge(i),
                                         Instance.GetModificationDate(i));
 
         return props;
@@ -193,7 +193,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
                 rt.Add(i, new PropertyValue(properties[i],
                                             Instance.GetAge(i),
                                             Instance.GetModificationDate(i)));
-           
+
 
         return rt;
     }
@@ -238,7 +238,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         Instance.EmitResourceEvent(et, args);
     }
 
-    public AsyncReply _Invoke(byte index, Map<byte, object> args)
+    public AsyncReply _Invoke(byte index, object args)
     {
         if (destroyed)
             throw new Exception("Trying to access a destroyed object.");
@@ -312,7 +312,6 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
         if (attached && ft != null)
         {
-            var indexedArgs = new Map<byte, object>();
 
             if (args.Length == 1)
             {
@@ -322,6 +321,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
                 if (Codec.IsAnonymous(type))
                 {
+                    var indexedArgs = new Map<byte, object>();
 
                     var pis = type.GetProperties();
 
@@ -334,18 +334,19 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
                     result = _Invoke(ft.Index, indexedArgs);
                 }
+                else if (args[0] is object[] || args[0] is Map<byte, object>)
+                {
+                    result = _Invoke(ft.Index, new object[] { args });
+                }
                 else
                 {
-                    indexedArgs.Add((byte)0, args[0]);
-                    result = _Invoke(ft.Index, indexedArgs);
+                    result = _Invoke(ft.Index, args);
                 }
             }
             else
             {
-                for (byte i = 0; i < args.Length; i++)
-                    indexedArgs.Add(i, args[i]);
 
-                result = _Invoke(ft.Index, indexedArgs);
+                result = _Invoke(ft.Index, args);
             }
             return true;
         }

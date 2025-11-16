@@ -487,7 +487,7 @@ public class TypeTemplate
         }
 
         // add attributes
-        var attrs = type.GetProperties(BindingFlags.Public  | BindingFlags.Instance)
+        var attrs = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(x => x.GetCustomAttribute<AttributeAttribute>() != null);
 
         foreach (var attr in attrs)
@@ -606,6 +606,7 @@ public class TypeTemplate
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))
                     .Where(x => x.GetCustomAttribute<IgnoreAttribute>() == null)
                     .Where(x => x.Name != "Instance")
+                    .Where(x => x.Name != "Trigger")
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
                     .Where(x => !(x is EventInfo e &&
                             !(e.EventHandlerType.IsGenericType &&
@@ -632,9 +633,9 @@ public class TypeTemplate
                     .Where(x => !(x is FieldInfo c && !c.IsStatic))
                     .Where(x => x.GetCustomAttribute<ExportAttribute>() != null)
                     .Where(x => !(x is MethodInfo m && m.IsSpecialName))
-                    .Select(x => new MemberData (
-                        info : x,
-                        order : order
+                    .Select(x => new MemberData(
+                        info: x,
+                        order: order
                     ))
                     .OrderBy(x => x.Name);
 
@@ -692,7 +693,7 @@ public class TypeTemplate
         }
 
 
-        // assign indexies
+        // assign indexes
         var groups = members.Where(x => x.Parent == null)
                             .OrderBy(x => x.Name).OrderByDescending(x => x.Order)
                             .GroupBy(x => x.Info.MemberType);
@@ -924,13 +925,13 @@ public class TypeTemplate
     public Map<byte, object> CastProperties(Map<string, object> properties)
     {
         var rt = new Map<byte, object>();
-        foreach(var kv in properties)
+        foreach (var kv in properties)
         {
             var pt = GetPropertyTemplateByName(kv.Key);
             if (pt == null) continue;
             rt.Add(pt.Index, kv.Value);
         }
-            
+
         return rt;
     }
 }

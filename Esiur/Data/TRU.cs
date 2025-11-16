@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Dynamic;
 using System.Linq;
 using System.Text;
@@ -64,7 +65,7 @@ namespace Esiur.Data
             [TDUIdentifier.String] = TRUIdentifier.String,
         };
 
-        
+
 
         public void SetNull(List<byte> flags)
         {
@@ -145,7 +146,7 @@ namespace Esiur.Data
                 var rt = typeof(Map<,>).MakeGenericType(subs);
                 return rt;
             }
-            
+
             return Identifier switch
             {
                 (TRUIdentifier.Void) => typeof(void),
@@ -169,7 +170,7 @@ namespace Esiur.Data
                 (TRUIdentifier.Record) => typeof(IRecord),
                 (TRUIdentifier.TypedRecord) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Record)?.DefinedType,
                 (TRUIdentifier.TypedResource) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Resource)?.DefinedType,
-                (TRUIdentifier.Enum) =>warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Enum)?.DefinedType,
+                (TRUIdentifier.Enum) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Enum)?.DefinedType,
 
                 _ => null
             };
@@ -228,7 +229,7 @@ namespace Esiur.Data
         {
             switch (Identifier)
             {
-                case TRUIdentifier.TypedList: 
+                case TRUIdentifier.TypedList:
                     return (TDUIdentifier.TypedList, SubTypes[0].Compose());
                 case TRUIdentifier.TypedRecord:
                     return (TDUIdentifier.Record, UUID?.Data);
@@ -239,7 +240,7 @@ namespace Esiur.Data
                     return (TDUIdentifier.TypedEnum, UUID?.Data);
 
                 default:
-                    
+
                     throw new NotImplementedException();
             }
         }
@@ -267,10 +268,15 @@ namespace Esiur.Data
         //        case TRUIdentifier.            }
         //}
 
+        private static Dictionary<Type, TRU> _cache = new Dictionary<Type, TRU>();
+
         public static TRU? FromType(Type type)
         {
             if (type == null)
                 return new TRU(TRUIdentifier.Void, true);
+
+            if (_cache.ContainsKey(type))
+                return _cache[type];
 
             var nullable = false;
 
@@ -282,8 +288,12 @@ namespace Esiur.Data
                 nullable = true;
             }
 
+            TRU? tru = null;
+
             if (type == typeof(IResource))
+            {
                 return new TRU(TRUIdentifier.Resource, nullable);
+            }
             else if (type == typeof(IRecord) || type == typeof(Record))
                 return new TRU(TRUIdentifier.Record, nullable);
             else if (type == typeof(Map<object, object>)
@@ -291,19 +301,27 @@ namespace Esiur.Data
                 return new TRU(TRUIdentifier.Map, nullable);
             else if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
-                return new TRU(
+                tru = new TRU(
                    TRUIdentifier.TypedResource,
                    nullable,
                    TypeTemplate.GetTypeUUID(type)
                 );
+
+                //_cache.Add(type, tru);
+
+                //return tru;
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
-                return new TRU(
+                tru = new TRU(
                    TRUIdentifier.TypedRecord,
                    nullable,
                    TypeTemplate.GetTypeUUID(type)
                 );
+
+                //_cache.Add(type, tru);
+
+                //return tru;
             }
             else if (type.IsGenericType)
             {
@@ -315,7 +333,7 @@ namespace Esiur.Data
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object))
                     {
-                        return new TRU(TRUIdentifier.List, nullable);
+                        tru = new TRU(TRUIdentifier.List, nullable);
                     }
                     else
                     {
@@ -323,7 +341,8 @@ namespace Esiur.Data
                         if (subType == null) // unrecongnized type
                             return null;
 
-                        return new TRU(TRUIdentifier.TypedList, nullable, null,
+
+                        tru = new TRU(TRUIdentifier.TypedList, nullable, null,
                             new TRU[] { subType });
 
                     }
@@ -334,7 +353,7 @@ namespace Esiur.Data
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object) && args[1] == typeof(object))
                     {
-                        return new TRU(TRUIdentifier.Map, nullable);
+                        tru = new TRU(TRUIdentifier.Map, nullable);
                     }
                     else
                     {
@@ -346,8 +365,9 @@ namespace Esiur.Data
                         if (subType2 == null)
                             return null;
 
-                        return new TRU(TRUIdentifier.TypedMap, nullable, null,
+                         tru = new TRU(TRUIdentifier.TypedMap, nullable, null,
                             new TRU[] { subType1, subType2 });
+
                     }
                 }
                 else if (genericType == typeof(ValueTuple<,>))
@@ -362,7 +382,9 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    return new TRU(TRUIdentifier.Tuple2, nullable, null, subTypes);
+
+                    tru = new TRU(TRUIdentifier.Tuple2, nullable, null, subTypes);
+
                 }
                 else if (genericType == typeof(ValueTuple<,,>))
                 {
@@ -376,7 +398,8 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    return new TRU(TRUIdentifier.Tuple3, nullable, null, subTypes);
+                    tru = new TRU(TRUIdentifier.Tuple3, nullable, null, subTypes);
+
                 }
                 else if (genericType == typeof(ValueTuple<,,,>))
                 {
@@ -391,7 +414,7 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    return new TRU(TRUIdentifier.Tuple4, nullable, null, subTypes);
+                    tru = new TRU(TRUIdentifier.Tuple4, nullable, null, subTypes);
                 }
                 else if (genericType == typeof(ValueTuple<,,,,>))
                 {
@@ -405,7 +428,7 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    return new TRU(TRUIdentifier.Tuple5, nullable, null, subTypes);
+                    tru = new TRU(TRUIdentifier.Tuple5, nullable, null, subTypes);
                 }
                 else if (genericType == typeof(ValueTuple<,,,,,>))
                 {
@@ -419,7 +442,7 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    return new TRU(TRUIdentifier.Tuple6, nullable, null, subTypes);
+                    tru = new TRU(TRUIdentifier.Tuple6, nullable, null, subTypes);
                 }
                 else if (genericType == typeof(ValueTuple<,,,,,,>))
                 {
@@ -433,7 +456,7 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    return new TRU(TRUIdentifier.Tuple7, nullable, null, subTypes);
+                    tru = new TRU(TRUIdentifier.Tuple7, nullable, null, subTypes);
                 }
                 else
                     return null;
@@ -442,7 +465,7 @@ namespace Esiur.Data
             {
                 var elementType = type.GetElementType();
                 if (elementType == typeof(object))
-                    return new TRU(TRUIdentifier.List, nullable);
+                    tru = new TRU(TRUIdentifier.List, nullable);
                 else
                 {
                     var subType = FromType(elementType);
@@ -450,14 +473,14 @@ namespace Esiur.Data
                     if (subType == null)
                         return null;
 
-                    return new TRU(TRUIdentifier.TypedList, nullable, null,
+                    tru = new TRU(TRUIdentifier.TypedList, nullable, null,
                         new TRU[] { subType });
 
                 }
             }
             else if (type.IsEnum)
             {
-                return new TRU(TRUIdentifier.Enum, nullable, TypeTemplate.GetTypeUUID(type));
+                tru = new TRU(TRUIdentifier.Enum, nullable, TypeTemplate.GetTypeUUID(type));
             }
             else if (type.IsInterface)
             {
@@ -469,6 +492,13 @@ namespace Esiur.Data
 
             //}
 
+            if (tru != null)
+            {
+                _cache.Add(type, tru);
+                return tru;
+            }
+
+            // last check
             return type switch
             {
                 _ when type == typeof(void) => new TRU(TRUIdentifier.Void, nullable),

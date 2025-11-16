@@ -73,6 +73,8 @@ public class AsyncReply
 
     public Exception Exception => exception;
 
+    public static AsyncReply<T> FromResult<T>(T result) => new AsyncReply<T>(result);
+
     public object Wait()
     {
         if (resultReady)

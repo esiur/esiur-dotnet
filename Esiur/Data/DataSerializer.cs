@@ -393,6 +393,7 @@ public static class DataSerializer
         if (value == null)
             return new TDU(TDUIdentifier.Null, null, 0);
 
+        
         //var warehouse = connection?.Instance?.Warehouse ?? connection?.Server?.Instance?.Warehouse;
         //if (warehouse == null)
         //    throw new Exception("Warehouse not set.");
@@ -556,6 +557,23 @@ public static class DataSerializer
         else if (tru.Identifier == TRUIdentifier.UInt16)
         {
             composed = GroupUInt16Codec.Encode((IList<ushort>)value);
+        }
+        else if (tru.Identifier == TRUIdentifier.Enum)
+        {
+
+            var rt = new List<byte>();
+            var template = warehouse.GetTemplateByType(tru.GetRuntimeType(warehouse));
+
+            foreach (var v in value)
+            {
+                var intVal = Convert.ChangeType(v, (v as Enum).GetTypeCode());
+                var ct = template.Constants.FirstOrDefault(x => x.Value.Equals(intVal));
+                if (ct == null)
+                    throw new Exception("Unknown Enum.");
+                rt.Add(ct.Index);
+            }
+
+            composed = rt.ToArray();
         }
         else
         {

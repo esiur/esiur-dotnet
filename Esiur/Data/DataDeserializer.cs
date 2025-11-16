@@ -466,7 +466,7 @@ public static class DataDeserializer
 
             }).Error(e =>
             {
-                Console.WriteLine(e);
+                //Console.WriteLine(e);
                 rt.TriggerError(e);
             });
 
@@ -671,7 +671,7 @@ public static class DataDeserializer
 
         var index = tdu.Data[tdu.Offset];
 
-        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, 
+        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId,
                                                                         TemplateType.Enum);
 
         if (template != null)
@@ -1081,6 +1081,21 @@ public static class DataDeserializer
             case TRUIdentifier.UInt16:
                 return GroupUInt16Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
+            case TRUIdentifier.Enum:
+
+                var enumType = tru.GetRuntimeType(warehouse);
+
+                var enums = Array.CreateInstance(enumType, (int)tdu.ContentLength);
+                var enumTemplate = warehouse.GetTemplateByType(enumType);
+
+                for (var i = 0; i < (int)tdu.ContentLength; i++)
+                {
+                    var index = tdu.Data[tdu.Offset + i];
+                    enums.SetValue(enumTemplate.Constants[index].Value, i);
+                }
+
+                return enums;
+
             default:
 
 
@@ -1165,7 +1180,7 @@ public static class DataDeserializer
             map.Add(keys.GetValue(i), values.GetValue(i));
 
         return map;
-      
+
     }
 
     public static AsyncReply TupleParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
@@ -1380,6 +1395,22 @@ public static class DataDeserializer
             case TRUIdentifier.UInt16:
                 return new AsyncReply(GroupUInt16Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
+
+            case TRUIdentifier.Enum:
+                var enumType = tru.GetRuntimeType(connection.Instance.Warehouse);
+
+                var rt = Array.CreateInstance(enumType, (int)tdu.ContentLength);
+                var enumTemplate = connection.Instance.Warehouse.GetTemplateByType(enumType);
+
+                for (var i = 0; i < (int)tdu.ContentLength; i++)
+                {
+                    var index = tdu.Data[tdu.Offset + i];
+
+                    rt.SetValue(Enum.ToObject(enumType, enumTemplate.Constants[index].Value), i);
+                }
+
+                return new AsyncReply(rt);
+
             default:
 
 
@@ -1527,12 +1558,10 @@ public static class DataDeserializer
     {
         var rt = new AsyncBag<PropertyValue>();
 
-        Console.WriteLine("PropertyValueArrayParserAsync " + length);
 
         ListParserAsync(new ParsedTDU() { Data = data, Offset = offset, ContentLength = length }
                         , connection, requestSequence).Then(x =>
         {
-            Console.WriteLine("PropertyValueArrayParserAsync:Done " + length);
 
             var ar = (object[])x;
             var pvs = new List<PropertyValue>();

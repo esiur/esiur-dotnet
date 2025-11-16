@@ -88,6 +88,10 @@ public class FunctionTemplate : MemberTemplate
         {
             rtType = TRU.FromType(mi.ReturnType.GetGenericArguments()[0]);
         }
+        else if (genericRtType == typeof(Task<>))
+        {
+            rtType = TRU.FromType(mi.ReturnType.GetGenericArguments()[0]);
+        }
         else if (genericRtType == typeof(IEnumerable<>))// || genericRtType == typeof(IAsyncEnumerable<>))
         {
             // get export
