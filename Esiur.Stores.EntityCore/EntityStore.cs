@@ -67,9 +67,8 @@ public class EntityStore : IStore
         // Get db
         using (var db = Getter())
         {
-
+            
             var res = db.Find(ti.Type.ClrType, id) as IResource;
-
 
             if (res == null)
             {
@@ -84,7 +83,7 @@ public class EntityStore : IStore
 
             // load navigation properties
             var ent = db.Entry(res);
-
+            
             foreach (var rf in ent.References)
             {
                 rf.Load();
@@ -94,6 +93,8 @@ public class EntityStore : IStore
             {
                 col.Load();               
             }
+
+            //ent.State = EntityState.Detached;
 
             //var refs = ent.References.ToList();
 
