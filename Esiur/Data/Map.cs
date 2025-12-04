@@ -71,7 +71,7 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
                                         (Func<KeyValuePair<KT, VT>, KeyValuePair<NewKeyType, NewValueType>> selector)
     {
         var rt = new Map<NewKeyType, NewValueType>();
-        foreach(var kv in dic)
+        foreach (var kv in dic)
         {
             var nt = selector(kv);
             rt.dic.Add(nt.Key, nt.Value);
@@ -94,7 +94,7 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
         return rt.TrimEnd('\r', '\n');
     }
 
-    public Map(Map<KT,VT> source)
+    public Map(Map<KT, VT> source)
     {
         dic = source.dic;
     }
@@ -103,7 +103,7 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
 
     }
 
-    public static Map<KT,VT> FromMap(Map<KT,VT> source, Type destinationType)
+    public static Map<KT, VT> FromMap(Map<KT, VT> source, Type destinationType)
     {
         var rt = Activator.CreateInstance(destinationType) as Map<KT, VT>;
         rt.dic = source.dic;
@@ -117,7 +117,7 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
     //    return rt;
     //}
 
-   // public static explicit operator Map<string, object>(ExpandoObject obj) => FromDynamic(obj);
+    // public static explicit operator Map<string, object>(ExpandoObject obj) => FromDynamic(obj);
 
     public static Map<string, object> FromDynamic(ExpandoObject obj)
     {
@@ -127,11 +127,18 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
         return rt;
     }
 
-    public static Map<string,object> FromObject(object obj)
+    public static Map<KT, VT> FromDictionary(Dictionary<KT, VT> source)
+    {
+        var rt = new Map<KT, VT>();
+        rt.dic = source;
+        return rt;
+    }
+
+    public static Map<string, object> FromObject(object obj)
     {
         var type = obj.GetType();
 
-        var st = new Map<string,object>();
+        var st = new Map<string, object>();
 
         var pi = type.GetTypeInfo().GetProperties().Where(x => x.CanRead);
         foreach (var p in pi)
@@ -190,9 +197,9 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
     }
 
     public KT[] GetKeys() => dic.Keys.ToArray();//GetKeys()
-                                                    //{
-                                                    //  return dic.Keys.ToArray();
-                                                    //}
+                                                //{
+                                                //  return dic.Keys.ToArray();
+                                                //}
 
     public void Add(KT key, VT value)
     {
@@ -200,7 +207,7 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
             dic[key] = value;
         else
             dic.Add(key, value);
-     }
+    }
 
     public void Add(object key, object value)
     {
@@ -225,7 +232,7 @@ public class Map<KT, VT> : IEnumerable<KeyValuePair<KT, VT>>, IMap
     public object[] Serialize()
     {
         var rt = new List<object>();
-        foreach(var kv in dic)
+        foreach (var kv in dic)
         {
             rt.Add(kv.Key);
             rt.Add(kv.Value);
