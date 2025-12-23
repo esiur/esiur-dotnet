@@ -217,17 +217,17 @@ public static class TemplateGenerator
                 if (tmp.Type == TemplateType.Resource)
                 {
                     var source = GenerateClass(tmp, templates, asyncSetters);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".g.cs", source);
                 }
                 else if (tmp.Type == TemplateType.Record)
                 {
                     var source = GenerateRecord(tmp, templates);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".g.cs", source);
                 }
                 else if (tmp.Type == TemplateType.Enum)
                 {
                     var source = GenerateEnum(tmp, templates);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".Generated.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".g.cs", source);
                 }
             }
 
@@ -248,7 +248,7 @@ public static class TemplateGenerator
                 "\r\n } \r\n}";
 
 
-            File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + "Esiur.Generated.cs", typesFile);
+            File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + "Esiur.g.cs", typesFile);
 
 
             return dstDir.FullName;

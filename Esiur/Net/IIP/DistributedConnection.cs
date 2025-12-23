@@ -348,6 +348,13 @@ public partial class DistributedConnection : NetworkConnection, IStore
     }
 
 
+    public List<AsyncQueueItem<DistributedResourceQueueItem>> GetFinishedQueue() 
+    {
+        var l = queue.Processed.ToArray().ToList();
+        queue.Processed.Clear();
+        return l;
+    }
+
     void init()
     {
         //var q = queue;
@@ -438,6 +445,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
 
                 if (packet.Method == IIPPacketMethod.Notification)
                 {
+
                     var dt = packet.DataType.Value;
 
                     switch (packet.Notification)

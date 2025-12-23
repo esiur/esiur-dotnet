@@ -320,7 +320,6 @@ public class Warehouse
                         return (T)await store.Get(url[3]);
                     else
                         return (T)store;
-
                 }
                 catch (Exception ex)
                 {

@@ -264,6 +264,25 @@ public static class DataDeserializer
     }
 
 
+    public static object ResourceLinkParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    {
+        var link = tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
+        if (connection == null)
+        {
+            return new ResourceLink(link);
+        }
+        else
+        {
+            return connection.Instance.Warehouse.Get<IResource>(link);
+        }
+    }
+
+    public static object ResourceLinkParser(ParsedTDU tdu, Warehouse warehouse)
+    {
+        var link = tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
+        return new ResourceLink(link);
+    }
+
     public static unsafe object ResourceParser8Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
     {
         if (connection == null)

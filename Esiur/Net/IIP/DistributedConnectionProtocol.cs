@@ -31,6 +31,7 @@ using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -67,7 +68,7 @@ partial class DistributedConnection
 
     object subscriptionsLock = new object();
 
-    AsyncQueue<DistributedResourceQueueItem> queue = new AsyncQueue<DistributedResourceQueueItem>();
+    AsyncQueue<DistributedResourceQueueItem> queue = new ();
 
 
 
@@ -118,6 +119,7 @@ partial class DistributedConnection
     /// <returns></returns>
     AsyncReply SendNotification(IIPPacketNotification action, params object[] args)
     {
+
         var reply = new AsyncReply();
 
         if (args.Length == 0)
@@ -144,6 +146,9 @@ partial class DistributedConnection
 
     void SendReply(IIPPacketReply action, uint callbackId, params object[] args)
     {
+        if (Instance == null)
+            return;
+
         if (args.Length == 0)
         {
             var bl = new BinaryList();
@@ -311,7 +316,7 @@ partial class DistributedConnection
             return;
         }
 
-        var (_, parsed) = Codec.ParseAsync(data, 0, this, null);
+        var (_, parsed) = Codec.ParseAsync(dataType, this, null);
         if (parsed is AsyncReply reply)
         {
             reply.Then(result =>
@@ -445,22 +450,23 @@ partial class DistributedConnection
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(dataType.Data, dataType.Offset, dataType.ContentLength, Instance.Warehouse, 2);
 
-        var rid = (uint)args[0];
+        var rid =Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         Fetch(rid, null).Then(r =>
         {
             var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
-            if (pt != null)
+            if (pt == null)
                 return;
 
-            var item = new AsyncReply<DistributedResourceQueueItem>();
-            queue.Add(item);
 
             var (_, parsed) = Codec.ParseAsync(dataType.Data, valueOffset, this, null);
 
             if (parsed is AsyncReply)
             {
+                var item = new AsyncReply<DistributedResourceQueueItem>();
+                queue.Add(item);
+
                 (parsed as AsyncReply).Then((result) =>
                 {
                     item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
@@ -470,9 +476,13 @@ partial class DistributedConnection
             }
             else
             {
-                item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
+                queue.Add(new AsyncReply<DistributedResourceQueueItem>(new DistributedResourceQueueItem((DistributedResource)r,
                                                 DistributedResourceQueueItem.DistributedResourceQueueItemType.Propery,
-                                                parsed, index));
+                                                parsed, index)));
+
+                //item.Trigger(new DistributedResourceQueueItem((DistributedResource)r,
+                //                                DistributedResourceQueueItem.DistributedResourceQueueItemType.Propery,
+                //                                parsed, index));
             }
         });
     }

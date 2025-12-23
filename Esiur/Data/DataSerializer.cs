@@ -388,6 +388,14 @@ public static class DataSerializer
         return new TDU(TDUIdentifier.String, b, (uint)b.Length);
     }
 
+    public static TDU ResourceLinkComposer(object value, Warehouse warehouse, DistributedConnection connection)
+    {
+        var b = Encoding.UTF8.GetBytes((ResourceLink)value);
+
+        return new TDU(TDUIdentifier.ResourceLink, b, (uint)b.Length);
+    }
+
+
     public static TDU EnumComposer(object value, Warehouse warehouse, DistributedConnection connection)
     {
         if (value == null)

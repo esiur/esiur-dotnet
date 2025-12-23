@@ -229,12 +229,12 @@ $@" public partial class {ci.Name} : IResource {{
                 if (tmp.Type == TemplateType.Resource)
                 {
                     var source = TemplateGenerator.GenerateClass(tmp, templates, false);
-                    spc.AddSource(tmp.ClassName + ".Generated.cs", source);
+                    spc.AddSource(tmp.ClassName + ".g.cs", source);
                 }
                 else if (tmp.Type == TemplateType.Record)
                 {
                     var source = TemplateGenerator.GenerateRecord(tmp, templates);
-                    spc.AddSource(tmp.ClassName + ".Generated.cs", source);
+                    spc.AddSource(tmp.ClassName + ".g.cs", source);
                 }
             }
 
@@ -246,7 +246,7 @@ $@" public partial class {ci.Name} : IResource {{
 
                             "\r\n } \r\n}";
 
-            spc.AddSource("Esiur.Generated.cs", typesFile);
+            spc.AddSource("Esiur.g.cs", typesFile);
         }
 
         private static void Report(SourceProductionContext ctx, string title, string message, DiagnosticSeverity severity)

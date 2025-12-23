@@ -39,6 +39,8 @@ namespace Esiur.Core;
 public class AsyncReply
 {
 
+    public DateTime ReadyTime;
+
     protected List<Action<object>> callbacks = new List<Action<object>>();
     protected object result;
 
@@ -238,6 +240,8 @@ public class AsyncReply
     {
         lock (asyncLock)
         {
+            ReadyTime = DateTime.Now;
+
             //timeout?.Dispose();
 
             if (exception != null)
@@ -362,6 +366,9 @@ public class AsyncReply
     public AsyncReply(object result)
     {
         //   this.Debug = true;
+
+        ReadyTime = DateTime.Now;
+
         resultReady = true;
         this.result = result;
 

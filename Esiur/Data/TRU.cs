@@ -295,10 +295,14 @@ namespace Esiur.Data
                 return new TRU(TRUIdentifier.Resource, nullable);
             }
             else if (type == typeof(IRecord) || type == typeof(Record))
+            {
                 return new TRU(TRUIdentifier.Record, nullable);
+            }
             else if (type == typeof(Map<object, object>)
-                || type == typeof(Dictionary<object, object>))
+                || type == typeof(Dictionary<object, object>)) 
+            { 
                 return new TRU(TRUIdentifier.Map, nullable);
+            }
             else if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
                 tru = new TRU(
@@ -306,10 +310,6 @@ namespace Esiur.Data
                    nullable,
                    TypeTemplate.GetTypeUUID(type)
                 );
-
-                //_cache.Add(type, tru);
-
-                //return tru;
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
@@ -318,14 +318,11 @@ namespace Esiur.Data
                    nullable,
                    TypeTemplate.GetTypeUUID(type)
                 );
-
-                //_cache.Add(type, tru);
-
-                //return tru;
             }
             else if (type.IsGenericType)
             {
                 var genericType = type.GetGenericTypeDefinition();
+
                 if (genericType == typeof(List<>)
                     || genericType == typeof(VarList<>)
                     || genericType == typeof(IList<>))
@@ -365,10 +362,16 @@ namespace Esiur.Data
                         if (subType2 == null)
                             return null;
 
-                         tru = new TRU(TRUIdentifier.TypedMap, nullable, null,
-                            new TRU[] { subType1, subType2 });
+                        tru = new TRU(TRUIdentifier.TypedMap, nullable, null,
+                           new TRU[] { subType1, subType2 });
 
                     }
+                }
+                else if (genericType == typeof(ResourceLink<>))
+                {
+                    var args = type.GetGenericArguments();
+
+                    return FromType(args[0]);
                 }
                 else if (genericType == typeof(ValueTuple<,>))
                 {
@@ -518,6 +521,7 @@ namespace Esiur.Data
                 _ when type == typeof(decimal) => new TRU(TRUIdentifier.Decimal, nullable),
                 _ when type == typeof(string) => new TRU(TRUIdentifier.String, nullable),
                 _ when type == typeof(DateTime) => new TRU(TRUIdentifier.DateTime, nullable),
+                _ when type == typeof(ResourceLink) => new TRU(TRUIdentifier.Resource, nullable),
                 _ => null
             };
 

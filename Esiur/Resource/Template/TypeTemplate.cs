@@ -38,6 +38,11 @@ public class TypeTemplate
     TemplateType templateType;
 
 
+    public override string ToString()
+    {
+        return className;
+    }
+
     // protected TemplateType
     //bool isReady;
 
@@ -191,7 +196,9 @@ public class TypeTemplate
             var genericTypeArgs = type.GetGenericArguments();
 
             if (genericType == typeof(List<>)
-                || genericType == typeof(PropertyContext<>))
+                || genericType == typeof(PropertyContext<>)
+                || genericType == typeof(AsyncReply<>)
+                || genericType == typeof(ResourceLink<>))
             {
                 return GetDistributedTypes(genericTypeArgs[0]);
             }

@@ -209,7 +209,7 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
     {
         get
         {
-            return sock.State == SocketState.Established;
+            return sock == null ? false : sock.State == SocketState.Established;
         }
     }
 

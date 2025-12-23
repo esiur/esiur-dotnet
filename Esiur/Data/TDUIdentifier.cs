@@ -46,9 +46,9 @@ namespace Esiur.Data
         List = 0x42,
         ResourceList = 0x43,
         RecordList = 0x44,
-        Map = 0x45,
-        MapList = 0x46,
-        ResourceLink = 0x47,
+        ResourceLink = 0x45,
+        Map = 0x46,
+        MapList = 0x47,
 
         Record = 0x80,
         TypedList = 0x81,

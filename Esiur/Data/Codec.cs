@@ -95,6 +95,7 @@ public static class Codec
         DataDeserializer.ListParserAsync,
         DataDeserializer.ResourceListParserAsync,
         DataDeserializer.RecordListParserAsync,
+        DataDeserializer.ResourceLinkParserAsync,
     };
 
     static AsyncParser[] TypedAsyncParsers = new AsyncParser[]
@@ -163,6 +164,8 @@ public static class Codec
         DataDeserializer.ListParser,
         DataDeserializer.ResourceListParser,
         DataDeserializer.RecordListParser,
+        DataDeserializer.ResourceLinkParser,
+        // @TODO: Map and MapList parsers to be added
     };
 
     static SyncParser[] TypedParsers = new SyncParser[]
@@ -343,6 +346,7 @@ public static class Codec
         [typeof(List<byte>)] = DataSerializer.RawDataComposerFromList,
         //[typeof(List<byte?>)] = DataSerializer.RawDataComposerFromList,
         [typeof(string)] = DataSerializer.StringComposer,
+        [typeof(ResourceLink)] = DataSerializer.ResourceLinkComposer,
         [typeof(UUID)] = DataSerializer.UUIDComposer,
         // Special
         [typeof(object[])] = DataSerializer.ListComposer,

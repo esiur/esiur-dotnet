@@ -30,9 +30,29 @@ using System.Threading.Tasks;
 
 namespace Esiur.Core;
 
+public struct AsyncQueueItem<T>
+{
+    public AsyncReply<T> Reply;
+    public int Sequence;
+    public DateTime Arrival;
+    public DateTime Delivered;
+    public DateTime Ready;
+    public int BatchSize;
+    public int FlushId;
+    public int NotificationsCountWaitingInTheQueueAtEnqueueing;
+    public bool HasResource;
+}
+
+
 public class AsyncQueue<T> : AsyncReply<T>
 {
-    List<AsyncReply<T>> list = new List<AsyncReply<T>>();
+
+    int currentId = 0;
+    int currentFlushId;
+
+    public List<AsyncQueueItem<T>> Processed = new();
+
+    List<AsyncQueueItem<T>> list = new List<AsyncQueueItem<T>>();
     //Action<T> callback;
     object queueLock = new object();
 
@@ -46,32 +66,76 @@ public class AsyncQueue<T> : AsyncReply<T>
     public void Add(AsyncReply<T> reply)
     {
         lock (queueLock)
-            list.Add(reply);
+        {
+            currentId++;
+            list.Add(new AsyncQueueItem<T>()
+            {
+                Sequence = currentId,
+                NotificationsCountWaitingInTheQueueAtEnqueueing = list.Count,
+                Reply = reply,
+                Arrival = DateTime.Now,
+                HasResource = !reply.Ready
+            });
+        }
 
         resultReady = false;
-        reply.Then(processQueue);
+        if (reply.Ready)
+            processQueue(default(T));
+        else
+            reply.Then(processQueue);
     }
 
     public void Remove(AsyncReply<T> reply)
     {
         lock (queueLock)
-            list.Remove(reply);
+        {
+            var item = list.FirstOrDefault(i => i.Reply == reply);
+            list.Remove(item);
+        }
+
         processQueue(default(T));
     }
 
     void processQueue(T o)
     {
         lock (queueLock)
+        {
+            var batchSize = 0;
             for (var i = 0; i < list.Count; i++)
-                if (list[i].Ready)
+            {
+                if (list[i].Reply.Ready)
                 {
-                    Trigger(list[i].Result);
+                    batchSize++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            var flushId = currentFlushId++;
+
+            for (var i = 0; i < list.Count; i++)
+                if (list[i].Reply.Ready)
+                {
+                    Trigger(list[i].Reply.Result);
                     resultReady = false;
+
+                    var p = list[i];
+                    p.Delivered = DateTime.Now;
+                    p.Ready = p.Reply.ReadyTime;
+                    p.BatchSize = batchSize;
+                    p.FlushId = flushId;
+                    //p.HasResource = p.Reply. (p.Ready - p.Arrival).TotalMilliseconds > 5;
+                    Processed.Add(p);
+
                     list.RemoveAt(i);
+
                     i--;
                 }
                 else
                     break;
+        }
 
         resultReady = (list.Count == 0);
     }
