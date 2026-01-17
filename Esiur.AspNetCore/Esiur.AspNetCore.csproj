@@ -5,7 +5,7 @@
 		<Copyright>Ahmed Kh. Zamil</Copyright>
 		<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<Version>1.0.0</Version>
+		<Version>1.0.1</Version>
 		<Authors>Ahmed Kh. Zamil</Authors>
 		<Company>Esiur Foundation</Company>
 
@@ -29,7 +29,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Esiur\Esiur.csproj" />
-		<None Include="README.md" Pack="true" PackagePath="\"/>
+		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>

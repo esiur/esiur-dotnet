@@ -1,6 +1,6 @@
 # Esiur
 
-Esiur is a distributed object and resource library that facilitates real-time property modification, asynchronous function invocation, and event handling across different languages, primarily in C#, JavaScript, and Dart. It’s designed for flexible, scalable, and efficient communication between client and server, suitable for applications that need rapid, bidirectional data updates and complex data handling.
+Esiur is a distributed object and resource library that facilitates real-time property modification, asynchronous function invocation, and event handling across different languages, primarily in C#, JavaScript, and Dart. It's designed for flexible, scalable, and efficient communication between client and server, suitable for applications that need rapid, bidirectional data updates and complex data handling.
 
 ## Key Features
 ### Real-Time Property Modification:
