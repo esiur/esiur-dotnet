@@ -76,6 +76,10 @@ public class PropertyTemplate : MemberTemplate
         set;
     }*/
 
+    public override string ToString()
+    {
+        return $"{Name}: {ValueType}";
+    }
 
     public override byte[] Compose()
     {

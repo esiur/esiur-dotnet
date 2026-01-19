@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Esiur.Resource.Template;
+
 public class AttributeTemplate : MemberTemplate
 {
     public PropertyInfo PropertyInfo

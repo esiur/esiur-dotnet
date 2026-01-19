@@ -13,7 +13,7 @@ namespace Esiur.Resource.Template;
 public class FunctionTemplate : MemberTemplate
 {
 
-    public string Annotation
+    public Map<string, string> Annotations
     {
         get;
         set;
@@ -53,9 +53,9 @@ public class FunctionTemplate : MemberTemplate
             bl.AddUInt8Array(Arguments[i].Compose());
 
 
-        if (Annotation != null)
+        if (Annotations != null)
         {
-            var exp = DC.ToBytes(Annotation);
+            var exp = Codec.Compose(Annotations, null, null);// DC.ToBytes(Annotation);
             bl.AddInt32(exp.Length)
             .AddUInt8Array(exp);
             bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x90 : (byte)0x10) | (IsStatic ? 0x4 : 0)));
@@ -66,12 +66,12 @@ public class FunctionTemplate : MemberTemplate
         return bl.ToArray();
     }
 
-    public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, string annotation = null)
+    public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, Map<string, string> annotations = null)
        : base(template, index, name, inherited)
     {
         this.Arguments = arguments;
         this.ReturnType = returnType;
-        this.Annotation = annotation;
+        this.Annotations = annotations;
         this.IsStatic = isStatic;
     }
 
@@ -105,7 +105,7 @@ public class FunctionTemplate : MemberTemplate
         if (rtType == null)
             throw new Exception($"Unsupported type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}` return");
 
-        var annotationAttr = mi.GetCustomAttribute<AnnotationAttribute>(true);
+        var annotationAttrs = mi.GetCustomAttributes<AnnotationAttribute>(true);
 
         //var nullabilityInfoContext = new NullabilityInfoContext();
         //rtType.Nullable = nullabilityInfoContext.Create(mi.ReturnParameter).WriteState is NullabilityState.Nullable;
@@ -174,16 +174,12 @@ public class FunctionTemplate : MemberTemplate
             if (argType == null)
                 throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");
 
-            //argType.Nullable = nullabilityInfoContext.Create(x).WriteState is NullabilityState.Nullable;
 
-            //var argNullableAttr = x.GetCustomAttribute<NullableAttribute>(true);
-            //var argNullableContextAttr = x.GetCustomAttribute<NullableContextAttribute>(true) ?? nullableContextAttr;
+            var argAnnotationAttrs = x.GetCustomAttributes<AnnotationAttribute>(true);
+
 
             var argNullableAttr = x.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableAttribute");
             var argNullableContextAttr = x.GetCustomAttributes(true).FirstOrDefault(x => x.GetType().FullName == "System.Runtime.CompilerServices.NullableContextAttr");
-
-            //var argFlags = argNullableAttr?.Flags?.ToList() ?? new List<byte>();
-            //var argFlags = ((byte[])argNullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
             var argNullableAttrFlags = (argNullableAttr?.GetType().GetField("NullableFlags")?.GetValue(argNullableAttr) as byte[] ?? new byte[0]).ToList();
             var argNullableContextAttrFlag = (byte)(argNullableAttr?.GetType().GetField("Flag")?.GetValue(argNullableAttr) ?? (byte)0);
@@ -203,12 +199,22 @@ public class FunctionTemplate : MemberTemplate
                     argType.SetNull(argNullableAttrFlags);
             }
 
+            Map<string, string> argAnn = null;
+
+            if (argAnnotationAttrs != null && argAnnotationAttrs.Count() > 0)
+            {
+                argAnn = new Map<string, string>();
+                foreach (var attr in argAnnotationAttrs)
+                    argAnn.Add(attr.Key, attr.Value);
+            }
+
             return new ArgumentTemplate()
             {
                 Name = x.Name,
                 Type = argType,
                 ParameterInfo = x,
-                Optional = x.IsOptional
+                Optional = x.IsOptional,
+                Annotations = argAnn
             };
         })
         .ToArray();
@@ -219,15 +225,33 @@ public class FunctionTemplate : MemberTemplate
             mi.IsStatic,
             arguments, rtType);
 
-        if (annotationAttr != null)
-            ft.Annotation = annotationAttr.Annotation;
+
+        if (annotationAttrs != null && annotationAttrs.Count() > 0)
+        {
+            ft.Annotations = new Map<string, string>();
+            foreach (var attr in annotationAttrs)
+                ft.Annotations.Add(attr.Key, attr.Value);
+        }
         else
-            ft.Annotation = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+        {
+            ft.Annotations = new Map<string, string>();
+            ft.Annotations.Add(null, "(" + String.Join(",", 
+                mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection))
+                .Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name);
+
+        }
 
         ft.MethodInfo = mi;
         //    functions.Add(ft);
 
         return ft;
+    }
+
+    public override string ToString()
+    {
+        //return = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+
+        return $"{ReturnType} {Name}({string.Join(", ", Arguments.Select(a => a.ToString()))})";
     }
 
 }

@@ -10,16 +10,16 @@ namespace Esiur.Resource.Template;
 public class ConstantTemplate : MemberTemplate
 {
     public readonly object Value;
-    //public readonly byte[] ValueData;
-    public readonly string Annotation;
+
+    public Map<string, string> Annotations;
     public readonly TRU ValueType;
 
     public  FieldInfo FieldInfo { get; set; }
 
-    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU valueType, object value, string annotation)
+    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU valueType, object value, Map<string, string> annotations)
         : base(template, index, name, inherited)
     {
-        Annotation = annotation;
+        Annotations = annotations;
         ValueType = valueType;
         Value = value;
         //try
@@ -40,9 +40,9 @@ public class ConstantTemplate : MemberTemplate
         var hdr = Inherited ? (byte)0x80 : (byte)0;
 
 
-        if (Annotation != null)
+        if (Annotations != null)
         {
-            var exp = DC.ToBytes(Annotation);
+            var exp = Codec.Compose(Annotations, null, null);//  DC.ToBytes(Annotation);
             hdr |= 0x70;
             return new BinaryList()
                     .AddUInt8(hdr)
@@ -71,7 +71,7 @@ public class ConstantTemplate : MemberTemplate
 
     public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
-        var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
+        var annotationAttrs = ci.GetCustomAttributes<AnnotationAttribute>(true);
 
         var valueType = TRU.FromType(ci.FieldType);
 
@@ -83,7 +83,17 @@ public class ConstantTemplate : MemberTemplate
         if (typeTemplate?.Type == TemplateType.Enum)
             value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
 
-        var ct = new ConstantTemplate(typeTemplate, index, customName ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
+        Map<string, string> annotations = null;
+
+        if (annotationAttrs != null && annotationAttrs.Count() > 0)
+        {
+            annotations = new Map<string, string>();
+            foreach (var attr in annotationAttrs)
+                annotations.Add(attr.Key, attr.Value);
+        }
+
+
+        var ct = new ConstantTemplate(typeTemplate, index, customName ?? ci.Name, ci.DeclaringType != type, valueType, value, annotations);
         ct.FieldInfo = ci;
 
         return ct;

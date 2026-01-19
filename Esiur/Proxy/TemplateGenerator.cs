@@ -11,6 +11,7 @@ using Esiur.Net.IIP;
 using System.Diagnostics;
 
 namespace Esiur.Proxy;
+
 public static class TemplateGenerator
 {
     internal static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
@@ -300,8 +301,13 @@ public static class TemplateGenerator
             var positionalArgs = f.Arguments.Where((x) => !x.Optional).ToArray();
             var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
 
-            if (f.Annotation != null)
-                rt.AppendLine($"[Annotation({ToLiteral(f.Annotation)})]");
+            if (f.Annotations != null)
+            {
+                foreach (var kv in f.Annotations)
+                {
+                    rt.AppendLine($"[Annotation({ToLiteral(kv.Key)}, {ToLiteral(kv.Value)})]");
+                }
+            }
 
             if (f.IsStatic)
             {

@@ -9,12 +9,18 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Esiur.Resource.Template;
+
 public class EventTemplate : MemberTemplate
 {
-    public string Annotation
+    public Map<string, string> Annotations
     {
         get;
         set;
+    }
+
+    public override string ToString()
+    {
+        return $"{Name}: {ArgumentType}";
     }
 
     public bool Subscribable { get; set; }
@@ -32,9 +38,9 @@ public class EventTemplate : MemberTemplate
         if (Subscribable)
             hdr |= 0x8;
 
-        if (Annotation != null)
+        if (Annotations != null)
         {
-            var exp = DC.ToBytes(Annotation);
+            var exp = Codec.Compose(Annotations, null, null); //(  DC.ToBytes(Annotation);
             hdr |= 0x50;
             return new BinaryList()
                     .AddUInt8(hdr)
@@ -47,6 +53,7 @@ public class EventTemplate : MemberTemplate
         }
         else
             hdr |= 0x40;
+
         return new BinaryList()
                 .AddUInt8(hdr)
                 .AddUInt8((byte)name.Length)
@@ -55,10 +62,10 @@ public class EventTemplate : MemberTemplate
                 .ToArray();
     }
 
-    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU argumentType, string annotation = null, bool subscribable = false)
+    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU argumentType, Map<string, string> annotations = null, bool subscribable = false)
        : base(template, index, name, inherited)
     {
-        this.Annotation = annotation;
+        this.Annotations = annotations;
         this.Subscribable = subscribable;
         this.ArgumentType = argumentType;
     }
@@ -80,7 +87,7 @@ public class EventTemplate : MemberTemplate
         if (evtType == null)
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
 
-        var annotationAttr = ei.GetCustomAttribute<AnnotationAttribute>(true);
+        var annotationAttrs = ei.GetCustomAttributes<AnnotationAttribute>(true);
         var subscribableAttr = ei.GetCustomAttribute<SubscribableAttribute>(true);
 
         //evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
@@ -117,8 +124,13 @@ public class EventTemplate : MemberTemplate
         var et = new EventTemplate(typeTemplate, index, customName ?? ei.Name, ei.DeclaringType != type, evtType);
         et.EventInfo = ei;
 
-        if (annotationAttr != null)
-            et.Annotation = annotationAttr.Annotation;
+
+        if (annotationAttrs != null && annotationAttrs.Count() > 0)
+        {
+            et.Annotations = new Map<string, string>();
+            foreach (var attr in annotationAttrs)
+                et.Annotations.Add(attr.Key, attr.Value);
+        }
 
         if (subscribableAttr != null)
             et.Subscribable = true;

@@ -4,17 +4,26 @@ using System.Text;
 
 namespace Esiur.Resource;
 
-[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event)]
+[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event, AllowMultiple = true)]
 public class AnnotationAttribute : Attribute
 {
 
-    public string Annotation { get; set; }
+    public readonly string? Key;
+    public readonly string Value;
+
     public AnnotationAttribute(string annotation)
     {
-        this.Annotation = annotation;
+        Key = null;
+        Value = annotation;
     }
-    public AnnotationAttribute(params string[] annotations)
+    public AnnotationAttribute(string key, string value)
     {
-        this.Annotation = String.Join("\n", annotations);
+        Key = key;
+        Value = value;
     }
+
+    //public AnnotationAttribute(params string[] annotations)
+    //{
+    //    this.Annotation = String.Join("\n", annotations);
+    //}
 }
