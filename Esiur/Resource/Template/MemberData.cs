@@ -40,19 +40,19 @@ public class MemberData
         return rt;
     }
 
-    public string? GetAnnotation()
-    {
-        string? rt = null;
-        var md = this;
-        while (md != null)
-        {
-            var annotationAttr = md.Info.GetCustomAttribute<AnnotationAttribute>();
-            if (annotationAttr != null)
-                rt = annotationAttr.Annotation;
-            md = md.Child;
-        }
+    //public string? GetAnnotation()
+    //{
+    //    string? rt = null;
+    //    var md = this;
+    //    while (md != null)
+    //    {
+    //        var annotationAttr = md.Info.GetCustomAttribute<AnnotationAttribute>();
+    //        if (annotationAttr != null)
+    //            rt = annotationAttr.Annotation;
+    //        md = md.Child;
+    //    }
 
-        return rt;
-    }
+    //    return rt;
+    //}
 }
 

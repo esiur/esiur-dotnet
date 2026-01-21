@@ -25,10 +25,9 @@ public class TypeTemplate
     protected UUID classId;
     protected UUID? parentId;
 
-    public string Annotation { get; set; }
+    public Map<string, string> Annotations { get; set; }
 
     string className;
-    List<MemberTemplate> members = new List<MemberTemplate>();
     List<FunctionTemplate> functions = new List<FunctionTemplate>();
     List<EventTemplate> events = new List<EventTemplate>();
     List<PropertyTemplate> properties = new List<PropertyTemplate>();
@@ -137,10 +136,10 @@ public class TypeTemplate
         get { return className; }
     }
 
-    public MemberTemplate[] Methods
-    {
-        get { return members.ToArray(); }
-    }
+    //public MemberTemplate[] Methods
+    //{
+    //    get { return members.ToArray(); }
+    //}
 
     public FunctionTemplate[] Functions
     {
@@ -383,34 +382,12 @@ public class TypeTemplate
 
 
 
-    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, ExportAttribute exportAttr, byte index = 0, TypeTemplate typeTemplate = null)
-    {
-        var annotationAttr = ci.GetCustomAttribute<AnnotationAttribute>(true);
-
-        var valueType = TRU.FromType(ci.FieldType);
-
-        if (valueType == null)
-            throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");
-
-        var value = ci.GetValue(null);
-
-        if (typeTemplate.Type == TemplateType.Enum)
-            value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
-
-        var ct = new ConstantTemplate(typeTemplate, index, exportAttr?.Name ?? ci.Name, ci.DeclaringType != type, valueType, value, annotationAttr?.Annotation);
-
-        return ct;
-
-    }
+ 
 
     public bool IsWrapper { get; private set; }
 
     public TypeTemplate(Type type, Warehouse warehouse = null)
     {
-
-        //if (!type.IsPublic)
-        //    throw new Exception("Not public");
-
         if (Codec.ImplementsInterface(type, typeof(IResource)))
             templateType = TemplateType.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
@@ -421,12 +398,6 @@ public class TypeTemplate
             throw new Exception("Type must implement IResource, IRecord or inherit from DistributedResource.");
 
         IsWrapper = Codec.InheritsClass(type, typeof(DistributedResource));
-
-        //if (isRecord && isResource)
-        //  throw new Exception("Type can't have both IResource and IRecord interfaces");
-
-        //if (!(isResource || isRecord))
-        //  throw new Exception("Type is neither a resource nor a record.");
 
         type = ResourceProxy.GetBaseType(type);
 
@@ -439,17 +410,6 @@ public class TypeTemplate
 
         if (warehouse != null)
             warehouse.PutTemplate(this);
-
-
-
-        //PropertyInfo[] propsInfo = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        //EventInfo[] eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);
-        //MethodInfo[] methodsInfo = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-        //FieldInfo[] constantsInfo = type.GetFields(BindingFlags.Public | BindingFlags.Static);
-
-
-        //bool classIsPublic = type.IsEnum || (type.GetCustomAttribute<PublicAttribute>() != null);
-
 
         var hierarchy = GetHierarchy(type);
 
@@ -505,19 +465,6 @@ public class TypeTemplate
                 .MakeAttributeTemplate(type, attr, 0, attrAttr?.Name ?? attr.Name, this));
         }
 
-        // append signals)
-        for (var i = 0; i < events.Count; i++)
-            members.Add(events[i]);
-        // append slots
-        for (var i = 0; i < functions.Count; i++)
-            members.Add(functions[i]);
-        // append properties
-        for (var i = 0; i < properties.Count; i++)
-            members.Add(properties[i]);
-
-        // append constants
-        for (var i = 0; i < constants.Count; i++)
-            members.Add(constants[i]);
 
         // bake it binarily
         var b = new BinaryList();
@@ -526,8 +473,10 @@ public class TypeTemplate
 
 
         var hasParent = HasParent(type);
-        var classAnnotation = type.GetCustomAttribute<AnnotationAttribute>(false);
-        var hasClassAnnotation = classAnnotation != null && classAnnotation.Annotation != null;
+        var classAnnotations = type.GetCustomAttributes<AnnotationAttribute>(false);
+
+
+        var hasClassAnnotation = (classAnnotations != null) && (classAnnotations.Count() > 0);
 
         var classNameBytes = DC.ToBytes(className);
 
@@ -546,15 +495,19 @@ public class TypeTemplate
 
         if (hasClassAnnotation)
         {
-            var classAnnotationBytes = DC.ToBytes(classAnnotation.Annotation);
-            b.AddUInt16((ushort)classAnnotationBytes.Length)
-             .AddUInt8Array(classAnnotationBytes);
+            Annotations = new Map<string, string>();
 
-            Annotation = classAnnotation.Annotation;
+            foreach (var ann in classAnnotations)
+                Annotations.Add(ann.Key, ann.Value);
+
+            var classAnnotationBytes = Codec.Compose (Annotations, null, null);
+
+             b.AddUInt8Array(classAnnotationBytes);
+
         }
 
         b.AddInt32(version)
-         .AddUInt16((ushort)members.Count);
+         .AddUInt16((ushort)(functions.Count + properties.Count + events.Count + constants.Count));
 
         foreach (var ft in functions)
             b.AddUInt8Array(ft.Compose());
@@ -758,9 +711,11 @@ public class TypeTemplate
 
         if (hasClassAnnotation)
         {
-            var len = data.GetUInt16(offset, Endian.Little);
-            offset += 2;
-            od.Annotation = data.GetString(offset, len);
+            var (len, anns) = Codec.ParseSync(data, offset, null);
+
+            if (anns is Map<string, string> annotations)
+                od.Annotations = annotations;
+
             offset += len;
         }
 
@@ -781,150 +736,31 @@ public class TypeTemplate
 
             if (type == 0) // function
             {
-                string annotation = null;
-                var isStatic = ((data[offset] & 0x4) == 0x4);
-
-
-                var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
-
-                var name = data.GetString(offset + 1, data[offset]);
-                offset += (uint)data[offset] + 1;
-
-                // return type
-                var (rts, returnType) = TRU.Parse(data, offset);
-                offset += rts;
-
-                // arguments count
-                var argsCount = data[offset++];
-                List<ArgumentTemplate> arguments = new();
-
-                for (var a = 0; a < argsCount; a++)
-                {
-                    var (cs, argType) = ArgumentTemplate.Parse(data, offset, a);
-                    arguments.Add(argType);
-                    offset += cs;
-                }
-
-                // arguments
-                if (hasAnnotation) // Annotation ?
-                {
-                    var cs = data.GetUInt32(offset, Endian.Little);
-                    offset += 4;
-                    annotation = data.GetString(offset, cs);
-                    offset += cs;
-                }
-
-                var ft = new FunctionTemplate(od, functionIndex++, name, inherited, isStatic, arguments.ToArray(), returnType, annotation);
-
+                var (len, ft) = FunctionTemplate.Parse(data, offset, functionIndex++, inherited);
+                offset += len;
                 od.functions.Add(ft);
             }
             else if (type == 1)    // property
             {
-
-                string readAnnotation = null, writeAnnotation = null;
-
-                var hasReadAnnotation = ((data[offset] & 0x8) == 0x8);
-                var hasWriteAnnotation = ((data[offset] & 0x10) == 0x10);
-                var recordable = ((data[offset] & 1) == 1);
-                var permission = (PropertyTemplate.PropertyPermission)((data[offset++] >> 1) & 0x3);
-                var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, data[offset]);
-
-                offset += (uint)data[offset] + 1;
-
-                var (dts, valueType) = TRU.Parse(data, offset);
-
-                offset += dts;
-
-                if (hasReadAnnotation) // annotation ?
-                {
-                    var cs = data.GetUInt32(offset, Endian.Little);
-                    offset += 4;
-                    readAnnotation = data.GetString(offset, cs);
-                    offset += cs;
-                }
-
-                if (hasWriteAnnotation) // annotation ?
-                {
-                    var cs = data.GetUInt32(offset, Endian.Little);
-                    offset += 4;
-                    writeAnnotation = data.GetString(offset, cs);
-                    offset += cs;
-                }
-
-                var pt = new PropertyTemplate(od, propertyIndex++, name, inherited, valueType, readAnnotation, writeAnnotation, recordable);
-
+                var (len, pt) = PropertyTemplate.Parse(data, offset, propertyIndex++, inherited);
+                offset += len;
                 od.properties.Add(pt);
+
             }
             else if (type == 2) // Event
             {
-
-                string annotation = null;
-                var hasAnnotation = ((data[offset] & 0x10) == 0x10);
-                var listenable = ((data[offset++] & 0x8) == 0x8);
-
-                var name = data.GetString(offset + 1, data[offset]);// Encoding.ASCII.GetString(data, (int)offset + 1, (int)data[offset]);
-                offset += (uint)data[offset] + 1;
-
-                var (dts, argType) = TRU.Parse(data, offset);
-
-                offset += dts;
-
-                if (hasAnnotation) // annotation ?
-                {
-                    var cs = data.GetUInt32(offset, Endian.Little);
-                    offset += 4;
-                    annotation = data.GetString(offset, cs);
-                    offset += cs;
-                }
-
-                var et = new EventTemplate(od, eventIndex++, name, inherited, argType, annotation, listenable);
-
+                var (len, et) = EventTemplate.Parse(data, offset, propertyIndex++, inherited);
+                offset += len;
                 od.events.Add(et);
-
             }
             // constant
             else if (type == 3)
             {
-                string annotation = null;
-                var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
-
-                var name = data.GetString(offset + 1, data[offset]);
-                offset += (uint)data[offset] + 1;
-
-                var (dts, valueType) = TRU.Parse(data, offset);
-
-                offset += dts;
-
-                (dts, var value) = Codec.ParseSync(data, offset, Warehouse.Default);
-
-                offset += dts;
-
-                if (hasAnnotation) // annotation ?
-                {
-                    var cs = data.GetUInt32(offset, Endian.Little);
-                    offset += 4;
-                    annotation = data.GetString(offset, cs);
-                    offset += cs;
-                }
-
-                var ct = new ConstantTemplate(od, eventIndex++, name, inherited, valueType, value, annotation);
-
+                var (len, ct) = ConstantTemplate.Parse(data, offset, propertyIndex++, inherited);
+                offset += len;
                 od.constants.Add(ct);
             }
         }
-
-        // append signals
-        for (int i = 0; i < od.events.Count; i++)
-            od.members.Add(od.events[i]);
-        // append slots
-        for (int i = 0; i < od.functions.Count; i++)
-            od.members.Add(od.functions[i]);
-        // append properties
-        for (int i = 0; i < od.properties.Count; i++)
-            od.members.Add(od.properties[i]);
-        // append constants
-        for (int i = 0; i < od.constants.Count; i++)
-            od.members.Add(od.constants[i]);
 
         return od;
     }

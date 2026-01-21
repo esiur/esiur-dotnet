@@ -116,58 +116,6 @@ public class Instance
         }
 
         return rt;
-
-
-
-        /*
-        var st = new Structure();
-
-        if (attributes == null)
-        {
-            var clone = this.attributes.Keys.ToList();
-            clone.Add("managers");
-            attributes = clone.ToArray();// this.attributes.Keys.ToList().Add("managers");
-        }
-
-        foreach (var attr in attributes)
-        {
-            if (attr == "name")
-                st["name"] = this.name;
-            else if (attr == "managers")
-            {
-                var mngrs = new List<Structure>();
-
-                foreach (var manager in this.managers)
-                    mngrs.Add(new Structure()
-                    {
-                        ["type"] = manager.GetType().FullName + "," + manager.GetType().GetTypeInfo().Assembly.GetName().Name,
-                        ["settings"] = manager.Settings
-                    });
-
-                st["managers"] = mngrs.ToArray();
-            }
-            else if (attr == "parents")
-            {
-                //st["parents"] = parents.ToArray();
-            }
-            else if (attr == "children")
-            {
-                //st["children"] = children.ToArray();
-            }
-            else if (attr == "childrenCount")
-            {
-                //st["childrenCount"] = children.Count;
-            }
-            else if (attr == "type")
-            {
-                st["type"] = resource.GetType().FullName;
-            }
-            else
-                st[attr] = this.attributes[attr];
-        }
-
-        return st;
-        */
     }
 
     public bool SetAttributes(Map<string, object> attributes, bool clearAttributes = false)
@@ -454,17 +402,21 @@ public class Instance
     /// <returns></returns>
     public PropertyValue[] Serialize()
     {
+        IResource res;
+
+        if (!resource.TryGetTarget(out res))
+            throw new Exception("Resource no longer available.");
+
+
+        if (res is IDynamicResource dynamicResource)
+            return dynamicResource.SerializeResource();
+
         var props = new List<PropertyValue>();
 
         foreach (var pt in template.Properties)
         {
-            IResource res;
-
-            if (resource.TryGetTarget(out res))
-            {
-                var rt = pt.PropertyInfo.GetValue(res, null);
-                props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
-            }
+            var rt = pt.PropertyInfo.GetValue(res, null);
+            props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
         }
 
         return props.ToArray();
@@ -476,93 +428,31 @@ public class Instance
     /// <returns></returns>
     public Map<byte, PropertyValue> SerializeAfter(ulong age = 0)
     {
+        IResource res;
+
+        if (!resource.TryGetTarget(out res))
+            throw new Exception("Resource no longer available.");
+
+        if (res is IDynamicResource dynamicResource)
+            return dynamicResource.SerializeResourceAfter(age);
+
         var props = new Map<byte, PropertyValue>();
 
         foreach (var pt in template.Properties)
         {
-            IResource res;
-            if (resource.TryGetTarget(out res))
+            if (res.Instance.GetAge(pt.Index) > age)
             {
-                if (res.Instance.GetAge(pt.Index) > age)
-                {
-                    var rt = pt.PropertyInfo.GetValue(res, null);
-                    props.Add(pt.Index,
-                        new PropertyValue(rt, 
-                        ages[pt.Index], 
-                        modificationDates[pt.Index]));
-                }
+                var rt = pt.PropertyInfo.GetValue(res, null);
+                props.Add(pt.Index,
+                    new PropertyValue(rt,
+                    ages[pt.Index],
+                    modificationDates[pt.Index]));
             }
         }
 
         return props;
     }
 
-    /*
-    public bool Deserialize(byte[] data, uint offset, uint length)
-    {
-
-        var props = Codec.ParseValues(data, offset, length);
-        Deserialize(props);
-        return true;
-    }
-    */
-    /*
-    public byte[] Serialize(bool includeLength = false, DistributedConnection sender = null)
-    {
-
-        //var bl = new BinaryList();
-        List<object> props = new List<object>();
-
-        foreach (var pt in template.Properties)
-        {
-
-            var pi = resource.GetType().GetProperty(pt.Name);
-
-            var rt = pi.GetValue(resource, null);
-
-            // this is a cool hack to let the property know the sender
-            if (rt is Func<DistributedConnection, object>)
-                rt = (rt as Func<DistributedConnection, object>)(sender);
-
-            props.Add(rt);
-
-         }
-
-        if (includeLength)
-        {
-            return Codec.Compose(props.ToArray(), false);
-        }
-        else
-        {
-            var rt = Codec.Compose(props.ToArray(), false);
-            return DC.Clip(rt, 4, (uint)(rt.Length - 4));
-        }
-    }
-
-    public byte[] StorageSerialize()
-    {
-
-        var props = new List<object>();
-
-        foreach(var pt in  template.Properties)
-        {
-            if (!pt.Storable)
-               continue;
-
-            var pi = resource.GetType().GetProperty(pt.Name);
-
-            if (!pi.CanWrite)
-                continue;
-
-            var rt = pi.GetValue(resource, null);
-
-            props.Add(rt);
-
-         }
-
-        return Codec.Compose(props.ToArray(), false);
-    }
-    */
 
     /// <summary>
     /// If True, the instance can be stored to disk.
@@ -619,7 +509,7 @@ public class Instance
             return;
 
         object value;
-        if (GetPropertyValue(propertyName, out value))
+        if (TryGetPropertyValue(propertyName, out value))
         {
             var pt = template.GetPropertyTemplateByName(propertyName);
             EmitModification(pt, value);
@@ -675,66 +565,37 @@ public class Instance
     /// <param name="name">Property name</param>
     /// <param name="value">Output value</param>
     /// <returns>True, if the resource has the property.</returns>
-    public bool GetPropertyValue(string name, out object value)
+    public bool TryGetPropertyValue(string name, out object value)
     {
-        /*
-#if NETSTANDARD
-        PropertyInfo pi = resource.GetType().GetTypeInfo().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-
-#else
-        PropertyInfo pi = resource.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-#endif
-*/
-
         var pt = template.GetPropertyTemplateByName(name);
 
-        if (pt != null && pt.PropertyInfo != null)
+        IResource res;
+        if (resource.TryGetTarget(out res))
         {
-            /*
-#if NETSTANDARD
-            object[] ca = pi.GetCustomAttributes(typeof(ResourceProperty), false).ToArray();
-
-#else
-            object[] ca = pi.GetCustomAttributes(typeof(ResourceProperty), false);
-#endif
-
-            if (ca.Length > 0)
+            if (res is IDynamicResource dynamicResource)
             {
-                value = pi.GetValue(resource, null);
-                //if (value is Func<IManager, object>)
-                //  value = (value as Func<IManager, object>)(sender);
+                value = dynamicResource.GetResourceProperty(pt.Index);
                 return true;
             }
-            */
-
-            IResource res;
-            if (resource.TryGetTarget(out res))
-                value = pt.PropertyInfo.GetValue(res, null);
-            else
+            else if (pt != null && pt.PropertyInfo != null)
             {
-                value = null;
-                return false;
+                value = pt.PropertyInfo.GetValue(res, null);
+                return true;
             }
-
-            return true;
-
         }
 
         value = null;
         return false;
     }
 
-
-    /*
-    public bool Inherit
+    public object GetPropertyValueOrDefault(string name, object defaultValue = null)
     {
-        get { return inherit; }
-    }*/
-
-    /// <summary>
-    /// List of parents.
-    /// </summary>
-    //public AutoList<IResource, Instance> Parents => parents;
+        object value;
+        if (TryGetPropertyValue(name, out value))
+            return value;
+        else
+            return defaultValue;
+    }
 
     /// <summary>
     /// Store responsible for creating and keeping the resource.
@@ -745,11 +606,6 @@ public class Instance
     }
 
     public bool IsDestroyed { get; private set; }
-
-    /// <summary>
-    /// List of children.
-    /// </summary>
-    // public AutoList<IResource, Instance> Children => children;
 
     /// <summary>
     /// The unique and permanent link to the resource.
@@ -793,35 +649,6 @@ public class Instance
             return new AsyncBag<T>(default(T[]));
     }
 
-    /*
-    {
-        get
-        {
-            if (this.store != null)
-                return this.store.Link(this.resource);
-            else
-            {
-                var l = new List<string>();
-                //l.Add(name);
-
-                var p = this.resource; // parents.First();
-
-                while (true)
-                {
-                    l.Insert(0, p.Instance.name);
-
-                    if (p.Instance.parents.Count == 0)
-                        break;
-
-                    p = p.Instance.parents.First();
-                }
-
-                return String.Join("/", l.ToArray());
-            }
-        }
-    }
-    *
-    */
 
     /// <summary>
     /// Instance name.
@@ -913,7 +740,7 @@ public class Instance
     /// <param name="name">Name of the instance.</param>
     /// <param name="resource">Resource to manage.</param>
     /// <param name="store">Store responsible for the resource.</param>
-    public Instance(Warehouse warehouse, uint id, string name, IResource resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0)
+    public Instance(Warehouse warehouse, uint id, string name, IResource resource, IStore store, ulong age = 0)
     {
         this.Warehouse = warehouse;
         this.store = store;
@@ -933,10 +760,14 @@ public class Instance
 
         resource.OnDestroy += Resource_OnDestroy;
 
-        if (customTemplate != null)
-            this.template = customTemplate;
+        if (resource is IDynamicResource dynamicResource)
+        {
+            this.template = dynamicResource.ResourceTemplate;
+        }
         else
+        {
             this.template = Warehouse.GetTemplateByType(resource.GetType());
+        }
 
         // set ages
         for (byte i = 0; i < template.Properties.Length; i++)
@@ -1019,34 +850,6 @@ public class Instance
 
         }
     }
-
-
-    //IQueryable<IResource> Children => store.GetChildren(this);
-
-
-    /*
-     *         private void Children_OnRemoved(Instance parent, IResource value)
-    {
-        value.Instance.parents.Remove(resource);
-    }
-
-    private void Children_OnAdd(Instance parent, IResource value)
-    {
-        if (!value.Instance.parents.Contains(resource))
-            value.Instance.parents.Add(resource);
-    }
-
-    private void Parents_OnRemoved(Instance parent, IResource value)
-    {
-        value.Instance.children.Remove(resource);
-    }
-
-    private void Parents_OnAdd(Instance parent, IResource value)
-    {
-        if (!value.Instance.children.Contains(resource))
-            value.Instance.children.Add(resource);
-    }
-    */
 
     private void Resource_OnDestroy(object sender)
     {

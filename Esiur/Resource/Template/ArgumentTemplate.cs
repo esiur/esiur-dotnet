@@ -30,20 +30,30 @@ public class ArgumentTemplate
         offset += cs;
         var (size, type) = TRU.Parse(data, offset);
 
+        offset += size;
 
         Map<string, string> annotations = null;
 
         if (hasAnnotations)
         {
-            var acs = data.GetUInt32(offset, Endian.Little);
-            offset += 2;
+            //var acs = data.GetUInt32(offset, Endian.Little);
+            //offset += 2;
             var (l, a) = Codec.ParseSync(data, offset, null);
             // for saftey, Map<string, string> might change in the future
             if (a is Map<string, string> ann)
                 annotations = ann;
+
+            cs += l;
         }
 
-        return (cs + 2 + size, new ArgumentTemplate(name, index, type, optional, annotations));
+        return (cs + 2 + size, new ArgumentTemplate()
+        {
+            Name = name,
+            Index = index,
+            Type = type,
+            Optional = optional,
+            Annotations = annotations
+        });
     }
 
     public ArgumentTemplate()
@@ -51,15 +61,7 @@ public class ArgumentTemplate
 
     }
 
-    public ArgumentTemplate(string name, int index, TRU type, bool optional, Map<string, string> annotations)
-    {
-        Name = name;
-        Index = index;
-        Type = type;
-        Optional = optional;
-        Annotations = annotations;
-    }
-
+  
     public override string ToString()
     {
         if (Optional)
@@ -90,10 +92,8 @@ public class ArgumentTemplate
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
                     .AddUInt8Array(Type.Compose())
-                    .AddUInt32((ushort)exp.Length)
                     .AddUInt8Array(exp)
                     .ToArray();
-
         }
     }
 }

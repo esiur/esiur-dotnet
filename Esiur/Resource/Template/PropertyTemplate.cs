@@ -9,8 +9,11 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Esiur.Resource.Template;
+
 public class PropertyTemplate : MemberTemplate
 {
+    public Map<string, string> Annotations { get; set; }
+
     public enum PropertyPermission : byte
     {
         Read = 1,
@@ -42,7 +45,7 @@ public class PropertyTemplate : MemberTemplate
         set;
     }
 
-    public bool IsNullable { get; set; }
+    //public bool IsNullable { get; set; }
 
     public bool Recordable
     {
@@ -57,17 +60,17 @@ public class PropertyTemplate : MemberTemplate
         set;
     }*/
 
-    public string ReadAnnotation
-    {
-        get;
-        set;
-    }
+    //public string ReadAnnotation
+    //{
+    //    get;
+    //    set;
+    //}
 
-    public string WriteAnnotation
-    {
-        get;
-        set;
-    }
+    //public string WriteAnnotation
+    //{
+    //    get;
+    //    set;
+    //}
 
     /*
     public bool Storable
@@ -81,50 +84,105 @@ public class PropertyTemplate : MemberTemplate
         return $"{Name}: {ValueType}";
     }
 
-    public override byte[] Compose()
+    public static (uint, PropertyTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
-        var name = base.Compose();
+        var oOffset = offset;
+
+
+
+        var hasAnnotation = ((data[offset] & 0x8) == 0x8);
+        var recordable = ((data[offset] & 1) == 1);
+        var permission = (PropertyTemplate.PropertyPermission)((data[offset++] >> 1) & 0x3);
+        var name = data.GetString(offset + 1, data[offset]);
+
+        offset += (uint)data[offset] + 1;
+
+        var (dts, valueType) = TRU.Parse(data, offset);
+
+        offset += dts;
+
+        Map<string, string> annotations = null;
+
+        // arguments
+        if (hasAnnotation) // Annotation ?
+        {
+            var (len, anns) = Codec.ParseSync(data, offset, null);
+
+            if (anns is Map<string, string> map)
+                annotations = map;
+
+            offset += len;
+        }
+
+        return (offset - oOffset, new PropertyTemplate()
+        {
+            Index = index,
+            Name = name,
+            Inherited = inherited,
+            Permission = permission,
+            Recordable = recordable,
+            ValueType = valueType,
+            Annotations = annotations
+        });
+
+    }
+
+    public byte[] Compose()
+    {
+        var name = DC.ToBytes(Name);
+
         var pv = ((byte)(Permission) << 1) | (Recordable ? 1 : 0);
 
         if (Inherited)
             pv |= 0x80;
 
-        if (WriteAnnotation != null && ReadAnnotation != null)
+        //if (WriteAnnotation != null && ReadAnnotation != null)
+        //{
+        //    var rexp = DC.ToBytes(ReadAnnotation);
+        //    var wexp = DC.ToBytes(WriteAnnotation);
+        //    return new BinaryList()
+        //        .AddUInt8((byte)(0x38 | pv))
+        //        .AddUInt8((byte)name.Length)
+        //        .AddUInt8Array(name)
+        //        .AddUInt8Array(ValueType.Compose())
+        //        .AddInt32(wexp.Length)
+        //        .AddUInt8Array(wexp)
+        //        .AddInt32(rexp.Length)
+        //        .AddUInt8Array(rexp)
+        //        .ToArray();
+        //}
+        //else if (WriteAnnotation != null)
+        //{
+        //    var wexp = DC.ToBytes(WriteAnnotation);
+        //    return new BinaryList()
+        //        .AddUInt8((byte)(0x30 | pv))
+        //        .AddUInt8((byte)name.Length)
+        //        .AddUInt8Array(name)
+        //        .AddUInt8Array(ValueType.Compose())
+        //        .AddInt32(wexp.Length)
+        //        .AddUInt8Array(wexp)
+        //        .ToArray();
+        //}
+        //else if (ReadAnnotation != null)
+        //{
+        //    var rexp = DC.ToBytes(ReadAnnotation);
+        //    return new BinaryList()
+        //        .AddUInt8((byte)(0x28 | pv))
+        //        .AddUInt8((byte)name.Length)
+        //        .AddUInt8Array(name)
+        //        .AddUInt8Array(ValueType.Compose())
+        //        .AddInt32(rexp.Length)
+        //        .AddUInt8Array(rexp)
+        //        .ToArray();
+        //}
+        if (Annotations != null)
         {
-            var rexp = DC.ToBytes(ReadAnnotation);
-            var wexp = DC.ToBytes(WriteAnnotation);
-            return new BinaryList()
-                .AddUInt8((byte)(0x38 | pv))
-                .AddUInt8((byte)name.Length)
-                .AddUInt8Array(name)
-                .AddUInt8Array(ValueType.Compose())
-                .AddInt32(wexp.Length)
-                .AddUInt8Array(wexp)
-                .AddInt32(rexp.Length)
-                .AddUInt8Array(rexp)
-                .ToArray();
-        }
-        else if (WriteAnnotation != null)
-        {
-            var wexp = DC.ToBytes(WriteAnnotation);
-            return new BinaryList()
-                .AddUInt8((byte)(0x30 | pv))
-                .AddUInt8((byte)name.Length)
-                .AddUInt8Array(name)
-                .AddUInt8Array(ValueType.Compose())
-                .AddInt32(wexp.Length)
-                .AddUInt8Array(wexp)
-                .ToArray();
-        }
-        else if (ReadAnnotation != null)
-        {
-            var rexp = DC.ToBytes(ReadAnnotation);
+            var rexp = Codec.Compose(Annotations, null, null);
             return new BinaryList()
                 .AddUInt8((byte)(0x28 | pv))
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
                 .AddUInt8Array(ValueType.Compose())
-                .AddInt32(rexp.Length)
                 .AddUInt8Array(rexp)
                 .ToArray();
         }
@@ -139,17 +197,17 @@ public class PropertyTemplate : MemberTemplate
         }
     }
 
-    public PropertyTemplate(TypeTemplate template, byte index, string name, bool inherited, 
-        TRU valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
-        : base(template, index, name, inherited)
-    {
-        this.Recordable = recordable;
-        //this.Storage = storage;
-        if (readAnnotation != null)
-            this.ReadAnnotation = readAnnotation;
-        this.WriteAnnotation = writeAnnotation;
-        this.ValueType = valueType;
-    }
+    //public PropertyTemplate(TypeTemplate template, byte index, string name, bool inherited, 
+    //    TRU valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
+    //    : base(template, index, name, inherited)
+    //{
+    //    this.Recordable = recordable;
+    //    //this.Storage = storage;
+    //    if (readAnnotation != null)
+    //        this.ReadAnnotation = readAnnotation;
+    //    this.WriteAnnotation = writeAnnotation;
+    //    this.ValueType = valueType;
+    //}
 
     public static PropertyTemplate MakePropertyTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
@@ -162,7 +220,7 @@ public class PropertyTemplate : MemberTemplate
         if (propType == null)
             throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
 
-        var annotationAttr = pi.GetCustomAttribute<AnnotationAttribute>(true);
+        var annotationAttrs = pi.GetCustomAttributes<AnnotationAttribute>(true);
         var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
 
         //var nullabilityContext = new NullabilityInfoContext();
@@ -196,19 +254,46 @@ public class PropertyTemplate : MemberTemplate
                 propType.SetNull(nullableAttrFlags);
         }
 
-        var pt = new PropertyTemplate(typeTemplate, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
 
-        if (storageAttr != null)
-            pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
+        Map<string, string> annotations = null;
 
-        if (annotationAttr != null)
-            pt.ReadAnnotation = annotationAttr.Annotation;
+        if (annotationAttrs != null && annotationAttrs.Count() > 0)
+        {
+            annotations = new Map<string, string>();
+            foreach (var attr in annotationAttrs)
+                annotations.Add(attr.Key, attr.Value);
+        }
         else
-            pt.ReadAnnotation = GetTypeAnnotationName(pi.PropertyType);
+        {
+            annotations = new Map<string, string>();
+            annotations.Add("", GetTypeAnnotationName(pi.PropertyType));
+        }
 
-        pt.PropertyInfo = pi;
+        return new PropertyTemplate()
+        {
+            Name = customName ?? pi.Name,
+            Index = index,
+            Inherited = pi.DeclaringType != type,
+            ValueType = propType,
+            PropertyInfo = pi,
+            Recordable = storageAttr == null ? false : storageAttr.Mode == StorageMode.Recordable,
+            Permission = (pi.CanWrite && pi.CanRead) ? PropertyPermission.ReadWrite : (pi.CanWrite ? PropertyPermission.Write : PropertyPermission.Read),
+            Annotations = annotations,
+        };
 
-        return pt;
+        //var pt = new PropertyTemplate(typeTemplate, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
+
+        //if (storageAttr != null)
+        //    pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
+
+        //if (annotationAttr != null)
+        //    pt.ReadAnnotation = annotationAttr.Annotation;
+        //else
+        //    pt.ReadAnnotation = GetTypeAnnotationName(pi.PropertyType);
+
+        //pt.PropertyInfo = pi;
+
+        //return pt;
     }
 
 

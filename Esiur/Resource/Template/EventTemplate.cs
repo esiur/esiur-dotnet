@@ -12,6 +12,7 @@ namespace Esiur.Resource.Template;
 
 public class EventTemplate : MemberTemplate
 {
+
     public Map<string, string> Annotations
     {
         get;
@@ -29,9 +30,48 @@ public class EventTemplate : MemberTemplate
 
     public TRU ArgumentType { get; set; }
 
-    public override byte[] Compose()
+
+    public static (uint, EventTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
-        var name = base.Compose();
+        var oOffset = offset;
+
+        var hasAnnotation = ((data[offset] & 0x10) == 0x10);
+        var subscribable = ((data[offset++] & 0x8) == 0x8);
+
+        var name = data.GetString(offset + 1, data[offset]);
+        offset += (uint)data[offset] + 1;
+
+        var (dts, argType) = TRU.Parse(data, offset);
+
+        offset += dts;
+
+        // Annotation ?
+        Map<string, string> annotations = null;
+
+        if (hasAnnotation) 
+        {
+            var (len, anns) = Codec.ParseSync(data, offset, null);
+
+            if (anns is Map<string, string> map)
+                annotations = map;
+
+            offset += len;
+        }
+
+        return (offset - oOffset, new EventTemplate()
+        {
+            Index = index,
+            Name = name,
+            Inherited = inherited,
+            ArgumentType = argType,
+            Subscribable = subscribable,
+            Annotations = annotations
+        });
+    }
+
+    public byte[] Compose()
+    {
+        var name = Name.ToBytes();
 
         var hdr = Inherited ? (byte)0x80 : (byte)0;
 
@@ -62,13 +102,13 @@ public class EventTemplate : MemberTemplate
                 .ToArray();
     }
 
-    public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU argumentType, Map<string, string> annotations = null, bool subscribable = false)
-       : base(template, index, name, inherited)
-    {
-        this.Annotations = annotations;
-        this.Subscribable = subscribable;
-        this.ArgumentType = argumentType;
-    }
+    //public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU argumentType, Map<string, string> annotations = null, bool subscribable = false)
+    //   : base(template, index, name, inherited)
+    //{
+    //    this.Annotations = annotations;
+    //    this.Subscribable = subscribable;
+    //    this.ArgumentType = argumentType;
+    //}
 
     public static EventTemplate MakeEventTemplate(Type type, EventInfo ei, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
@@ -121,21 +161,26 @@ public class EventTemplate : MemberTemplate
                 evtType.SetNull(nullableAttrFlags);
         }
 
-        var et = new EventTemplate(typeTemplate, index, customName ?? ei.Name, ei.DeclaringType != type, evtType);
-        et.EventInfo = ei;
-
+        Map<string, string> annotations = null;
 
         if (annotationAttrs != null && annotationAttrs.Count() > 0)
         {
-            et.Annotations = new Map<string, string>();
+            annotations = new Map<string, string>();
             foreach (var attr in annotationAttrs)
-                et.Annotations.Add(attr.Key, attr.Value);
+                annotations.Add(attr.Key, attr.Value);
         }
 
-        if (subscribableAttr != null)
-            et.Subscribable = true;
 
-        return et;
+        return new EventTemplate()
+        {
+            Name = customName ?? ei.Name,
+            ArgumentType = evtType,
+            Index = index,
+            Inherited = ei.DeclaringType != type,
+            Annotations = annotations,
+            EventInfo = ei,
+            Subscribable = subscribableAttr != null
+        };
     }
 
 }

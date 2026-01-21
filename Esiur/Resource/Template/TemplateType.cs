@@ -7,5 +7,6 @@ public enum TemplateType : byte
 {
     Resource,
     Record,
-    Enum
+    Enum,
+    Function
 }

@@ -9,24 +9,24 @@ namespace Esiur.Resource.Template;
 public class MemberTemplate
 {
 
-    public readonly byte Index;
-    public readonly string Name;
-    public readonly bool Inherited;
-    public readonly TypeTemplate Template;
+    public byte Index { get; set; }
+    public string Name { get; set; }
+    public bool Inherited { get; set; }
+    public TypeTemplate Template { get; set; }
 
-    public MemberTemplate(TypeTemplate template, byte index, string name, bool inherited)
-    {
-        Template = template;
-        Index = index;
-        Name = name;
-        Inherited = inherited;
-    }
+    //public MemberTemplate()
+    //{
+    //    Template = template;
+    //    Index = index;
+    //    Name = name;
+    //    Inherited = inherited;
+    //}
 
     public string Fullname => Template.ClassName + "." + Name;
 
-    public virtual byte[] Compose()
-    {
-        return DC.ToBytes(Name);
-    }
+    //public virtual byte[] Compose()
+    //{
+    //    return DC.ToBytes(Name);
+    //}
 }
 

@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Esiur.Resource.Template;
+
 public class FunctionTemplate : MemberTemplate
 {
 
@@ -38,10 +39,61 @@ public class FunctionTemplate : MemberTemplate
     }
 
 
-    public override byte[] Compose()
+    public static (uint, FunctionTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
 
-        var name = base.Compose();
+        var oOffset = offset;
+
+        var isStatic = ((data[offset] & 0x4) == 0x4);
+        var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
+
+        var name = data.GetString(offset + 1, data[offset]);
+        offset += (uint)data[offset] + 1;
+
+        // return type
+        var (rts, returnType) = TRU.Parse(data, offset);
+        offset += rts;
+
+        // arguments count
+        var argsCount = data[offset++];
+        List<ArgumentTemplate> arguments = new();
+
+        for (var a = 0; a < argsCount; a++)
+        {
+            var (cs, argType) = ArgumentTemplate.Parse(data, offset, a);
+            arguments.Add(argType);
+            offset += cs;
+        }
+
+        Map<string, string> annotations = null;
+
+        // arguments
+        if (hasAnnotation) // Annotation ?
+        {
+            var (len, anns) = Codec.ParseSync(data, offset, null);
+
+            if (anns is Map<string, string> map)
+                annotations = map;
+
+            offset += len;
+        }
+
+        return (offset - oOffset, new FunctionTemplate()
+        {
+            Index = index,
+            Name = name,
+            Arguments = arguments.ToArray(),
+            IsStatic = isStatic,
+            Inherited = inherited,
+            Annotations = annotations,
+            ReturnType = returnType,
+        });
+    }
+
+    public byte[] Compose()
+    {
+
+        var name = DC.ToBytes(Name);
 
         var bl = new BinaryList()
                 .AddUInt8((byte)name.Length)
@@ -56,8 +108,7 @@ public class FunctionTemplate : MemberTemplate
         if (Annotations != null)
         {
             var exp = Codec.Compose(Annotations, null, null);// DC.ToBytes(Annotation);
-            bl.AddInt32(exp.Length)
-            .AddUInt8Array(exp);
+            bl.AddUInt8Array(exp);
             bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x90 : (byte)0x10) | (IsStatic ? 0x4 : 0)));
         }
         else
@@ -66,14 +117,14 @@ public class FunctionTemplate : MemberTemplate
         return bl.ToArray();
     }
 
-    public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, Map<string, string> annotations = null)
-       : base(template, index, name, inherited)
-    {
-        this.Arguments = arguments;
-        this.ReturnType = returnType;
-        this.Annotations = annotations;
-        this.IsStatic = isStatic;
-    }
+    //public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, Map<string, string> annotations = null)
+    //   : base(template, index, name, inherited)
+    //{
+    //    this.Arguments = arguments;
+    //    this.ReturnType = returnType;
+    //    this.Annotations = annotations;
+    //    this.IsStatic = isStatic;
+    //}
 
 
 
@@ -99,7 +150,10 @@ public class FunctionTemplate : MemberTemplate
         }
         else
         {
-            rtType = TRU.FromType(mi.ReturnType);
+            if (mi.ReturnType == typeof(Task))
+                rtType = TRU.FromType(null);
+            else
+                rtType = TRU.FromType(mi.ReturnType);
         }
 
         if (rtType == null)
@@ -162,7 +216,7 @@ public class FunctionTemplate : MemberTemplate
 
         if (args.Length > 0)
         {
-            if (args.Last().ParameterType == typeof(DistributedConnection) 
+            if (args.Last().ParameterType == typeof(DistributedConnection)
                 || args.Last().ParameterType == typeof(InvocationContext))
                 args = args.Take(args.Count() - 1).ToArray();
         }
@@ -219,32 +273,35 @@ public class FunctionTemplate : MemberTemplate
         })
         .ToArray();
 
-        var fn = customName ?? mi.Name;
-
-        var ft = new FunctionTemplate(typeTemplate, index, fn, mi.DeclaringType != type,
-            mi.IsStatic,
-            arguments, rtType);
-
+        Map<string, string> annotations = null;
 
         if (annotationAttrs != null && annotationAttrs.Count() > 0)
         {
-            ft.Annotations = new Map<string, string>();
+            annotations = new Map<string, string>();
             foreach (var attr in annotationAttrs)
-                ft.Annotations.Add(attr.Key, attr.Value);
+                annotations.Add(attr.Key, attr.Value);
         }
         else
         {
-            ft.Annotations = new Map<string, string>();
-            ft.Annotations.Add(null, "(" + String.Join(",", 
+            annotations = new Map<string, string>();
+            annotations.Add("", "(" + String.Join(",",
                 mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection))
                 .Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name);
 
         }
 
-        ft.MethodInfo = mi;
-        //    functions.Add(ft);
+        return new FunctionTemplate()
+        {
+            Name = customName ?? mi.Name,
+            Index = index,
+            Inherited = mi.DeclaringType != type,
+            IsStatic = mi.IsStatic,
+            ReturnType = rtType,
+            Arguments = arguments,
+            MethodInfo = mi,
+            Annotations = annotations
+        };
 
-        return ft;
     }
 
     public override string ToString()

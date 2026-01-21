@@ -9,33 +9,59 @@ namespace Esiur.Resource.Template;
 
 public class ConstantTemplate : MemberTemplate
 {
-    public readonly object Value;
+    public object Value { get; set; }
 
-    public Map<string, string> Annotations;
-    public readonly TRU ValueType;
+    public Map<string, string> Annotations { get; set; }
+    public TRU ValueType { get; set; }
 
-    public  FieldInfo FieldInfo { get; set; }
+    public FieldInfo FieldInfo { get; set; }
 
-    public ConstantTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU valueType, object value, Map<string, string> annotations)
-        : base(template, index, name, inherited)
+
+    public static (uint, ConstantTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
-        Annotations = annotations;
-        ValueType = valueType;
-        Value = value;
-        //try
-        //{
-        //    Codec.Compose(value, null);
-        //    Value = value;
-        //}
-        //catch
-        //{
-        //    throw new Exception($"Constant `{template.ClassName}.{name}` can't be serialized.");
-        //}
+        var oOffset = offset;
+
+        var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
+
+        var name = data.GetString(offset + 1, data[offset]);
+        offset += (uint)data[offset] + 1;
+
+        var (dts, valueType) = TRU.Parse(data, offset);
+
+        offset += dts;
+
+        (dts, var value) = Codec.ParseSync(data, offset, Warehouse.Default);
+
+        offset += dts;
+
+        Map<string, string> annotations = null;
+
+        // arguments
+        if (hasAnnotation) // Annotation ?
+        {
+            var (len, anns) = Codec.ParseSync(data, offset, null);
+
+            if (anns is Map<string, string> map)
+                annotations = map;
+
+            offset += len;
+        }
+
+        return (offset - oOffset, new ConstantTemplate()
+        {
+            Index = index,
+            Name = name,
+            Inherited = inherited,
+            ValueType = valueType,
+            Value = value,
+            Annotations = annotations
+        });
+
     }
 
-    public override byte[] Compose()
+    public byte[] Compose()
     {
-        var name = base.Compose();
+        var name = DC.ToBytes(Name);
 
         var hdr = Inherited ? (byte)0x80 : (byte)0;
 
@@ -93,10 +119,17 @@ public class ConstantTemplate : MemberTemplate
         }
 
 
-        var ct = new ConstantTemplate(typeTemplate, index, customName ?? ci.Name, ci.DeclaringType != type, valueType, value, annotations);
-        ct.FieldInfo = ci;
 
-        return ct;
+        return new ConstantTemplate()
+        {
+            Name = customName,
+            Index = index,
+            Inherited = ci.DeclaringType != type,
+            ValueType = valueType,
+            Value = value,
+            FieldInfo = ci,
+            Annotations = annotations,
+        };
 
     }
 

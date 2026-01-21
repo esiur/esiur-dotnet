@@ -74,9 +74,13 @@ public static class TemplateGenerator
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
         rt.AppendLine($"namespace {nameSpace} {{");
 
-        if (template.Annotation != null)
-            rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
-
+        if (template.Annotations != null)
+        {
+            foreach (var ann in template.Annotations)
+            {
+                rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+            }
+        }
 
         rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public class {className} : IRecord {{");
@@ -85,8 +89,17 @@ public static class TemplateGenerator
         foreach (var p in template.Properties)
         {
             var ptTypeName = GetTypeName(p.ValueType, templates);
-            if (p.ReadAnnotation != null)
-                rt.AppendLine($"[Annotation({ToLiteral(p.ReadAnnotation)})]");
+
+
+            if (p.Annotations != null)
+            {
+                foreach (var ann in p.Annotations)
+                {
+                    rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+                }
+            }
+
+
             rt.AppendLine($"public {ptTypeName} {p.Name} {{ get; set; }}");
             rt.AppendLine();
         }
@@ -108,8 +121,13 @@ public static class TemplateGenerator
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
         rt.AppendLine($"namespace {nameSpace} {{");
 
-        if (template.Annotation != null)
-            rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
+        if (template.Annotations != null)
+        {
+            foreach (var ann in template.Annotations)
+            {
+                rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+            }
+        }
 
         rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public enum {className} {{");
@@ -275,8 +293,13 @@ public static class TemplateGenerator
 
         rt.AppendLine($"namespace {nameSpace} {{");
 
-        if (template.Annotation != null)
-            rt.AppendLine($"[Annotation({ToLiteral(template.Annotation)})]");
+        if (template.Annotations != null)
+        {
+            foreach (var ann in template.Annotations)
+            {
+                rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+            }
+        }
 
 
         rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
@@ -371,8 +394,13 @@ public static class TemplateGenerator
             if (p.Inherited)
                 continue;
 
-            if (p.ReadAnnotation != null)
-                rt.AppendLine($"[Annotation({ToLiteral(p.ReadAnnotation)})]");
+            if (p.Annotations != null)
+            {
+                foreach (var ann in p.Annotations)
+                {
+                    rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+                }
+            }
 
             var ptTypeName = GetTypeName(p.ValueType, templates);
             rt.AppendLine($"[Export] public {ptTypeName} {p.Name} {{");
@@ -389,8 +417,11 @@ public static class TemplateGenerator
             if (c.Inherited)
                 continue;
 
-            if (c.Annotation != null)
-                rt.AppendLine($"[Annotation({ToLiteral(c.Annotation)})]");
+            if (c.Annotations != null)
+            {
+                foreach (var ann in c.Annotations)
+                    rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+            }
 
             var ctTypeName = GetTypeName(c.ValueType, templates);
             rt.AppendLine($"[Export] public const {ctTypeName} {c.Name} = {c.Value};");
@@ -410,8 +441,13 @@ public static class TemplateGenerator
                 var etTypeName = GetTypeName(e.ArgumentType, templates);
                 rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
 
-                if (e.Annotation != null)
-                    eventsList.AppendLine($"[Annotation({ToLiteral(e.Annotation)})]");
+
+                if (e.Annotations != null)
+                {
+                    foreach (var ann in e.Annotations)
+                        rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+                }
+
 
                 eventsList.AppendLine($"[Export] public event ResourceEventHandler<{etTypeName}> {e.Name};");
             }

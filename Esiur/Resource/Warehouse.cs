@@ -425,7 +425,7 @@ public class Warehouse
     /// <param name="resource">Resource instance.</param>
     /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
     /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-    public async AsyncReply<T> Put<T>(string path, T resource, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
+    public async AsyncReply<T> Put<T>(string path, T resource, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
     {
         if (resource.Instance != null)
             throw new Exception("Resource already initialized.");
@@ -464,7 +464,7 @@ public class Warehouse
 
         var resourceReference = new WeakReference<IResource>(resource);
 
-        resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, customTemplate, age);
+        resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, age);
 
         if (attributes != null)
             if (attributes is Map<string, object> attrs)
@@ -574,7 +574,7 @@ public class Warehouse
     public async AsyncReply<IResource> New(Type type, string path, IPermissionsManager manager = null, object attributes = null, object properties = null)
     {
         var res = Create(type, properties);
-        return await Put(path, res, null, 0, manager, attributes);
+        return await Put(path, res, 0, manager, attributes);
     }
 
     public async AsyncReply<T> New<T>(string path, IPermissionsManager manager = null, object attributes = null, object properties = null)

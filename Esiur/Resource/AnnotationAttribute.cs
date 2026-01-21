@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Esiur.Resource;
 
-[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event, AllowMultiple = true)]
+[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Event | AttributeTargets.Parameter, AllowMultiple = true)]
 public class AnnotationAttribute : Attribute
 {
 
@@ -13,7 +13,7 @@ public class AnnotationAttribute : Attribute
 
     public AnnotationAttribute(string annotation)
     {
-        Key = null;
+        Key = "";
         Value = annotation;
     }
     public AnnotationAttribute(string key, string value)

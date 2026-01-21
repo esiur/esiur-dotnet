@@ -1586,7 +1586,7 @@ public static class DataDeserializer
             var pvs = new List<PropertyValue>();
 
             for (var i = 0; i < ar.Length; i += 3)
-                pvs.Add(new PropertyValue(ar[2], Convert.ToUInt64(ar[0]), (DateTime?)ar[1]));
+                pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime?)ar[i+1]));
 
 
             rt.Trigger(pvs.ToArray());

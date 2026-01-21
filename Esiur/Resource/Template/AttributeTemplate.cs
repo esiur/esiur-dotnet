@@ -10,6 +10,7 @@ namespace Esiur.Resource.Template;
 
 public class AttributeTemplate : MemberTemplate
 {
+
     public PropertyInfo PropertyInfo
     {
         get;
@@ -17,16 +18,14 @@ public class AttributeTemplate : MemberTemplate
     }
 
 
-    public AttributeTemplate(TypeTemplate template, byte index, string name, bool inherited)
-        : base(template, index, name, inherited)
-    {
-
-    }
-
     public static AttributeTemplate MakeAttributeTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
     {
-        var at = new AttributeTemplate(typeTemplate, index, customName, pi.DeclaringType != type);
-        at.PropertyInfo = pi;
-        return at;
+        return new AttributeTemplate()
+        {
+            Index = index,
+            Inherited = pi.DeclaringType != type,
+            Name = customName,
+            PropertyInfo = pi
+        };
     }
 }

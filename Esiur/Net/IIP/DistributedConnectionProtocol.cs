@@ -68,7 +68,7 @@ partial class DistributedConnection
 
     object subscriptionsLock = new object();
 
-    AsyncQueue<DistributedResourceQueueItem> queue = new ();
+    AsyncQueue<DistributedResourceQueueItem> queue = new();
 
 
 
@@ -450,7 +450,7 @@ partial class DistributedConnection
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(dataType.Data, dataType.Offset, dataType.ContentLength, Instance.Warehouse, 2);
 
-        var rid =Convert.ToUInt32(args[0]);
+        var rid = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         Fetch(rid, null).Then(r =>
@@ -559,26 +559,13 @@ partial class DistributedConnection
                 // unsubscribe
                 Unsubscribe(r);
 
-                if (r is DistributedResource dr)
-                {
-                    // reply ok
-                    SendReply(IIPPacketReply.Completed, callback,
-                        r.Instance.Template.ClassId,
-                        r.Instance.Age,
-                        r.Instance.Link,
-                        r.Instance.Hops,
-                        dr._Serialize());
-                }
-                else
-                {
-                    // reply ok
-                    SendReply(IIPPacketReply.Completed, callback,
-                        r.Instance.Template.ClassId,
-                        r.Instance.Age,
-                        r.Instance.Link,
-                        r.Instance.Hops,
-                        r.Instance.Serialize());
-                }
+                // reply ok
+                SendReply(IIPPacketReply.Completed, callback,
+                    r.Instance.Template.ClassId,
+                    r.Instance.Age,
+                    r.Instance.Link,
+                    r.Instance.Hops,
+                    r.Instance.Serialize());
 
                 // subscribe
                 Subscribe(r);
@@ -618,26 +605,15 @@ partial class DistributedConnection
                 // unsubscribe
                 Unsubscribe(r);
 
-                if (r is DistributedResource dr)
-                {
-                    // reply ok
-                    SendReply(IIPPacketReply.Completed, callback,
-                        r.Instance.Template.ClassId,
-                        r.Instance.Age,
-                        r.Instance.Link,
-                        r.Instance.Hops,
-                        dr._SerializeAfter(age));
-                }
-                else
-                {
-                    // reply ok
-                    SendReply(IIPPacketReply.Completed, callback,
-                        r.Instance.Template.ClassId,
-                        r.Instance.Age,
-                        r.Instance.Link,
-                        r.Instance.Hops,
-                        r.Instance.SerializeAfter(age));
-                }
+
+                // reply ok
+                SendReply(IIPPacketReply.Completed, callback,
+                    r.Instance.Template.ClassId,
+                    r.Instance.Age,
+                    r.Instance.Link,
+                    r.Instance.Hops,
+                    r.Instance.SerializeAfter(age));
+
 
                 // subscribe
                 Subscribe(r);
@@ -1612,7 +1588,7 @@ partial class DistributedConnection
             }
 
 
-            if (r is DistributedResource)
+            if (r is IDynamicResource)
             {
                 var (_, parsed) = Codec.ParseAsync(data, offset, this, null);
                 if (parsed is AsyncReply)
@@ -1620,7 +1596,7 @@ partial class DistributedConnection
                     (parsed as AsyncReply).Then((value) =>
                     {
                         // propagation
-                        (r as DistributedResource)._Set(index, value).Then((x) =>
+                        (r as IDynamicResource).SetResourcePropertyAsync(index, value).Then((x) =>
                         {
                             SendReply(IIPPacketReply.Completed, callback);
                         }).Error(x =>
@@ -1912,7 +1888,7 @@ partial class DistributedConnection
                         {
                             template = Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Resource);
                             if (template?.DefinedType != null && template.IsWrapper)
-                                dr = Activator.CreateInstance(template.DefinedType, this, id,Convert.ToUInt64( args[1]), (string)args[2]) as DistributedResource;
+                                dr = Activator.CreateInstance(template.DefinedType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as DistributedResource;
                             else
                                 dr = new DistributedResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
                         }
@@ -1955,7 +1931,9 @@ partial class DistributedConnection
                                 // ClassId, ResourceAge, ResourceLink, Content
                                 if (resource == null)
                                 {
-                                    Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr, tmp)
+                                    dr.ResourceTemplate = tmp;
+
+                                    Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr)
                                     .Then(initResource)
                                     .Error(ex => reply.TriggerError(ex));
                                 }
@@ -1973,7 +1951,7 @@ partial class DistributedConnection
                         {
                             if (resource == null)
                             {
-                                Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr, template)
+                                Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr)
                                     .Then(initResource).Error((ex) => reply.TriggerError(ex));
                             }
                             else

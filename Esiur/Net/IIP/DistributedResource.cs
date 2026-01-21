@@ -46,7 +46,7 @@ using Esiur.Net.Packets;
 namespace Esiur.Net.IIP;
 
 //[System.Runtime.InteropServices.ComVisible(true)]
-public class DistributedResource : DynamicObject, IResource, INotifyPropertyChanged
+public class DistributedResource : DynamicObject, IResource, INotifyPropertyChanged, IDynamicResource
 {
 
     /// <summary>
@@ -57,6 +57,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     public event PropertyChangedEventHandler PropertyChanged;
 
     uint instanceId;
+    TypeTemplate template;
     DistributedConnection connection;
 
 
@@ -67,24 +68,13 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     //Structure properties = new Structure();
 
     string link;
-    //ulong age;
+    ulong age;
 
     protected object[] properties;
     internal List<DistributedResource> parents = new List<DistributedResource>();
     internal List<DistributedResource> children = new List<DistributedResource>();
 
     DistributedResourceEvent[] events;
-
-
-
-    /// <summary>
-    /// Resource template for the remotely located resource.
-    /// </summary>
-    //public ResourceTemplate Template
-    //{
-    //    get { return template; }
-    //}
-
 
 
 
@@ -160,44 +150,8 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         this.link = link;
         this.connection = connection;
         this.instanceId = instanceId;
-
-        //this.Instance.Template = template;
-        //this.Instance.Age = age;
-        //this.template = template;
-        //this.age = age;
-
+        this.age = age;
     }
-
-    /// <summary>
-    /// Export properties as byte array.
-    /// </summary>
-    /// <returns></returns>
-    internal PropertyValue[] _Serialize()
-    {
-        var props = new PropertyValue[properties.Length];
-
-        for (byte i = 0; i < properties.Length; i++)
-            props[i] = new PropertyValue(properties[i],
-                                        Instance.GetAge(i),
-                                        Instance.GetModificationDate(i));
-
-        return props;
-    }
-
-    internal Map<byte, PropertyValue> _SerializeAfter(ulong age = 0)
-    {
-        var rt = new Map<byte, PropertyValue>();
-
-        for (byte i = 0; i < properties.Length; i++)
-            if (Instance.GetAge(i) > age)
-                rt.Add(i, new PropertyValue(properties[i],
-                                            Instance.GetAge(i),
-                                            Instance.GetModificationDate(i)));
-
-
-        return rt;
-    }
-
 
     internal bool _Attach(PropertyValue[] properties)
     {
@@ -357,17 +311,14 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         }
     }
 
-    /// <summary>
-    /// Get a property value.
-    /// </summary>
-    /// <param name="index">Zero-based property index.</param>
-    /// <returns>Value</returns>
-    protected internal object _Get(byte index)
-    {
-        if (index >= properties.Length)
-            return null;
-        return properties[index];
-    }
+    ///// <summary>
+    ///// Get a property value.
+    ///// </summary>
+    ///// <param name="index">Zero-based property index.</param>
+    ///// <returns>Value</returns>
+    //protected internal object _Get(byte index)
+    //{
+    //}
 
     public bool TryGetPropertyValue(byte index, out object value)
     {
@@ -427,65 +378,19 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     /// <param name="index">Zero-based property index.</param>
     /// <param name="value">Value</param>
     /// <returns>Indicator when the property is set.</returns>
-    protected object _SetSync(byte index, object value)
-    {
-        //Console.WriteLine("Setting..." + index + " " + value);
+    //protected object _SetSync(byte index, object value)
+    //{
+    //}
 
-        if (destroyed)
-            throw new Exception("Trying to access a destroyed object.");
-
-        if (suspended)
-            throw new Exception("Trying to access a suspended object.");
-
-        if (!attached)
-            return null;
-
-        if (index >= properties.Length)
-            return null;
-
-        // Don't set the same current value
-        if (properties[index] == value)
-            return value;
-
-        var rt = _Set(index, value).Wait();
-
-        //Console.WriteLine("Done Setting");
-        return rt;
-    }
-
-    /// <summary>
-    /// Set property value.
-    /// </summary>
-    /// <param name="index">Zero-based property index.</param>
-    /// <param name="value">Value</param>
-    /// <returns>Indicator when the property is set.</returns>
-    protected internal AsyncReply<object> _Set(byte index, object value)
-    {
-        if (destroyed)
-            throw new Exception("Trying to access a destroyed object.");
-
-        if (suspended)
-            throw new Exception("Trying to access a suspended object.");
-
-        if (!attached)
-            return null;
-
-        if (index >= properties.Length)
-            return null;
-
-        var reply = new AsyncReply<object>();
-
-        connection.SendSetProperty(instanceId, index, value)
-                    .Then((res) =>
-                    {
-                        // not really needed, server will always send property modified, 
-                        // this only happens if the programmer forgot to emit in property setter
-                        properties[index] = value;
-                        reply.Trigger(null);
-                    });
-
-        return reply;
-    }
+    ///// <summary>
+    ///// Set property value.
+    ///// </summary>
+    ///// <param name="index">Zero-based property index.</param>
+    ///// <param name="value">Value</param>
+    ///// <returns>Indicator when the property is set.</returns>
+    //protected internal AsyncReply<object> _Set(byte index, object value)
+    //{
+    //}
 
     public override bool TrySetMember(SetMemberBinder binder, object value)
     {
@@ -502,7 +407,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
         if (pt != null)
         {
-            _Set(pt.Index, value);
+            SetResourceProperty(pt.Index, value);
             return true;
         }
         else
@@ -518,33 +423,6 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     }
 
-    /*
-          public async void InvokeMethod(byte index, object[] arguments, DistributedConnection sender)
-          {
-              // get function parameters
-              Type t = this.GetType();
-
-              MethodInfo mi = t.GetMethod(GetFunctionName(index), BindingFlags.DeclaredOnly |
-                                                      BindingFlags.Public |
-                                                      BindingFlags.Instance | BindingFlags.InvokeMethod);
-              if (mi != null)
-              {
-                  try
-                  {
-                      var res = await invokeMethod(mi, arguments, sender);
-                      object rt = Codec.Compose(res);
-                      sender.SendParams((byte)0x80, instanceId, index, rt);
-                  }
-                  catch(Exception ex)
-                  {
-                      var msg = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                      sender.SendParams((byte)0x8E, instanceId, index, Codec.Compose(msg));
-                  }
-              }
-          }
-          */
-
-
 
     /// <summary>
     /// Resource interface.
@@ -553,6 +431,18 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     {
         get;
         set;
+    }
+
+    public TypeTemplate ResourceTemplate
+    {
+        get
+        {
+            return template;
+        }
+        internal set
+        {
+            template = value;
+        }
     }
 
     /// <summary>
@@ -585,6 +475,82 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     protected virtual void EmitPropertyChanged(string name)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    public PropertyValue[] SerializeResource()
+    {
+        var props = new PropertyValue[properties.Length];
+
+        for (byte i = 0; i < properties.Length; i++)
+            props[i] = new PropertyValue(properties[i],
+                                        Instance.GetAge(i),
+                                        Instance.GetModificationDate(i));
+
+        return props;
+    }
+
+    public Map<byte, PropertyValue> SerializeResourceAfter(ulong age = 0)
+    {
+        var rt = new Map<byte, PropertyValue>();
+
+        for (byte i = 0; i < properties.Length; i++)
+            if (Instance.GetAge(i) > age)
+                rt.Add(i, new PropertyValue(properties[i],
+                                            Instance.GetAge(i),
+                                            Instance.GetModificationDate(i)));
+
+
+        return rt;
+    }
+
+
+
+
+    public object GetResourceProperty(byte index)
+    {
+        if (index >= properties.Length)
+            return null;
+        return properties[index];
+    }
+
+    public AsyncReply SetResourcePropertyAsync(byte index, object value)
+    {
+        if (destroyed)
+            throw new Exception("Trying to access a destroyed object.");
+
+        if (suspended)
+            throw new Exception("Trying to access a suspended object.");
+
+        if (!attached)
+            throw new Exception("Resource is not attached.");
+
+        if (index >= properties.Length)
+            throw new Exception("Property index not found."); ;
+
+        var reply = new AsyncReply<object>();
+
+        connection.SendSetProperty(instanceId, index, value)
+                    .Then((res) =>
+                    {
+                        // not really needed, server will always send property modified, 
+                        // this only happens if the programmer forgot to emit in property setter
+                        properties[index] = value;
+                        reply.Trigger(null);
+                    });
+
+        return reply;
+
+    }
+
+    public void SetResourceProperty(byte index, object value)
+    {
+        // Don't set the same current value
+        if (properties[index] == value)
+            return;
+
+        SetResourcePropertyAsync(index, value).Wait();
+
+        return;
     }
 
     ~DistributedResource()
