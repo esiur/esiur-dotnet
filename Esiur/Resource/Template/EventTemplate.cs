@@ -110,7 +110,7 @@ public class EventTemplate : MemberTemplate
     //    this.ArgumentType = argumentType;
     //}
 
-    public static EventTemplate MakeEventTemplate(Type type, EventInfo ei, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    public static EventTemplate MakeEventTemplate(Type type, EventInfo ei, byte index, string name, TypeTemplate typeTemplate)
     {
 
         if (!ei.EventHandlerType.IsGenericType)
@@ -173,7 +173,7 @@ public class EventTemplate : MemberTemplate
 
         return new EventTemplate()
         {
-            Name = customName ?? ei.Name,
+            Name = name,
             ArgumentType = evtType,
             Index = index,
             Inherited = ei.DeclaringType != type,

@@ -16,6 +16,9 @@ public class MemberData
     public MemberData? Parent;
     public MemberData? Child;
     public byte Index;
+
+    public PropertyPermission PropertyPermission;
+
     //public ExportAttribute ExportAttribute;
 
 
@@ -23,7 +26,35 @@ public class MemberData
 
     public MemberData(MemberInfo info, int order)
     {
-        this.Name = info.GetCustomAttribute<ExportAttribute>()?.Name ?? info.Name;
+        var exportAttr = info.GetCustomAttribute<ExportAttribute>();
+
+        if (info is PropertyInfo pi)
+        {
+            if (exportAttr != null && exportAttr.Permission.HasValue)
+            {
+                if ((exportAttr.Permission == PropertyPermission.Write
+                    || exportAttr.Permission == PropertyPermission.ReadWrite) && !pi.CanWrite)
+                {
+                    throw new Exception($"Property '{pi.Name}' does not have a setter, but ExportAttribute specifies it as writable.");
+                }
+
+                if ((exportAttr.Permission == PropertyPermission.Read
+                    || exportAttr.Permission == PropertyPermission.ReadWrite) && !pi.CanRead)
+                {
+                    throw new Exception($"Property '{pi.Name}' does not have a getter, but ExportAttribute specifies it as readable.");
+                }
+
+                this.PropertyPermission = exportAttr.Permission.Value;
+            }
+            else
+            {
+                this.PropertyPermission = (pi.CanRead && pi.CanWrite) ? PropertyPermission.ReadWrite 
+                                                                      : pi.CanWrite ? PropertyPermission.Write 
+                                                                                    : PropertyPermission.Read;
+            }
+        }
+
+        this.Name = exportAttr?.Name ?? info.Name;
         this.Info = info;
         this.Order = order;
     }

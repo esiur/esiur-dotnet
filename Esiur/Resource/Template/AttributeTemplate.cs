@@ -18,13 +18,13 @@ public class AttributeTemplate : MemberTemplate
     }
 
 
-    public static AttributeTemplate MakeAttributeTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    public static AttributeTemplate MakeAttributeTemplate(Type type, PropertyInfo pi, byte index, string name, TypeTemplate typeTemplate )
     {
         return new AttributeTemplate()
         {
             Index = index,
             Inherited = pi.DeclaringType != type,
-            Name = customName,
+            Name = name,
             PropertyInfo = pi
         };
     }

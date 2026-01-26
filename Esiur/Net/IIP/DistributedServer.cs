@@ -174,7 +174,7 @@ public class DistributedServer : NetworkServer<DistributedConnection>, IResource
 
     public DistributedServer MapCall(string call, Delegate handler)
     {
-        var ft = FunctionTemplate.MakeFunctionTemplate(null, handler.Method);
+        var ft = FunctionTemplate.MakeFunctionTemplate(null, handler.Method, 0, call, null);
         Calls.Add(call, new CallInfo() { Delegate = handler, Template = ft });
         return this;
     }

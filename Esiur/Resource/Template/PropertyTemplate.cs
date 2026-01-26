@@ -14,12 +14,7 @@ public class PropertyTemplate : MemberTemplate
 {
     public Map<string, string> Annotations { get; set; }
 
-    public enum PropertyPermission : byte
-    {
-        Read = 1,
-        Write,
-        ReadWrite
-    }
+
 
 
     public PropertyInfo PropertyInfo
@@ -92,7 +87,7 @@ public class PropertyTemplate : MemberTemplate
 
         var hasAnnotation = ((data[offset] & 0x8) == 0x8);
         var recordable = ((data[offset] & 1) == 1);
-        var permission = (PropertyTemplate.PropertyPermission)((data[offset++] >> 1) & 0x3);
+        var permission = (PropertyPermission)((data[offset++] >> 1) & 0x3);
         var name = data.GetString(offset + 1, data[offset]);
 
         offset += (uint)data[offset] + 1;
@@ -209,7 +204,7 @@ public class PropertyTemplate : MemberTemplate
     //    this.ValueType = valueType;
     //}
 
-    public static PropertyTemplate MakePropertyTemplate(Type type, PropertyInfo pi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    public static PropertyTemplate MakePropertyTemplate(Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeTemplate typeTemplate)
     {
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
 
@@ -269,15 +264,16 @@ public class PropertyTemplate : MemberTemplate
             annotations.Add("", GetTypeAnnotationName(pi.PropertyType));
         }
 
+
         return new PropertyTemplate()
         {
-            Name = customName ?? pi.Name,
+            Name = name,
             Index = index,
             Inherited = pi.DeclaringType != type,
             ValueType = propType,
             PropertyInfo = pi,
             Recordable = storageAttr == null ? false : storageAttr.Mode == StorageMode.Recordable,
-            Permission = (pi.CanWrite && pi.CanRead) ? PropertyPermission.ReadWrite : (pi.CanWrite ? PropertyPermission.Write : PropertyPermission.Read),
+            Permission = permission,
             Annotations = annotations,
         };
 
