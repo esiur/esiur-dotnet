@@ -94,10 +94,29 @@ public static class Global
 
 
             var stack = new StackTrace(ex, true);
-            var frame = stack.GetFrames().First();
-            var method = frame.GetMethod();
-            var parameters = method.GetParameters();
-            var service = method.DeclaringType.Name;
+            var frames = stack.GetFrames();
+            var frame = frames?.FirstOrDefault();
+
+            MethodBase? method = null;
+            ParameterInfo[] parameters = Array.Empty<ParameterInfo>();
+            string service = "Unknown";
+
+            if (frame != null)
+            {
+                method = frame.GetMethod();
+            }
+
+            if (method == null)
+            {
+                // Fallback to TargetSite if available
+                method = ex.TargetSite;
+            }
+
+            if (method != null)
+            {
+                parameters = method.GetParameters();
+                service = method.DeclaringType != null ? method.DeclaringType.Name : method.Name;
+            }
             var message = "";
 
             if (arguments.Length > 0 && parameters.Length > 0)
