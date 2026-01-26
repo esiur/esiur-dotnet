@@ -427,7 +427,7 @@ public class TypeTemplate
             foreach (var pd in hierarchy[MemberTypes.Property])
             {
                 properties.Add(PropertyTemplate.MakePropertyTemplate
-                    (type, (PropertyInfo)pd.GetMemberInfo(), pd.Index, pd.Name, this));
+                    (type, (PropertyInfo)pd.GetMemberInfo(), pd.Name, pd.Index, pd.PropertyPermission, this));
             }
         }
 

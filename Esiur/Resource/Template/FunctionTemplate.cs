@@ -128,7 +128,7 @@ public class FunctionTemplate : MemberTemplate
 
 
 
-    public static FunctionTemplate MakeFunctionTemplate(Type type, MethodInfo mi, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    public static FunctionTemplate MakeFunctionTemplate(Type type, MethodInfo mi, byte index, string name, TypeTemplate typeTemplate)
     {
 
         var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
@@ -292,7 +292,7 @@ public class FunctionTemplate : MemberTemplate
 
         return new FunctionTemplate()
         {
-            Name = customName ?? mi.Name,
+            Name = name,
             Index = index,
             Inherited = mi.DeclaringType != type,
             IsStatic = mi.IsStatic,
