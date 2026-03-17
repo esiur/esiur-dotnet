@@ -27,8 +27,8 @@ SOFTWARE.
 using Esiur.AspNetCore;
 using Esiur.AspNetCore.Example;
 using Esiur.Core;
-using Esiur.Net.EP;
 using Esiur.Net.Sockets;
+using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -59,7 +59,7 @@ app.UseWebSockets(webSocketOptions);
  
 await Warehouse.Default.Put("sys", new MemoryStore());
 await Warehouse.Default.Put("sys/service", new MyResource());
-var server = await Warehouse.Default.Put("sys/server", new DistributedServer());
+var server = await Warehouse.Default.Put("sys/server", new EpServer());
 
 await Warehouse.Default.Open();
 
