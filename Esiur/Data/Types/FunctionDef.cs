@@ -144,7 +144,7 @@ public class FunctionDef : MemberDef
         {
             rtType = TRU.FromType(mi.ReturnType.GetGenericArguments()[0]);
         }
-        else if (genericRtType == typeof(IEnumerable<>))// || genericRtType == typeof(IAsyncEnumerable<>))
+        else if (genericRtType == typeof(IEnumerable<>) || genericRtType == typeof(IAsyncEnumerable<>))
         {
             // get export
             rtType = TRU.FromType(mi.ReturnType.GetGenericArguments()[0]);

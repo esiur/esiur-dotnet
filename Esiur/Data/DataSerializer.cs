@@ -458,7 +458,7 @@ public static class DataSerializer
         }
         else
         {
-            return new TDU(TDUIdentifier.True, null, 0);
+            return new TDU(TDUIdentifier.False, null, 0);
         }
     }
 

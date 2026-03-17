@@ -1362,7 +1362,36 @@ partial class DistributedConnection
             return;
         }
 
-        if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Map<string, object> || rt is string))
+        if (rt is IAsyncEnumerable<object>)
+        {
+            var enu = rt as IAsyncEnumerable<object>;
+            var enumerator = enu.GetAsyncEnumerator();
+            Task.Run(async () =>
+            {
+                try
+                {
+                    while (await enumerator.MoveNextAsync())
+                    {
+                        var v = enumerator.Current;
+                        SendChunk(callback, v);
+                    }
+
+                    SendReply(IIPPacketReply.Completed, callback);
+
+                    if (context != null)
+                        context.Ended = true;
+                }
+                catch (Exception ex)
+                {
+                    if (context != null)
+                        context.Ended = true;
+
+                    var (code, msg) = SummerizeException(ex);
+                    SendError(ErrorType.Exception, callback, code, msg);
+                }
+            });
+        }
+        else if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Map<string, object> || rt is string))
         {
             var enu = rt as System.Collections.IEnumerable;
 
