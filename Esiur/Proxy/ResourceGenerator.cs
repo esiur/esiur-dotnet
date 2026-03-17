@@ -4,9 +4,9 @@
 // ================================
 using Esiur.Core;
 using Esiur.Data;
+using Esiur.Data.Types;
 using Esiur.Net.IIP;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -57,7 +57,7 @@ namespace Esiur.Proxy
 
                         var parts = TemplateGenerator.urlRegex.Split(path);
                         var con = Warehouse.Default.Get<DistributedConnection>($"{parts[1]}://{parts[2]}").Wait(20000);
-                        var templates = con.GetLinkTemplates(parts[3]).Wait(60000);
+                        var templates = con.GetLinkDefinitions(parts[3]).Wait(60000);
 
                         EmitTemplates(spc, templates);
                     }
@@ -222,26 +222,26 @@ $@" public partial class {ci.Name} : IResource {{
         }
 
         // === Emission helpers (ported from your original generator) ===
-        private static void EmitTemplates(SourceProductionContext spc, TypeTemplate[] templates)
+        private static void EmitTemplates(SourceProductionContext spc, TypeDef[] templates)
         {
             foreach (var tmp in templates)
             {
-                if (tmp.Type == TemplateType.Resource)
+                if (tmp.Kind == TypeDefKind.Resource)
                 {
                     var source = TemplateGenerator.GenerateClass(tmp, templates, false);
-                    spc.AddSource(tmp.ClassName + ".g.cs", source);
+                    spc.AddSource(tmp.Name + ".g.cs", source);
                 }
-                else if (tmp.Type == TemplateType.Record)
+                else if (tmp.Kind == TypeDefKind.Record)
                 {
                     var source = TemplateGenerator.GenerateRecord(tmp, templates);
-                    spc.AddSource(tmp.ClassName + ".g.cs", source);
+                    spc.AddSource(tmp.Name + ".g.cs", source);
                 }
             }
 
             var typesFile = "using System; \r\n namespace Esiur { public static class Generated { public static Type[] Resources {get;} = new Type[] { " +
-                                string.Join(",", templates.Where(x => x.Type == TemplateType.Resource).Select(x => $"typeof({x.ClassName})"))
+                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.ClassName})"))
                             + " }; \r\n public static Type[] Records { get; } = new Type[] { " +
-                                string.Join(",", templates.Where(x => x.Type == TemplateType.Record).Select(x => $"typeof({x.ClassName})"))
+                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.ClassName})"))
                             + " }; " +
 
                             "\r\n } \r\n}";

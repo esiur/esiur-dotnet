@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Esiur.Core;
 using Esiur.Data;
-using Esiur.Resource.Template;
+using Esiur.Data.Schema;
 
 namespace Esiur.Resource;
 public abstract class Store<T> : IStore where T : IResource
@@ -23,7 +23,7 @@ public abstract class Store<T> : IStore where T : IResource
 
     public abstract AsyncReply<IResource> Get(string path);
 
-    public abstract AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
+    public abstract AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
 
 
     public abstract string Link(IResource resource);

@@ -10,11 +10,11 @@ struct IIPPacketAttachInfo
     public string Link;
     public ulong Age;
     public byte[] Content;
-    public UUID ClassId;
+    public UUID TypeId;
 
-    public IIPPacketAttachInfo(UUID classId, ulong age, string link, byte[] content)
+    public IIPPacketAttachInfo(UUID typeId, ulong age, string link, byte[] content)
     {
-        ClassId = classId;
+        TypeId = typeId;
         Age = age;
         Content = content;
         Link = link;

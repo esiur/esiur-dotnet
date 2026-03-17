@@ -1,4 +1,4 @@
-﻿using Esiur.Resource.Template;
+﻿using Esiur.Data.Types;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -9,18 +9,18 @@ namespace Esiur.Resource
     public class EventOccurredInfo
     {
 
-        public readonly EventTemplate EventTemplate;
+        public readonly EventDef Definition;
 
-        public string Name => EventTemplate.Name;
+        public string Name => Definition.Name;
 
         public readonly IResource Resource;
         public readonly object Value;
 
-        public EventOccurredInfo(IResource resource, EventTemplate eventTemplate, object value)
+        public EventOccurredInfo(IResource resource, EventDef eventDef, object value)
         {
             Resource = resource;
             Value = value;
-            EventTemplate = eventTemplate;
+            Definition = eventDef;
         }
     }
 }

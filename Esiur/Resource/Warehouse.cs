@@ -24,11 +24,11 @@ SOFTWARE.
 
 using Esiur.Core;
 using Esiur.Data;
+using Esiur.Data.Types;
 using Esiur.Misc;
 using Esiur.Net.IIP;
 using Esiur.Net.Packets;
 using Esiur.Proxy;
-using Esiur.Resource.Template;
 using Esiur.Security.Permissions;
 using System;
 using System.Collections;
@@ -36,6 +36,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -58,14 +59,14 @@ public class Warehouse
     uint resourceCounter = 0;
 
 
-    KeyList<TemplateType, KeyList<UUID, TypeTemplate>> templates
-        = new KeyList<TemplateType, KeyList<UUID, TypeTemplate>>()
+    KeyList<TypeDefKind, KeyList<UUID, TypeDef>> schemas
+        = new KeyList<TypeDefKind, KeyList<UUID, TypeDef>>()
         {
-            //[TemplateType.Unspecified] = new KeyList<Guid, TypeTemplate>(),
-            [TemplateType.Resource] = new KeyList<UUID, TypeTemplate>(),
-            [TemplateType.Record] = new KeyList<UUID, TypeTemplate>(),
-            //[TemplateType.Wrapper] = new KeyList<Guid, TypeTemplate>(),
-            [TemplateType.Enum] = new KeyList<UUID, TypeTemplate>(),
+            //[TemplateType.Unspecified] = new KeyList<Guid, TypeSchema>(),
+            [TypeDefKind.Resource] = new KeyList<UUID, TypeDef>(),
+            [TypeDefKind.Record] = new KeyList<UUID, TypeDef>(),
+            //[TemplateType.Wrapper] = new KeyList<Guid, TypeSchema>(),
+            [TypeDefKind.Enum] = new KeyList<UUID, TypeDef>(),
         };
 
     bool warehouseIsOpen = false;
@@ -87,10 +88,10 @@ public class Warehouse
             async (name, attributes)
             => await New<DistributedConnection>(name, null, attributes));
 
-        new TypeTemplate(typeof(IIPAuthPacketIAuthHeader), this);
+        new TypeDef(typeof(IIPAuthPacketIAuthHeader), this);
 
-        new TypeTemplate(typeof(IIPAuthPacketIAuthDestination), this);
-        new TypeTemplate(typeof(IIPAuthPacketIAuthFormat), this);
+        new TypeDef(typeof(IIPAuthPacketIAuthDestination), this);
+        new TypeDef(typeof(IIPAuthPacketIAuthFormat), this);
     }
 
 
@@ -138,19 +139,19 @@ public class Warehouse
                 var resourceTypes = (Type[])generatedType.GetProperty("Resources").GetValue(null);
                 foreach (var t in resourceTypes)
                 {
-                    PutTemplate(new TypeTemplate(t));
+                    RegisterSchema(new TypeDef(t));
                 }
 
                 var recordTypes = (Type[])generatedType.GetProperty("Records").GetValue(null);
                 foreach (var t in recordTypes)
                 {
-                    PutTemplate(new TypeTemplate(t));
+                    RegisterSchema(new TypeDef(t));
                 }
 
                 var enumsTypes = (Type[])generatedType.GetProperty("Enums").GetValue(null);
                 foreach (var t in enumsTypes)
                 {
-                    PutTemplate(new TypeTemplate(t));
+                    RegisterSchema(new TypeDef(t));
                 }
             }
         }
@@ -192,7 +193,7 @@ public class Warehouse
 
             if (!rt)
             {
-                Global.Log("Warehouse", LogType.Warning, $"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Template.ClassName}]");
+                Global.Log("Warehouse", LogType.Warning, $"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Definition.Name}]");
             }
             //}
         }
@@ -202,7 +203,7 @@ public class Warehouse
             var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
             if (!rt)
             {
-                Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Template.ClassName}]");
+                Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Definition.Name}]");
             }
         }
 
@@ -345,7 +346,7 @@ public class Warehouse
     /// <param name="resource">Resource instance.</param>
     /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
     /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-    //public async AsyncReply<T> Put<T>(string instanceName, T resource, IStore store, TypeTemplate customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
+    //public async AsyncReply<T> Put<T>(string instanceName, T resource, IStore store, TypeSchema customTemplate = null, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
     //{
     //    if (resource.Instance != null)
     //        throw new Exception("Resource has a store.");
@@ -526,7 +527,7 @@ public class Warehouse
             {
                 var template = GetTemplateByType(type);
                 foreach (var kvp in map)
-                    template.GetPropertyTemplateByIndex(kvp.Key).PropertyInfo.SetValue(res, kvp.Value);
+                    template.GetPropertyDefByIndex(kvp.Key).PropertyInfo.SetValue(res, kvp.Value);
             }
             else
             {
@@ -584,15 +585,15 @@ public class Warehouse
     }
 
     /// <summary>
-    /// Put a resource template in the templates warehouse.
+    /// Put a resource schema in the schemas warehouse.
     /// </summary>
-    /// <param name="template">Resource template.</param>
-    public void PutTemplate(TypeTemplate template)
+    /// <param name="schema">Resource schema.</param>
+    public void RegisterSchema(TypeDef typeDef)
     {
-        if (templates[template.Type].ContainsKey(template.ClassId))
-            throw new Exception($"Template with same class Id already exists. {templates[template.Type][template.ClassId].ClassName} -> {template.ClassName}");
+        if (schemas[typeDef.Kind].ContainsKey(typeDef.Id))
+            throw new Exception($"Template with same class Id already exists. {schemas[typeDef.Kind][typeDef.Id].Name} -> {typeDef.Name}");
 
-        templates[template.Type][template.ClassId] = template;
+        schemas[typeDef.Kind][typeDef.Id] = typeDef;
     }
 
 
@@ -601,7 +602,7 @@ public class Warehouse
     /// </summary>
     /// <param name="type">.Net type.</param>
     /// <returns>Resource template.</returns>
-    public TypeTemplate GetTemplateByType(Type type)
+    public TypeDef GetTemplateByType(Type type)
     {
         if (!(type.IsClass || type.IsEnum))
             return null;
@@ -612,48 +613,48 @@ public class Warehouse
             || baseType == typeof(IRecord))
             return null;
 
-        TemplateType templateType;
+        TypeDefKind schemaKind;
         if (Codec.ImplementsInterface(type, typeof(IResource)))
-            templateType = TemplateType.Resource;
+            schemaKind = TypeDefKind.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            templateType = TemplateType.Record;
+            schemaKind = TypeDefKind.Record;
         else if (type.IsEnum)
-            templateType = TemplateType.Enum;
+            schemaKind = TypeDefKind.Enum;
         else
             return null;
 
-        var template = templates[templateType].Values.FirstOrDefault(x => x.DefinedType == baseType);
-        if (template != null)
-            return template;
+        var schema = schemas[schemaKind].Values.FirstOrDefault(x => x.DefinedType == baseType);
+        if (schema != null)
+            return schema;
 
         // create new template for type
-        template = new TypeTemplate(baseType, this);
-        TypeTemplate.GetDependencies(template, this);
+        schema = new TypeDef(baseType, this);
+        TypeDef.GetDependencies(schema, this);
 
-        return template;
+        return schema;
     }
 
     /// <summary>
-    /// Get a template by class Id from the templates warehouse. If not in the warehouse, a new ResourceTemplate is created and added to the warehouse.
+    /// Get a schema by class Id from the templates warehouse. If not in the warehouse, a new ResourceTemplate is created and added to the warehouse.
     /// </summary>
     /// <param name="classId">Class Id.</param>
     /// <returns>Resource template.</returns>
-    public TypeTemplate GetTemplateByClassId(UUID classId, TemplateType? templateType = null)
+    public TypeDef GetTypeDefById(UUID typeId, TypeDefKind? templateType = null)
     {
         if (templateType == null)
         {
             // look into resources
-            var template = templates[TemplateType.Resource][classId];
+            var template = schemas[TypeDefKind.Resource][typeId];
             if (template != null)
                 return template;
 
             // look into records
-            template = templates[TemplateType.Record][classId];
+            template = schemas[TypeDefKind.Record][typeId];
             if (template != null)
                 return template;
 
             // look into enums
-            template = templates[TemplateType.Enum][classId];
+            template = schemas[TypeDefKind.Enum][typeId];
             return template;
             //if (template != null)
 
@@ -663,7 +664,7 @@ public class Warehouse
             //return template;
         }
         else
-            return templates[templateType.Value][classId];
+            return schemas[templateType.Value][typeId];
 
     }
 
@@ -672,22 +673,22 @@ public class Warehouse
     /// </summary>
     /// <param name="className">Class name.</param>
     /// <returns>Resource template.</returns>
-    public TypeTemplate GetTemplateByClassName(string className, TemplateType? templateType = null)
+    public TypeDef GetTypeDfByName(string typeName, TypeDefKind? templateType = null)
     {
         if (templateType == null)
         {
             // look into resources
-            var template = templates[TemplateType.Resource].Values.FirstOrDefault(x => x.ClassName == className);
+            var template = schemas[TypeDefKind.Resource].Values.FirstOrDefault(x => x.Name == typeName);
             if (template != null)
                 return template;
 
             // look into records
-            template = templates[TemplateType.Record].Values.FirstOrDefault(x => x.ClassName == className);
+            template = schemas[TypeDefKind.Record].Values.FirstOrDefault(x => x.Name == typeName);
             if (template != null)
                 return template;
 
             // look into enums
-            template = templates[TemplateType.Enum].Values.FirstOrDefault(x => x.ClassName == className);
+            template = schemas[TypeDefKind.Enum].Values.FirstOrDefault(x => x.Name == typeName);
             //if (template != null)
             return template;
 
@@ -697,7 +698,7 @@ public class Warehouse
         }
         else
         {
-            return templates[templateType.Value].Values.FirstOrDefault(x => x.ClassName == className);
+            return schemas[templateType.Value].Values.FirstOrDefault(x => x.Name == typeName);
         }
     }
 

@@ -10,8 +10,9 @@ using System.Security.Cryptography;
 using Esiur.Proxy;
 using Esiur.Net.IIP;
 using System.Runtime.CompilerServices;
+using Esiur.Resource;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
 //public enum TemplateType
 //{
@@ -19,27 +20,27 @@ namespace Esiur.Resource.Template;
 //    Record
 //}
 
-public class TypeTemplate
+public class TypeDef
 {
 
-    protected UUID classId;
+    protected UUID typeId;
     protected UUID? parentId;
 
     public Map<string, string> Annotations { get; set; }
 
-    string className;
-    List<FunctionTemplate> functions = new List<FunctionTemplate>();
-    List<EventTemplate> events = new List<EventTemplate>();
-    List<PropertyTemplate> properties = new List<PropertyTemplate>();
-    List<AttributeTemplate> attributes = new List<AttributeTemplate>();
-    List<ConstantTemplate> constants = new();
+    string typeName;
+    List<FunctionDef> functions = new List<FunctionDef>();
+    List<EventDef> events = new List<EventDef>();
+    List<PropertyDef> properties = new List<PropertyDef>();
+    List<AttributeDef> attributes = new List<AttributeDef>();
+    List<ConstantDef> constants = new();
     int version;
-    TemplateType templateType;
+    TypeDefKind typeDefKind;
 
 
     public override string ToString()
     {
-        return className;
+        return typeName;
     }
 
     // protected TemplateType
@@ -54,7 +55,7 @@ public class TypeTemplate
         get { return content; }
     }
 
-    public TemplateType Type => templateType;
+    public TypeDefKind Kind => typeDefKind;
 
 
     public Type DefinedType { get; set; }
@@ -72,7 +73,7 @@ public class TypeTemplate
     //        return null;
     //}
 
-    public EventTemplate GetEventTemplateByName(string eventName)
+    public EventDef GetEventDefByName(string eventName)
     {
         foreach (var i in events)
             if (i.Name == eventName)
@@ -80,7 +81,7 @@ public class TypeTemplate
         return null;
     }
 
-    public EventTemplate GetEventTemplateByIndex(byte index)
+    public EventDef GetEventDefByIndex(byte index)
     {
         foreach (var i in events)
             if (i.Index == index)
@@ -88,14 +89,14 @@ public class TypeTemplate
         return null;
     }
 
-    public FunctionTemplate GetFunctionTemplateByName(string functionName)
+    public FunctionDef GetFunctionDefByName(string functionName)
     {
         foreach (var i in functions)
             if (i.Name == functionName)
                 return i;
         return null;
     }
-    public FunctionTemplate GetFunctionTemplateByIndex(byte index)
+    public FunctionDef GetFunctionDefByIndex(byte index)
     {
         foreach (var i in functions)
             if (i.Index == index)
@@ -103,7 +104,7 @@ public class TypeTemplate
         return null;
     }
 
-    public PropertyTemplate GetPropertyTemplateByIndex(byte index)
+    public PropertyDef GetPropertyDefByIndex(byte index)
     {
         foreach (var i in properties)
             if (i.Index == index)
@@ -111,7 +112,7 @@ public class TypeTemplate
         return null;
     }
 
-    public PropertyTemplate GetPropertyTemplateByName(string propertyName)
+    public PropertyDef GetPropertyDefByName(string propertyName)
     {
         foreach (var i in properties)
             if (i.Name == propertyName)
@@ -119,7 +120,7 @@ public class TypeTemplate
         return null;
     }
 
-    public AttributeTemplate GetAttributeTemplate(string attributeName)
+    public AttributeDef GetAttributeDef(string attributeName)
     {
         foreach (var i in attributes)
             if (i.Name == attributeName)
@@ -127,13 +128,13 @@ public class TypeTemplate
         return null;
     }
 
-    public UUID ClassId
+    public UUID Id
     {
-        get { return classId; }
+        get { return typeId; }
     }
-    public string ClassName
+    public string Name
     {
-        get { return className; }
+        get { return typeName; }
     }
 
     //public MemberTemplate[] Methods
@@ -141,24 +142,24 @@ public class TypeTemplate
     //    get { return members.ToArray(); }
     //}
 
-    public FunctionTemplate[] Functions
+    public FunctionDef[] Functions
     {
         get { return functions.ToArray(); }
     }
 
-    public EventTemplate[] Events
+    public EventDef[] Events
     {
         get { return events.ToArray(); }
     }
 
-    public PropertyTemplate[] Properties
+    public PropertyDef[] Properties
     {
         get { return properties.ToArray(); }
     }
 
-    public ConstantTemplate[] Constants => constants.ToArray();
+    public ConstantDef[] Constants => constants.ToArray();
 
-    public TypeTemplate()
+    public TypeDef()
     {
 
     }
@@ -169,7 +170,7 @@ public class TypeTemplate
         if (attr != null)
             return attr.ClassId;
 
-        var tn = Encoding.UTF8.GetBytes(GetTypeClassName(type));
+        var tn = Encoding.UTF8.GetBytes(GetTypeName(type));
         var hash = SHA256.Create().ComputeHash(tn).Clip(0, 16);
         hash[6] = (byte)((hash[6] & 0xF) | 0x80);
         hash[8] = (byte)((hash[8] & 0xF) | 0x80);
@@ -222,24 +223,24 @@ public class TypeTemplate
     }
 
 
-    public static TypeTemplate[] GetDependencies(TypeTemplate template, Warehouse warehouse)
+    public static TypeDef[] GetDependencies(TypeDef schema, Warehouse warehouse)
     {
 
-        var list = new List<TypeTemplate>();
+        var list = new List<TypeDef>();
 
         // Add self
-        list.Add(template);
+        list.Add(schema);
 
 
-        Action<TypeTemplate, List<TypeTemplate>> getDependenciesFunc = null;
+        Action<TypeDef, List<TypeDef>> getDependenciesFunc = null;
 
-        getDependenciesFunc = (TypeTemplate tmp, List<TypeTemplate> bag) =>
+        getDependenciesFunc = (TypeDef sch, List<TypeDef> bag) =>
         {
-            if (template.DefinedType == null)
+            if (schema.DefinedType == null)
                 return;
 
             // Add parents
-            var parentType = tmp.ParentDefinedType;
+            var parentType = sch.ParentDefinedType;
 
             // Get parents
             while (parentType != null)
@@ -253,7 +254,7 @@ public class TypeTemplate
             }
 
             // functions
-            foreach (var f in tmp.functions)
+            foreach (var f in sch.functions)
             {
                 var functionReturnTypes = GetDistributedTypes(f.MethodInfo.ReturnType);
                 //.Select(x => Warehouse.GetTemplateByType(x))
@@ -319,7 +320,7 @@ public class TypeTemplate
             }
 
             // properties
-            foreach (var p in tmp.properties)
+            foreach (var p in sch.properties)
             {
                 var propertyTypes = GetDistributedTypes(p.PropertyInfo.PropertyType);
 
@@ -338,7 +339,7 @@ public class TypeTemplate
             }
 
             // events
-            foreach (var e in tmp.events)
+            foreach (var e in sch.events)
             {
                 var eventTypes = GetDistributedTypes(e.EventInfo.EventHandlerType.GenericTypeArguments[0]);
 
@@ -358,12 +359,12 @@ public class TypeTemplate
             }
         };
 
-        getDependenciesFunc(template, list);
+        getDependenciesFunc(schema, list);
         return list.Distinct().ToArray();
     }
 
 
-    public static string GetTypeClassName(Type type, char separator = '.')
+    public static string GetTypeName(Type type, char separator = '.')
     {
 
         if (type.IsGenericType)
@@ -371,7 +372,7 @@ public class TypeTemplate
             var index = type.Name.IndexOf("`");
             var name = $"{type.Namespace}{separator}{((index > -1) ? type.Name.Substring(0, index) : type.Name)}Of";
             foreach (var t in type.GenericTypeArguments)
-                name += GetTypeClassName(t, '_');
+                name += GetTypeName(t, '_');
 
             return name;
         }
@@ -386,14 +387,14 @@ public class TypeTemplate
 
     public bool IsWrapper { get; private set; }
 
-    public TypeTemplate(Type type, Warehouse warehouse = null)
+    public TypeDef(Type type, Warehouse warehouse = null)
     {
         if (Codec.ImplementsInterface(type, typeof(IResource)))
-            templateType = TemplateType.Resource;
+            typeDefKind = TypeDefKind.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            templateType = TemplateType.Record;
+            typeDefKind = TypeDefKind.Record;
         else if (type.IsEnum)
-            templateType = TemplateType.Enum;
+            typeDefKind = TypeDefKind.Enum;
         else
             throw new Exception("Type must implement IResource, IRecord or inherit from DistributedResource.");
 
@@ -403,13 +404,13 @@ public class TypeTemplate
 
         DefinedType = type;
 
-        className = GetTypeClassName(type);
+        typeName = GetTypeName(type);
 
         // set guid
-        classId = GetTypeUUID(type);
+        typeId = GetTypeUUID(type);
 
         if (warehouse != null)
-            warehouse.PutTemplate(this);
+            warehouse.RegisterSchema(this);
 
         var hierarchy = GetHierarchy(type);
 
@@ -417,7 +418,7 @@ public class TypeTemplate
         {
             foreach (var cd in hierarchy[MemberTypes.Field])
             {
-                constants.Add(ConstantTemplate.MakeConstantTemplate
+                constants.Add(ConstantDef.MakeConstantDef
                     (type, (FieldInfo)cd.GetMemberInfo(), cd.Index, cd.Name, this));
             }
         }
@@ -426,18 +427,18 @@ public class TypeTemplate
         {
             foreach (var pd in hierarchy[MemberTypes.Property])
             {
-                properties.Add(PropertyTemplate.MakePropertyTemplate
+                properties.Add(PropertyDef.MakePropertyDef
                     (type, (PropertyInfo)pd.GetMemberInfo(), pd.Name, pd.Index, pd.PropertyPermission, this));
             }
         }
 
-        if (templateType == TemplateType.Resource)
+        if (typeDefKind == TypeDefKind.Resource)
         {
             if (hierarchy.ContainsKey(MemberTypes.Method))
             {
                 foreach (var fd in hierarchy[MemberTypes.Method])
                 {
-                    functions.Add(FunctionTemplate.MakeFunctionTemplate
+                    functions.Add(FunctionDef.MakeFunctionDef
                         (type, (MethodInfo)fd.GetMemberInfo(), fd.Index, fd.Name, this));
                 }
             }
@@ -446,7 +447,7 @@ public class TypeTemplate
             {
                 foreach (var ed in hierarchy[MemberTypes.Event])
                 {
-                    events.Add(EventTemplate.MakeEventTemplate
+                    events.Add(EventDef.MakeEventDef
                         (type, (EventInfo)ed.GetMemberInfo(), ed.Index, ed.Name, this));
                 }
             }
@@ -461,8 +462,8 @@ public class TypeTemplate
         {
             var attrAttr = attr.GetCustomAttribute<AttributeAttribute>();
 
-            attributes.Add(AttributeTemplate
-                .MakeAttributeTemplate(type, attr, 0, attrAttr?.Name ?? attr.Name, this));
+            attributes.Add(AttributeDef
+                .MakeAttributeDef(type, attr, 0, attrAttr?.Name ?? attr.Name, this));
         }
 
 
@@ -478,12 +479,12 @@ public class TypeTemplate
 
         var hasClassAnnotation = (classAnnotations != null) && (classAnnotations.Count() > 0);
 
-        var classNameBytes = DC.ToBytes(className);
+        var typeNameBytes = DC.ToBytes(typeName);
 
-        b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasClassAnnotation ? 0x40 : 0x0) | (byte)templateType))
-         .AddUUID(classId)
-         .AddUInt8((byte)classNameBytes.Length)
-         .AddUInt8Array(classNameBytes);
+        b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasClassAnnotation ? 0x40 : 0x0) | (byte)typeDefKind))
+         .AddUUID(typeId)
+         .AddUInt8((byte)typeNameBytes.Length)
+         .AddUInt8Array(typeNameBytes);
 
         if (hasParent)
         {
@@ -529,7 +530,7 @@ public class TypeTemplate
 
         while (parent != null)
         {
-            if (parent == typeof(Resource)
+            if (parent == typeof(Esiur.Resource.Resource)
                 || parent == typeof(Record)
                 || parent == typeof(EntryPoint))
                 return false;
@@ -606,7 +607,7 @@ public class TypeTemplate
             type = type.BaseType;
 
             if (type == null
-                || type == typeof(Resource)
+                || type == typeof(Esiur.Resource.Resource)
                 || type == typeof(Record)
                 || type == typeof(EntryPoint))
                 break;
@@ -674,13 +675,13 @@ public class TypeTemplate
     }
 
 
-    public static TypeTemplate Parse(byte[] data)
+    public static TypeDef Parse(byte[] data)
     {
         return Parse(data, 0, (uint)data.Length);
     }
 
 
-    public static TypeTemplate Parse(byte[] data, uint offset, uint contentLength)
+    public static TypeDef Parse(byte[] data, uint offset, uint contentLength)
     {
 
         uint ends = offset + contentLength;
@@ -689,17 +690,17 @@ public class TypeTemplate
 
         // start parsing...
 
-        var od = new TypeTemplate();
+        var od = new TypeDef();
         od.content = data.Clip(offset, contentLength);
 
         var hasParent = (data[offset] & 0x80) > 0;
         var hasClassAnnotation = (data[offset] & 0x40) > 0;
 
-        od.templateType = (TemplateType)(data[offset++] & 0xF);
+        od.typeDefKind = (TypeDefKind)(data[offset++] & 0xF);
 
-        od.classId = data.GetUUID(offset);
+        od.typeId = data.GetUUID(offset);
         offset += 16;
-        od.className = data.GetString(offset + 1, data[offset]);
+        od.typeName = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
 
@@ -736,27 +737,27 @@ public class TypeTemplate
 
             if (type == 0) // function
             {
-                var (len, ft) = FunctionTemplate.Parse(data, offset, functionIndex++, inherited);
+                var (len, ft) = FunctionDef.Parse(data, offset, functionIndex++, inherited);
                 offset += len;
                 od.functions.Add(ft);
             }
             else if (type == 1)    // property
             {
-                var (len, pt) = PropertyTemplate.Parse(data, offset, propertyIndex++, inherited);
+                var (len, pt) = PropertyDef.Parse(data, offset, propertyIndex++, inherited);
                 offset += len;
                 od.properties.Add(pt);
 
             }
             else if (type == 2) // Event
             {
-                var (len, et) = EventTemplate.Parse(data, offset, propertyIndex++, inherited);
+                var (len, et) = EventDef.Parse(data, offset, propertyIndex++, inherited);
                 offset += len;
                 od.events.Add(et);
             }
             // constant
             else if (type == 3)
             {
-                var (len, ct) = ConstantTemplate.Parse(data, offset, propertyIndex++, inherited);
+                var (len, ct) = ConstantDef.Parse(data, offset, propertyIndex++, inherited);
                 offset += len;
                 od.constants.Add(ct);
             }
@@ -770,7 +771,7 @@ public class TypeTemplate
         var rt = new Map<byte, object>();
         foreach (var kv in properties)
         {
-            var pt = GetPropertyTemplateByName(kv.Key);
+            var pt = GetPropertyDefByName(kv.Key);
             if (pt == null) continue;
             rt.Add(pt.Index, kv.Value);
         }

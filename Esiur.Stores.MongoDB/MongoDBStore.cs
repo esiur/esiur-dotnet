@@ -32,10 +32,10 @@ using Esiur.Data;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
-using Esiur.Resource.Template;
 using System.Linq;
 using Esiur.Security.Permissions;
 using Esiur.Proxy;
+using Esiur.Data.Schema;
 
 namespace Esiur.Stores.MongoDB;
 
@@ -342,7 +342,7 @@ public class MongoDBStore : IStore
             var parents = new BsonArray();
             var children = new BsonArray();
 
-            var template = resource.Instance.Template;
+            var schema = resource.Instance.Schema;
 
             // setup attributes
             resource.Instance.Variables["children"] = new string[0];
@@ -381,7 +381,7 @@ public class MongoDBStore : IStore
 
             var values = new BsonDocument();
 
-            foreach (var pt in template.Properties)
+            foreach (var pt in schema.Properties)
             {
                 var rt = pt.PropertyInfo.GetValue(resource, null);
 
@@ -594,7 +594,7 @@ public class MongoDBStore : IStore
 
         var parents = new BsonArray();
         var children = new BsonArray();
-        var template = resource.Instance.Template;
+        var schema = resource.Instance.Schema;
 
         //foreach (IResource c in resource.Instance.Children)
         //  children.Add(c.Instance.Link);
@@ -607,7 +607,7 @@ public class MongoDBStore : IStore
 
         var values = new BsonDocument();
 
-        foreach (var pt in template.Properties)
+        foreach (var pt in schema.Properties)
         {
             /*
 #if NETSTANDARD1_5
@@ -728,11 +728,11 @@ public class MongoDBStore : IStore
         return reply;
     }
 
-    AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByAge(IResource resource, ulong fromAge, ulong toAge)
+    AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecordByAge(IResource resource, ulong fromAge, ulong toAge)
     {
-        var properties = resource.Instance.Template.Properties.Where(x => x.Recordable).ToList();
+        var properties = resource.Instance.Schema.Properties.Where(x => x.Recordable).ToList();
 
-        var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
+        var reply = new AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>>();
 
         AsyncBag<PropertyValue[]> bag = new AsyncBag<PropertyValue[]>();
 
@@ -743,7 +743,7 @@ public class MongoDBStore : IStore
 
         bag.Then(x =>
         {
-            var list = new KeyList<PropertyTemplate, PropertyValue[]>();
+            var list = new KeyList<PropertyDefinition, PropertyValue[]>();
 
             for (var i = 0; i < x.Length; i++)
                 list.Add(properties[i], x[i]);
@@ -754,11 +754,11 @@ public class MongoDBStore : IStore
         return reply;
     }
 
-    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
-        var properties = resource.Instance.Template.Properties.Where(x => x.Recordable).ToList();
+        var properties = resource.Instance.Schema.Properties.Where(x => x.Recordable).ToList();
 
-        var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
+        var reply = new AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>>();
 
         AsyncBag<PropertyValue[]> bag = new AsyncBag<PropertyValue[]>();
 
@@ -769,7 +769,7 @@ public class MongoDBStore : IStore
 
         bag.Then(x =>
         {
-            var list = new KeyList<PropertyTemplate, PropertyValue[]>();
+            var list = new KeyList<PropertyDefinition, PropertyValue[]>();
 
             for (var i = 0; i < x.Length; i++)
                 list.Add(properties[i], x[i]);

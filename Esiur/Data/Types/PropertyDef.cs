@@ -1,5 +1,6 @@
 ﻿using Esiur.Data;
 using Esiur.Net.IIP;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,9 +9,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
-public class PropertyTemplate : MemberTemplate
+public class PropertyDef : MemberDef
 {
     public Map<string, string> Annotations { get; set; }
 
@@ -79,7 +80,7 @@ public class PropertyTemplate : MemberTemplate
         return $"{Name}: {ValueType}";
     }
 
-    public static (uint, PropertyTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static (uint, PropertyDef) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
         var oOffset = offset;
 
@@ -109,7 +110,7 @@ public class PropertyTemplate : MemberTemplate
             offset += len;
         }
 
-        return (offset - oOffset, new PropertyTemplate()
+        return (offset - oOffset, new PropertyDef()
         {
             Index = index,
             Name = name,
@@ -192,7 +193,7 @@ public class PropertyTemplate : MemberTemplate
         }
     }
 
-    //public PropertyTemplate(TypeTemplate template, byte index, string name, bool inherited, 
+    //public PropertyTemplate(TypeSchema template, byte index, string name, bool inherited, 
     //    TRU valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
     //    : base(template, index, name, inherited)
     //{
@@ -204,7 +205,7 @@ public class PropertyTemplate : MemberTemplate
     //    this.ValueType = valueType;
     //}
 
-    public static PropertyTemplate MakePropertyTemplate(Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeTemplate typeTemplate)
+    public static PropertyDef MakePropertyDef(Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeDef schema)
     {
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
 
@@ -265,7 +266,7 @@ public class PropertyTemplate : MemberTemplate
         }
 
 
-        return new PropertyTemplate()
+        return new PropertyDef()
         {
             Name = name,
             Index = index,
@@ -277,7 +278,7 @@ public class PropertyTemplate : MemberTemplate
             Annotations = annotations,
         };
 
-        //var pt = new PropertyTemplate(typeTemplate, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
+        //var pt = new PropertyTemplate(TypeSchema, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
 
         //if (storageAttr != null)
         //    pt.Recordable = storageAttr.Mode == StorageMode.Recordable;

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Xml.Linq;
-using static Esiur.Resource.Template.PropertyTemplate;
 
 namespace Esiur.Resource;
 

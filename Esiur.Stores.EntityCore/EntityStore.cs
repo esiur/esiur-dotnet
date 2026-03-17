@@ -25,7 +25,6 @@ SOFTWARE.
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -35,6 +34,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
 using Esiur.Security.Authority;
 using System.Collections;
+using Esiur.Data.Schema;
 
 namespace Esiur.Stores.EntityCore;
 public class EntityStore : IStore
@@ -216,7 +216,7 @@ public class EntityStore : IStore
         throw new NotImplementedException();
     }
 
-    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
         throw new NotImplementedException();
     }

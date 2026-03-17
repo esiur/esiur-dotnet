@@ -24,13 +24,13 @@ SOFTWARE.
 
 using Esiur.Core;
 using Esiur.Data;
+using Esiur.Data.Schema;
 using Esiur.Misc;
 using Esiur.Net.HTTP;
 using Esiur.Net.Packets;
 using Esiur.Net.Packets.HTTP;
 using Esiur.Net.Sockets;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Security.Membership;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -492,19 +492,19 @@ public partial class DistributedConnection : NetworkConnection, IStore
                             IIPRequestUnsubscribe(packet.CallbackId, dt, msg);
                             break;
                         // Inquire
-                        case IIPPacketRequest.TemplateFromClassName:
+                        case IIPPacketRequest.SchemaFromClassName:
                             IIPRequestTemplateFromClassName(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.TemplateFromClassId:
+                        case IIPPacketRequest.SchemaFromClassId:
                             IIPRequestTemplateFromClassId(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.TemplateFromResourceId:
+                        case IIPPacketRequest.SchemaFromResourceId:
                             IIPRequestTemplateFromResourceId(packet.CallbackId, dt, msg);
                             break;
                         case IIPPacketRequest.Query:
                             IIPRequestQueryResources(packet.CallbackId, dt, msg);
                             break;
-                        case IIPPacketRequest.LinkTemplates:
+                        case IIPPacketRequest.LinkSchemas:
                             IIPRequestLinkTemplates(packet.CallbackId, dt, msg);
                             break;
                         case IIPPacketRequest.Token:
@@ -1712,7 +1712,7 @@ public partial class DistributedConnection : NetworkConnection, IStore
         throw new NotImplementedException();
     }
 
-    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
         throw new NotImplementedException();
     }

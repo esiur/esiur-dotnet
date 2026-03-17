@@ -1,7 +1,7 @@
 ﻿using Esiur.Core;
+using Esiur.Data.Types;
 using Esiur.Net.IIP;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections;
@@ -168,9 +168,9 @@ namespace Esiur.Data
                 (TRUIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
                 (TRUIdentifier.Resource) => typeof(IResource),
                 (TRUIdentifier.Record) => typeof(IRecord),
-                (TRUIdentifier.TypedRecord) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Record)?.DefinedType,
-                (TRUIdentifier.TypedResource) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Resource)?.DefinedType,
-                (TRUIdentifier.Enum) => warehouse.GetTemplateByClassId((UUID)UUID!, TemplateType.Enum)?.DefinedType,
+                (TRUIdentifier.TypedRecord) => warehouse.GetTypeDefById((UUID)UUID!, TypeDefKind.Record)?.DefinedType,
+                (TRUIdentifier.TypedResource) => warehouse.GetTypeDefById((UUID)UUID!, TypeDefKind.Resource)?.DefinedType,
+                (TRUIdentifier.Enum) => warehouse.GetTypeDefById((UUID)UUID!, TypeDefKind.Enum)?.DefinedType,
 
                 _ => null
             };
@@ -308,7 +308,7 @@ namespace Esiur.Data
                 tru = new TRU(
                    TRUIdentifier.TypedResource,
                    nullable,
-                   TypeTemplate.GetTypeUUID(type)
+                   TypeDef.GetTypeUUID(type)
                 );
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
@@ -316,7 +316,7 @@ namespace Esiur.Data
                 tru = new TRU(
                    TRUIdentifier.TypedRecord,
                    nullable,
-                   TypeTemplate.GetTypeUUID(type)
+                   TypeDef.GetTypeUUID(type)
                 );
             }
             else if (type.IsGenericType)
@@ -483,7 +483,7 @@ namespace Esiur.Data
             }
             else if (type.IsEnum)
             {
-                tru = new TRU(TRUIdentifier.Enum, nullable, TypeTemplate.GetTypeUUID(type));
+                tru = new TRU(TRUIdentifier.Enum, nullable, TypeDef.GetTypeUUID(type));
             }
             else if (type.IsInterface)
             {

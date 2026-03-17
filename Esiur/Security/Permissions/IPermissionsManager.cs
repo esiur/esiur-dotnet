@@ -26,13 +26,13 @@ using Esiur.Data;
 using Esiur.Core;
 using Esiur.Net;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Esiur.Data.Types;
 
 namespace Esiur.Security.Permissions;
 
@@ -47,7 +47,7 @@ public interface IPermissionsManager
     /// <param name="member">Function, property or event to check for permission.</param>
     /// <param name="inquirer">Permission inquirer object.</param>
     /// <returns>Allowed or denined.</returns>
-    Ruling Applicable(IResource resource, Session session, ActionType action, MemberTemplate member, object inquirer = null);
+    Ruling Applicable(IResource resource, Session session, ActionType action, MemberDef member, object inquirer = null);
 
     bool Initialize(Map<string, object> settings, IResource resource);
 

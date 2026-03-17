@@ -1,5 +1,4 @@
 ﻿using Esiur.Data;
-using Esiur.Resource.Template;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +8,7 @@ using System.Text.RegularExpressions;
 using Esiur.Resource;
 using Esiur.Net.IIP;
 using System.Diagnostics;
+using Esiur.Data.Types;
 
 namespace Esiur.Proxy;
 
@@ -61,9 +61,9 @@ public static class TemplateGenerator
     }
 
 
-    internal static string GenerateRecord(TypeTemplate template, TypeTemplate[] templates)
+    internal static string GenerateRecord(TypeDef typeDef, TypeDef[] templates)
     {
-        var cls = template.ClassName.Split('.');
+        var cls = typeDef.Name.Split('.');
 
         var nameSpace = string.Join(".", cls.Take(cls.Length - 1));
         var className = cls.Last();
@@ -74,19 +74,19 @@ public static class TemplateGenerator
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Net.IIP;");
         rt.AppendLine($"namespace {nameSpace} {{");
 
-        if (template.Annotations != null)
+        if (typeDef.Annotations != null)
         {
-            foreach (var ann in template.Annotations)
+            foreach (var ann in typeDef.Annotations)
             {
                 rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
             }
         }
 
-        rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[ClassId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public class {className} : IRecord {{");
 
 
-        foreach (var p in template.Properties)
+        foreach (var p in typeDef.Properties)
         {
             var ptTypeName = GetTypeName(p.ValueType, templates);
 
@@ -109,9 +109,9 @@ public static class TemplateGenerator
         return rt.ToString();
     }
 
-    internal static string GenerateEnum(TypeTemplate template, TypeTemplate[] templates)
+    internal static string GenerateEnum(TypeDef template, TypeDef[] templates)
     {
-        var cls = template.ClassName.Split('.');
+        var cls = template.Name.Split('.');
 
         var nameSpace = string.Join(".", cls.Take(cls.Length - 1));
         var className = cls.Last();
@@ -129,7 +129,7 @@ public static class TemplateGenerator
             }
         }
 
-        rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[ClassId(\"{template.Id.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public enum {className} {{");
 
         rt.AppendLine(String.Join(",\r\n", template.Constants.Select(x => $"{x.Name}={x.Value}")));
@@ -140,16 +140,16 @@ public static class TemplateGenerator
     }
 
 
-    static string GetTypeName(TRU representationType, TypeTemplate[] templates)
+    static string GetTypeName(TRU representationType, TypeDef[] templates)
     {
         string name;
 
         if (representationType.Identifier == TRUIdentifier.TypedResource)// == DataType.Resource)
-            name = templates.First(x => x.ClassId == representationType.UUID && (x.Type == TemplateType.Resource)).ClassName;
+            name = templates.First(x => x.Id == representationType.UUID && (x.Kind == TypeDefKind.Resource)).Name;
         else if (representationType.Identifier == TRUIdentifier.TypedRecord)
-            name = templates.First(x => x.ClassId == representationType.UUID && x.Type == TemplateType.Record).ClassName;
+            name = templates.First(x => x.Id == representationType.UUID && x.Kind == TypeDefKind.Record).Name;
         else if (representationType.Identifier == TRUIdentifier.Enum)
-            name = templates.First(x => x.ClassId == representationType.UUID && x.Type == TemplateType.Enum).ClassName;
+            name = templates.First(x => x.Id == representationType.UUID && x.Kind == TypeDefKind.Enum).Name;
         else if (representationType.Identifier == TRUIdentifier.TypedList)
             name = GetTypeName(representationType.SubTypes[0], templates) + "[]";
         else if (representationType.Identifier == TRUIdentifier.TypedMap)
@@ -215,7 +215,7 @@ public static class TemplateGenerator
             if (string.IsNullOrEmpty(dir))
                 dir = path[2].Replace(":", "_");
 
-            var templates = con.GetLinkTemplates(path[3]).Wait(60000);
+            var templates = con.GetLinkDefinitions(path[3]).Wait(60000);
             // no longer needed
             Warehouse.Default.Remove(con);
 
@@ -233,20 +233,20 @@ public static class TemplateGenerator
             // make sources
             foreach (var tmp in templates)
             {
-                if (tmp.Type == TemplateType.Resource)
+                if (tmp.Kind == TypeDefKind.Resource)
                 {
                     var source = GenerateClass(tmp, templates, asyncSetters);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".g.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.Name + ".g.cs", source);
                 }
-                else if (tmp.Type == TemplateType.Record)
+                else if (tmp.Kind == TypeDefKind.Record)
                 {
                     var source = GenerateRecord(tmp, templates);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".g.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.Name + ".g.cs", source);
                 }
-                else if (tmp.Type == TemplateType.Enum)
+                else if (tmp.Kind == TypeDefKind.Enum)
                 {
                     var source = GenerateEnum(tmp, templates);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.ClassName + ".g.cs", source);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.Name + ".g.cs", source);
                 }
             }
 
@@ -256,13 +256,13 @@ public static class TemplateGenerator
     namespace Esiur { 
         public static class Generated { 
             public static Type[] Resources {get;} = new Type[] { " +
-                    string.Join(",", templates.Where(x => x.Type == TemplateType.Resource).Select(x => $"typeof({x.ClassName})"))
+                    string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
                 + @" };
             public static Type[] Records { get; } = new Type[] { " +
-                    string.Join(",", templates.Where(x => x.Type == TemplateType.Record).Select(x => $"typeof({x.ClassName})"))
+                    string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.Name})"))
                 + @" };
             public static Type[] Enums { get; } = new Type[] { " +
-                    string.Join(",", templates.Where(x => x.Type == TemplateType.Enum).Select(x => $"typeof({x.ClassName})"))
+                    string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Enum).Select(x => $"typeof({x.Name})"))
                 + @" };" +
                 "\r\n } \r\n}";
 
@@ -279,9 +279,9 @@ public static class TemplateGenerator
         }
     }
 
-    internal static string GenerateClass(TypeTemplate template, TypeTemplate[] templates, bool asyncSetters)
+    internal static string GenerateClass(TypeDef template, TypeDef[] templates, bool asyncSetters)
     {
-        var cls = template.ClassName.Split('.');
+        var cls = template.Name.Split('.');
 
         var nameSpace = string.Join(".", cls.Take(cls.Length - 1));
         var className = cls.Last();
@@ -302,13 +302,13 @@ public static class TemplateGenerator
         }
 
 
-        rt.AppendLine($"[ClassId(\"{template.ClassId.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[ClassId(\"{template.Id.Data.ToHex(0, 16, null)}\")]");
 
         // extends
         if (template.ParentId == null)
             rt.AppendLine($"public class {className} : DistributedResource {{");
         else
-            rt.AppendLine($"public class {className} : {templates.First(x => x.ClassId == template.ParentId && x.Type == TemplateType.Resource).ClassName} {{");
+            rt.AppendLine($"public class {className} : {templates.First(x => x.Id == template.ParentId && x.Kind == TypeDefKind.Resource).Name} {{");
 
 
         rt.AppendLine($"public {className}(DistributedConnection connection, uint instanceId, ulong age, string link) : base(connection, instanceId, age, link) {{}}");
@@ -378,7 +378,7 @@ public static class TemplateGenerator
             rt.AppendLine($"var rt = new AsyncReply<{rtTypeName}>();");
 
             if (f.IsStatic)
-                rt.AppendLine($"connection.StaticCall(Guid.Parse(\"{template.ClassId.ToString()}\"), {f.Index}, args)");
+                rt.AppendLine($"connection.StaticCall(Guid.Parse(\"{template.Id.ToString()}\"), {f.Index}, args)");
             else
                 rt.AppendLine($"_Invoke({f.Index}, args)");
 

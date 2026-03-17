@@ -6,9 +6,9 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
-public class AttributeTemplate : MemberTemplate
+public class AttributeDef : MemberDef
 {
 
     public PropertyInfo PropertyInfo
@@ -18,14 +18,15 @@ public class AttributeTemplate : MemberTemplate
     }
 
 
-    public static AttributeTemplate MakeAttributeTemplate(Type type, PropertyInfo pi, byte index, string name, TypeTemplate typeTemplate )
+    public static AttributeDef MakeAttributeDef(Type type, PropertyInfo pi, byte index, string name, TypeDef typeDef)
     {
-        return new AttributeTemplate()
+        return new AttributeDef()
         {
             Index = index,
             Inherited = pi.DeclaringType != type,
             Name = name,
-            PropertyInfo = pi
+            PropertyInfo = pi,
+            Definition = typeDef
         };
     }
 }

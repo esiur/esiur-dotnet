@@ -165,7 +165,7 @@ public static class DataDeserializer
 
         var template = Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
-        var initRecord = (TypeTemplate template) =>
+        var initRecord = (TypeSchema template) =>
         {
             ListParser(data, offset, length, connection, requestSequence).Then(r =>
             {

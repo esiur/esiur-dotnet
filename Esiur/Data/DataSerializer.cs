@@ -1,8 +1,8 @@
 ﻿using Esiur.Core;
 using Esiur.Data.GVWIE;
+using Esiur.Data.Schema;
 using Esiur.Net.IIP;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Buffers.Binary;
@@ -943,7 +943,7 @@ public static class DataSerializer
             template.ClassId.Data);
     }
 
-    public static byte[] HistoryComposer(KeyList<PropertyTemplate, PropertyValue[]> history, Warehouse warehouse,
+    public static byte[] HistoryComposer(KeyList<PropertyDefinition, PropertyValue[]> history, Warehouse warehouse,
                                         DistributedConnection connection, bool prependLength = false)
     {
         //@TODO:Test

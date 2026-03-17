@@ -1,6 +1,7 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
 using Esiur.Net.IIP;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,9 +10,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
-public class FunctionTemplate : MemberTemplate
+public class FunctionDef : MemberDef
 {
 
     public Map<string, string> Annotations
@@ -30,7 +31,7 @@ public class FunctionTemplate : MemberTemplate
 
     public bool IsStatic { get; set; }
 
-    public ArgumentTemplate[] Arguments { get; set; }
+    public ArgumentDef[] Arguments { get; set; }
 
     public MethodInfo MethodInfo
     {
@@ -39,7 +40,7 @@ public class FunctionTemplate : MemberTemplate
     }
 
 
-    public static (uint, FunctionTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static (uint, FunctionDef) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
 
         var oOffset = offset;
@@ -56,11 +57,11 @@ public class FunctionTemplate : MemberTemplate
 
         // arguments count
         var argsCount = data[offset++];
-        List<ArgumentTemplate> arguments = new();
+        List<ArgumentDef> arguments = new();
 
         for (var a = 0; a < argsCount; a++)
         {
-            var (cs, argType) = ArgumentTemplate.Parse(data, offset, a);
+            var (cs, argType) = ArgumentDef.Parse(data, offset, a);
             arguments.Add(argType);
             offset += cs;
         }
@@ -78,7 +79,7 @@ public class FunctionTemplate : MemberTemplate
             offset += len;
         }
 
-        return (offset - oOffset, new FunctionTemplate()
+        return (offset - oOffset, new FunctionDef()
         {
             Index = index,
             Name = name,
@@ -117,7 +118,7 @@ public class FunctionTemplate : MemberTemplate
         return bl.ToArray();
     }
 
-    //public FunctionTemplate(TypeTemplate template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, Map<string, string> annotations = null)
+    //public FunctionTemplate(TypeSchema template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, Map<string, string> annotations = null)
     //   : base(template, index, name, inherited)
     //{
     //    this.Arguments = arguments;
@@ -128,7 +129,7 @@ public class FunctionTemplate : MemberTemplate
 
 
 
-    public static FunctionTemplate MakeFunctionTemplate(Type type, MethodInfo mi, byte index, string name, TypeTemplate typeTemplate)
+    public static FunctionDef MakeFunctionDef(Type type, MethodInfo mi, byte index, string name, TypeDef schema)
     {
 
         var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
@@ -262,7 +263,7 @@ public class FunctionTemplate : MemberTemplate
                     argAnn.Add(attr.Key, attr.Value);
             }
 
-            return new ArgumentTemplate()
+            return new ArgumentDef()
             {
                 Name = x.Name,
                 Type = argType,
@@ -290,7 +291,7 @@ public class FunctionTemplate : MemberTemplate
 
         }
 
-        return new FunctionTemplate()
+        return new FunctionDef()
         {
             Name = name,
             Index = index,

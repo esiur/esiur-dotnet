@@ -4,10 +4,11 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Esiur.Data;
+using Esiur.Resource;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
-public class ConstantTemplate : MemberTemplate
+public class ConstantDef : MemberDef
 {
     public object Value { get; set; }
 
@@ -17,7 +18,7 @@ public class ConstantTemplate : MemberTemplate
     public FieldInfo FieldInfo { get; set; }
 
 
-    public static (uint, ConstantTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static (uint, ConstantDef) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
         var oOffset = offset;
 
@@ -47,7 +48,7 @@ public class ConstantTemplate : MemberTemplate
             offset += len;
         }
 
-        return (offset - oOffset, new ConstantTemplate()
+        return (offset - oOffset, new ConstantDef()
         {
             Index = index,
             Name = name,
@@ -95,7 +96,7 @@ public class ConstantTemplate : MemberTemplate
     }
 
 
-    public static ConstantTemplate MakeConstantTemplate(Type type, FieldInfo ci, byte index = 0, string customName = null, TypeTemplate typeTemplate = null)
+    public static ConstantDef MakeConstantDef(Type type, FieldInfo ci, byte index = 0, string customName = null, TypeDef typeDef = null)
     {
         var annotationAttrs = ci.GetCustomAttributes<AnnotationAttribute>(true);
 
@@ -106,7 +107,7 @@ public class ConstantTemplate : MemberTemplate
 
         var value = ci.GetValue(null);
 
-        if (typeTemplate?.Type == TemplateType.Enum)
+        if (typeDef?.Type == TypeDefKind.Enum)
             value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
 
         Map<string, string> annotations = null;
@@ -120,7 +121,7 @@ public class ConstantTemplate : MemberTemplate
 
 
 
-        return new ConstantTemplate()
+        return new ConstantDef()
         {
             Name = customName,
             Index = index,

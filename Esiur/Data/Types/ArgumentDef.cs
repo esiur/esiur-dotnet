@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Text;
 using System.Reflection;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
-public class ArgumentTemplate
+public class ArgumentDef
 {
     public string Name { get; set; }
 
@@ -20,7 +20,7 @@ public class ArgumentTemplate
 
     public Map<string, string> Annotations { get; set; }
 
-    public static (uint, ArgumentTemplate) Parse(byte[] data, uint offset, int index)
+    public static (uint, ArgumentDef) Parse(byte[] data, uint offset, int index)
     {
         var optional = (data[offset] & 0x1) == 0x1;
         var hasAnnotations = (data[offset++] & 0x2) == 0x2;
@@ -46,7 +46,7 @@ public class ArgumentTemplate
             cs += l;
         }
 
-        return (cs + 2 + size, new ArgumentTemplate()
+        return (cs + 2 + size, new ArgumentDef()
         {
             Name = name,
             Index = index,
@@ -56,7 +56,7 @@ public class ArgumentTemplate
         });
     }
 
-    public ArgumentTemplate()
+    public ArgumentDef()
     {
 
     }

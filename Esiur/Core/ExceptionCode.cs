@@ -29,7 +29,7 @@ public enum ExceptionCode : ushort
     UpdateAttributeFailed,
     GetAttributesFailed,
     ClearAttributesFailed,
-    TemplateNotFound,
+    TypeDefNotFound,
     RenameDenied,
     ClassNotFound,
     MethodNotFound,

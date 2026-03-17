@@ -13,11 +13,11 @@ namespace Esiur.Net.Packets
         Unsubscribe = 0x3,
 
         // Request Inquire
-        TemplateFromClassName = 0x8,
-        TemplateFromClassId = 0x9,
-        TemplateFromResourceId = 0xA,
+        SchemaFromClassName = 0x8,
+        SchemaFromClassId = 0x9,
+        SchemaFromResourceId = 0xA,
         Query = 0xB,
-        LinkTemplates = 0xC,
+        LinkSchemas = 0xC,
         Token = 0xD,
         GetResourceIdByLink = 0xE,
 

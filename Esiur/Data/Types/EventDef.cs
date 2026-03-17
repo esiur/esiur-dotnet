@@ -1,5 +1,6 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,9 +9,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
-public class EventTemplate : MemberTemplate
+public class EventDef : MemberDef
 {
 
     public Map<string, string> Annotations
@@ -31,7 +32,7 @@ public class EventTemplate : MemberTemplate
     public TRU ArgumentType { get; set; }
 
 
-    public static (uint, EventTemplate) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static (uint, EventDef) Parse(byte[] data, uint offset, byte index, bool inherited)
     {
         var oOffset = offset;
 
@@ -58,7 +59,7 @@ public class EventTemplate : MemberTemplate
             offset += len;
         }
 
-        return (offset - oOffset, new EventTemplate()
+        return (offset - oOffset, new EventDef()
         {
             Index = index,
             Name = name,
@@ -102,7 +103,7 @@ public class EventTemplate : MemberTemplate
                 .ToArray();
     }
 
-    //public EventTemplate(TypeTemplate template, byte index, string name, bool inherited, TRU argumentType, Map<string, string> annotations = null, bool subscribable = false)
+    //public EventTemplate(TypeSchema template, byte index, string name, bool inherited, TRU argumentType, Map<string, string> annotations = null, bool subscribable = false)
     //   : base(template, index, name, inherited)
     //{
     //    this.Annotations = annotations;
@@ -110,7 +111,7 @@ public class EventTemplate : MemberTemplate
     //    this.ArgumentType = argumentType;
     //}
 
-    public static EventTemplate MakeEventTemplate(Type type, EventInfo ei, byte index, string name, TypeTemplate typeTemplate)
+    public static EventDef MakeEventDef(Type type, EventInfo ei, byte index, string name, TypeDef schema)
     {
 
         if (!ei.EventHandlerType.IsGenericType)
@@ -171,7 +172,7 @@ public class EventTemplate : MemberTemplate
         }
 
 
-        return new EventTemplate()
+        return new EventDef()
         {
             Name = name,
             ArgumentType = evtType,

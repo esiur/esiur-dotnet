@@ -9,13 +9,13 @@ using System.Reflection;
 using Esiur.Net.IIP;
 using Esiur.Misc;
 using Esiur.Security.Permissions;
-using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Proxy;
 using Esiur.Core;
 using System.Text.Json;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Reflection.Emit;
+using Esiur.Data.Types;
 
 namespace Esiur.Resource;
 
@@ -29,7 +29,7 @@ public class Instance
 
     WeakReference<IResource> resource;
     IStore store;
-    TypeTemplate template;
+    TypeDef definition;
     AutoList<IPermissionsManager, Instance> managers;
 
 
@@ -107,7 +107,7 @@ public class Instance
         {
             for (var i = 0; i < attributes.Length; i++)
             {
-                var at = template.GetAttributeTemplate(attributes[i]);
+                var at = definition.GetAttributeDef(attributes[i]);
                 if (at != null)
                 {
 
@@ -128,7 +128,7 @@ public class Instance
         {
             foreach (var kv in attributes)
             {
-                var at = template.GetAttributeTemplate(kv.Key);
+                var at = definition.GetAttributeDef(kv.Key);
 
                 if (at != null)
                     if (at.PropertyInfo.CanWrite)
@@ -287,7 +287,7 @@ public class Instance
         if (!resource.TryGetTarget(out res))
             return false;
 
-        var pt = template.GetPropertyTemplateByName(name);
+        var pt = definition.GetPropertyDefByName(name);
 
         if (pt == null)
             return false;
@@ -376,7 +376,7 @@ public class Instance
     {
         for (byte i = 0; i < properties.Length; i++)
         {
-            var pt = this.template.GetPropertyTemplateByIndex(i);
+            var pt = this.definition.GetPropertyDefByIndex(i);
             if (pt != null)
             {
                 var pv = properties[i];
@@ -413,7 +413,7 @@ public class Instance
 
         var props = new List<PropertyValue>();
 
-        foreach (var pt in template.Properties)
+        foreach (var pt in definition.Properties)
         {
             var rt = pt.PropertyInfo.GetValue(res, null);
             props.Add(new PropertyValue(rt, ages[pt.Index], modificationDates[pt.Index]));
@@ -438,7 +438,7 @@ public class Instance
 
         var props = new Map<byte, PropertyValue>();
 
-        foreach (var pt in template.Properties)
+        foreach (var pt in definition.Properties)
         {
             if (res.Instance.GetAge(pt.Index) > age)
             {
@@ -470,7 +470,7 @@ public class Instance
     }
 
 
-    internal void EmitModification(PropertyTemplate pt, object value)
+    internal void EmitModification(PropertyDef pt, object value)
     {
 
         IResource res;
@@ -511,7 +511,7 @@ public class Instance
         object value;
         if (TryGetPropertyValue(propertyName, out value))
         {
-            var pt = template.GetPropertyTemplateByName(propertyName);
+            var pt = definition.GetPropertyDefByName(propertyName);
             EmitModification(pt, value);
         }
     }
@@ -520,21 +520,21 @@ public class Instance
 
     //        internal void EmitResourceEvent(string name, string[] users, DistributedConnection[] connections, object[] args)
 
-    internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, EventTemplate eventTemplate, object value)
+    internal void EmitCustomResourceEvent(object issuer, Func<Session, bool> receivers, EventDef eventDef, object value)
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventTemplate, receivers, issuer, value));
+            CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventDef, receivers, issuer, value));
         }
     }
 
-    internal void EmitResourceEvent(EventTemplate eventTemplate, object value)
+    internal void EmitResourceEvent(EventDef eventDef, object value)
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            EventOccurred?.Invoke(new EventOccurredInfo(res, eventTemplate, value));
+            EventOccurred?.Invoke(new EventOccurredInfo(res, eventDef, value));
         }
     }
 
@@ -543,8 +543,8 @@ public class Instance
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            var eventTemplate = template.GetEventTemplateByIndex(eventIndex);
-            EventOccurred?.Invoke(new EventOccurredInfo(res, eventTemplate, value));
+            var eventDef = definition.GetEventDefByIndex(eventIndex);
+            EventOccurred?.Invoke(new EventOccurredInfo(res, eventDef, value));
         }
     }
 
@@ -553,8 +553,8 @@ public class Instance
         IResource res;
         if (this.resource.TryGetTarget(out res))
         {
-            var eventTemplate = template.GetEventTemplateByIndex(eventIndex);
-            CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventTemplate, receivers, issuer, value));
+            var eventDef = definition.GetEventDefByIndex(eventIndex);
+            CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventDef, receivers, issuer, value));
         }
     }
 
@@ -567,7 +567,7 @@ public class Instance
     /// <returns>True, if the resource has the property.</returns>
     public bool TryGetPropertyValue(string name, out object value)
     {
-        var pt = template.GetPropertyTemplateByName(name);
+        var pt = definition.GetPropertyDefByName(name);
 
         IResource res;
         if (resource.TryGetTarget(out res))
@@ -680,9 +680,9 @@ public class Instance
     /// <summary>
     /// Resource template describes the properties, functions and events of the resource.
     /// </summary>
-    public TypeTemplate Template
+    public TypeDef Definition
     {
-        get { return template; }
+        get { return definition; }
 
         /*
         internal set
@@ -707,7 +707,7 @@ public class Instance
     /// <param name="member">Function, property or event to check for permission.</param>
     /// <param name="inquirer">Permission inquirer.</param>
     /// <returns>Ruling.</returns>
-    public Ruling Applicable(Session session, ActionType action, MemberTemplate member, object inquirer = null)
+    public Ruling Applicable(Session session, ActionType action, MemberDef member, object inquirer = null)
     {
         IResource res;
         if (this.resource.TryGetTarget(out res))
@@ -762,15 +762,15 @@ public class Instance
 
         if (resource is IDynamicResource dynamicResource)
         {
-            this.template = dynamicResource.ResourceTemplate;
+            this.definition = dynamicResource.ResourceDefinition;
         }
         else
         {
-            this.template = Warehouse.GetTemplateByType(resource.GetType());
+            this.definition = Warehouse.GetTemplateByType(resource.GetType());
         }
 
         // set ages
-        for (byte i = 0; i < template.Properties.Length; i++)
+        for (byte i = 0; i < definition.Properties.Length; i++)
         {
             ages.Add(0);
             modificationDates.Add(DateTime.MinValue);
@@ -788,7 +788,7 @@ public class Instance
             var emitEventByIndexMethod = GetType().GetMethod("EmitResourceEventByIndex", BindingFlags.Instance | BindingFlags.NonPublic);
             var emitCustomEventByIndexMethod = GetType().GetMethod("EmitCustomResourceEventByIndex", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            foreach (var evt in template.Events)
+            foreach (var evt in definition.Events)
             {
 
                 if (evt.EventInfo == null)

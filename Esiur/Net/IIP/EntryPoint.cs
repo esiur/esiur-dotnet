@@ -27,7 +27,7 @@ using System.Text;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Resource;
-using Esiur.Resource.Template;
+using Esiur.Data.Schema;
 
 namespace Esiur.Net.IIP;
 

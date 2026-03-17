@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Esiur.Core;
 using Esiur.Data;
-using Esiur.Resource.Template;
+using Esiur.Data.Schema;
 
 namespace Esiur.Stores;
 public class TemporaryStore : IStore
@@ -69,7 +69,7 @@ public class TemporaryStore : IStore
         throw new NotImplementedException();
     }
 
-    public AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
         throw new NotImplementedException();
     }

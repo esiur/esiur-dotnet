@@ -24,10 +24,10 @@ SOFTWARE.
 
 using Esiur.Core;
 using Esiur.Data;
+using Esiur.Data.Types;
 using Esiur.Misc;
 using Esiur.Net.Packets;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
 using System;
@@ -50,12 +50,12 @@ partial class DistributedConnection
     KeyList<uint, WeakReference<DistributedResource>> suspendedResources = new KeyList<uint, WeakReference<DistributedResource>>();
 
     KeyList<uint, DistributedResourceAttachRequestInfo> resourceRequests = new KeyList<uint, DistributedResourceAttachRequestInfo>();
-    KeyList<UUID, AsyncReply<TypeTemplate>> templateRequests = new KeyList<UUID, AsyncReply<TypeTemplate>>();
+    KeyList<UUID, AsyncReply<TypeDef>> typeDefsByIdRequests = new KeyList<UUID, AsyncReply<TypeDef>>();
 
-    KeyList<string, AsyncReply<TypeTemplate>> templateByNameRequests = new KeyList<string, AsyncReply<TypeTemplate>>();
+    KeyList<string, AsyncReply<TypeDef>> typeDefsByNameRequests = new KeyList<string, AsyncReply<TypeDef>>();
 
 
-    Dictionary<UUID, TypeTemplate> templates = new Dictionary<UUID, TypeTemplate>();
+    Dictionary<UUID, TypeDef> typeDefs = new Dictionary<UUID, TypeDef>();
 
     KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
 
@@ -455,7 +455,7 @@ partial class DistributedConnection
 
         Fetch(rid, null).Then(r =>
         {
-            var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
+            var pt = r.Instance.Definition.GetPropertyDefByIndex(index);
             if (pt == null)
                 return;
 
@@ -500,7 +500,7 @@ partial class DistributedConnection
 
         Fetch(resourceId, null).Then(r =>
         {
-            var et = r.Instance.Template.GetEventTemplateByIndex(index);
+            var et = r.Instance.Definition.GetEventDefByIndex(index);
 
             if (et == null) // this should never happen
                 return;
@@ -561,7 +561,7 @@ partial class DistributedConnection
 
                 // reply ok
                 SendReply(IIPPacketReply.Completed, callback,
-                    r.Instance.Template.ClassId,
+                    r.Instance.Definition.TypeId,
                     r.Instance.Age,
                     r.Instance.Link,
                     r.Instance.Hops,
@@ -608,7 +608,7 @@ partial class DistributedConnection
 
                 // reply ok
                 SendReply(IIPPacketReply.Completed, callback,
-                    r.Instance.Template.ClassId,
+                    r.Instance.Definition.TypeId,
                     r.Instance.Age,
                     r.Instance.Link,
                     r.Instance.Hops,
@@ -666,12 +666,12 @@ partial class DistributedConnection
 
         var path = (string)args[0];
 
-        TypeTemplate type = null;
+        TypeDef type = null;
 
         if (args[1] is UUID)
-            type = Instance.Warehouse.GetTemplateByClassId((UUID)args[1]);
+            type = Instance.Warehouse.GetTypeDefById((UUID)args[1]);
         else if (args[1] is string)
-            type = Instance.Warehouse.GetTemplateByClassName((string)args[1]);
+            type = Instance.Warehouse.GetTypeByName((string)args[1]);
 
         if (type == null)
         {
@@ -814,7 +814,7 @@ partial class DistributedConnection
                 return;
             }
 
-            var templates = TypeTemplate.GetDependencies(r.Instance.Template, Instance.Warehouse);
+            var templates = TypeDef.GetDependencies(r.Instance.Definition, Instance.Warehouse);
 
             // Send
             SendReply(IIPPacketReply.Completed, callback, templates.Select(x => x.Content).ToArray());
@@ -842,18 +842,18 @@ partial class DistributedConnection
         else
         {
             // reply failed
-            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TypeDefNotFound);
         }
     }
 
-    void IIPRequestTemplateFromClassId(uint callback, ParsedTDU dataType, byte[] data)
+    void IIPRequestTypeDefById(uint callback, ParsedTDU dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
         var classId = (UUID)value;
 
-        var t = Instance.Warehouse.GetTemplateByClassId(classId);
+        var t = Instance.Warehouse.GetTypeDefById(classId);
 
         if (t != null)
         {
@@ -862,7 +862,7 @@ partial class DistributedConnection
         else
         {
             // reply failed
-            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TypeDefNotFound);
         }
     }
 
@@ -879,7 +879,7 @@ partial class DistributedConnection
         {
             if (r != null)
             {
-                SendReply(IIPPacketReply.Completed, callback, r.Instance.Template.Content);
+                SendReply(IIPPacketReply.Completed, callback, r.Instance.Definition.Content);
             }
             else
             {
@@ -1046,16 +1046,16 @@ partial class DistributedConnection
         var index = (byte)args[1];
 
 
-        var template = Instance.Warehouse.GetTemplateByClassId(classId);
+        var template = Instance.Warehouse.GetTypeDefById(classId);
 
 
         if (template == null)
         {
-            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TemplateNotFound);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TypeDefNotFound);
             return;
         }
 
-        var ft = template.GetFunctionTemplateByIndex(index);
+        var ft = template.GetFunctionDefByIndex(index);
 
         if (ft == null)
         {
@@ -1131,7 +1131,7 @@ partial class DistributedConnection
                 return;
             }
 
-            var ft = r.Instance.Template.GetFunctionTemplateByIndex(index);
+            var ft = r.Instance.Definition.GetFunctionDefByIndex(index);
 
             if (ft == null)
             {
@@ -1221,7 +1221,7 @@ partial class DistributedConnection
 
 
 
-    void InvokeFunction(FunctionTemplate ft, uint callback, object arguments, IIPPacketRequest actionType, object target = null)
+    void InvokeFunction(FunctionDef ft, uint callback, object arguments, IIPPacketRequest actionType, object target = null)
     {
 
         // cast arguments
@@ -1455,7 +1455,7 @@ partial class DistributedConnection
                 return;
             }
 
-            var et = r.Instance.Template.GetEventTemplateByIndex(index);
+            var et = r.Instance.Definition.GetEventDefByIndex(index);
 
             if (et != null)
             {
@@ -1514,7 +1514,7 @@ partial class DistributedConnection
                 return;
             }
 
-            var et = r.Instance.Template.GetEventTemplateByIndex(index);
+            var et = r.Instance.Definition.GetEventDefByIndex(index);
 
             if (et == null)
             {
@@ -1578,7 +1578,7 @@ partial class DistributedConnection
                 return;
             }
 
-            var pt = r.Instance.Template.GetPropertyTemplateByIndex(index);
+            var pt = r.Instance.Definition.GetPropertyDefByIndex(index);
 
             if (pt != null)
             {
@@ -1686,27 +1686,27 @@ partial class DistributedConnection
 
 
     /// <summary>
-    /// Get the ResourceTemplate for a given class Id. 
+    /// Get the TypeSchema for a given class Id. 
     /// </summary>
     /// <param name="classId">Class GUID.</param>
-    /// <returns>ResourceTemplate.</returns>
-    public AsyncReply<TypeTemplate> GetTemplate(UUID classId)
+    /// <returns>TypeSchema.</returns>
+    public AsyncReply<TypeDef> GetTypeDefById(UUID classId)
     {
-        if (templates.ContainsKey(classId))
-            return new AsyncReply<TypeTemplate>(templates[classId]);
-        else if (templateRequests.ContainsKey(classId))
-            return templateRequests[classId];
+        if (typeDefs.ContainsKey(classId))
+            return new AsyncReply<TypeDef>(typeDefs[classId]);
+        else if (typeDefsByIdRequests.ContainsKey(classId))
+            return typeDefsByIdRequests[classId];
 
-        var reply = new AsyncReply<TypeTemplate>();
-        templateRequests.Add(classId, reply);
+        var reply = new AsyncReply<TypeDef>();
+        typeDefsByIdRequests.Add(classId, reply);
 
-        SendRequest(IIPPacketRequest.TemplateFromClassId, classId)
+        SendRequest(IIPPacketRequest.SchemaFromClassId, classId)
                     .Then((result) =>
                     {
-                        var tt = TypeTemplate.Parse((byte[])result);
-                        templateRequests.Remove(classId);
-                        templates.Add(tt.ClassId, tt);
-                        Instance.Warehouse.PutTemplate(tt);
+                        var tt = TypeDef.Parse((byte[])result);
+                        typeDefsByIdRequests.Remove(classId);
+                        typeDefs.Add(tt.ClassId, tt);
+                        Instance.Warehouse.RegisterSchema(tt);
                         reply.Trigger(tt);
 
                     }).Error((ex) =>
@@ -1718,27 +1718,27 @@ partial class DistributedConnection
     }
 
 
-    public AsyncReply<TypeTemplate> GetTemplateByClassName(string className)
+    public AsyncReply<TypeDef> GetTypeDefByClassName(string className)
     {
-        var template = templates.Values.FirstOrDefault(x => x.ClassName == className);
+        var template = typeDefs.Values.FirstOrDefault(x => x.ClassName == className);
         if (template != null)
-            return new AsyncReply<TypeTemplate>(template);
+            return new AsyncReply<TypeDef>(template);
 
-        if (templateByNameRequests.ContainsKey(className))
-            return templateByNameRequests[className];
+        if (typeDefsByNameRequests.ContainsKey(className))
+            return typeDefsByNameRequests[className];
 
-        var reply = new AsyncReply<TypeTemplate>();
-        templateByNameRequests.Add(className, reply);
+        var reply = new AsyncReply<TypeDef>();
+        typeDefsByNameRequests.Add(className, reply);
 
 
-        SendRequest(IIPPacketRequest.TemplateFromClassName, className)
+        SendRequest(IIPPacketRequest.SchemaFromClassName, className)
                     .Then((result) =>
                     {
-                        var tt = TypeTemplate.Parse((byte[])result);
+                        var tt = TypeDef.Parse((byte[])result);
 
-                        templateByNameRequests.Remove(className);
-                        templates.Add(tt.ClassId, tt);
-                        Instance.Warehouse.PutTemplate(tt);
+                        typeDefsByNameRequests.Remove(className);
+                        typeDefs.Add(tt.ClassId, tt);
+                        Instance.Warehouse.RegisterSchema(tt);
                         reply.Trigger(tt);
                     }).Error((ex) =>
                     {
@@ -1786,23 +1786,23 @@ partial class DistributedConnection
     }
 
 
-    public AsyncReply<TypeTemplate[]> GetLinkTemplates(string link)
+    public AsyncReply<TypeDef[]> GetLinkDefinitions(string link)
     {
-        var reply = new AsyncReply<TypeTemplate[]>();
+        var reply = new AsyncReply<TypeDef[]>();
 
 
-        SendRequest(IIPPacketRequest.LinkTemplates, link)
+        SendRequest(IIPPacketRequest.LinkSchemas, link)
         .Then((result) =>
         {
 
-            var templates = new List<TypeTemplate>();
+            var defs = new List<TypeDef>();
 
-            foreach (var template in (byte[][])result)
+            foreach (var def in (byte[][])result)
             {
-                templates.Add(TypeTemplate.Parse(template));
+                defs.Add(TypeDef.Parse(def));
             }
 
-            reply.Trigger(templates.ToArray());
+            reply.Trigger(defs.ToArray());
 
         }).Error((ex) =>
         {
@@ -1874,7 +1874,7 @@ partial class DistributedConnection
 
                         // ClassId, Age, Link, Hops, PropertyValue[]
                         var args = (object[])result;
-                        var classId = (UUID)args[0];
+                        var typeId = (UUID)args[0];
                         var age = Convert.ToUInt64(args[1]);
                         var link = (string)args[2];
                         var hops = (byte)args[3];
@@ -1882,20 +1882,20 @@ partial class DistributedConnection
 
 
                         DistributedResource dr;
-                        TypeTemplate template = null;
+                        TypeDef typeDef = null;
 
                         if (resource == null)
                         {
-                            template = Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Resource);
-                            if (template?.DefinedType != null && template.IsWrapper)
-                                dr = Activator.CreateInstance(template.DefinedType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as DistributedResource;
+                            typeDef = Instance.Warehouse.GetTypeDefByClassId(typeId, TypeDefKind.Resource);
+                            if (typeDef?.DefinedType != null && typeDef.IsWrapper)
+                                dr = Activator.CreateInstance(typeDef.DefinedType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as DistributedResource;
                             else
                                 dr = new DistributedResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
                         }
                         else
                         {
                             dr = resource;
-                            template = resource.Instance.Template;
+                            typeDef = resource.Instance.Definition;
                         }
 
 
@@ -1924,14 +1924,14 @@ partial class DistributedConnection
 
                         };
 
-                        if (template == null)
+                        if (typeDef == null)
                         {
-                            GetTemplate(classId).Then((tmp) =>
+                            GetTypeDefById(typeId).Then((tmp) =>
                             {
                                 // ClassId, ResourceAge, ResourceLink, Content
                                 if (resource == null)
                                 {
-                                    dr.ResourceTemplate = tmp;
+                                    dr.ResourceDefinition = tmp;
 
                                     Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr)
                                     .Then(initResource)
@@ -1999,7 +1999,7 @@ partial class DistributedConnection
     /// <param name="properties">Values for the resource properties.</param>
     /// <param name="attributes">Resource attributes.</param>
     /// <returns>New resource instance</returns>
-    public AsyncReply<DistributedResource> Create(string path, TypeTemplate type, Map<string, object> properties, Map<string, object> attributes)
+    public AsyncReply<DistributedResource> Create(string path, TypeDef type, Map<string, object> properties, Map<string, object> attributes)
     {
         var reply = new AsyncReply<DistributedResource>();
 
@@ -2103,7 +2103,7 @@ partial class DistributedConnection
 
     private void Instance_EventOccurred(EventOccurredInfo info)
     {
-        if (info.EventTemplate.Subscribable)
+        if (info.Definition.Subscribable)
         {
             lock (subscriptionsLock)
             {
@@ -2111,18 +2111,18 @@ partial class DistributedConnection
                 if (!subscriptions.ContainsKey(info.Resource))
                     return;
 
-                if (!subscriptions[info.Resource].Contains(info.EventTemplate.Index))
+                if (!subscriptions[info.Resource].Contains(info.Definition.Index))
                     return;
             }
         }
 
-        if (info.Resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, info.EventTemplate, null) == Ruling.Denied)
+        if (info.Resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, info.Definition, null) == Ruling.Denied)
             return;
 
         // compose the packet
         SendNotification(IIPPacketNotification.EventOccurred,
             info.Resource.Instance.Id,
-            info.EventTemplate.Index,
+            info.Definition.Index,
             info.Value);
     }
 

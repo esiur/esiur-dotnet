@@ -458,7 +458,7 @@ public static class RuntimeCaster
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsListType(Type t)
     {
-        return t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>);
+        return t.IsGenericType && t.GetGenericTypeDef() == typeof(List<>);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

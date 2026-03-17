@@ -52,7 +52,7 @@ class ResourceJsonConverter : JsonConverter<IResource>
 
         writer.WriteStartObject();
 
-        foreach (var pt in resource.Instance.Template.Properties)
+        foreach (var pt in resource.Instance.Schema.Properties)
         {
             var rt = pt.PropertyInfo.GetValue(resource, null);
             if (rt != null && rt.GetType().IsGenericType)

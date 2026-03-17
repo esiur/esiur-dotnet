@@ -1,10 +1,10 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
 using Esiur.Data.GVWIE;
+using Esiur.Data.Schema;
 using Esiur.Misc;
 using Esiur.Net.IIP;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections;
@@ -397,7 +397,7 @@ public static class DataDeserializer
     {
         var classId = tdu.Metadata.GetUUID(0);
         var template = connection.Instance.Warehouse.GetTemplateByClassId(classId,
-                                                                    TemplateType.Record);
+                                                                    TypeDefKind.Record);
         var rt = new AsyncReply<IRecord>();
 
 
@@ -410,7 +410,7 @@ public static class DataDeserializer
         var length = tdu.ContentLength;
         var ends = offset + (uint)length;
 
-        var initRecord = (TypeTemplate template) =>
+        var initRecord = (TypeDef template) =>
         {
             for (var i = 0; i < template.Properties.Length; i++)
             {
@@ -517,7 +517,7 @@ public static class DataDeserializer
 
         //var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
 
-        //var initRecord = (TypeTemplate template) =>
+        //var initRecord = (TypeSchema template) =>
         //{
         //    ListParserAsync(tdu, connection, requestSequence).Then(r =>
         //    {
@@ -585,12 +585,12 @@ public static class DataDeserializer
     public static unsafe object RecordParser(ParsedTDU tdu, Warehouse warehouse)
     {
         var classId = tdu.Metadata.GetUUID(0);
-        var template = warehouse.GetTemplateByClassId(classId, TemplateType.Record);
+        var template = warehouse.GetTypeDefByClassId(classId, TypeDefKind.Record);
 
         if (template == null)
         {
             // @TODO: add parse if no template settings
-            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
+            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.SchemaNotFound,
                     "Template not found for record.");
         }
 
@@ -691,7 +691,7 @@ public static class DataDeserializer
         var index = tdu.Data[tdu.Offset];
 
         var template = connection.Instance.Warehouse.GetTemplateByClassId(classId,
-                                                                        TemplateType.Enum);
+                                                                        TypeDefKind.Enum);
 
         if (template != null)
         {
@@ -717,7 +717,7 @@ public static class DataDeserializer
 
         var index = tdu.Data[tdu.Offset];
 
-        var template = warehouse.GetTemplateByClassId(classId, TemplateType.Enum);
+        var template = warehouse.GetTemplateByClassId(classId, TypeDefKind.Enum);
 
         if (template != null)
         {
@@ -725,7 +725,7 @@ public static class DataDeserializer
         }
         else
         {
-            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
+            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.SchemaNotFound,
                     "Template not found for enum.");
         }
     }
@@ -1625,13 +1625,13 @@ public static class DataDeserializer
         return (16 + valueSize, reply);
     }
 
-    public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> HistoryParserAsync(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> HistoryParserAsync(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection, uint[] requestSequence)
     {
         //var count = (int)toAge - (int)fromAge;
 
-        var list = new KeyList<PropertyTemplate, PropertyValue[]>();
+        var list = new KeyList<PropertyDefinition, PropertyValue[]>();
 
-        var reply = new AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>>();
+        var reply = new AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>>();
 
         var bagOfBags = new AsyncBag<PropertyValue[]>();
 
@@ -1639,7 +1639,7 @@ public static class DataDeserializer
         while (offset < ends)
         {
             var index = data[offset++];
-            var pt = resource.Instance.Template.GetPropertyTemplateByIndex(index);
+            var pt = resource.Instance.Schema.GetPropertyDefByIndex(index);
             list.Add(pt, null);
             var cs = data.GetUInt32(offset, Endian.Little);
             offset += 4;

@@ -1,4 +1,4 @@
-﻿using Esiur.Resource.Template;
+﻿using Esiur.Data.Types;
 using Esiur.Security.Authority;
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ namespace Esiur.Resource;
 
 public class CustomEventOccurredInfo
 {
-    public readonly EventTemplate EventTemplate;
+    public readonly EventDef EventTemplate;
     public readonly IResource Resource;
     public readonly object Value;
     public readonly object Issuer;
@@ -16,7 +16,7 @@ public class CustomEventOccurredInfo
 
     public string Name => EventTemplate.Name;
 
-    public CustomEventOccurredInfo(IResource resource, EventTemplate eventTemplate, Func<Session, bool> receivers, object issuer, object value)
+    public CustomEventOccurredInfo(IResource resource, EventDef eventTemplate, Func<Session, bool> receivers, object issuer, object value)
     {
         Resource = resource;
         EventTemplate = eventTemplate;

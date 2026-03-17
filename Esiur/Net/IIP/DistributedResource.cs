@@ -40,8 +40,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Esiur.Resource;
-using Esiur.Resource.Template;
 using Esiur.Net.Packets;
+using Esiur.Data.Types;
 
 namespace Esiur.Net.IIP;
 
@@ -57,7 +57,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
     public event PropertyChangedEventHandler PropertyChanged;
 
     uint instanceId;
-    TypeTemplate template;
+    TypeDef typeDef;
     DistributedConnection connection;
 
 
@@ -163,7 +163,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
             this.properties = new object[properties.Length];
 
-            this.events = new DistributedResourceEvent[Instance.Template.Events.Length];
+            this.events = new DistributedResourceEvent[Instance.Definition.Events.Length];
 
             for (byte i = 0; i < properties.Length; i++)
             {
@@ -187,7 +187,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     protected internal virtual void _EmitEventByIndex(byte index, object args)
     {
-        var et = Instance.Template.GetEventTemplateByIndex(index);
+        var et = Instance.Definition.GetEventDefByIndex(index);
         events[index]?.Invoke(this, args);
         Instance.EmitResourceEvent(et, args);
     }
@@ -200,21 +200,21 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         if (suspended)
             throw new Exception("Trying to access a suspended object.");
 
-        if (index >= Instance.Template.Functions.Length)
+        if (index >= Instance.Definition.Functions.Length)
             throw new Exception("Function index is incorrect.");
 
-        var ft = Instance.Template.GetFunctionTemplateByIndex(index);
+        var ft = Instance.Definition.GetFunctionDefByIndex(index);
 
         if (ft == null)
             throw new Exception("Function template not found.");
 
         if (ft.IsStatic)
-            return connection.StaticCall(Instance.Template.ClassId, index, args);
+            return connection.StaticCall(Instance.Definition.ClassId, index, args);
         else
             return connection.SendInvoke(instanceId, index, args);
     }
 
-    public AsyncReply Subscribe(EventTemplate et)
+    public AsyncReply Subscribe(EventDef et)
     {
         if (et == null)
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
@@ -227,13 +227,13 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     public AsyncReply Subscribe(string eventName)
     {
-        var et = Instance.Template.GetEventTemplateByName(eventName);
+        var et = Instance.Definition.GetEventDefByName(eventName);
 
         return Subscribe(et);
     }
 
 
-    public AsyncReply Unsubscribe(EventTemplate et)
+    public AsyncReply Unsubscribe(EventDef et)
     {
         if (et == null)
             return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
@@ -246,7 +246,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     public AsyncReply Unsubscribe(string eventName)
     {
-        var et = Instance.Template.GetEventTemplateByName(eventName);
+        var et = Instance.Definition.GetEventDefByName(eventName);
 
         return Unsubscribe(et);
     }
@@ -260,7 +260,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         if (suspended)
             throw new Exception("Trying to access a suspended object.");
 
-        var ft = Instance.Template.GetFunctionTemplateByName(binder.Name);
+        var ft = Instance.Definition.GetFunctionDefByName(binder.Name);
 
         var reply = new AsyncReply<object>();
 
@@ -345,7 +345,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         if (!attached)
             return false;
 
-        var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);
+        var pt = Instance.Definition.GetPropertyDefByName(binder.Name);
 
         if (pt != null)
         {
@@ -354,7 +354,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         }
         else
         {
-            var et = Instance.Template.GetEventTemplateByName(binder.Name);
+            var et = Instance.Definition.GetEventDefByName(binder.Name);
             if (et == null)
                 return false;
 
@@ -367,7 +367,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
 
     internal void _UpdatePropertyByIndex(byte index, object value)
     {
-        var pt = Instance.Template.GetPropertyTemplateByIndex(index);
+        var pt = Instance.Definition.GetPropertyDefByIndex(index);
         properties[index] = value;
         Instance.EmitModification(pt, value);
     }
@@ -403,7 +403,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         if (!attached)
             return false;
 
-        var pt = Instance.Template.GetPropertyTemplateByName(binder.Name);
+        var pt = Instance.Definition.GetPropertyDefByName(binder.Name);
 
         if (pt != null)
         {
@@ -412,7 +412,7 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         }
         else
         {
-            var et = Instance.Template.GetEventTemplateByName(binder.Name);
+            var et = Instance.Definition.GetEventDefByName(binder.Name);
             if (et == null)
                 return false;
 
@@ -433,15 +433,15 @@ public class DistributedResource : DynamicObject, IResource, INotifyPropertyChan
         set;
     }
 
-    public TypeTemplate ResourceTemplate
+    public TypeDef ResourceDefinition
     {
         get
         {
-            return template;
+            return typeDef;
         }
         internal set
         {
-            template = value;
+            typeDef = value;
         }
     }
 

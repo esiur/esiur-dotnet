@@ -36,7 +36,7 @@ using System.Threading.Tasks;
 
 using Esiur.Security.Integrity;
 using System.Linq;
-using Esiur.Resource.Template;
+using Esiur.Data.Types;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using Esiur.Proxy;
@@ -298,7 +298,7 @@ namespace Test
         static void TestObjectProps(IResource local, DistributedResource remote)
         {
 
-            foreach (var pt in local.Instance.Template.Properties)
+            foreach (var pt in local.Instance.Definition.Properties)
             {
 
                 var lv = pt.PropertyInfo.GetValue(local);

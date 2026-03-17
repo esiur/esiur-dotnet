@@ -24,7 +24,6 @@ SOFTWARE.
 
 using Esiur.Data;
 using Esiur.Core;
-using Esiur.Resource.Template;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,6 +31,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Esiur.Security.Permissions;
 using Esiur.Security.Authority;
+using Esiur.Data.Schema;
 
 namespace Esiur.Resource;
 public interface IStore : IResource
@@ -73,5 +73,5 @@ public interface IStore : IResource
     //AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, ulong fromAge, ulong toAge);
     // AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByDate(IResource resource, DateTime fromDate, DateTime toDate);
 
-    AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
+    AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
 }

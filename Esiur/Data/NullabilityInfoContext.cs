@@ -466,9 +466,9 @@ namespace Esiur.Data
         private static MemberInfo GetMemberMetadataDefinition(MemberInfo member)
         {
             Type? type = member.DeclaringType;
-            if ((type != null) && type.IsGenericType && !type.IsGenericTypeDefinition)
+            if ((type != null) && type.IsGenericType && !type.IsGenericTypeDef)
             {
-                return GetMemberWithSameMetadataDefinitionAs(type.GetGenericTypeDefinition(), member);
+                return GetMemberWithSameMetadataDefinitionAs(type.GetGenericTypeDef(), member);
             }
 
             return member;
@@ -575,20 +575,20 @@ namespace Esiur.Data
         {
             Debug.Assert(genericParameter.IsGenericParameter && !IsGenericMethodParameter(genericParameter));
 
-            Type contextTypeDefinition = context.IsGenericType && !context.IsGenericTypeDefinition ? context.GetGenericTypeDefinition() : context;
-            if (genericParameter.DeclaringType == contextTypeDefinition)
+            Type contextTypeDef = context.IsGenericType && !context.IsGenericTypeDef ? context.GetGenericTypeDef() : context;
+            if (genericParameter.DeclaringType == contextTypeDef)
             {
                 return false;
             }
 
-            Type? baseType = contextTypeDefinition.BaseType;
+            Type? baseType = contextTypeDef.BaseType;
             if (baseType is null)
             {
                 return false;
             }
 
             if (!baseType.IsGenericType
-                || (baseType.IsGenericTypeDefinition ? baseType : baseType.GetGenericTypeDefinition()) != genericParameter.DeclaringType)
+                || (baseType.IsGenericTypeDef ? baseType : baseType.GetGenericTypeDef()) != genericParameter.DeclaringType)
             {
                 return TryUpdateGenericTypeParameterNullabilityFromReflectedType(nullability, genericParameter, baseType, reflectedType);
             }
@@ -600,7 +600,7 @@ namespace Esiur.Data
                 return TryUpdateGenericParameterNullability(nullability, genericArgument, reflectedType);
             }
 
-            NullableAttributeStateParser parser = CreateParser(contextTypeDefinition.GetCustomAttributesData());
+            NullableAttributeStateParser parser = CreateParser(contextTypeDef.GetCustomAttributesData());
             int nullabilityStateIndex = 1; // start at 1 since index 0 is the type itself
             for (int i = 0; i < genericParameter.GenericParameterPosition; i++)
             {

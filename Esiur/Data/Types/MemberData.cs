@@ -1,9 +1,10 @@
-﻿using System;
+﻿using Esiur.Resource;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 
-namespace Esiur.Resource.Template;
+namespace Esiur.Data.Types;
 
 #nullable enable
 
