@@ -22,7 +22,7 @@ public class MemberDef
     //    Inherited = inherited;
     //}
 
-    public string Fullname => Definition.ClassName + "." + Name;
+    public string Fullname => Definition.Name + "." + Name;
 
     //public virtual byte[] Compose()
     //{

@@ -25,7 +25,6 @@ SOFTWARE.
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Misc;
-using Esiur.Net.IIP;
 using System;
 using System.Collections;
 using System.Collections.Generic;

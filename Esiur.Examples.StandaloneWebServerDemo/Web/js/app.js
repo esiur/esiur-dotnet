@@ -1,7 +1,7 @@
 async function init() {
     try {
 
-        connection = await wh.get(`iip://${window.location.hostname}`, {
+        connection = await wh.get(`EP://${window.location.hostname}`, {
             autoReconnect: true
         });
 

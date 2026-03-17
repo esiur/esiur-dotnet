@@ -46,6 +46,6 @@ To access the shell
 
 Now you can simply test the running service typing
 ```javascript
-let x = await wh.get("iip://localhost:8080/sys/service", {secure: false});
+let x = await wh.get("EP://localhost:8080/sys/service", {secure: false});
 await x.Hello();
 ```

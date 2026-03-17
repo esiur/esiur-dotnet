@@ -25,7 +25,6 @@ SOFTWARE.
 using Esiur.Data;
 using Esiur.Core;
 using Esiur.Net.HTTP;
-using Esiur.Net.IIP;
 using Esiur.Net.Sockets;
 using Esiur.Resource;
 using Esiur.Security.Permissions;
@@ -49,6 +48,7 @@ using Esiur.Security.Cryptography;
 using Esiur.Security.Membership;
 using Esiur.Net.Packets;
 using System.Numerics;
+using Esiur.Protocol;
 
 namespace Test
 {
@@ -56,7 +56,7 @@ namespace Test
     class Program
     {
 
-        static void TestSerialization(object x, DistributedConnection connection = null)
+        static void TestSerialization(object x, EpConnection connection = null)
         {
 
             var d = Codec.Compose(x, Warehouse.Default, connection);
@@ -145,7 +145,7 @@ namespace Test
 
             // Create stores to keep objects.
             var system = await wh.Put("sys", new MemoryStore());
-            var server = await wh.Put("sys/server", new DistributedServer() { Membership = membership });
+            var server = await wh.Put("sys/server", new EpServer() { Membership = membership });
 
 
             var web = await wh.Put("sys/web", new HTTPServer() { Port = 8088 });
@@ -158,7 +158,7 @@ namespace Test
 
             //TestSerialization(res1);
 
-            server.MapCall("Hello", (string msg, DateTime time, DistributedConnection sender) =>
+            server.MapCall("Hello", (string msg, DateTime time, EpConnection sender) =>
             {
                 Console.WriteLine(msg);
                 return "Hi " + DateTime.UtcNow;
@@ -200,9 +200,9 @@ namespace Test
 
             var format = x.RequiredFormat;
 
-            if (format == IIPAuthPacketIAuthFormat.Number)
+            if (format == EpAuthPacketIAuthFormat.Number)
                 return new AsyncReply<object>(Convert.ToInt32(10));
-            else if (format == IIPAuthPacketIAuthFormat.Text)
+            else if (format == EpAuthPacketIAuthFormat.Text)
                 return new AsyncReply<object>(Console.ReadLine().Trim());
 
             throw new NotImplementedException("Not supported format.");
@@ -211,7 +211,7 @@ namespace Test
         private static async void TestClient(IResource local)
         {
 
-            var con = await new Warehouse().Get<DistributedConnection>("iip://localhost", new DistributedConnectionConfig
+            var con = await new Warehouse().Get<EpConnection>("EP://localhost", new EpConnectionConfig
             {
                 AutoReconnect = true,
                 Username = "admin",
@@ -258,11 +258,11 @@ namespace Test
             var t4 = await remote.GetTuple4(1, "A", 1.3, true);
             Console.WriteLine(t4);
 
-            remote.StringEvent += new DistributedResourceEvent((sender, args) =>
+            remote.StringEvent += new EpResourceEvent((sender, args) =>
                Console.WriteLine($"StringEvent {args}")
             );
 
-            remote.ArrayEvent += new DistributedResourceEvent((sender, args) =>
+            remote.ArrayEvent += new EpResourceEvent((sender, args) =>
                Console.WriteLine($"ArrayEvent {args}")
             );
 
@@ -270,7 +270,7 @@ namespace Test
 
 
 
-            //var path = TemplateGenerator.GetTemplate("iip://localhost/sys/service", "Generated");
+            //var path = TemplateGenerator.GetTemplate("EP://localhost/sys/service", "Generated");
 
             //Console.WriteLine(path);
 
@@ -295,7 +295,7 @@ namespace Test
 
         static Timer perodicTimer;
 
-        static void TestObjectProps(IResource local, DistributedResource remote)
+        static void TestObjectProps(IResource local, EpResource remote)
         {
 
             foreach (var pt in local.Instance.Definition.Properties)
@@ -332,6 +332,10 @@ namespace Test
                 rt += GetString(ar.GetValue(ar.Length - 1)) + "]";
 
                 return rt;
+            }
+            else if (value is Record)
+            {
+                return value.ToString();
             }
             else if (value is IRecord)
             {

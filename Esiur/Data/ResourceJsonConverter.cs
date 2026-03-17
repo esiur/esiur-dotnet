@@ -23,7 +23,6 @@ SOFTWARE.
 
 */
 
-using Esiur.Net.IIP;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -52,7 +51,7 @@ class ResourceJsonConverter : JsonConverter<IResource>
 
         writer.WriteStartObject();
 
-        foreach (var pt in resource.Instance.Schema.Properties)
+        foreach (var pt in resource.Instance.Definition.Properties)
         {
             var rt = pt.PropertyInfo.GetValue(resource, null);
             if (rt != null && rt.GetType().IsGenericType)

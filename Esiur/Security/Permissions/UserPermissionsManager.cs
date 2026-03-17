@@ -29,7 +29,7 @@ using Esiur.Data;
 using Esiur.Core;
 using Esiur.Resource;
 using Esiur.Security.Authority;
-using Esiur.Data.Schema;
+using Esiur.Data.Types;
 
 namespace Esiur.Security.Permissions;
 
@@ -40,7 +40,7 @@ public class UserPermissionsManager : IPermissionsManager
 
     public Map<string,object> Settings => settings;
 
-    public Ruling Applicable(IResource resource, Session session, ActionType action, MemberDefinition member, object inquirer)
+    public Ruling Applicable(IResource resource, Session session, ActionType action, MemberDef member, object inquirer)
     {
         Map<string,object> userPermissions = null;
 

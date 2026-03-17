@@ -1,11 +1,11 @@
 ﻿using Esiur.Data;
 using Esiur.Core;
-using Esiur.Net.IIP;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
+using Esiur.Protocol;
 
 #nullable enable
 
@@ -183,12 +183,12 @@ public partial class MyService
     }
 
     [Export]
-    public void Connection(object a1, int a2, DistributedConnection a3) =>
+    public void Connection(object a1, int a2, EpConnection a3) =>
         Console.WriteLine($"VoidArgs {a1} {a2} {a3}");
 
 
     [Export]
-    public void ConnectionOptional(object a1, int a2, string a3 = "sss", DistributedConnection? a4 = null) =>
+    public void ConnectionOptional(object a1, int a2, string a3 = "sss", EpConnection? a4 = null) =>
         Console.WriteLine($"VoidArgs {a1} {a2} {a3}");
 
     [Export]

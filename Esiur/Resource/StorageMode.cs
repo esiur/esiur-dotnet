@@ -7,5 +7,5 @@ public enum StorageMode : byte
 {
     NonVolatile,
     Volatile,
-    Recordable
+    History
 }

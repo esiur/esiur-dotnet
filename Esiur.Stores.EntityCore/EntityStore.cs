@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using System.Reflection;
 using Esiur.Security.Authority;
 using System.Collections;
-using Esiur.Data.Schema;
+using Esiur.Data.Types;
 
 namespace Esiur.Stores.EntityCore;
 public class EntityStore : IStore
@@ -179,7 +179,7 @@ public class EntityStore : IStore
         //throw new NotImplementedException();
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
+    public bool Modify(IResource resource, PropertyDef propertyDef, object value, ulong? age, DateTime? dateTime)
     {
         return true;
         //throw new NotImplementedException();
@@ -216,7 +216,7 @@ public class EntityStore : IStore
         throw new NotImplementedException();
     }
 
-    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
         throw new NotImplementedException();
     }

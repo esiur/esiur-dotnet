@@ -1,6 +1,6 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
-using Esiur.Net.IIP;
+using Esiur.Protocol;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -217,7 +217,7 @@ public class FunctionDef : MemberDef
 
         if (args.Length > 0)
         {
-            if (args.Last().ParameterType == typeof(DistributedConnection)
+            if (args.Last().ParameterType == typeof(EpConnection)
                 || args.Last().ParameterType == typeof(InvocationContext))
                 args = args.Take(args.Count() - 1).ToArray();
         }
@@ -286,7 +286,7 @@ public class FunctionDef : MemberDef
         {
             annotations = new Map<string, string>();
             annotations.Add("", "(" + String.Join(",",
-                mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection))
+                mi.GetParameters().Where(x => x.ParameterType != typeof(EpConnection))
                 .Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name);
 
         }
@@ -307,7 +307,7 @@ public class FunctionDef : MemberDef
 
     public override string ToString()
     {
-        //return = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(DistributedConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
+        //return = "(" + String.Join(",", mi.GetParameters().Where(x => x.ParameterType != typeof(EpConnection)).Select(x => "[" + x.ParameterType.Name + "] " + x.Name)) + ") -> " + mi.ReturnType.Name;
 
         return $"{ReturnType} {Name}({string.Join(", ", Arguments.Select(a => a.ToString()))})";
     }

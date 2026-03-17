@@ -10,7 +10,7 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 namespace Test
 {
     [Resource]
-    [Annotation("A", "B", "C", "D")]
+    [Annotation("A", "B")]
     public partial class MyResource
     {
         [Export][Annotation("Comment")] string description;

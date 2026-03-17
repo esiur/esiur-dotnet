@@ -1,5 +1,5 @@
 ﻿using Esiur.Core;
-using Esiur.Net.IIP;
+using Esiur.Net.EP;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -14,115 +14,115 @@ namespace Esiur.Data;
 
 public static class DataDeserializer
 {
-    public static AsyncReply NullParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply NullParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply(null);
     }
 
-    public static AsyncReply BooleanTrueParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply BooleanTrueParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<bool>(true);
     }
 
-    public static AsyncReply BooleanFalseParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply BooleanFalseParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<bool>(false);
     }
 
-    public static AsyncReply NotModifiedParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply NotModifiedParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<NotModified>(new NotModified());
     }
 
-    public static AsyncReply ByteParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply ByteParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<byte>(data[offset]);
     }
-    public static AsyncReply SByteParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply SByteParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<sbyte>((sbyte)data[offset]);
     }
-    public static unsafe AsyncReply Char16Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Char16Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<char>(*(char*)ptr);
     }
 
-    public static AsyncReply Char8Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply Char8Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<char>((char)data[offset]);
     }
 
 
-    public static unsafe AsyncReply Int16Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Int16Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<short>(*(short*)ptr);
     }
 
-    public static unsafe AsyncReply UInt16Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply UInt16Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<ushort>(*(ushort*)ptr);
     }
 
-    public static unsafe AsyncReply Int32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Int32Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<int>(*(int*)ptr);
     }
 
-    public static unsafe AsyncReply UInt32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply UInt32Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<uint>(*(uint*)ptr);
     }
 
-    public static unsafe AsyncReply Float32Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Float32Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<float>(*(float*)ptr);
     }
 
-    public static unsafe AsyncReply Float64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Float64Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<double>(*(double*)ptr);
     }
 
-    public static unsafe AsyncReply Float128Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Float128Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<decimal>(*(decimal*)ptr);
     }
 
-    public static unsafe AsyncReply Int128Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
-    {
-        fixed (byte* ptr = &data[offset])
-            return new AsyncReply<decimal>(*(decimal*)ptr);
-    }
-
-
-    public static unsafe AsyncReply UInt128Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply Int128Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<decimal>(*(decimal*)ptr);
     }
 
 
-    public static unsafe AsyncReply Int64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply UInt128Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
+    {
+        fixed (byte* ptr = &data[offset])
+            return new AsyncReply<decimal>(*(decimal*)ptr);
+    }
+
+
+    public static unsafe AsyncReply Int64Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<long>(*(long*)ptr);
     }
 
-    public static unsafe AsyncReply UInt64Parser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply UInt64Parser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<ulong>(*(ulong*)ptr);
     }
 
-    public static unsafe AsyncReply DateTimeParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply DateTimeParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return new AsyncReply<DateTime>(new DateTime(*(long*)ptr, DateTimeKind.Utc));
@@ -130,30 +130,30 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe AsyncReply ResourceParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply ResourceParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return connection.Fetch(*(uint*)ptr, requestSequence);
     }
 
-    public static unsafe AsyncReply LocalResourceParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply LocalResourceParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &data[offset])
             return Warehouse.GetById(*(uint*)ptr);
     }
 
 
-    public static unsafe AsyncReply RawDataParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply RawDataParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<byte[]>(data.Clip(offset, length));
     }
 
-    public static unsafe AsyncReply StringParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply StringParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         return new AsyncReply<string>(data.GetString(offset, length));
     }
 
-    public static unsafe AsyncReply RecordParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply RecordParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
 
         var reply = new AsyncReply<IRecord>();
@@ -229,12 +229,12 @@ public static class DataDeserializer
         return reply;
     }
 
-    public static unsafe AsyncReply ConstantParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply ConstantParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         throw new NotImplementedException();
     }
 
-    public static unsafe AsyncReply EnumParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply EnumParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
 
         var classId = data.GetUUID(offset);
@@ -262,7 +262,7 @@ public static class DataDeserializer
 
 
 
-    public static AsyncReply RecordListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply RecordListParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IRecord>();
 
@@ -286,7 +286,7 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static AsyncReply ResourceListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply ResourceListParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IResource>();
 
@@ -311,7 +311,7 @@ public static class DataDeserializer
     }
 
 
-    public static AsyncBag<object> ListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncBag<object> ListParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<object>();
 
@@ -335,7 +335,7 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static AsyncReply TypedMapParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedMapParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         // get key type
         var (keyCs, keyRepType) = RepresentationType.Parse(data, offset);
@@ -384,7 +384,7 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TupleParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TupleParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         var results = new AsyncBag<object>();
         var rt = new AsyncReply();
@@ -443,7 +443,7 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static AsyncReply TypedListParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedListParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<object>();
 
@@ -478,7 +478,7 @@ public static class DataDeserializer
     }
 
 
-    public static AsyncBag<PropertyValue> PropertyValueArrayParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
+    public static AsyncBag<PropertyValue> PropertyValueArrayParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {
         var rt = new AsyncBag<PropertyValue>();
 
@@ -499,7 +499,7 @@ public static class DataDeserializer
 
     }
 
-    public static (uint, AsyncReply<PropertyValue>) PropertyValueParser(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
+    public static (uint, AsyncReply<PropertyValue>) PropertyValueParser(byte[] data, uint offset, EpConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {
         var reply = new AsyncReply<PropertyValue>();
 
@@ -520,7 +520,7 @@ public static class DataDeserializer
         return (16 + valueSize, reply);
     }
 
-    public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> HistoryParser(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> HistoryParser(byte[] data, uint offset, uint length, IResource resource, EpConnection connection, uint[] requestSequence)
     {
         //var count = (int)toAge - (int)fromAge;
 

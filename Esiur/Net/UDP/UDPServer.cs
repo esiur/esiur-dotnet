@@ -35,7 +35,7 @@ using Esiur.Core;
 
 namespace Esiur.Net.UDP;
 
-/* public class IIPConnection
+/* public class EPConnection
 {
     public EndPoint SenderPoint;
     public 

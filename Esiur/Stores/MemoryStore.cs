@@ -6,8 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Esiur.Core;
 using Esiur.Data;
-using Esiur.Data.Schema;
-
+using Esiur.Data.Types;
+ 
 namespace Esiur.Stores;
 
 public class MemoryStore : IStore
@@ -78,13 +78,13 @@ public class MemoryStore : IStore
         throw new NotImplementedException();
     }
 
-    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
         throw new NotImplementedException();
     }
 
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
+    public bool Modify(IResource resource, PropertyDef propertyDef, object value, ulong? age, DateTime? dateTime)
     {
         return true;
     }

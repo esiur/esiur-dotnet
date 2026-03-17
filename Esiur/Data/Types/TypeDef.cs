@@ -8,9 +8,9 @@ using Esiur.Data;
 using Esiur.Core;
 using System.Security.Cryptography;
 using Esiur.Proxy;
-using Esiur.Net.IIP;
 using System.Runtime.CompilerServices;
 using Esiur.Resource;
+using Esiur.Protocol;
 
 namespace Esiur.Data.Types;
 
@@ -245,7 +245,7 @@ public class TypeDef
             // Get parents
             while (parentType != null)
             {
-                var parentTemplate = warehouse.GetTemplateByType(parentType);
+                var parentTemplate = warehouse.GetTypeDefByType(parentType);
                 if (parentTemplate != null)
                 {
                     list.Add(parentTemplate);
@@ -262,7 +262,7 @@ public class TypeDef
 
                 foreach (var functionReturnType in functionReturnTypes)
                 {
-                    var functionReturnTemplate = warehouse.GetTemplateByType(functionReturnType);
+                    var functionReturnTemplate = warehouse.GetTypeDefByType(functionReturnType);
                     if (functionReturnTemplate != null)
                     {
                         if (!bag.Contains(functionReturnTemplate))
@@ -281,7 +281,7 @@ public class TypeDef
 
                     foreach (var fpType in fpTypes)
                     {
-                        var fpt = warehouse.GetTemplateByType(fpType);
+                        var fpt = warehouse.GetTypeDefByType(fpType);
                         if (fpt != null)
                         {
                             if (!bag.Contains(fpt))
@@ -293,18 +293,18 @@ public class TypeDef
                     }
                 }
 
-                // skip DistributedConnection argument
+                // skip EpConnection argument
                 if (args.Length > 0)
                 {
                     var last = args.Last();
-                    if (last.ParameterType != typeof(DistributedConnection))
+                    if (last.ParameterType != typeof(EpConnection))
                     {
 
                         var fpTypes = GetDistributedTypes(last.ParameterType);
 
                         foreach (var fpType in fpTypes)
                         {
-                            var fpt = warehouse.GetTemplateByType(fpType);
+                            var fpt = warehouse.GetTypeDefByType(fpType);
                             if (fpt != null)
                             {
                                 if (!bag.Contains(fpt))
@@ -326,7 +326,7 @@ public class TypeDef
 
                 foreach (var propertyType in propertyTypes)
                 {
-                    var propertyTemplate = warehouse.GetTemplateByType(propertyType);
+                    var propertyTemplate = warehouse.GetTypeDefByType(propertyType);
                     if (propertyTemplate != null)
                     {
                         if (!bag.Contains(propertyTemplate))
@@ -345,7 +345,7 @@ public class TypeDef
 
                 foreach (var eventType in eventTypes)
                 {
-                    var eventTemplate = warehouse.GetTemplateByType(eventType);
+                    var eventTemplate = warehouse.GetTypeDefByType(eventType);
 
                     if (eventTemplate != null)
                     {
@@ -398,7 +398,7 @@ public class TypeDef
         else
             throw new Exception("Type must implement IResource, IRecord or inherit from DistributedResource.");
 
-        IsWrapper = Codec.InheritsClass(type, typeof(DistributedResource));
+        IsWrapper = Codec.InheritsClass(type, typeof(EpResource));
 
         type = ResourceProxy.GetBaseType(type);
 
@@ -410,7 +410,7 @@ public class TypeDef
         typeId = GetTypeUUID(type);
 
         if (warehouse != null)
-            warehouse.RegisterSchema(this);
+            warehouse.RegisterTypeDef(this);
 
         var hierarchy = GetHierarchy(type);
 
@@ -729,6 +729,7 @@ public class TypeDef
         byte functionIndex = 0;
         byte propertyIndex = 0;
         byte eventIndex = 0;
+        byte constantIndex = 0;
 
         for (int i = 0; i < methodsCount; i++)
         {
@@ -750,14 +751,14 @@ public class TypeDef
             }
             else if (type == 2) // Event
             {
-                var (len, et) = EventDef.Parse(data, offset, propertyIndex++, inherited);
+                var (len, et) = EventDef.Parse(data, offset, eventIndex++, inherited);
                 offset += len;
                 od.events.Add(et);
             }
             // constant
             else if (type == 3)
             {
-                var (len, ct) = ConstantDef.Parse(data, offset, propertyIndex++, inherited);
+                var (len, ct) = ConstantDef.Parse(data, offset, constantIndex++, inherited);
                 offset += len;
                 od.constants.Add(ct);
             }

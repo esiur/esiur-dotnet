@@ -83,7 +83,7 @@ Now we can add our resource to the memory store using ***Warehouse.Put***
     await Warehouse.Put("sys/hello", new HelloResource());
 ```
 
-To distribute our resource using Esiur IIP Protocol we need to add a DistributedServer
+To distribute our resource using Esiur EP Protocol we need to add a DistributedServer
 
 
 ```C#
@@ -111,7 +111,7 @@ To sum up
 To access our resource remotely, we need to use it's full path including the protocol, host and instance link.
 
 ```C#
-    dynamic res = await Warehouse.Get<IResource>("iip://localhost/sys/hello");
+    dynamic res = await Warehouse.Get<IResource>("EP://localhost/sys/hello");
 ```
 
 Now we can invoke the exported functions and read/write properties;
@@ -128,7 +128,7 @@ Summing up
 >```C#
 >    using Esiur.Resource;
 >    
->    dynamic res = await Warehouse.Get<IResource>("iip://localhost/sys/hello");
+>    dynamic res = await Warehouse.Get<IResource>("EP://localhost/sys/hello");
 >    
 >    var reply = await res.SayHi("Hi, I'm calling you from dotnet");
 >    
@@ -146,14 +146,14 @@ Esiur has a self describing feature which comes with every language it supports,
 After installing the Esiur nuget package a new command is added to Visual Studio Package Console Manager that is called ***Get-Template***, which generates client side classes for robust static typing.
 
 ```ps 
-Get-Template iip://localhost/sys/hello
+Get-Template EP://localhost/sys/hello
 ```
 
 This will generate and add wrappers for all types needed by our resource.
 
 Allowing us to use
 ```C#
-    var res = await Warehouse.Get<MyResource>("iip://localhost/sys/hello");
+    var res = await Warehouse.Get<MyResource>("EP://localhost/sys/hello");
     var reply = await res.SayHi("Static typing is better");
     Console.WriteLine(reply);
 ```

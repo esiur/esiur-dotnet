@@ -79,7 +79,7 @@ namespace Esiur.Security.Membership
                 var ar = new AuthorizationResults()
                 {
                     Clue = q.Question,
-                    Destination = IIPAuthPacketIAuthDestination.Self,
+                    Destination = EpAuthPacketIAuthDestination.Self,
                     Reference = (uint)r.Next(),
                     RequiredFormat = format,
                     Expire = DateTime.Now.AddSeconds(60),
@@ -96,14 +96,14 @@ namespace Esiur.Security.Membership
             }
         }
 
-        public AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, IIPAuthPacketPublicKeyAlgorithm algorithm, byte[] value)
+        public AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, EpAuthPacketPublicKeyAlgorithm algorithm, byte[] value)
         {
             throw new NotImplementedException();
         }
 
-        public AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, IIPAuthPacketHashAlgorithm algorithm, byte[] value)
+        public AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, EpAuthPacketHashAlgorithm algorithm, byte[] value)
         {
-            if (algorithm != IIPAuthPacketHashAlgorithm.SHA256)
+            if (algorithm != EpAuthPacketHashAlgorithm.SHA256)
                 throw new NotImplementedException();
 
             var ar = users[session.AuthorizedAccount].Results.First(x => x.Reference == reference);
@@ -112,8 +112,8 @@ namespace Esiur.Security.Membership
 
 
             // compute hash
-            var remoteNonce = (byte[])session.RemoteHeaders[IIPAuthPacketHeader.Nonce];
-            var localNonce = (byte[])session.LocalHeaders[IIPAuthPacketHeader.Nonce];
+            var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
+            var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
 
             var hashFunc = SHA256.Create();
             // local nonce + password or token + remote nonce

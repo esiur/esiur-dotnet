@@ -28,7 +28,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Esiur.Data;
-using Esiur.Net.IIP;
 using Esiur.Core;
 using Esiur.Security.Authority;
 using Esiur.Resource;
@@ -47,8 +46,8 @@ public interface IMembership
     AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
     AsyncReply<AuthorizationResults> Authorize(Session session);
     AsyncReply<AuthorizationResults> AuthorizePlain(Session session, uint reference, object value);
-    AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, IIPAuthPacketHashAlgorithm algorithm, byte[] value);
-    AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, IIPAuthPacketPublicKeyAlgorithm algorithm, byte[] value);
+    AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, EpAuthPacketHashAlgorithm algorithm, byte[] value);
+    AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, EpAuthPacketPublicKeyAlgorithm algorithm, byte[] value);
 
     AsyncReply<bool> Login(Session session);
     AsyncReply<bool> Logout(Session session);

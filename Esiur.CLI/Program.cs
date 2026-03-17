@@ -47,7 +47,7 @@ if (args.Length > 0)
                                 {
                                     try
                                     {
-                                        var path = Esiur.Proxy.TemplateGenerator.GetTemplate(url, o.Dir, false, o.Username, o.Password, o.AsyncSetters);
+                                        var path = Esiur.Proxy.TypeDefGenerator.GetTemplate(url, o.Dir, false, o.Username, o.Password, o.AsyncSetters);
                                         Console.WriteLine($"Generated successfully: {path}");
                                     }
                                     catch (Exception ex)
@@ -83,7 +83,7 @@ static void PrintHelp()
     Console.WriteLine("Usage: <command> [arguments]");
     Console.WriteLine("");
     Console.WriteLine("Available commands:");
-    Console.WriteLine("\tget-template\tGet a template from an IIP link.");
+    Console.WriteLine("\tget-template\tGet a template from an EP link.");
     Console.WriteLine("\tversion\t\tPrint Esiur version.");
     Console.WriteLine("");
     Console.WriteLine("Global options:");

@@ -13,10 +13,10 @@ namespace Esiur.Security.Membership
 
 
         public uint Reference { get; set; }
-        public IIPAuthPacketIAuthDestination Destination { get; set; }
+        public EpAuthPacketIAuthDestination Destination { get; set; }
         public string? Clue { get; set; }
-        public IIPAuthPacketIAuthFormat? RequiredFormat { get; set; }
-        public IIPAuthPacketIAuthFormat? ContentFormat { get; set; }
+        public EpAuthPacketIAuthFormat? RequiredFormat { get; set; }
+        public EpAuthPacketIAuthFormat? ContentFormat { get; set; }
         public object? Content { get; set; }
 
         public byte? Trials { get; set; }

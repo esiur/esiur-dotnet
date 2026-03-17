@@ -25,12 +25,12 @@ SOFTWARE.
 using System;
 using System.Collections.Generic;
 using Esiur.Core;
-using Esiur.Net.IIP;
 using Esiur.Resource;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Collections;
+using Esiur.Protocol;
 
 namespace Esiur.Data;
 
@@ -39,9 +39,9 @@ namespace Esiur.Data;
 public static class Codec
 {
 
-    //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence);
+    //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence);
 
-    delegate object AsyncParser(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence);
+    delegate object AsyncParser(ParsedTDU tdu, EpConnection connection, uint[] requestSequence);
     delegate object SyncParser(ParsedTDU tdu, Warehouse warehouse);
 
     static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
@@ -189,10 +189,10 @@ public static class Codec
     /// <param name="data">Bytes array</param>
     /// <param name="offset">Zero-indexed offset.</param>
     /// <param name="size">Output the number of bytes parsed</param>
-    /// <param name="connection">DistributedConnection is required in case a structure in the array holds items at the other end.</param>
+    /// <param name="connection">EpConnection is required in case a structure in the array holds items at the other end.</param>
     /// <param name="dataType">DataType, in case the data is not prepended with DataType</param>
     /// <returns>Value</returns>
-    public static (uint, object) ParseAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence)
+    public static (uint, object) ParseAsync(byte[] data, uint offset, EpConnection connection, uint[] requestSequence)
     {
 
         var tdu = ParsedTDU.Parse(data, offset, (uint)data.Length);
@@ -219,7 +219,7 @@ public static class Codec
         }
     }
 
-    public static (uint, object) ParseAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static (uint, object) ParseAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         if (tdu.Class == TDUClass.Invalid)
             throw new NullReferenceException("DataType can't be parsed.");
@@ -293,21 +293,21 @@ public static class Codec
     /// Check if a resource is local to a given connection.
     /// </summary>
     /// <param name="resource">Resource to check.</param>
-    /// <param name="connection">DistributedConnection to check if the resource is local to it.</param>
+    /// <param name="connection">EpConnection to check if the resource is local to it.</param>
     /// <returns>True, if the resource owner is the given connection, otherwise False.</returns>
-    public static bool IsLocalResource(IResource resource, DistributedConnection connection)
+    public static bool IsLocalResource(IResource resource, EpConnection connection)
     {
         if (resource == null)
             throw new NullReferenceException("Resource is null.");
 
-        if (resource is DistributedResource)
-            if (((DistributedResource)(resource)).DistributedResourceConnection == connection)
+        if (resource is EpResource)
+            if (((EpResource)(resource)).DistributedResourceConnection == connection)
                 return true;
 
         return false;
     }
 
-    public delegate TDU Composer(object value, Warehouse warehouse, DistributedConnection connection);
+    public delegate TDU Composer(object value, Warehouse warehouse, EpConnection connection);
 
     public static Dictionary<Type, Composer> Composers = new Dictionary<Type, Composer>()
     {
@@ -382,7 +382,7 @@ public static class Codec
 
 
     internal static TDU
-        ComposeInternal(object valueOrSource, Warehouse warehouse, DistributedConnection connection)
+        ComposeInternal(object valueOrSource, Warehouse warehouse, EpConnection connection)
     {
         if (valueOrSource == null)
             return new TDU(TDUIdentifier.Null, null, 0);
@@ -400,9 +400,9 @@ public static class Codec
             else if (genericType == typeof(Func<>))
             {
                 var args = genericType.GetGenericArguments();
-                if (args.Length == 2 && args[0] == typeof(DistributedConnection))
+                if (args.Length == 2 && args[0] == typeof(EpConnection))
                 {
-                    //Func<DistributedConnection, DistributedConnection> a;
+                    //Func<EpConnection, EpConnection> a;
                     //a.Invoke()
                 }
             }
@@ -497,10 +497,10 @@ public static class Codec
     /// Compose a variable
     /// </summary>
     /// <param name="value">Value to compose.</param>
-    /// <param name="connection">DistributedConnection is required to check locality.</param>
+    /// <param name="connection">EpConnection is required to check locality.</param>
     /// <param name="prependType">If True, prepend the DataType at the beginning of the output.</param>
     /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] Compose(object valueOrSource, Warehouse warehouse, DistributedConnection connection)//, bool prependType = true)
+    public static byte[] Compose(object valueOrSource, Warehouse warehouse, EpConnection connection)//, bool prependType = true)
     {
         var tdu = ComposeInternal(valueOrSource, warehouse, connection);
         return tdu.Composed;

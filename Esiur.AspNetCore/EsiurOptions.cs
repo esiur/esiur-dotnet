@@ -24,12 +24,13 @@ SOFTWARE.
 
 */
 
-using Esiur.Net.IIP;
+
+using Esiur.Protocol;
 
 namespace Esiur.AspNetCore
 {
     public class EsiurOptions
     {
-        public required DistributedServer Server { get; set; }
+        public required EpServer Server { get; set; }
     }
 }

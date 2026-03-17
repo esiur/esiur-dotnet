@@ -107,7 +107,7 @@ public class ConstantDef : MemberDef
 
         var value = ci.GetValue(null);
 
-        if (typeDef?.Type == TypeDefKind.Enum)
+        if (typeDef?.Kind == TypeDefKind.Enum)
             value = Convert.ChangeType(value, ci.FieldType.GetEnumUnderlyingType());
 
         Map<string, string> annotations = null;

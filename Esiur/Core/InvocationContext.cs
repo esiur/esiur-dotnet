@@ -1,4 +1,4 @@
-﻿using Esiur.Net.IIP;
+﻿using Esiur.Protocol;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -36,10 +36,10 @@ namespace Esiur.Core
             Connection.SendWarning(CallbackId, level, message);
         }
 
-        public DistributedConnection Connection { get; internal set; }
+        public EpConnection Connection { get; internal set; }
 
 
-        internal InvocationContext(DistributedConnection connection, uint callbackId)
+        internal InvocationContext(EpConnection connection, uint callbackId)
         {
             Connection = connection;
             CallbackId = callbackId;

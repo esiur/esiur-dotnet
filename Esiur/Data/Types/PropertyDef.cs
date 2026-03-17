@@ -1,5 +1,5 @@
 ﻿using Esiur.Data;
-using Esiur.Net.IIP;
+using Esiur.Protocol;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -34,7 +34,7 @@ public class PropertyDef : MemberDef
     }
     */
     //bool ReadOnly;
-    //IIPTypes::DataType ReturnType;
+    //EPTypes::DataType ReturnType;
     public PropertyPermission Permission
     {
         get;
@@ -43,7 +43,7 @@ public class PropertyDef : MemberDef
 
     //public bool IsNullable { get; set; }
 
-    public bool Recordable
+    public bool HasHistory
     {
         get;
         set;
@@ -87,7 +87,7 @@ public class PropertyDef : MemberDef
 
 
         var hasAnnotation = ((data[offset] & 0x8) == 0x8);
-        var recordable = ((data[offset] & 1) == 1);
+        var hasHistory = ((data[offset] & 1) == 1);
         var permission = (PropertyPermission)((data[offset++] >> 1) & 0x3);
         var name = data.GetString(offset + 1, data[offset]);
 
@@ -116,7 +116,7 @@ public class PropertyDef : MemberDef
             Name = name,
             Inherited = inherited,
             Permission = permission,
-            Recordable = recordable,
+            HasHistory = hasHistory,
             ValueType = valueType,
             Annotations = annotations
         });
@@ -127,7 +127,7 @@ public class PropertyDef : MemberDef
     {
         var name = DC.ToBytes(Name);
 
-        var pv = ((byte)(Permission) << 1) | (Recordable ? 1 : 0);
+        var pv = ((byte)(Permission) << 1) | (HasHistory ? 1 : 0);
 
         if (Inherited)
             pv |= 0x80;
@@ -193,17 +193,7 @@ public class PropertyDef : MemberDef
         }
     }
 
-    //public PropertyTemplate(TypeSchema template, byte index, string name, bool inherited, 
-    //    TRU valueType, string readAnnotation = null, string writeAnnotation = null, bool recordable = false)
-    //    : base(template, index, name, inherited)
-    //{
-    //    this.Recordable = recordable;
-    //    //this.Storage = storage;
-    //    if (readAnnotation != null)
-    //        this.ReadAnnotation = readAnnotation;
-    //    this.WriteAnnotation = writeAnnotation;
-    //    this.ValueType = valueType;
-    //}
+ 
 
     public static PropertyDef MakePropertyDef(Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeDef schema)
     {
@@ -273,24 +263,12 @@ public class PropertyDef : MemberDef
             Inherited = pi.DeclaringType != type,
             ValueType = propType,
             PropertyInfo = pi,
-            Recordable = storageAttr == null ? false : storageAttr.Mode == StorageMode.Recordable,
+            HasHistory = storageAttr == null ? false : storageAttr.Mode == StorageMode.History,
             Permission = permission,
             Annotations = annotations,
         };
 
-        //var pt = new PropertyTemplate(TypeSchema, index, customName ?? pi.Name, pi.DeclaringType != type, propType);
-
-        //if (storageAttr != null)
-        //    pt.Recordable = storageAttr.Mode == StorageMode.Recordable;
-
-        //if (annotationAttr != null)
-        //    pt.ReadAnnotation = annotationAttr.Annotation;
-        //else
-        //    pt.ReadAnnotation = GetTypeAnnotationName(pi.PropertyType);
-
-        //pt.PropertyInfo = pi;
-
-        //return pt;
+ 
     }
 
 

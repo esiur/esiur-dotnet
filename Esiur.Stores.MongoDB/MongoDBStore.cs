@@ -35,7 +35,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using Esiur.Security.Permissions;
 using Esiur.Proxy;
-using Esiur.Data.Schema;
+using Esiur.Data.Types;
 
 namespace Esiur.Stores.MongoDB;
 
@@ -342,7 +342,7 @@ public class MongoDBStore : IStore
             var parents = new BsonArray();
             var children = new BsonArray();
 
-            var schema = resource.Instance.Schema;
+            var typeDef = resource.Instance.Definition;
 
             // setup attributes
             resource.Instance.Variables["children"] = new string[0];
@@ -381,7 +381,7 @@ public class MongoDBStore : IStore
 
             var values = new BsonDocument();
 
-            foreach (var pt in schema.Properties)
+            foreach (var pt in typeDef.Properties)
             {
                 var rt = pt.PropertyInfo.GetValue(resource, null);
 
@@ -594,7 +594,7 @@ public class MongoDBStore : IStore
 
         var parents = new BsonArray();
         var children = new BsonArray();
-        var schema = resource.Instance.Schema;
+        var typeDef = resource.Instance.Definition;
 
         //foreach (IResource c in resource.Instance.Children)
         //  children.Add(c.Instance.Link);
@@ -607,7 +607,7 @@ public class MongoDBStore : IStore
 
         var values = new BsonDocument();
 
-        foreach (var pt in schema.Properties)
+        foreach (var pt in typeDef.Properties)
         {
             /*
 #if NETSTANDARD1_5
@@ -728,11 +728,11 @@ public class MongoDBStore : IStore
         return reply;
     }
 
-    AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecordByAge(IResource resource, ulong fromAge, ulong toAge)
+    AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecordByAge(IResource resource, ulong fromAge, ulong toAge)
     {
-        var properties = resource.Instance.Schema.Properties.Where(x => x.Recordable).ToList();
+        var properties = resource.Instance.Definition.Properties.Where(x => x.HasHistory).ToList();
 
-        var reply = new AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>>();
+        var reply = new AsyncReply<KeyList<PropertyDef, PropertyValue[]>>();
 
         AsyncBag<PropertyValue[]> bag = new AsyncBag<PropertyValue[]>();
 
@@ -743,7 +743,7 @@ public class MongoDBStore : IStore
 
         bag.Then(x =>
         {
-            var list = new KeyList<PropertyDefinition, PropertyValue[]>();
+            var list = new KeyList<PropertyDef, PropertyValue[]>();
 
             for (var i = 0; i < x.Length; i++)
                 list.Add(properties[i], x[i]);
@@ -754,11 +754,11 @@ public class MongoDBStore : IStore
         return reply;
     }
 
-    public AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
+    public AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate)
     {
-        var properties = resource.Instance.Schema.Properties.Where(x => x.Recordable).ToList();
+        var properties = resource.Instance.Definition.Properties.Where(x => x.HasHistory).ToList();
 
-        var reply = new AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>>();
+        var reply = new AsyncReply<KeyList<PropertyDef, PropertyValue[]>>();
 
         AsyncBag<PropertyValue[]> bag = new AsyncBag<PropertyValue[]>();
 
@@ -769,7 +769,7 @@ public class MongoDBStore : IStore
 
         bag.Then(x =>
         {
-            var list = new KeyList<PropertyDefinition, PropertyValue[]>();
+            var list = new KeyList<PropertyDef, PropertyValue[]>();
 
             for (var i = 0; i < x.Length; i++)
                 list.Add(properties[i], x[i]);
@@ -780,7 +780,7 @@ public class MongoDBStore : IStore
         return reply;
     }
 
-    public bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime)
+    public bool Modify(IResource resource, PropertyDef propertyDef, object value, ulong? age, DateTime? dateTime)
     {
 
         if (resource == this)
@@ -790,7 +790,7 @@ public class MongoDBStore : IStore
 
         var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
         var update = Builders<BsonDocument>.Update
-            .Set("values." + propertyName, new BsonDocument { { "age", BsonValue.Create(age) },
+            .Set("values." + propertyDef.Name, new BsonDocument { { "age", BsonValue.Create(age) },
                                      { "modification", dateTime },
                                      { "value", Compose(value) } });
 

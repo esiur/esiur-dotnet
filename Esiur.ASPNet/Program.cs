@@ -27,7 +27,7 @@ SOFTWARE.
 using Esiur.AspNetCore;
 using Esiur.AspNetCore.Example;
 using Esiur.Core;
-using Esiur.Net.IIP;
+using Esiur.Net.EP;
 using Esiur.Net.Sockets;
 using Esiur.Resource;
 using Esiur.Stores;

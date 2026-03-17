@@ -5,7 +5,7 @@
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Data.Types;
-using Esiur.Net.IIP;
+using Esiur.Protocol;
 using Esiur.Resource;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -52,11 +52,11 @@ namespace Esiur.Proxy
                 {
                     try
                     {
-                        if (!TemplateGenerator.urlRegex.IsMatch(path))
+                        if (!TypeDefGenerator.urlRegex.IsMatch(path))
                             continue;
 
-                        var parts = TemplateGenerator.urlRegex.Split(path);
-                        var con = Warehouse.Default.Get<DistributedConnection>($"{parts[1]}://{parts[2]}").Wait(20000);
+                        var parts = TypeDefGenerator.urlRegex.Split(path);
+                        var con = Warehouse.Default.Get<EpConnection>($"{parts[1]}://{parts[2]}").Wait(20000);
                         var templates = con.GetLinkDefinitions(parts[3]).Wait(60000);
 
                         EmitTemplates(spc, templates);
@@ -228,20 +228,20 @@ $@" public partial class {ci.Name} : IResource {{
             {
                 if (tmp.Kind == TypeDefKind.Resource)
                 {
-                    var source = TemplateGenerator.GenerateClass(tmp, templates, false);
+                    var source = TypeDefGenerator.GenerateClass(tmp, templates, false);
                     spc.AddSource(tmp.Name + ".g.cs", source);
                 }
                 else if (tmp.Kind == TypeDefKind.Record)
                 {
-                    var source = TemplateGenerator.GenerateRecord(tmp, templates);
+                    var source = TypeDefGenerator.GenerateRecord(tmp, templates);
                     spc.AddSource(tmp.Name + ".g.cs", source);
                 }
             }
 
             var typesFile = "using System; \r\n namespace Esiur { public static class Generated { public static Type[] Resources {get;} = new Type[] { " +
-                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.ClassName})"))
+                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
                             + " }; \r\n public static Type[] Records { get; } = new Type[] { " +
-                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.ClassName})"))
+                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.Name})"))
                             + " }; " +
 
                             "\r\n } \r\n}";

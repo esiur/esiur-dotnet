@@ -31,7 +31,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Esiur.Security.Permissions;
 using Esiur.Security.Authority;
-using Esiur.Data.Schema;
+using Esiur.Data.Types;
 
 namespace Esiur.Resource;
 public interface IStore : IResource
@@ -39,8 +39,8 @@ public interface IStore : IResource
     AsyncReply<IResource> Get(string path); 
     AsyncReply<bool> Put(IResource resource, string path);
     string Link(IResource resource);
-    bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
-    bool Modify(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
+    //bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
+    bool Modify(IResource resource, PropertyDef propertyDef, object value, ulong? age, DateTime? dateTime);
     AsyncReply<bool> Remove(IResource resource);
 
     AsyncReply<bool> Remove(string path);
@@ -73,5 +73,5 @@ public interface IStore : IResource
     //AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, ulong fromAge, ulong toAge);
     // AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByDate(IResource resource, DateTime fromDate, DateTime toDate);
 
-    AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
+    //AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
 }

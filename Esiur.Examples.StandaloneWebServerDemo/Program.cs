@@ -1,7 +1,7 @@
 ﻿
 using Esiur.Examples.StandaloneWebServerDemo;
 using Esiur.Net.HTTP;
-using Esiur.Net.IIP;
+using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
 using Microsoft.AspNetCore.StaticFiles;
@@ -18,7 +18,7 @@ internal class Program
         // Create a store to keep objects.
         var system = await wh.Put("sys", new MemoryStore());
         // Create a distibuted server
-        var esiurServer = await wh.Put("sys/server", new DistributedServer());
+        var esiurServer = await wh.Put("sys/server", new EpServer());
         // Add your object to the store
         var service = await wh.Put("sys/demo", new Demo());
 

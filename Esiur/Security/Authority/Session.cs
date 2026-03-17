@@ -48,8 +48,8 @@ public class Session
     public ISymetricCipher SymetricCipher { get; set; } = null;
 
 
-    public Map<IIPAuthPacketHeader, object> LocalHeaders { get; set; } = new Map<IIPAuthPacketHeader, object>();
-    public Map<IIPAuthPacketHeader, object> RemoteHeaders { get; set; } = new Map<IIPAuthPacketHeader, object>();
+    public Map<EpAuthPacketHeader, object> LocalHeaders { get; set; } = new Map<EpAuthPacketHeader, object>();
+    public Map<EpAuthPacketHeader, object> RemoteHeaders { get; set; } = new Map<EpAuthPacketHeader, object>();
 
     public AuthenticationMethod LocalMethod { get; set; }
     public AuthenticationMethod RemoteMethod { get; set; }

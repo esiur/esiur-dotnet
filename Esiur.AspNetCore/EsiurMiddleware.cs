@@ -24,8 +24,8 @@ SOFTWARE.
 
 */
 
-using Esiur.Net.IIP;
 using Esiur.Net.Sockets;
+using Esiur.Protocol;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,7 +35,7 @@ namespace Esiur.AspNetCore
 {
     public class EsiurMiddleware 
     {
-        readonly DistributedServer server;
+        readonly EpServer server;
         readonly RequestDelegate next;
         readonly ILoggerFactory loggerFactory;
 
@@ -44,13 +44,13 @@ namespace Esiur.AspNetCore
             var buffer = new ArraySegment<byte>(new byte[10240]);
 
             if (context.WebSockets.IsWebSocketRequest 
-                && context.WebSockets.WebSocketRequestedProtocols.Contains("iip"))
+                && context.WebSockets.WebSocketRequestedProtocols.Contains("EP"))
             {
-                var webSocket = await context.WebSockets.AcceptWebSocketAsync("iip");
+                var webSocket = await context.WebSockets.AcceptWebSocketAsync("EP");
                 var socket = new FrameworkWebSocket(webSocket);
-                var iipConnection = new DistributedConnection();
-                server.Add(iipConnection);
-                iipConnection.Assign(socket);
+                var EPConnection = new EpConnection();
+                server.Add(EPConnection);
+                EPConnection.Assign(socket);
                 socket.Begin();
 
                 // @TODO: Change this

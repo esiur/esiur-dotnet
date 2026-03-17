@@ -1,9 +1,9 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
 using Esiur.Data.GVWIE;
-using Esiur.Data.Schema;
+using Esiur.Data.Types;
 using Esiur.Misc;
-using Esiur.Net.IIP;
+using Esiur.Protocol;
 using Esiur.Resource;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
@@ -17,7 +17,7 @@ namespace Esiur.Data;
 
 public static class DataDeserializer
 {
-    public static object NullParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object NullParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return null;
     }
@@ -27,7 +27,7 @@ public static class DataDeserializer
         return null;
     }
 
-    public static object BooleanTrueParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object BooleanTrueParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return true;
     }
@@ -37,7 +37,7 @@ public static class DataDeserializer
         return true;
     }
 
-    public static object BooleanFalseParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object BooleanFalseParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return false;
     }
@@ -47,7 +47,7 @@ public static class DataDeserializer
         return false;
     }
 
-    public static object NotModifiedParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object NotModifiedParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return NotModified.Default;
     }
@@ -57,7 +57,7 @@ public static class DataDeserializer
         return NotModified.Default;
     }
 
-    public static object UInt8ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object UInt8ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data[tdu.Offset];
     }
@@ -66,7 +66,7 @@ public static class DataDeserializer
         return tdu.Data[tdu.Offset];
     }
 
-    public static object Int8ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object Int8ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return (sbyte)tdu.Data[tdu.Offset];
     }
@@ -75,7 +75,7 @@ public static class DataDeserializer
         return (sbyte)tdu.Data[tdu.Offset];
     }
 
-    public static unsafe object Char16ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Char16ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(char*)ptr;
@@ -87,7 +87,7 @@ public static class DataDeserializer
             return *(char*)ptr;
     }
 
-    public static object Char8ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object Char8ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return (char)tdu.Data[tdu.Offset];
     }
@@ -98,7 +98,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object Int16ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int16ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(short*)ptr;
@@ -110,7 +110,7 @@ public static class DataDeserializer
             return *(short*)ptr;
     }
 
-    public static unsafe object UInt16ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt16ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(ushort*)ptr;
@@ -122,7 +122,7 @@ public static class DataDeserializer
             return *(ushort*)ptr;
     }
 
-    public static unsafe object Int32ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int32ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(int*)ptr;
@@ -134,7 +134,7 @@ public static class DataDeserializer
             return *(int*)ptr;
     }
 
-    public static unsafe object UInt32ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt32ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(uint*)ptr;
@@ -147,7 +147,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object Float32ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Float32ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(float*)ptr;
@@ -159,7 +159,7 @@ public static class DataDeserializer
             return *(float*)ptr;
     }
 
-    public static unsafe object Float64ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Float64ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(double*)ptr;
@@ -172,7 +172,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object Decimal128ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Decimal128ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(decimal*)ptr;
@@ -184,7 +184,7 @@ public static class DataDeserializer
             return *(decimal*)ptr;
     }
 
-    public static unsafe object UUIDParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UUIDParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return new UUID(tdu.Data, tdu.Offset);
     }
@@ -196,7 +196,7 @@ public static class DataDeserializer
 
 
 
-    public static unsafe object Int128ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int128ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr1 = &tdu.Data[tdu.Offset])
         fixed (byte* ptr2 = &tdu.Data[tdu.Offset + 8])
@@ -210,7 +210,7 @@ public static class DataDeserializer
             return new Int128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object UInt128ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt128ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr1 = &tdu.Data[tdu.Offset])
         fixed (byte* ptr2 = &tdu.Data[tdu.Offset + 8])
@@ -224,7 +224,7 @@ public static class DataDeserializer
             return new UInt128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object Int64ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object Int64ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(long*)ptr;
@@ -237,7 +237,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object UInt64ParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object UInt64ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(ulong*)ptr;
@@ -250,7 +250,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object DateTimeParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object DateTimeParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new DateTime(*(long*)ptr, DateTimeKind.Utc);
@@ -264,7 +264,7 @@ public static class DataDeserializer
     }
 
 
-    public static object ResourceLinkParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static object ResourceLinkParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         var link = tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
         if (connection == null)
@@ -283,7 +283,7 @@ public static class DataDeserializer
         return new ResourceLink(link);
     }
 
-    public static unsafe object ResourceParser8Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser8Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         if (connection == null)
             return new ResourceId(false, tdu.Data[tdu.Offset]);
@@ -296,7 +296,7 @@ public static class DataDeserializer
         return new ResourceId(false, tdu.Data[tdu.Offset]);
     }
 
-    public static unsafe object LocalResourceParser8Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser8Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         if (connection == null)
             return new ResourceId(true, tdu.Data[tdu.Offset]);
@@ -309,7 +309,7 @@ public static class DataDeserializer
         return new ResourceId(true, tdu.Data[tdu.Offset]);
     }
 
-    public static unsafe object ResourceParser16Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser16Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -325,7 +325,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object LocalResourceParser16Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser16Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -340,7 +340,7 @@ public static class DataDeserializer
             return new ResourceId(true, *(ushort*)ptr);
     }
 
-    public static unsafe object ResourceParser32Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser32Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -356,7 +356,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object LocalResourceParser32Async(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser32Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -372,7 +372,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object RawDataParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object RawDataParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data.Clip(tdu.Offset, (uint)tdu.ContentLength);
     }
@@ -383,7 +383,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object StringParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object StringParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
     }
@@ -393,10 +393,10 @@ public static class DataDeserializer
         return tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
     }
 
-    public static unsafe object RecordParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object RecordParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
-        var classId = tdu.Metadata.GetUUID(0);
-        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId,
+        var typeId = tdu.Metadata.GetUUID(0);
+        var typeDef = connection.Instance.Warehouse.GetTypeDefById(typeId,
                                                                     TypeDefKind.Record);
         var rt = new AsyncReply<IRecord>();
 
@@ -410,9 +410,9 @@ public static class DataDeserializer
         var length = tdu.ContentLength;
         var ends = offset + (uint)length;
 
-        var initRecord = (TypeDef template) =>
+        var initRecord = (TypeDef typeDef) =>
         {
-            for (var i = 0; i < template.Properties.Length; i++)
+            for (var i = 0; i < typeDef.Properties.Length; i++)
             {
                 current = ParsedTDU.Parse(tdu.Data, offset, ends);
 
@@ -428,7 +428,7 @@ public static class DataDeserializer
                 }
                 else if (current.Identifier == TDUIdentifier.TypeOfTarget)
                 {
-                    var (idf, mt) = template.Properties[i].ValueType.GetMetadata();
+                    var (idf, mt) = typeDef.Properties[i].ValueType.GetMetadata();
                     current.Class = TDUClass.Typed;
                     current.Identifier = idf;
                     current.Metadata = mt;
@@ -454,16 +454,16 @@ public static class DataDeserializer
 
             list.Then(results =>
             {
-                if (template.DefinedType != null)
+                if (typeDef.DefinedType != null)
                 {
 
-                    var record = Activator.CreateInstance(template.DefinedType) as IRecord;
-                    for (var i = 0; i < template.Properties.Length; i++)
+                    var record = Activator.CreateInstance(typeDef.DefinedType) as IRecord;
+                    for (var i = 0; i < typeDef.Properties.Length; i++)
                     {
                         try
                         {
-                            var v = RuntimeCaster.Cast(results[i], template.Properties[i].PropertyInfo.PropertyType);
-                            template.Properties[i].PropertyInfo.SetValue(record, v);
+                            var v = RuntimeCaster.Cast(results[i], typeDef.Properties[i].PropertyInfo.PropertyType);
+                            typeDef.Properties[i].PropertyInfo.SetValue(record, v);
                         }
                         catch (Exception ex)
                         {
@@ -477,8 +477,8 @@ public static class DataDeserializer
                 {
                     var record = new Record();
 
-                    for (var i = 0; i < template.Properties.Length; i++)
-                        record.Add(template.Properties[i].Name, results[i]);
+                    for (var i = 0; i < typeDef.Properties.Length; i++)
+                        record.Add(typeDef.Properties[i].Name, results[i]);
 
                     rt.Trigger(record);
                 }
@@ -492,14 +492,14 @@ public static class DataDeserializer
         };
 
 
-        if (template != null)
+        if (typeDef != null)
         {
-            initRecord(template);
+            initRecord(typeDef);
         }
         else if (connection != null)
         {
-            // try to get the template from the other end
-            connection.GetTemplate(classId).Then(tmp =>
+            // try to get the TypeDef from the other end
+            connection.GetTypeDefById(typeId).Then(tmp =>
             {
                 initRecord(tmp);
             }).Error(x => rt.TriggerError(x));
@@ -511,87 +511,20 @@ public static class DataDeserializer
 
         return rt;
 
-
-
-        //var classId = tdu.Metadata.GetUUID(0);
-
-        //var template = connection.Instance.Warehouse.GetTemplateByClassId(classId, TemplateType.Record);
-
-        //var initRecord = (TypeSchema template) =>
-        //{
-        //    ListParserAsync(tdu, connection, requestSequence).Then(r =>
-        //    {
-        //        var ar = (object[])r;
-
-        //        if (template == null)
-        //        {
-        //            // @TODO: add parse if no template settings
-        //            reply.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TemplateNotFound,
-        //                    "Template not found for record."));
-        //        }
-        //        else if (template.DefinedType != null)
-        //        {
-        //            var record = Activator.CreateInstance(template.DefinedType) as IRecord;
-        //            for (var i = 0; i < template.Properties.Length; i++)
-        //            {
-        //                try
-        //                {
-        //                    //var v = Convert.ChangeType(ar[i], template.Properties[i].PropertyInfo.PropertyType);
-        //                    var v = RuntimeCaster.Cast(ar[i], template.Properties[i].PropertyInfo.PropertyType);
-        //                    template.Properties[i].PropertyInfo.SetValue(record, v);
-        //                }
-        //                catch (Exception ex)
-        //                {
-        //                    Global.Log(ex);
-        //                }
-        //            }
-
-        //            reply.Trigger(record);
-        //        }
-        //        else
-        //        {
-        //            var record = new Record();
-
-        //            for (var i = 0; i < template.Properties.Length; i++)
-        //                record.Add(template.Properties[i].Name, ar[i]);
-
-        //            reply.Trigger(record);
-        //        }
-
-        //    });
-        //};
-
-        //if (template != null)
-        //{
-        //    initRecord(template);
-        //}
-        //else if (connection != null)
-        //{
-        //    // try to get the template from the other end
-        //    connection.GetTemplate(classId).Then(tmp =>
-        //    {
-        //        initRecord(tmp);
-        //    }).Error(x => reply.TriggerError(x));
-        //}
-        //else
-        //{
-        //    initRecord(null);
-        //}
-
-        //return reply;
+         
     }
 
 
     public static unsafe object RecordParser(ParsedTDU tdu, Warehouse warehouse)
     {
         var classId = tdu.Metadata.GetUUID(0);
-        var template = warehouse.GetTypeDefByClassId(classId, TypeDefKind.Record);
+        var typeDef = warehouse.GetTypeDefById(classId, TypeDefKind.Record);
 
-        if (template == null)
+        if (typeDef == null)
         {
-            // @TODO: add parse if no template settings
-            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.SchemaNotFound,
-                    "Template not found for record.");
+            // @TODO: add parse if no TypeDef settings
+            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TypeDefNotFound,
+                    "TypeDef not found for record.");
         }
 
         var list = new List<object>();
@@ -604,7 +537,7 @@ public static class DataDeserializer
         var ends = offset + (uint)length;
 
 
-        for (var i = 0; i < template.Properties.Length; i++)
+        for (var i = 0; i < typeDef.Properties.Length; i++)
         {
             current = ParsedTDU.Parse(tdu.Data, offset, ends);
 
@@ -620,7 +553,7 @@ public static class DataDeserializer
             }
             else if (current.Identifier == TDUIdentifier.TypeOfTarget)
             {
-                var (idf, mt) = template.Properties[i].ValueType.GetMetadata();
+                var (idf, mt) = typeDef.Properties[i].ValueType.GetMetadata();
                 current.Class = TDUClass.Typed;
                 current.Identifier = idf;
                 current.Metadata = mt;
@@ -642,16 +575,16 @@ public static class DataDeserializer
 
         }
 
-        if (template.DefinedType != null)
+        if (typeDef.DefinedType != null)
         {
 
-            var record = Activator.CreateInstance(template.DefinedType) as IRecord;
-            for (var i = 0; i < template.Properties.Length; i++)
+            var record = Activator.CreateInstance(typeDef.DefinedType) as IRecord;
+            for (var i = 0; i < typeDef.Properties.Length; i++)
             {
                 try
                 {
-                    var v = RuntimeCaster.Cast(list[i], template.Properties[i].PropertyInfo.PropertyType);
-                    template.Properties[i].PropertyInfo.SetValue(record, v);
+                    var v = RuntimeCaster.Cast(list[i], typeDef.Properties[i].PropertyInfo.PropertyType);
+                    typeDef.Properties[i].PropertyInfo.SetValue(record, v);
                 }
                 catch (Exception ex)
                 {
@@ -665,14 +598,14 @@ public static class DataDeserializer
         {
             var record = new Record();
 
-            for (var i = 0; i < template.Properties.Length; i++)
-                record.Add(template.Properties[i].Name, list[i]);
+            for (var i = 0; i < typeDef.Properties.Length; i++)
+                record.Add(typeDef.Properties[i].Name, list[i]);
 
             return record;
         }
     }
 
-    public static unsafe object ConstantParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe object ConstantParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         throw new NotImplementedException();
     }
@@ -682,26 +615,26 @@ public static class DataDeserializer
         throw new NotImplementedException();
     }
 
-    public static unsafe AsyncReply EnumParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply EnumParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
 
-        var classId = tdu.Metadata.GetUUID(0);
+        var typeId = tdu.Metadata.GetUUID(0);
 
 
         var index = tdu.Data[tdu.Offset];
 
-        var template = connection.Instance.Warehouse.GetTemplateByClassId(classId,
+        var typeDef = connection.Instance.Warehouse.GetTypeDefById(typeId,
                                                                         TypeDefKind.Enum);
 
-        if (template != null)
+        if (typeDef != null)
         {
-            return new AsyncReply(template.Constants[index].Value);
+            return new AsyncReply(typeDef.Constants[index].Value);
         }
         else
         {
             var reply = new AsyncReply();
 
-            connection.GetTemplate(classId).Then(tmp =>
+            connection.GetTypeDefById(typeId).Then(tmp =>
             {
                 reply.Trigger(tmp.Constants[index].Value);
             }).Error(x => reply.TriggerError(x));
@@ -713,25 +646,25 @@ public static class DataDeserializer
     public static unsafe object EnumParser(ParsedTDU tdu, Warehouse warehouse)
     {
 
-        var classId = tdu.Metadata.GetUUID(0);
+        var typeId = tdu.Metadata.GetUUID(0);
 
         var index = tdu.Data[tdu.Offset];
 
-        var template = warehouse.GetTemplateByClassId(classId, TypeDefKind.Enum);
+        var typeDef = warehouse.GetTypeDefById(typeId, TypeDefKind.Enum);
 
-        if (template != null)
+        if (typeDef != null)
         {
-            return template.Constants[index].Value;
+            return typeDef.Constants[index].Value;
         }
         else
         {
-            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.SchemaNotFound,
-                    "Template not found for enum.");
+            throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TypeDefNotFound,
+                    "TypeDef not found for enum.");
         }
     }
 
 
-    public static AsyncReply RecordListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply RecordListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IRecord>();
 
@@ -784,7 +717,7 @@ public static class DataDeserializer
         return rt.ToArray();
     }
 
-    public static AsyncReply ResourceListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply ResourceListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IResource>();
 
@@ -838,7 +771,7 @@ public static class DataDeserializer
         return rt.ToArray();
     }
 
-    public static AsyncBag<object> ListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncBag<object> ListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         //var rt = new AsyncBag<object>();
 
@@ -990,7 +923,7 @@ public static class DataDeserializer
     }
 
 
-    public static AsyncReply TypedMapParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedMapParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
 
         var rt = new AsyncReply();
@@ -1105,12 +1038,12 @@ public static class DataDeserializer
                 var enumType = tru.GetRuntimeType(warehouse);
 
                 var enums = Array.CreateInstance(enumType, (int)tdu.ContentLength);
-                var enumTemplate = warehouse.GetTemplateByType(enumType);
+                var enumTypeDef = warehouse.GetTypeDefByType(enumType);
 
                 for (var i = 0; i < (int)tdu.ContentLength; i++)
                 {
                     var index = tdu.Data[tdu.Offset + i];
-                    enums.SetValue(enumTemplate.Constants[index].Value, i);
+                    enums.SetValue(enumTypeDef.Constants[index].Value, i);
                 }
 
                 return enums;
@@ -1202,7 +1135,7 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TupleParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TupleParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
 
         var rt = new AsyncReply();
@@ -1392,7 +1325,7 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TypedArrayParserAsync(ParsedTDU tdu, TRU tru, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedArrayParserAsync(ParsedTDU tdu, TRU tru, EpConnection connection, uint[] requestSequence)
     {
         switch (tru.Identifier)
         {
@@ -1419,13 +1352,13 @@ public static class DataDeserializer
                 var enumType = tru.GetRuntimeType(connection.Instance.Warehouse);
 
                 var rt = Array.CreateInstance(enumType, (int)tdu.ContentLength);
-                var enumTemplate = connection.Instance.Warehouse.GetTemplateByType(enumType);
+                var enumTypeDef = connection.Instance.Warehouse.GetTypeDefByType(enumType);
 
                 for (var i = 0; i < (int)tdu.ContentLength; i++)
                 {
                     var index = tdu.Data[tdu.Offset + i];
 
-                    rt.SetValue(Enum.ToObject(enumType, enumTemplate.Constants[index].Value), i);
+                    rt.SetValue(Enum.ToObject(enumType, enumTypeDef.Constants[index].Value), i);
                 }
 
                 return new AsyncReply(rt);
@@ -1488,7 +1421,7 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TypedListParserAsync(ParsedTDU tdu, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
     {
         // get the type
         var (hdrCs, tru) = TRU.Parse(tdu.Metadata, 0);
@@ -1573,7 +1506,7 @@ public static class DataDeserializer
         return TypedArrayParser(tdu, tru, warehouse);
     }
 
-    public static AsyncBag<PropertyValue> PropertyValueArrayParserAsync(byte[] data, uint offset, uint length, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
+    public static AsyncBag<PropertyValue> PropertyValueArrayParserAsync(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {
         var rt = new AsyncBag<PropertyValue>();
 
@@ -1597,7 +1530,7 @@ public static class DataDeserializer
     }
 
 
-    public static (uint, AsyncReply<PropertyValue>) PropertyValueParserAsync(byte[] data, uint offset, DistributedConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
+    public static (uint, AsyncReply<PropertyValue>) PropertyValueParserAsync(byte[] data, uint offset, EpConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {
         var reply = new AsyncReply<PropertyValue>();
 
@@ -1625,13 +1558,13 @@ public static class DataDeserializer
         return (16 + valueSize, reply);
     }
 
-    public static AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>> HistoryParserAsync(byte[] data, uint offset, uint length, IResource resource, DistributedConnection connection, uint[] requestSequence)
+    public static AsyncReply<KeyList<PropertyDef, PropertyValue[]>> HistoryParserAsync(byte[] data, uint offset, uint length, IResource resource, EpConnection connection, uint[] requestSequence)
     {
         //var count = (int)toAge - (int)fromAge;
 
-        var list = new KeyList<PropertyDefinition, PropertyValue[]>();
+        var list = new KeyList<PropertyDef, PropertyValue[]>();
 
-        var reply = new AsyncReply<KeyList<PropertyDefinition, PropertyValue[]>>();
+        var reply = new AsyncReply<KeyList<PropertyDef, PropertyValue[]>>();
 
         var bagOfBags = new AsyncBag<PropertyValue[]>();
 
@@ -1639,7 +1572,7 @@ public static class DataDeserializer
         while (offset < ends)
         {
             var index = data[offset++];
-            var pt = resource.Instance.Schema.GetPropertyDefByIndex(index);
+            var pt = resource.Instance.Definition.GetPropertyDefByIndex(index);
             list.Add(pt, null);
             var cs = data.GetUInt32(offset, Endian.Little);
             offset += 4;

@@ -27,7 +27,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static Esiur.Net.Packets.IIPAuthPacket;
 
 namespace Esiur.Security.Authority;
 

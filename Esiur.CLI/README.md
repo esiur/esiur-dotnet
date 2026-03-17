@@ -9,7 +9,7 @@ A command-line utility to generate
 # Usage
 ```
 Available commands:
-        get-template        Get a template from an IIP link.
+        get-template        Get a template from an EP link.
         version             Print Esiur version.
 
 Global options:
@@ -23,7 +23,7 @@ Global options:
 ## Example
 
 ```
-    dotnet run esiur get-template iip://localhost/sys/service
+    dotnet run esiur get-template EP://localhost/sys/service
 ```
 
  
