@@ -142,7 +142,6 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// Create a new distributed resource.
     /// </summary>
     /// <param name="connection">Connection responsible for the distributed resource.</param>
-    /// <param name="template">Resource template.</param>
     /// <param name="instanceId">Instance Id given by the other end.</param>
     /// <param name="age">Resource age.</param>
     public EpResource(EpConnection connection, uint instanceId, ulong age, string link)
@@ -206,7 +205,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         var ft = Instance.Definition.GetFunctionDefByIndex(index);
 
         if (ft == null)
-            throw new Exception("Function template not found.");
+            throw new Exception("Function definition not found.");
 
         if (ft.IsStatic)
             return connection.StaticCall(Instance.Definition.Id, index, args);

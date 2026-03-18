@@ -44,7 +44,7 @@ namespace Esiur.Proxy
                 .Collect()
                 .Select( (list, y) => MergePartials(list));
 
-            // 4) Generate: A) remote templates (from ImportAttribute URLs)
+            // 4) Generate: A) remote TypeDefs (from ImportAttribute URLs)
             context.RegisterSourceOutput(importUrls,  (spc, urls) =>
             {
                 if (urls.Length == 0) return;
@@ -57,9 +57,9 @@ namespace Esiur.Proxy
 
                         var parts = TypeDefGenerator.urlRegex.Split(path);
                         var con = Warehouse.Default.Get<EpConnection>($"{parts[1]}://{parts[2]}").Wait(20000);
-                        var templates = con.GetLinkDefinitions(parts[3]).Wait(60000);
+                        var typeDefs = con.GetLinkDefinitions(parts[3]).Wait(60000);
 
-                        EmitTemplates(spc, templates);
+                        EmitTypeDefs(spc, typeDefs);
                     }
                     catch (Exception ex)
                     {
@@ -222,26 +222,26 @@ $@" public partial class {ci.Name} : IResource {{
         }
 
         // === Emission helpers (ported from your original generator) ===
-        private static void EmitTemplates(SourceProductionContext spc, TypeDef[] templates)
+        private static void EmitTypeDefs(SourceProductionContext spc, TypeDef[] typeDefs)
         {
-            foreach (var tmp in templates)
+            foreach (var typeDef in typeDefs)
             {
-                if (tmp.Kind == TypeDefKind.Resource)
+                if (typeDef.Kind == TypeDefKind.Resource)
                 {
-                    var source = TypeDefGenerator.GenerateClass(tmp, templates, false);
-                    spc.AddSource(tmp.Name + ".g.cs", source);
+                    var source = TypeDefGenerator.GenerateClass(typeDef, typeDefs, false);
+                    spc.AddSource(typeDef.Name + ".g.cs", source);
                 }
-                else if (tmp.Kind == TypeDefKind.Record)
+                else if (typeDef.Kind == TypeDefKind.Record)
                 {
-                    var source = TypeDefGenerator.GenerateRecord(tmp, templates);
-                    spc.AddSource(tmp.Name + ".g.cs", source);
+                    var source = TypeDefGenerator.GenerateRecord(typeDef, typeDefs);
+                    spc.AddSource(typeDef.Name + ".g.cs", source);
                 }
             }
 
             var typesFile = "using System; \r\n namespace Esiur { public static class Generated { public static Type[] Resources {get;} = new Type[] { " +
-                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
+                                string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
                             + " }; \r\n public static Type[] Records { get; } = new Type[] { " +
-                                string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.Name})"))
+                                string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.Name})"))
                             + " }; " +
 
                             "\r\n } \r\n}";

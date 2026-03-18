@@ -517,8 +517,8 @@ public static class DataDeserializer
 
     public static unsafe object RecordParser(ParsedTDU tdu, Warehouse warehouse)
     {
-        var classId = tdu.Metadata.GetUUID(0);
-        var typeDef = warehouse.GetTypeDefById(classId, TypeDefKind.Record);
+        var typeId = tdu.Metadata.GetUUID(0);
+        var typeDef = warehouse.GetTypeDefById(typeId, TypeDefKind.Record);
 
         if (typeDef == null)
         {

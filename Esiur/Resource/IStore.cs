@@ -70,8 +70,8 @@ public interface IStore : IResource
     //AsyncReply<PropertyValue[]> GetPropertyRecord(IResource resource, string propertyName, ulong fromAge, ulong toAge);
     //AsyncReply<PropertyValue[]> GetPropertyRecordByDate(IResource resource, string propertyName, DateTime fromDate, DateTime toDate);
 
-    //AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecord(IResource resource, ulong fromAge, ulong toAge);
-    // AsyncReply<KeyList<PropertyTemplate, PropertyValue[]>> GetRecordByDate(IResource resource, DateTime fromDate, DateTime toDate);
+    //AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecord(IResource resource, ulong fromAge, ulong toAge);
+    // AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecordByDate(IResource resource, DateTime fromDate, DateTime toDate);
 
     //AsyncReply<KeyList<PropertyDef, PropertyValue[]>> GetRecord(IResource resource, DateTime fromDate, DateTime toDate);
 }

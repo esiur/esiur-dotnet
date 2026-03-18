@@ -9,15 +9,15 @@ namespace Esiur.Resource;
 public struct PropertyModificationInfo
 {
     public readonly IResource Resource;
-    public readonly PropertyDef PropertyTemplate;
-    public string Name => PropertyTemplate.Name;
+    public readonly PropertyDef PropertyDef;
+    public string Name => PropertyDef.Name;
     public readonly ulong Age;
     public object Value;
 
-    public PropertyModificationInfo(IResource resource, PropertyDef propertyTemplate, object value, ulong age)
+    public PropertyModificationInfo(IResource resource, PropertyDef propertyDef, object value, ulong age)
     {
         Resource = resource;
-        PropertyTemplate = propertyTemplate;
+        PropertyDef = propertyDef;
         Age = age;
         Value = value;
     }

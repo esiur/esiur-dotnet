@@ -170,14 +170,14 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     public struct CallInfo
     {
-        public FunctionDef Template;
+        public FunctionDef Definition;
         public Delegate Delegate;
     }
 
     public EpServer MapCall(string call, Delegate handler)
     {
-        var ft = FunctionDef.MakeFunctionDef(null, handler.Method, 0, call, null);
-        Calls.Add(call, new CallInfo() { Delegate = handler, Template = ft });
+        var fd = FunctionDef.MakeFunctionDef(null, handler.Method, 0, call, null);
+        Calls.Add(call, new CallInfo() { Delegate = handler, Definition = fd });
         return this;
     }
 

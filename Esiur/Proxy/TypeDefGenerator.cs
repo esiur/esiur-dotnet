@@ -61,7 +61,7 @@ public static class TypeDefGenerator
     }
 
 
-    internal static string GenerateRecord(TypeDef typeDef, TypeDef[] templates)
+    internal static string GenerateRecord(TypeDef typeDef, TypeDef[] typeDefs)
     {
         var cls = typeDef.Name.Split('.');
 
@@ -82,13 +82,13 @@ public static class TypeDefGenerator
             }
         }
 
-        rt.AppendLine($"[ClassId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public class {className} : IRecord {{");
 
 
         foreach (var p in typeDef.Properties)
         {
-            var ptTypeName = GetTypeName(p.ValueType, templates);
+            var pdTypeName = GetTypeName(p.ValueType, typeDefs);
 
 
             if (p.Annotations != null)
@@ -100,7 +100,7 @@ public static class TypeDefGenerator
             }
 
 
-            rt.AppendLine($"public {ptTypeName} {p.Name} {{ get; set; }}");
+            rt.AppendLine($"public {pdTypeName} {p.Name} {{ get; set; }}");
             rt.AppendLine();
         }
 
@@ -109,9 +109,9 @@ public static class TypeDefGenerator
         return rt.ToString();
     }
 
-    internal static string GenerateEnum(TypeDef template, TypeDef[] templates)
+    internal static string GenerateEnum(TypeDef typeDef, TypeDef[] typeDefs)
     {
-        var cls = template.Name.Split('.');
+        var cls = typeDef.Name.Split('.');
 
         var nameSpace = string.Join(".", cls.Take(cls.Length - 1));
         var className = cls.Last();
@@ -121,18 +121,18 @@ public static class TypeDefGenerator
         rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Protocol;");
         rt.AppendLine($"namespace {nameSpace} {{");
 
-        if (template.Annotations != null)
+        if (typeDef.Annotations != null)
         {
-            foreach (var ann in template.Annotations)
+            foreach (var ann in typeDef.Annotations)
             {
                 rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
             }
         }
 
-        rt.AppendLine($"[ClassId(\"{template.Id.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
         rt.AppendLine($"[Export] public enum {className} {{");
 
-        rt.AppendLine(String.Join(",\r\n", template.Constants.Select(x => $"{x.Name}={x.Value}")));
+        rt.AppendLine(String.Join(",\r\n", typeDef.Constants.Select(x => $"{x.Name}={x.Value}")));
 
         rt.AppendLine("\r\n}\r\n}");
 
@@ -140,34 +140,34 @@ public static class TypeDefGenerator
     }
 
 
-    static string GetTypeName(TRU representationType, TypeDef[] templates)
+    static string GetTypeName(TRU tru, TypeDef[] typeDefs)
     {
         string name;
 
-        if (representationType.Identifier == TRUIdentifier.TypedResource)// == DataType.Resource)
-            name = templates.First(x => x.Id == representationType.UUID && (x.Kind == TypeDefKind.Resource)).Name;
-        else if (representationType.Identifier == TRUIdentifier.TypedRecord)
-            name = templates.First(x => x.Id == representationType.UUID && x.Kind == TypeDefKind.Record).Name;
-        else if (representationType.Identifier == TRUIdentifier.Enum)
-            name = templates.First(x => x.Id == representationType.UUID && x.Kind == TypeDefKind.Enum).Name;
-        else if (representationType.Identifier == TRUIdentifier.TypedList)
-            name = GetTypeName(representationType.SubTypes[0], templates) + "[]";
-        else if (representationType.Identifier == TRUIdentifier.TypedMap)
-            name = "Map<" + GetTypeName(representationType.SubTypes[0], templates)
-                    + "," + GetTypeName(representationType.SubTypes[1], templates)
+        if (tru.Identifier == TRUIdentifier.TypedResource)// == DataType.Resource)
+            name = typeDefs.First(x => x.Id == tru.UUID && (x.Kind == TypeDefKind.Resource)).Name;
+        else if (tru.Identifier == TRUIdentifier.TypedRecord)
+            name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Record).Name;
+        else if (tru.Identifier == TRUIdentifier.Enum)
+            name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Enum).Name;
+        else if (tru.Identifier == TRUIdentifier.TypedList)
+            name = GetTypeName(tru.SubTypes[0], typeDefs) + "[]";
+        else if (tru.Identifier == TRUIdentifier.TypedMap)
+            name = "Map<" + GetTypeName(tru.SubTypes[0], typeDefs)
+                    + "," + GetTypeName(tru.SubTypes[1], typeDefs)
                     + ">";
-        else if (representationType.Identifier == TRUIdentifier.Tuple2 ||
-                 representationType.Identifier == TRUIdentifier.Tuple3 ||
-                 representationType.Identifier == TRUIdentifier.Tuple4 ||
-                 representationType.Identifier == TRUIdentifier.Tuple5 ||
-                 representationType.Identifier == TRUIdentifier.Tuple6 ||
-                 representationType.Identifier == TRUIdentifier.Tuple7)
-            name = "(" + String.Join(",", representationType.SubTypes.Select(x => GetTypeName(x, templates)))
+        else if (tru.Identifier == TRUIdentifier.Tuple2 ||
+                 tru.Identifier == TRUIdentifier.Tuple3 ||
+                 tru.Identifier == TRUIdentifier.Tuple4 ||
+                 tru.Identifier == TRUIdentifier.Tuple5 ||
+                 tru.Identifier == TRUIdentifier.Tuple6 ||
+                 tru.Identifier == TRUIdentifier.Tuple7)
+            name = "(" + String.Join(",", tru.SubTypes.Select(x => GetTypeName(x, typeDefs)))
                     + ")";
         else
         {
 
-            name = representationType.Identifier switch
+            name = tru.Identifier switch
             {
                 TRUIdentifier.Dynamic => "object",
                 TRUIdentifier.Bool => "bool",
@@ -193,10 +193,10 @@ public static class TypeDefGenerator
             };
         }
 
-        return (representationType.Nullable) ? name + "?" : name;
+        return (tru.Nullable) ? name + "?" : name;
     }
 
-    public static string GetTemplate(string url, string dir = null, bool tempDir = false, string username = null, string password = null, bool asyncSetters = false)
+    public static string GetTypes(string url, string dir = null, bool tempDir = false, string username = null, string password = null, bool asyncSetters = false)
     {
         try
         {
@@ -215,7 +215,7 @@ public static class TypeDefGenerator
             if (string.IsNullOrEmpty(dir))
                 dir = path[2].Replace(":", "_");
 
-            var templates = con.GetLinkDefinitions(path[3]).Wait(60000);
+            var typeDefs = con.GetLinkDefinitions(path[3]).Wait(60000);
             // no longer needed
             Warehouse.Default.Remove(con);
 
@@ -231,22 +231,22 @@ public static class TypeDefGenerator
             }
 
             // make sources
-            foreach (var tmp in templates)
+            foreach (var td in typeDefs)
             {
-                if (tmp.Kind == TypeDefKind.Resource)
+                if (td.Kind == TypeDefKind.Resource)
                 {
-                    var source = GenerateClass(tmp, templates, asyncSetters);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.Name + ".g.cs", source);
+                    var source = GenerateClass(td, typeDefs, asyncSetters);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + td.Name + ".g.cs", source);
                 }
-                else if (tmp.Kind == TypeDefKind.Record)
+                else if (td.Kind == TypeDefKind.Record)
                 {
-                    var source = GenerateRecord(tmp, templates);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.Name + ".g.cs", source);
+                    var source = GenerateRecord(td, typeDefs);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + td.Name + ".g.cs", source);
                 }
-                else if (tmp.Kind == TypeDefKind.Enum)
+                else if (td.Kind == TypeDefKind.Enum)
                 {
-                    var source = GenerateEnum(tmp, templates);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + tmp.Name + ".g.cs", source);
+                    var source = GenerateEnum(td, typeDefs);
+                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + td.Name + ".g.cs", source);
                 }
             }
 
@@ -256,13 +256,13 @@ public static class TypeDefGenerator
     namespace Esiur { 
         public static class Generated { 
             public static Type[] Resources {get;} = new Type[] { " +
-                    string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
+                    string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
                 + @" };
             public static Type[] Records { get; } = new Type[] { " +
-                    string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.Name})"))
+                    string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Record).Select(x => $"typeof({x.Name})"))
                 + @" };
             public static Type[] Enums { get; } = new Type[] { " +
-                    string.Join(",", templates.Where(x => x.Kind == TypeDefKind.Enum).Select(x => $"typeof({x.Name})"))
+                    string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Enum).Select(x => $"typeof({x.Name})"))
                 + @" };" +
                 "\r\n } \r\n}";
 
@@ -279,9 +279,9 @@ public static class TypeDefGenerator
         }
     }
 
-    internal static string GenerateClass(TypeDef template, TypeDef[] templates, bool asyncSetters)
+    internal static string GenerateClass(TypeDef typeDef, TypeDef[] typeDefs, bool asyncSetters)
     {
-        var cls = template.Name.Split('.');
+        var cls = typeDef.Name.Split('.');
 
         var nameSpace = string.Join(".", cls.Take(cls.Length - 1));
         var className = cls.Last();
@@ -293,33 +293,33 @@ public static class TypeDefGenerator
 
         rt.AppendLine($"namespace {nameSpace} {{");
 
-        if (template.Annotations != null)
+        if (typeDef.Annotations != null)
         {
-            foreach (var ann in template.Annotations)
+            foreach (var ann in typeDef.Annotations)
             {
                 rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
             }
         }
 
 
-        rt.AppendLine($"[ClassId(\"{template.Id.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
 
         // extends
-        if (template.ParentId == null)
+        if (typeDef.ParentId == null)
             rt.AppendLine($"public class {className} : EpResource {{");
         else
-            rt.AppendLine($"public class {className} : {templates.First(x => x.Id == template.ParentId && x.Kind == TypeDefKind.Resource).Name} {{");
+            rt.AppendLine($"public class {className} : {typeDefs.First(x => x.Id == typeDef.ParentId && x.Kind == TypeDefKind.Resource).Name} {{");
 
 
         rt.AppendLine($"public {className}(EpConnection connection, uint instanceId, ulong age, string link) : base(connection, instanceId, age, link) {{}}");
         rt.AppendLine($"public {className}() {{}}");
 
-        foreach (var f in template.Functions)
+        foreach (var f in typeDef.Functions)
         {
             if (f.Inherited)
                 continue;
 
-            var rtTypeName = GetTypeName(f.ReturnType, templates);
+            var rtTypeName = GetTypeName(f.ReturnType, typeDefs);
 
             var positionalArgs = f.Arguments.Where((x) => !x.Optional).ToArray();
             var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
@@ -339,11 +339,11 @@ public static class TypeDefGenerator
 
                 if (positionalArgs.Length > 0)
                     rt.Append(", " +
-                        String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, templates) + " " + a.Name)));
+                        String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, typeDefs) + " " + a.Name)));
 
                 if (optionalArgs.Length > 0)
                     rt.Append(", " +
-                        String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), templates) + " " + a.Name + " = null")));
+                        String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), typeDefs) + " " + a.Name + " = null")));
 
             }
             else
@@ -352,14 +352,14 @@ public static class TypeDefGenerator
 
                 if (positionalArgs.Length > 0)
                     rt.Append(
-                        String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, templates) + " " + a.Name)));
+                        String.Join(", ", positionalArgs.Select((a) => GetTypeName(a.Type, typeDefs) + " " + a.Name)));
 
                 if (optionalArgs.Length > 0)
                 {
                     if (positionalArgs.Length > 0) rt.Append(",");
 
                     rt.Append(
-                        String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), templates) + " " + a.Name + " = null")));
+                        String.Join(", ", optionalArgs.Select((a) => GetTypeName(a.Type.ToNullable(), typeDefs) + " " + a.Name + " = null")));
                 }
             }
 
@@ -378,7 +378,7 @@ public static class TypeDefGenerator
             rt.AppendLine($"var rt = new AsyncReply<{rtTypeName}>();");
 
             if (f.IsStatic)
-                rt.AppendLine($"connection.StaticCall(Guid.Parse(\"{template.Id.ToString()}\"), {f.Index}, args)");
+                rt.AppendLine($"connection.StaticCall(Guid.Parse(\"{typeDef.Id.ToString()}\"), {f.Index}, args)");
             else
                 rt.AppendLine($"_Invoke({f.Index}, args)");
 
@@ -389,7 +389,7 @@ public static class TypeDefGenerator
         }
 
 
-        foreach (var p in template.Properties)
+        foreach (var p in typeDef.Properties)
         {
             if (p.Inherited)
                 continue;
@@ -402,7 +402,7 @@ public static class TypeDefGenerator
                 }
             }
 
-            var ptTypeName = GetTypeName(p.ValueType, templates);
+            var ptTypeName = GetTypeName(p.ValueType, typeDefs);
             rt.AppendLine($"[Export] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
             if (asyncSetters)
@@ -412,7 +412,7 @@ public static class TypeDefGenerator
             rt.AppendLine("}");
         }
 
-        foreach (var c in template.Constants)
+        foreach (var c in typeDef.Constants)
         {
             if (c.Inherited)
                 continue;
@@ -423,12 +423,12 @@ public static class TypeDefGenerator
                     rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
             }
 
-            var ctTypeName = GetTypeName(c.ValueType, templates);
+            var ctTypeName = GetTypeName(c.ValueType, typeDefs);
             rt.AppendLine($"[Export] public const {ctTypeName} {c.Name} = {c.Value};");
         }
 
 
-        if (template.Events.Length > 0)
+        if (typeDef.Events.Length > 0)
         {
 
             rt.AppendLine("protected override void _EmitEventByIndex(byte index, object args) {");
@@ -436,9 +436,9 @@ public static class TypeDefGenerator
 
             var eventsList = new StringBuilder();
 
-            foreach (var e in template.Events)
+            foreach (var e in typeDef.Events)
             {
-                var etTypeName = GetTypeName(e.ArgumentType, templates);
+                var etTypeName = GetTypeName(e.ArgumentType, typeDefs);
                 rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
 
 

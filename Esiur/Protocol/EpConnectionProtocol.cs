@@ -186,9 +186,9 @@ partial class EpConnection
     }
 
 
-    public AsyncReply StaticCall(UUID classId, byte index, object parameters)
+    public AsyncReply StaticCall(UUID typeId, byte index, object parameters)
     {
-        return SendRequest(EpPacketRequest.StaticCall, classId, index, parameters);
+        return SendRequest(EpPacketRequest.StaticCall, typeId, index, parameters);
     }
 
     public AsyncReply Call(string procedureCall, params object[] parameters)
@@ -808,16 +808,16 @@ partial class EpConnection
                 return;
             }
 
-            if (r.Instance.Applicable(session, ActionType.ViewTemplate, null) == Ruling.Denied)
+            if (r.Instance.Applicable(session, ActionType.ViewTypeDef, null) == Ruling.Denied)
             {
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed);
                 return;
             }
 
-            var templates = TypeDef.GetDependencies(r.Instance.Definition, Instance.Warehouse);
+            var typeDefs = TypeDef.GetDependencies(r.Instance.Definition, Instance.Warehouse);
 
             // Send
-            SendReply(EpPacketReply.Completed, callback, templates.Select(x => x.Content).ToArray());
+            SendReply(EpPacketReply.Completed, callback, typeDefs.Select(x => x.Content).ToArray());
 
         };
 
@@ -851,9 +851,9 @@ partial class EpConnection
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var classId = (UUID)value;
+        var typeId = (UUID)value;
 
-        var t = Instance.Warehouse.GetTypeDefById(classId);
+        var t = Instance.Warehouse.GetTypeDefById(typeId);
 
         if (t != null)
         {
@@ -1018,7 +1018,7 @@ partial class EpConnection
                 //    return;
                 //}
 
-                InvokeFunction(call.Value.Template, callback, results, EpPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+                InvokeFunction(call.Value.Definition, callback, results, EpPacketRequest.ProcedureCall, call.Value.Delegate.Target);
 
             }).Error(x =>
             {
@@ -1033,7 +1033,7 @@ partial class EpConnection
             this.Socket.Unhold();
 
             // @TODO: Make managers for procedure calls
-            InvokeFunction(call.Value.Template, callback, parsed, EpPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+            InvokeFunction(call.Value.Definition, callback, parsed, EpPacketRequest.ProcedureCall, call.Value.Delegate.Target);
         }
     }
 
@@ -1042,29 +1042,29 @@ partial class EpConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse, 2);
 
-        var classId = new UUID((byte[])args[0]);
+        var typeId = new UUID((byte[])args[0]);
         var index = (byte)args[1];
 
 
-        var template = Instance.Warehouse.GetTypeDefById(classId);
+        var typeDef = Instance.Warehouse.GetTypeDefById(typeId);
 
 
-        if (template == null)
+        if (typeDef == null)
         {
             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.TypeDefNotFound);
             return;
         }
 
-        var ft = template.GetFunctionDefByIndex(index);
+        var fd = typeDef.GetFunctionDefByIndex(index);
 
-        if (ft == null)
+        if (fd == null)
         {
             // no function at this index
             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
             return;
         }
 
-        var fi = ft.MethodInfo;
+        var fi = fd.MethodInfo;
 
         if (fi == null)
         {
@@ -1093,7 +1093,7 @@ partial class EpConnection
                 //    return;
                 //}
 
-                InvokeFunction(ft, callback, results, EpPacketRequest.StaticCall, null);
+                InvokeFunction(fd, callback, results, EpPacketRequest.StaticCall, null);
 
             }).Error(x =>
             {
@@ -1110,7 +1110,7 @@ partial class EpConnection
             // @TODO: Make managers for static calls
 
 
-            InvokeFunction(ft, callback, parsed, EpPacketRequest.StaticCall, null);
+            InvokeFunction(fd, callback, parsed, EpPacketRequest.StaticCall, null);
         }
     }
 
@@ -1715,9 +1715,9 @@ partial class EpConnection
 
 
     /// <summary>
-    /// Get the TypeSchema for a given class Id. 
+    /// Get the TypeSchema for a given type Id. 
     /// </summary>
-    /// <param name="classId">Class GUID.</param>
+    /// <param name="typeId">Type UUID.</param>
     /// <returns>TypeSchema.</returns>
     public AsyncReply<TypeDef> GetTypeDefById(UUID typeId)
     {
@@ -1749,9 +1749,9 @@ partial class EpConnection
 
     public AsyncReply<TypeDef> GetTypeDefByName(string typeName)
     {
-        var template = typeDefs.Values.FirstOrDefault(x => x.Name == typeName);
-        if (template != null)
-            return new AsyncReply<TypeDef>(template);
+        var typeDef = typeDefs.Values.FirstOrDefault(x => x.Name == typeName);
+        if (typeDef != null)
+            return new AsyncReply<TypeDef>(typeDef);
 
         if (typeDefsByNameRequests.ContainsKey(typeName))
             return typeDefsByNameRequests[typeName];
@@ -1844,8 +1844,7 @@ partial class EpConnection
     /// <summary>
     /// Fetch a resource from the other end
     /// </summary>
-    /// <param name="classId">Class GUID</param>
-    /// <param name="id">Resource Id</param>Guid classId
+    /// <param name="id">Resource Id</param>
     /// <returns>DistributedResource</returns>
     public AsyncReply<EpResource> Fetch(uint id, uint[] requestSequence)
     {
@@ -1901,7 +1900,7 @@ partial class EpConnection
                             return;
                         }
 
-                        // ClassId, Age, Link, Hops, PropertyValue[]
+                        // TypeId, Age, Link, Hops, PropertyValue[]
                         var args = (object[])result;
                         var typeId = (UUID)args[0];
                         var age = Convert.ToUInt64(args[1]);
@@ -1957,7 +1956,7 @@ partial class EpConnection
                         {
                             GetTypeDefById(typeId).Then((tmp) =>
                             {
-                                // ClassId, ResourceAge, ResourceLink, Content
+                                // typeId, ResourceAge, ResourceLink, Content
                                 if (resource == null)
                                 {
                                     dr.ResourceDefinition = tmp;
@@ -2024,7 +2023,7 @@ partial class EpConnection
     /// Create a new resource.
     /// </summary>
     /// <param name="path">Resource path.</param>
-    /// <param name="type">Type template.</param>
+    /// <param name="type">Type definition.</param>
     /// <param name="properties">Values for the resource properties.</param>
     /// <param name="attributes">Resource attributes.</param>
     /// <returns>New resource instance</returns>
@@ -2097,13 +2096,13 @@ partial class EpConnection
     {
         SendNotification(EpPacketNotification.PropertyModified,
                          info.Resource.Instance.Id,
-                         info.PropertyTemplate.Index,
+                         info.PropertyDef.Index,
                          info.Value);
     }
 
     private void Instance_CustomEventOccurred(CustomEventOccurredInfo info)
     {
-        if (info.EventTemplate.Subscribable)
+        if (info.EventDef.Subscribable)
         {
             lock (subscriptionsLock)
             {
@@ -2111,7 +2110,7 @@ partial class EpConnection
                 if (!subscriptions.ContainsKey(info.Resource))
                     return;
 
-                if (!subscriptions[info.Resource].Contains(info.EventTemplate.Index))
+                if (!subscriptions[info.Resource].Contains(info.EventDef.Index))
                     return;
             }
         }
@@ -2119,14 +2118,14 @@ partial class EpConnection
         if (!info.Receivers(this.session))
             return;
 
-        if (info.Resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, info.EventTemplate, info.Issuer) == Ruling.Denied)
+        if (info.Resource.Instance.Applicable(this.session, ActionType.ReceiveEvent, info.EventDef, info.Issuer) == Ruling.Denied)
             return;
 
 
         // compose the packet
         SendNotification(EpPacketNotification.EventOccurred,
                           info.Resource.Instance.Id,
-                          info.EventTemplate.Index,
+                          info.EventDef.Index,
                           info.Value);
     }
 

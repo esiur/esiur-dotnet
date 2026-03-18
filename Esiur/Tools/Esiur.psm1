@@ -1,11 +1,11 @@
-﻿function Get-Template($url, $dir, $username, $password, $asyncSetters)
+﻿function Get-Types($url, $dir, $username, $password, $asyncSetters)
 {
 
    $lib = Resolve-Path -Path "$($PSScriptRoot)\..\lib\netstandard2.0\Esiur.dll"
    #write-host "Lib is at $($lib)"
 
    $assembly =  [Reflection.Assembly]::LoadFile($lib)
-   $tempPath =  [Esiur.Proxy.TemplateGenerator]::GetTemplate($url, $dir, $true, $username,$password, $asyncSetters);  
+   $tempPath =  [Esiur.Proxy.TypeDefGenerator]::GetTypes($url, $dir, $true, $username,$password, $asyncSetters);  
   
   $startupProject = GetStartupProject
   

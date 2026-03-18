@@ -515,12 +515,12 @@ public class Warehouse
     }
 
 
-	/// <summary>
-	/// Get a TypeDef by type from the typeDefs warehouse. If not in the warehouse, a new ResourceTemplate is created and added to the warehouse.
-	/// </summary>
-	/// <param name="type">.Net type.</param>
-	/// <returns>Resource template.</returns>
-	public TypeDef GetTypeDefByType(Type type)
+    /// <summary>
+    /// Get a TypeDef by type from the warehouse. If not in the warehouse, a new TypeDef is created and added to the warehouse.
+    /// </summary>
+    /// <param name="type">.Net type.</param>
+    /// <returns>Resource TypeDef.</returns>
+    public TypeDef GetTypeDefByType(Type type)
     {
         if (!(type.IsClass || type.IsEnum))
             return null;
@@ -531,61 +531,61 @@ public class Warehouse
             || baseType == typeof(IRecord))
             return null;
 
-        TypeDefKind schemaKind;
+        TypeDefKind typeDefKind;
         if (Codec.ImplementsInterface(type, typeof(IResource)))
-            schemaKind = TypeDefKind.Resource;
+            typeDefKind = TypeDefKind.Resource;
         else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            schemaKind = TypeDefKind.Record;
+            typeDefKind = TypeDefKind.Record;
         else if (type.IsEnum)
-            schemaKind = TypeDefKind.Enum;
+            typeDefKind = TypeDefKind.Enum;
         else
             return null;
 
-        var schema = typeDefs[schemaKind].Values.FirstOrDefault(x => x.DefinedType == baseType);
-        if (schema != null)
-            return schema;
+        var typeDef = typeDefs[typeDefKind].Values.FirstOrDefault(x => x.DefinedType == baseType);
+        if (typeDef != null)
+            return typeDef;
 
-        // create new template for type
-        schema = new TypeDef(baseType, this);
-        TypeDef.GetDependencies(schema, this);
+        // create new TypeDef for type
+        typeDef = new TypeDef(baseType, this);
+        TypeDef.GetDependencies(typeDef, this);
 
-        return schema;
+        return typeDef;
     }
 
     /// <summary>
-    /// Get a schema by class Id from the templates warehouse. If not in the warehouse, a new ResourceTemplate is created and added to the warehouse.
+    /// Get a TypeDef by TypeId from the warehouse. If not in the warehouse, a new TypeDef is created and added to the warehouse.
     /// </summary>
-    /// <param name="classId">Class Id.</param>
-    /// <returns>Resource template.</returns>
-    public TypeDef GetTypeDefById(UUID typeId, TypeDefKind? templateType = null)
+    /// <param name="typeId">typeId.</param>
+    /// <returns>TypeDef.</returns>
+    public TypeDef GetTypeDefById(UUID typeId, TypeDefKind? typeDefKind = null)
     {
-        if (templateType == null)
+        if (typeDefKind == null)
         {
             // look into resources
-            var template = typeDefs[TypeDefKind.Resource][typeId];
-            if (template != null)
-                return template;
+            var typeDef = typeDefs[TypeDefKind.Resource][typeId];
+            if (typeDef != null)
+                return typeDef;
 
             // look into records
-            template = typeDefs[TypeDefKind.Record][typeId];
-            if (template != null)
-                return template;
+            typeDef = typeDefs[TypeDefKind.Record][typeId];
+            if (typeDef != null)
+                return typeDef;
 
             // look into enums
-            template = typeDefs[TypeDefKind.Enum][typeId];
-            return template;
+            typeDef = typeDefs[TypeDefKind.Enum][typeId];
+            return typeDef;
  
         }
         else
-            return typeDefs[templateType.Value][typeId];
+            return typeDefs[typeDefKind.Value][typeId];
 
     }
 
     /// <summary>
-    /// Get a template by class name from the templates warehouse. If not in the warehouse, a new ResourceTemplate is created and added to the warehouse.
+    /// Get a TypeDef by type name . If not in the warehouse, a new TypeDef is created and added to the warehouse.
     /// </summary>
-    /// <param name="className">Class name.</param>
-    /// <returns>Resource template.</returns>
+    /// <param name="typeName">Class full name.</param>
+    /// <returns>TypeDef.</returns>
     public TypeDef GetTypeDefByName(string typeName, TypeDefKind? typeDefKind = null)
     {
         if (typeDefKind == null)

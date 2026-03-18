@@ -8,18 +8,18 @@ namespace Esiur.Resource;
 
 public class CustomEventOccurredInfo
 {
-    public readonly EventDef EventTemplate;
+    public readonly EventDef EventDef;
     public readonly IResource Resource;
     public readonly object Value;
     public readonly object Issuer;
     public readonly Func<Session, bool> Receivers;
 
-    public string Name => EventTemplate.Name;
+    public string Name => EventDef.Name;
 
-    public CustomEventOccurredInfo(IResource resource, EventDef eventTemplate, Func<Session, bool> receivers, object issuer, object value)
+    public CustomEventOccurredInfo(IResource resource, EventDef eventDef, Func<Session, bool> receivers, object issuer, object value)
     {
         Resource = resource;
-        EventTemplate = eventTemplate;
+        EventDef = eventDef;
         Receivers = receivers;
         Issuer = issuer;
         Value = value;

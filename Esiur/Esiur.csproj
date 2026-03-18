@@ -58,14 +58,12 @@
 
 
 	<ItemGroup>
-	  <Compile Remove="Data\DataDeserializer - Copy.cs" />
 	  <Compile Remove="Data\NullabilityInfo.cs" />
 	  <Compile Remove="Data\NullabilityInfoContext.cs" />
 	</ItemGroup>
 
 
 	<ItemGroup>
-		<None Include="Data\DataDeserializer - Copy.cs" />
 		<None Include="Data\NullabilityInfo.cs" />
 		<None Include="Data\NullabilityInfoContext.cs" />
 		<None Include="Data\Types\ArgumentDef.cs" />

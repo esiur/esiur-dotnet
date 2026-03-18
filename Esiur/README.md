@@ -143,10 +143,10 @@ In the above client example, we relied on Esiur support for dynamic objects, but
 
 Esiur has a self describing feature which comes with every language it supports, allowing the developer to fetch and generate classes that match the ones on the other side (i.e. server).
 
-After installing the Esiur nuget package a new command is added to Visual Studio Package Console Manager that is called ***Get-Template***, which generates client side classes for robust static typing.
+After installing the Esiur nuget package a new command is added to Visual Studio Package Console Manager that is called ***Get-Types***, which generates client side classes for robust static typing.
 
 ```ps 
-Get-Template EP://localhost/sys/hello
+Get-Types ep://localhost/sys/hello
 ```
 
 This will generate and add wrappers for all types needed by our resource.

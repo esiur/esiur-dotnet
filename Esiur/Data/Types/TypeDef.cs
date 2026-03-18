@@ -14,11 +14,6 @@ using Esiur.Protocol;
 
 namespace Esiur.Data.Types;
 
-//public enum TemplateType
-//{
-//    Resource,
-//    Record
-//}
 
 public class TypeDef
 {
@@ -43,8 +38,6 @@ public class TypeDef
         return typeName;
     }
 
-    // protected TemplateType
-    //bool isReady;
 
     protected byte[] content;
 
@@ -61,17 +54,6 @@ public class TypeDef
     public Type DefinedType { get; set; }
     public Type ParentDefinedType { get; set; }
 
-    //public MemberTemplate GetMemberTemplate(MemberInfo member)
-    //{
-    //    if (member is MethodInfo)
-    //        return GetFunctionTemplateByName(member.Name);
-    //    else if (member is EventInfo)
-    //        return GetEventTemplateByName(member.Name);
-    //    else if (member is PropertyInfo)
-    //        return GetPropertyTemplateByName(member.Name);
-    //    else
-    //        return null;
-    //}
 
     public EventDef GetEventDefByName(string eventName)
     {
@@ -137,10 +119,6 @@ public class TypeDef
         get { return typeName; }
     }
 
-    //public MemberTemplate[] Methods
-    //{
-    //    get { return members.ToArray(); }
-    //}
 
     public FunctionDef[] Functions
     {
@@ -166,9 +144,9 @@ public class TypeDef
 
     public static UUID GetTypeUUID(Type type)
     {
-        var attr = type.GetCustomAttribute<ClassIdAttribute>();
+        var attr = type.GetCustomAttribute<TypeIdAttribute>();
         if (attr != null)
-            return attr.ClassId;
+            return attr.Id;
 
         var tn = Encoding.UTF8.GetBytes(GetTypeName(type));
         var hash = SHA256.Create().ComputeHash(tn).Clip(0, 16);
@@ -245,11 +223,11 @@ public class TypeDef
             // Get parents
             while (parentType != null)
             {
-                var parentTemplate = warehouse.GetTypeDefByType(parentType);
-                if (parentTemplate != null)
+                var parentTypeDef = warehouse.GetTypeDefByType(parentType);
+                if (parentTypeDef != null)
                 {
-                    list.Add(parentTemplate);
-                    parentType = parentTemplate.ParentDefinedType;
+                    list.Add(parentTypeDef);
+                    parentType = parentTypeDef.ParentDefinedType;
                 }
             }
 
@@ -257,18 +235,16 @@ public class TypeDef
             foreach (var f in sch.functions)
             {
                 var functionReturnTypes = GetDistributedTypes(f.MethodInfo.ReturnType);
-                //.Select(x => Warehouse.GetTemplateByType(x))
-                //.Where(x => x != null && !bag.Contains(x))
 
                 foreach (var functionReturnType in functionReturnTypes)
                 {
-                    var functionReturnTemplate = warehouse.GetTypeDefByType(functionReturnType);
-                    if (functionReturnTemplate != null)
+                    var functionReturnTypeDef = warehouse.GetTypeDefByType(functionReturnType);
+                    if (functionReturnTypeDef != null)
                     {
-                        if (!bag.Contains(functionReturnTemplate))
+                        if (!bag.Contains(functionReturnTypeDef))
                         {
-                            list.Add(functionReturnTemplate);
-                            getDependenciesFunc(functionReturnTemplate, bag);
+                            list.Add(functionReturnTypeDef);
+                            getDependenciesFunc(functionReturnTypeDef, bag);
                         }
                     }
                 }
@@ -326,13 +302,13 @@ public class TypeDef
 
                 foreach (var propertyType in propertyTypes)
                 {
-                    var propertyTemplate = warehouse.GetTypeDefByType(propertyType);
-                    if (propertyTemplate != null)
+                    var propertyTypeDef = warehouse.GetTypeDefByType(propertyType);
+                    if (propertyTypeDef != null)
                     {
-                        if (!bag.Contains(propertyTemplate))
+                        if (!bag.Contains(propertyTypeDef))
                         {
-                            bag.Add(propertyTemplate);
-                            getDependenciesFunc(propertyTemplate, bag);
+                            bag.Add(propertyTypeDef);
+                            getDependenciesFunc(propertyTypeDef, bag);
                         }
                     }
                 }
@@ -345,14 +321,14 @@ public class TypeDef
 
                 foreach (var eventType in eventTypes)
                 {
-                    var eventTemplate = warehouse.GetTypeDefByType(eventType);
+                    var eventTypeDef = warehouse.GetTypeDefByType(eventType);
 
-                    if (eventTemplate != null)
+                    if (eventTypeDef != null)
                     {
-                        if (!bag.Contains(eventTemplate))
+                        if (!bag.Contains(eventTypeDef))
                         {
-                            bag.Add(eventTemplate);
-                            getDependenciesFunc(eventTemplate, bag);
+                            bag.Add(eventTypeDef);
+                            getDependenciesFunc(eventTypeDef, bag);
                         }
                     }
                 }

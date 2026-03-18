@@ -103,13 +103,6 @@ public class EventDef : MemberDef
                 .ToArray();
     }
 
-    //public EventTemplate(TypeSchema template, byte index, string name, bool inherited, TRU argumentType, Map<string, string> annotations = null, bool subscribable = false)
-    //   : base(template, index, name, inherited)
-    //{
-    //    this.Annotations = annotations;
-    //    this.Subscribable = subscribable;
-    //    this.ArgumentType = argumentType;
-    //}
 
     public static EventDef MakeEventDef(Type type, EventInfo ei, byte index, string name, TypeDef schema)
     {

@@ -46,5 +46,5 @@ public enum ActionType
     RemoveChild,
     Rename,
     ReceiveEvent,
-    ViewTemplate
+    ViewTypeDef
 }

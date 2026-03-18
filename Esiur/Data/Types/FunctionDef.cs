@@ -118,16 +118,6 @@ public class FunctionDef : MemberDef
         return bl.ToArray();
     }
 
-    //public FunctionTemplate(TypeSchema template, byte index, string name, bool inherited, bool isStatic, ArgumentTemplate[] arguments, TRU returnType, Map<string, string> annotations = null)
-    //   : base(template, index, name, inherited)
-    //{
-    //    this.Arguments = arguments;
-    //    this.ReturnType = returnType;
-    //    this.Annotations = annotations;
-    //    this.IsStatic = isStatic;
-    //}
-
-
 
     public static FunctionDef MakeFunctionDef(Type type, MethodInfo mi, byte index, string name, TypeDef schema)
     {
