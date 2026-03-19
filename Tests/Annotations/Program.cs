@@ -1,15 +1,32 @@
 ﻿// The endpoint for LM Studio's local server
+using Esiur.Resource;
+using Esiur.Stores;
+using Esiur.Tests.Annotations;
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
 using System.Data;
 
+var wh = new Warehouse();
+
+await wh.Put("store", new MemoryStore());
+var node = await wh.Put("store/service", new ServiceNode());
+
 var endpoint = "http://localhost:1234/v1";
 var credential = new ApiKeyCredential("lm-studio");
 
-var client = new OpenAIClient(credential, new OpenAIClientOptions() { Endpoint = new Uri(endpoint) });
+//var client = new OpenAIClient(credential, new OpenAIClientOptions() { Endpoint = new Uri(endpoint) });
 
-var chat = client.GetChatClient("microsoft/phi-4");
+//var chat = client.GetChatClient("microsoft/phi-4");
+
+var llmRunner = new LlmRunner();
+
+await llmRunner.RunAsync(
+    node,
+    endpoint,
+    credential,
+    "microsoft/phi-4"
+);
 
 //List<ChatMessage> messages = new List<ChatMessage>
 //{
@@ -20,8 +37,8 @@ var chat = client.GetChatClient("microsoft/phi-4");
 //// Send the entire conversation history
 //ChatCompletion completion = chat.CompleteChat(messages);
 
-var response = await chat.CompleteChatAsync(
-    "Explain what Pi means"
-);
+//var response = await chat.CompleteChatAsync(
+//    "Explain what Pi means"
+//);
 
-Console.WriteLine(response.Value.Content[0].Text);
+//Console.WriteLine(response.Value.Content[0].Text);
