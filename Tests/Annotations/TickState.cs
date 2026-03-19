@@ -10,5 +10,4 @@ namespace Esiur.Tests.Annotations
         public int ErrorCount { get; set; }
         public bool Enabled { get; set; }
     }
-
 }

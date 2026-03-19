@@ -9,14 +9,15 @@ namespace Esiur.Tests.Annotations
     [Annotation("usage_rules", @"1.Choose at most one function per tick.
     2. Use only functions defined in the functions list.
     3. Do not invent properties or functions.
-    4. Base the decision only on current property values and annotations.")]
+    4. Base the decision only on current property values and annotations.
+    5. Keep the service enabled as much as possible")]
     [Resource]
     public partial class ServiceNode
     {
         [Annotation("Current service load percentage from 0 to 100. Values above 80 indicate overload.")]
         [Export] int load;
 
-        [Annotation("Number of recent errors detected in the service. Values above 3 indicate instability.")]
+        [Annotation("Number of recent errors detected in the service. Values above 3 indicate instability. A value of 0 means no reset is needed")]
         [Export] int errorCount;
 
         [Annotation("True when the service is enabled and allowed to run. False means the service is disabled.")]
@@ -30,13 +31,13 @@ namespace Esiur.Tests.Annotations
             Enabled = true;
         }
 
-        [Annotation("Clear the error counter when errors were temporary and a restart is not required.")]
+        [Annotation("Clear recent errors only when ErrorCount is greater than 0 and the service is otherwise stable.")]
         [Export] public void ResetErrors()
         {
             ErrorCount = 0;
         }
 
-        [Annotation("Enable the service if it is disabled and should be running.")]
+        [Annotation("Enable the service when Enabled is false.")]
         [Export] public void Enable()
         {
             Enabled = true;

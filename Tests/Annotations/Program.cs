@@ -7,38 +7,75 @@ using OpenAI.Chat;
 using System.ClientModel;
 using System.Data;
 
-var wh = new Warehouse();
-
-await wh.Put("store", new MemoryStore());
-var node = await wh.Put("store/service", new ServiceNode());
 
 var endpoint = "http://localhost:1234/v1";
 var credential = new ApiKeyCredential("lm-studio");
 
-//var client = new OpenAIClient(credential, new OpenAIClientOptions() { Endpoint = new Uri(endpoint) });
+////var client = new OpenAIClient(credential, new OpenAIClientOptions() { Endpoint = new Uri(endpoint) });
 
-//var chat = client.GetChatClient("microsoft/phi-4");
+////var chat = client.GetChatClient("microsoft/phi-4");
 
-var llmRunner = new LlmRunner();
+//var llmRunner = new LlmRunner();
 
-await llmRunner.RunAsync(
-    node,
-    endpoint,
-    credential,
-    "microsoft/phi-4"
-);
-
-//List<ChatMessage> messages = new List<ChatMessage>
-//{
-//    new SystemChatMessage("You are a helpful assistant that only speaks in rhymes."),
-//    new UserChatMessage("What is the capital of France?")
-//};
-
-//// Send the entire conversation history
-//ChatCompletion completion = chat.CompleteChat(messages);
-
-//var response = await chat.CompleteChatAsync(
-//    "Explain what Pi means"
+//await llmRunner.RunAsync(
+//    node,
+//    endpoint,
+//    credential,
+//    "microsoft/phi-4"
 //);
 
-//Console.WriteLine(response.Value.Content[0].Text);
+var runner = new LlmRunner();
+
+var models = new List<ModelConfig>
+{
+    new()
+    {
+        Name = "Phi-4",
+        Endpoint = "http://localhost:1234/v1",
+        ApiKey = new ApiKeyCredential("lm-studio"),
+        ModelName = "microsoft/phi-4"
+    },
+    new()
+    {
+        Name = "Qwen2.5-7B",
+        Endpoint = "http://localhost:1234/v1",
+        ApiKey = new ApiKeyCredential("lm-studio"),
+        ModelName = "qwen2.5-7b-instruct"
+    },
+    new()
+    {
+        Name = "gpt-oss",
+        Endpoint = "http://localhost:1234/v1",
+        ApiKey = new ApiKeyCredential("lm-studio"),
+        ModelName = "openai/gpt-oss-20b"
+    },
+    new()
+    {
+        Name = "qwen2.5-1.5b-instruct",
+        Endpoint = "http://localhost:1234/v1",
+        ApiKey = new ApiKeyCredential("lm-studio"),
+        ModelName = "qwen2.5-1.5b-instruct"
+    },
+    new()
+    {
+        Name = "ministral-3-3b",
+        Endpoint = "http://localhost:1234/v1",
+        ApiKey = new ApiKeyCredential("lm-studio"),
+        ModelName = "mistralai/ministral-3-3b"
+    },
+    new()
+    {
+        Name = "deepseek-r1-0528-qwen3-8b",
+        Endpoint = "http://localhost:1234/v1",
+        ApiKey = new ApiKeyCredential("lm-studio"),
+        ModelName = "deepseek/deepseek-r1-0528-qwen3-8b"
+    }
+};
+
+var (results, summary) = await runner.RunAsync( models.Skip(5).Take(1).ToArray(), 
+    250);
+
+foreach (var item in summary)
+{
+    Console.WriteLine($"{item.Model}: Correct={item.CorrectRate:F1}% Repair={item.RepairRate:F1}% Mean={item.MeanLatencyMs:F1} ms P95={item.P95LatencyMs:F1} ms");
+}
