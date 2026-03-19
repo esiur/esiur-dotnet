@@ -11,19 +11,6 @@ using System.Data;
 var endpoint = "http://localhost:1234/v1";
 var credential = new ApiKeyCredential("lm-studio");
 
-////var client = new OpenAIClient(credential, new OpenAIClientOptions() { Endpoint = new Uri(endpoint) });
-
-////var chat = client.GetChatClient("microsoft/phi-4");
-
-//var llmRunner = new LlmRunner();
-
-//await llmRunner.RunAsync(
-//    node,
-//    endpoint,
-//    credential,
-//    "microsoft/phi-4"
-//);
-
 var runner = new LlmRunner();
 
 var models = new List<ModelConfig>
@@ -31,43 +18,43 @@ var models = new List<ModelConfig>
     new()
     {
         Name = "Phi-4",
-        Endpoint = "http://localhost:1234/v1",
-        ApiKey = new ApiKeyCredential("lm-studio"),
+        Endpoint = endpoint,
+        ApiKey = credential,
         ModelName = "microsoft/phi-4"
     },
     new()
     {
         Name = "Qwen2.5-7B",
-        Endpoint = "http://localhost:1234/v1",
-        ApiKey = new ApiKeyCredential("lm-studio"),
+        Endpoint = endpoint,
+        ApiKey = credential,
         ModelName = "qwen2.5-7b-instruct"
     },
     new()
     {
         Name = "gpt-oss",
-        Endpoint = "http://localhost:1234/v1",
-        ApiKey = new ApiKeyCredential("lm-studio"),
+        Endpoint = endpoint,
+        ApiKey = credential,
         ModelName = "openai/gpt-oss-20b"
     },
     new()
     {
         Name = "qwen2.5-1.5b-instruct",
-        Endpoint = "http://localhost:1234/v1",
-        ApiKey = new ApiKeyCredential("lm-studio"),
+        Endpoint = endpoint,
+        ApiKey = credential,
         ModelName = "qwen2.5-1.5b-instruct"
     },
     new()
     {
         Name = "ministral-3-3b",
-        Endpoint = "http://localhost:1234/v1",
-        ApiKey = new ApiKeyCredential("lm-studio"),
+        Endpoint = endpoint,
+        ApiKey = credential,
         ModelName = "mistralai/ministral-3-3b"
     },
     new()
     {
         Name = "deepseek-r1-0528-qwen3-8b",
-        Endpoint = "http://localhost:1234/v1",
-        ApiKey = new ApiKeyCredential("lm-studio"),
+        Endpoint = endpoint,
+        ApiKey = credential,
         ModelName = "deepseek/deepseek-r1-0528-qwen3-8b"
     }
 };
