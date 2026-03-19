@@ -47,7 +47,7 @@ if (args.Length > 0)
                                 {
                                     try
                                     {
-                                        var path = Esiur.Proxy.TypeDefGenerator.GetTemplate(url, o.Dir, false, o.Username, o.Password, o.AsyncSetters);
+                                        var path = Esiur.Proxy.TypeDefGenerator.GetTypes(url, o.Dir, false, o.Username, o.Password, o.AsyncSetters);
                                         Console.WriteLine($"Generated successfully: {path}");
                                     }
                                     catch (Exception ex)

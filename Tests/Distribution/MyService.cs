@@ -9,7 +9,7 @@ using Esiur.Protocol;
 
 #nullable enable
 
-namespace Test;
+namespace Esiur.Tests.Distribution;
 
 
 public enum SizeEnum:short

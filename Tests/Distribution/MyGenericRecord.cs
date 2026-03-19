@@ -6,8 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Test
-{
+namespace Esiur.Tests.Distribution;
+
     public class MyGenericRecord<T> : IRecord where T : IResource
     {
         [Export] public int Start { get; set; }
@@ -16,4 +16,3 @@ namespace Test
         [Export] public T[] Results { get; set; }
     }
 
-}

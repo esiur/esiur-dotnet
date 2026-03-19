@@ -406,9 +406,9 @@ public static class TypeDefGenerator
             rt.AppendLine($"[Export] public {ptTypeName} {p.Name} {{");
             rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
             if (asyncSetters)
-                rt.AppendLine($"set => _Set({p.Index}, value);");
+                rt.AppendLine($"set => SetResourcePropertyAsync({p.Index}, value);");
             else
-                rt.AppendLine($"set => _SetSync({p.Index}, value);");
+                rt.AppendLine($"set => SetResourceProperty({p.Index}, value);");
             rt.AppendLine("}");
         }
 

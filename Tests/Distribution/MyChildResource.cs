@@ -5,8 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Test
-{
+namespace Esiur.Tests.Distribution;
+
     [Resource]
     public partial class MyChildResource : MyResource
     {
@@ -17,4 +17,3 @@ namespace Test
         [Export] public string HelloChild() => "Hi from Child";
 
     }
-}

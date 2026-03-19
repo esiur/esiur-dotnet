@@ -6,8 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Test
-{
+namespace Esiur.Tests.Distribution;
+
     [Export]
     public class MyRecord:IRecord
     {
@@ -17,4 +17,3 @@ namespace Test
         public double Score { get; set; }
 
     }
-}

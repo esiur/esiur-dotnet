@@ -5,9 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Test
-{
+namespace Esiur.Tests.Distribution;
+
     public interface IMyRecord:IRecord
     {
     }
-}

@@ -5,12 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Test
-{
+namespace Esiur.Tests.Distribution;
+
     [Export]
     public class MyChildRecord : MyRecord
     {
         public string ChildName { get; set; }
 
     }
-}
