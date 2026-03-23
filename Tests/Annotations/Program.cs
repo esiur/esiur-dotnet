@@ -9,12 +9,64 @@ using System.Data;
 
 
 var endpoint = "http://localhost:1234/v1";
-var credential = new ApiKeyCredential("lm-studio");
+//var endpoint = "http://127.0.0.1:22334/v1";
+var credential = new ApiKeyCredential("llm");
 
 var runner = new LlmRunner();
 
 var models = new List<ModelConfig>
 {
+    new()
+    {
+        Name = "phi-3-mini-4k-instruct-qnn-npu:2",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "phi-3-mini-4k-instruct-qnn-npu:2"
+    },
+    new()
+    {
+        Name = "phi-3.5-mini-instruct-qnn-npu:1",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "phi-3.5-mini-instruct-qnn-npu:1"
+    },
+    new()
+    {
+        Name = "qwen2.5-7b-instruct-qnn-npu:2",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "qwen2.5-7b-instruct-qnn-npu:2"
+    },
+    new()
+    {
+        Name = "deepseek-r1-distill-qwen-7b-qnn-npu:1",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "deepseek-r1-distill-qwen-7b-qnn-npu:1"
+    },
+    new()
+    {
+        Name = "qwen3-4b-2507",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "qwen/qwen3-4b-2507"
+    },
+    new()
+    {
+        Name = "gemma-3n-e4b",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "google/gemma-3n-e4b"
+    },
+    new()
+    {
+        Name = "qwen2.5-7b-instruct-1m",
+        Endpoint = endpoint,
+        ApiKey = credential,
+        ModelName = "qwen2.5-7b-instruct-1m"
+    },
+
+
     new()
     {
         Name = "Phi-4",
@@ -59,7 +111,7 @@ var models = new List<ModelConfig>
     }
 };
 
-var (results, summary) = await runner.RunAsync( models.Skip(5).Take(1).ToArray(), 
+var (results, summary) = await runner.RunAsync(models, 
     250);
 
 foreach (var item in summary)

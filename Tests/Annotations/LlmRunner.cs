@@ -73,7 +73,7 @@ public sealed class LlmRunner
 
             var client = new OpenAIClient(
                 model.ApiKey,
-                new OpenAIClientOptions { Endpoint = new Uri(model.Endpoint) });
+                new OpenAIClientOptions { Endpoint = new Uri(model.Endpoint),  });
 
             var chat = client.GetChatClient(model.ModelName);
 
@@ -188,7 +188,14 @@ public sealed class LlmRunner
             new UserChatMessage(prompt)
         };
 
-        var result = await chat.CompleteChatAsync(messages);
+        var options = new ChatCompletionOptions
+        {
+            MaxOutputTokenCount = 800, // Sets the maximum number of tokens to generate in the response
+            Temperature = 0.8f,
+            // Other options like NucleusSamplingFactor (TopP), FrequencyPenalty, etc. can also be set here
+        };
+
+        var result = await chat.CompleteChatAsync(messages, options);
         return result.Value.Content[0].Text;
     }
 
