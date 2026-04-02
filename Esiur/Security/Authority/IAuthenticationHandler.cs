@@ -7,9 +7,11 @@ namespace Esiur.Security.Authority
 {
     public interface IAuthenticationHandler
     {
-        public AuthenticationResult Initialize(Session session);
 
-        public AuthenticationResult Process(object handshakePayload);
+        public AuthenticationMode Mode { get; }
+        public AuthenticationResult Initialize(Session session, object authenticationData);
+
+        public AuthenticationResult Process(object authenticationData);
 
         public void Terminate(Session session);
 

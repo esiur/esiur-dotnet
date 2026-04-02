@@ -44,10 +44,10 @@ public interface IMembership
 
     AsyncReply<byte[]> GetPassword(string username, string domain);
     AsyncReply<byte[]> GetToken(ulong tokenIndex, string domain);
-    AsyncReply<AuthorizationResults> Authorize(Session session);
-    AsyncReply<AuthorizationResults> AuthorizePlain(Session session, uint reference, object value);
-    AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, EpAuthPacketHashAlgorithm algorithm, byte[] value);
-    AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, EpAuthPacketPublicKeyAlgorithm algorithm, byte[] value);
+    //AsyncReply<AuthorizationResults> Authorize(Session session);
+    //AsyncReply<AuthorizationResults> AuthorizePlain(Session session, uint reference, object value);
+    //AsyncReply<AuthorizationResults> AuthorizeHashed(Session session, uint reference, EpAuthPacketHashAlgorithm algorithm, byte[] value);
+    //AsyncReply<AuthorizationResults> AuthorizeEncrypted(Session session, uint reference, EpAuthPacketPublicKeyAlgorithm algorithm, byte[] value);
 
     AsyncReply<bool> Login(Session session);
     AsyncReply<bool> Logout(Session session);

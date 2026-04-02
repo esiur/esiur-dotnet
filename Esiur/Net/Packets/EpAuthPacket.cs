@@ -24,6 +24,7 @@ SOFTWARE.
 
 using Esiur.Data;
 using Esiur.Security.Authority;
+using Esiur.Security.Cryptography;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -62,13 +63,13 @@ public class EpAuthPacket : Packet
     }
 
 
-    public EpAuthPacketAuthMode AuthMode
+    public AuthenticationMode AuthMode
     {
         get;
         set;
     }
 
-    public EpAuthPacketEncryptionMode EncryptionMode
+    public EncryptionMode EncryptionMode
     {
         get;
         set;
@@ -145,8 +146,8 @@ public class EpAuthPacket : Packet
 
         if (Command == EpAuthPacketCommand.Initialize)
         {
-            AuthMode = (EpAuthPacketAuthMode)(data[offset] >> 3 & 0x7);
-            EncryptionMode = (EpAuthPacketEncryptionMode)(data[offset++] & 0x7);
+            AuthMode = (AuthenticationMode)(data[offset] >> 3 & 0x7);
+            EncryptionMode = (EncryptionMode)(data[offset++] & 0x7);
         }
         else if (Command == EpAuthPacketCommand.Acknowledge)
         {

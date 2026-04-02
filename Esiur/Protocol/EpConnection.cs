@@ -48,8 +48,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
-using static System.Collections.Specialized.BitVector32;
-
+ 
 namespace Esiur.Protocol;
 
 public partial class EpConnection : NetworkConnection, IStore
@@ -251,7 +250,7 @@ public partial class EpConnection : NetworkConnection, IStore
             if (session.AuthenticationHandler == null)
                 throw new Exception("Authentication handler must be assigned for the session.");
             
-            var initAuthData = session.AuthenticationHandler.Initialize(session);
+            var initAuthData = session.AuthenticationHandler.Initialize(session, null);
 
             session.LocalHeaders.Add(EpAuthPacketHeader.AuthenticationData, initAuthData);
         }
@@ -278,16 +277,20 @@ public partial class EpConnection : NetworkConnection, IStore
     /// <param name="domain">Working domain.</param>
     /// <param name="username">Username.</param>
     /// <param name="password">Password.</param>
-    public EpConnection(ISocket socket, IAuthenticationHandler authenticationInitiator, Map<EpAuthPacketHeader, object> headers)
+    public EpConnection(ISocket socket, IAuthenticationHandler authenticationHandler, Map<EpAuthPacketHeader, object> headers)
     {
         this.session = new Session();
 
         //if (authenticationHandler.Type != AuthenticationType.Initiator)
         //    throw new Exception(""
-        session.AuthenticationType = AuthenticationMode.Initiator;
+        //session.AuthenticationType = AuthenticationMode.Initiator;
         session.LocalHeaders = headers;
-        session.AuthenticationInitiator = authenticationInitiator;
 
+        if (authenticationHandler != null)
+        {
+            session.AuthenticationHandler = authenticationHandler;
+            session.AuthenticationMode = authenticationHandler.Mode;
+        }
 
         //this.localPasswordOrToken = DC.ToBytes(password);
 
@@ -317,13 +320,13 @@ public partial class EpConnection : NetworkConnection, IStore
     /// <summary>
     /// Create a new instance of a distributed connection
     /// </summary>
-    public EpConnection(IAuthenticationHandler authenticationResponder)
+    public EpConnection()
     {
         session = new Session();
-        session.AuthenticationType = AuthenticationMode.Responder;
-        session.AuthenticationResponder = authenticationResponder;
+        //session.AuthenticationType = AuthenticationMode.Responder;
+        //session.AuthenticationResponder = authenticationResponder;
 
-        authenticationResponder.Initiate(session);
+        //authenticationResponder.Initiate(session);
         init();
     }
 
@@ -641,88 +644,116 @@ public partial class EpConnection : NetworkConnection, IStore
             {
                 offset += (uint)rt;
 
-                if (session.AuthenticationMethod == AuthenticationMethod.None)
-                {
-                    // establish session without authentication
-                }
+                if (authPacket.Command == EpAuthPacketCommand.Initialize && isInitiator)
+                    throw new Exception("Bad authentication packet received. Connection is initiator but received an initialization packet.");
 
-                if (session.AuthenticationHandler == null)
-                {
-                    throw new Exception("No authentication handler assigned for the session.");
-                }
+                if (authPacket.Command == EpAuthPacketCommand.Acknowledge && !isInitiator)
+                    throw new Exception("Bad authentication packet received. Connection is responder but received an acknowledge packet.");
 
-                try
+                if (authPacket.Command == EpAuthPacketCommand.Initialize)
                 {
-                    var result = session.AuthenticationHandler.Process(authPacket);
-                    if (result.Ruling == AuthenticationRuling.Succeeded)
+                    if (authPacket.Tdu != null)
                     {
-                        if (this.Instance == null)
+                        var (_, parsed) = Codec.ParseSync(authPacket.Tdu.Value, Instance.Warehouse);
+
+                        if (parsed is Map<byte, object> headers)
                         {
-                            Server.Instance.Warehouse.Put(
-                                Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
-                                .Then(x =>
-                                {
-                                    session.AuthorizedIdentity = result.Identity;
-
-                                    authenticated = true;
-                                    Status = EpConnectionStatus.Connected;
-                                    openReply?.Trigger(true);
-                                    openReply = null;
-                                    OnReady?.Invoke(this);
-
-                                    Server?.Membership?.Login(session);
-                                    LoginDate = DateTime.Now;
-
-                                }).Error(x =>
-                                {
-                                    openReply?.TriggerError(x);
-                                    openReply = null;
-                                });
-                        }
-                        else
-                        {
-                            session.AuthorizedIdentity = result.Identity;
-                            authenticated = true;
-                            Status = EpConnectionStatus.Connected;
-                            openReply?.Trigger(true);
-                            openReply = null;
-                            OnReady?.Invoke(this);
-                            Server?.Membership?.Login(session);
+                            session.RemoteHeaders = headers.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
                         }
                     }
-                    else if (result.Ruling == AuthenticationRuling.InProgress)
-                    {
-                        SendParams()
-                         .AddUInt8((byte)EpAuthPacketCommand.Acknowledge)
-                         .AddUInt8Array(Codec.Compose(
-                                         result.HandshakePayload
-                                        , this.Instance.Warehouse, this))
-                         .Done();
 
-                    }
-                    else if (result.Ruling == AuthenticationRuling.Failed)
+
+
+
+                    //@TODO: get the authentication handler
+                    if (session.RemoteHeaders.ContainsKey(EpAuthPacketHeader.AuthenticationData))
                     {
-                        // Send the server side error
-                        SendParams()
-                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                            .AddUInt8Array(Codec.Compose(
-                                new object[] {(ushort)result.ExceptionCode,
-                                        result.ExceptionMessage }
-                                , this.Instance.Warehouse, this))
-                            .Done();
+                        var authResult = session.AuthenticationHandler.Initialize(session, session.RemoteHeaders[EpAuthPacketHeader.AuthenticationData]);
                     }
-                }
-                catch (Exception ex)
-                {
-                    // Send the server side error
+
+                    //@TODO allow all for testing
                     SendParams()
-                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                        .AddUInt8Array(Codec.Compose(
-                            new object[] { (ushort)ExceptionCode.GeneralFailure,
-                                    ex.Message }
-                        , this.Instance.Warehouse, this))
-                        .Done();
+                            .AddUInt8((byte)EpAuthPacketAcknowledgement.SessionEstablished)
+                            .Done();
+
                 }
+                else if (authPacket.Command == EpAuthPacketCommand.Acknowledge)
+                {
+                    //@TODO: get the authentication handler
+
+                    if (authPacket.Tdu != null)
+                    {
+                        var (_, parsed) = Codec.ParseSync(authPacket.Tdu.Value, Instance.Warehouse);
+
+                        if (parsed is Map<byte, object> headers)
+                        {
+                            session.RemoteHeaders = headers.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
+                        }
+                    }
+
+                    if (session.RemoteHeaders.ContainsKey(EpAuthPacketHeader.AuthenticationData))
+                    {
+                        var authResult = session.AuthenticationHandler.Initialize(session, session.RemoteHeaders[EpAuthPacketHeader.AuthenticationData]);
+                    }
+
+                    if (authPacket.Acknowledgement == EpAuthPacketAcknowledgement.SessionEstablished)
+                    {
+                        // session established, check if authentication is required
+                        AuthenticatonCompleted("guest");
+                    }
+                }
+
+
+                //if (session.AuthenticationMode == AuthenticationMode.None)
+                //{
+                //    // establish session without authentication
+                //}
+
+                //if (session.AuthenticationHandler == null)
+                //{
+                //    throw new Exception("No authentication handler assigned for the session.");
+                //}
+
+                //try
+                //{
+                //    var result = session.AuthenticationHandler.Process(authPacket);
+                //    if (result.Ruling == AuthenticationRuling.Succeeded)
+                //    {
+                //        AuthenticatonCompleted(result.Identity);
+                //    }
+                //    else if (result.Ruling == AuthenticationRuling.InProgress)
+                //    {
+                //        SendParams()
+                //         .AddUInt8((byte)EpAuthPacketCommand.Acknowledge)
+                //         .AddUInt8Array(Codec.Compose(
+                //                         result.HandshakePayload
+                //                        , this.Instance.Warehouse, this))
+                //         .Done();
+
+                //    }
+                //    else if (result.Ruling == AuthenticationRuling.Failed)
+                //    {
+                //        // Send the server side error
+                //        SendParams()
+                //            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+                //            .AddUInt8Array(Codec.Compose(
+                //                new object[] {(ushort)result.ExceptionCode,
+                //                        result.ExceptionMessage }
+                //                , this.Instance.Warehouse, this))
+                //            .Done();
+                //    }
+                //}
+                //catch (Exception ex)
+                //{
+                //    // Send the server side error
+                //    SendParams()
+                //        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+                //        .AddUInt8Array(Codec.Compose(
+                //            new object[] { (ushort)ExceptionCode.GeneralFailure,
+                //                    ex.Message }
+                //        , this.Instance.Warehouse, this))
+                //        .Done();
+                //}
 
             }
         }
@@ -730,6 +761,42 @@ public partial class EpConnection : NetworkConnection, IStore
         return offset;
     }
 
+    void AuthenticatonCompleted(string identity)
+    {
+        if (this.Instance == null)
+        {
+            Server.Instance.Warehouse.Put(
+                Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
+                .Then(x =>
+                {
+                    session.AuthorizedIdentity = identity;
+
+                    authenticated = true;
+                    Status = EpConnectionStatus.Connected;
+                    openReply?.Trigger(true);
+                    openReply = null;
+                    OnReady?.Invoke(this);
+
+                    Server?.Membership?.Login(session);
+                    LoginDate = DateTime.Now;
+
+                }).Error(x =>
+                {
+                    openReply?.TriggerError(x);
+                    openReply = null;
+                });
+        }
+        else
+        {
+            session.AuthorizedIdentity = identity;
+            authenticated = true;
+            Status = EpConnectionStatus.Connected;
+            openReply?.Trigger(true);
+            openReply = null;
+            OnReady?.Invoke(this);
+            Server?.Membership?.Login(session);
+        }
+    }
     //private void ProcessClientAuth(byte[] data)
     //{
     //    if (authPacket.Command == EpAuthPacketCommand.Acknowledge)
@@ -1493,11 +1560,10 @@ public partial class EpConnection : NetworkConnection, IStore
         if (hostname != null)
         {
             session = new Session();
-            session.AuthenticationType = AuthenticationMode.Initiator;
-            //session.AuthenticationMethod = method;
-            session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
-
+            isInitiator = true;
             invalidCredentials = false;
+
+            session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
         }
 
         if (session == null)
@@ -1651,7 +1717,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
     protected override void Connected()
     {
-        if (session.AuthenticationType == AuthenticationMode.Initiator)
+        if (isInitiator)
             Declare();
     }
 

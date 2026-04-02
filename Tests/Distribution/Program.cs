@@ -127,25 +127,27 @@ class Program
         Console.WriteLine(ska.ToHex());
         Console.WriteLine(skb.ToHex());
 
-        // Simple membership provider
-        var membership = new SimpleMembership() { GuestsAllowed = true };
+        //// Simple membership provider
+        //var membership = new SimpleMembership() { GuestsAllowed = true };
 
-        membership.AddUser("user", "123456", new SimpleMembership.QuestionAnswer[0]);
-        membership.AddUser("admin", "admin", new SimpleMembership.QuestionAnswer[]
-        {
-                new SimpleMembership.QuestionAnswer()
-                {
-                    Question = "What is 5+5",
-                    Answer = 10,
-                    Hashed = true,
-                }
-        });
+        //membership.AddUser("user", "123456", new SimpleMembership.QuestionAnswer[0]);
+        //membership.AddUser("admin", "admin", new SimpleMembership.QuestionAnswer[]
+        //{
+        //        new SimpleMembership.QuestionAnswer()
+        //        {
+        //            Question = "What is 5+5",
+        //            Answer = 10,
+        //            Hashed = true,
+        //        }
+        //});
 
         var wh = new Warehouse();
 
         // Create stores to keep objects.
         var system = await wh.Put("sys", new MemoryStore());
-        var server = await wh.Put("sys/server", new EpServer() { Membership = membership });
+        var server = await wh.Put("sys/server", new EpServer() { 
+        //    Membership = membership 
+        });
 
 
         var web = await wh.Put("sys/web", new HttpServer() { Port = 8088 });
