@@ -119,10 +119,10 @@ public partial class MyService
     int MyPasscode = 2025;
     public PropertyContext<int> Passcode
     {
-        get => new((sender) => sender.Session.AuthorizedAccount == "alice" ? MyPasscode : 0);
+        get => new((sender) => sender.Session.AuthorizedIdentity == "alice" ? MyPasscode : 0);
         set
         {
-            if (value.Connection.Session.AuthorizedAccount != "alice")
+            if (value.Connection.Session.AuthorizedIdentity != "alice")
                 throw new Exception("Only Alice is allowed.");
             MyPasscode = value.Value;
         }

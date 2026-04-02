@@ -654,7 +654,7 @@ public partial class EpConnection : NetworkConnection, IStore
                 {
                     if (authPacket.Tdu != null)
                     {
-                        var (_, parsed) = Codec.ParseSync(authPacket.Tdu.Value, Instance.Warehouse);
+                        var (_, parsed) = Codec.ParseSync(authPacket.Tdu.Value, null);
 
                         if (parsed is Map<byte, object> headers)
                         {

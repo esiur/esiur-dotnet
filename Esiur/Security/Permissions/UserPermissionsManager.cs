@@ -44,8 +44,8 @@ public class UserPermissionsManager : IPermissionsManager
     {
         Map<string,object> userPermissions = null;
 
-        if (settings.ContainsKey(session.AuthorizedAccount))
-            userPermissions = settings[session.AuthorizedAccount] as Map<string, object>;
+        if (settings.ContainsKey(session.AuthorizedIdentity))
+            userPermissions = settings[session.AuthorizedIdentity] as Map<string, object>;
         else if (settings.ContainsKey("public"))
             userPermissions = settings["public"] as Map<string,object>;
         else
