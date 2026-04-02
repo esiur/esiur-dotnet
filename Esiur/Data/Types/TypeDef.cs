@@ -18,8 +18,8 @@ namespace Esiur.Data.Types;
 public class TypeDef
 {
 
-    protected UUID typeId;
-    protected UUID? parentId;
+    protected Uuid typeId;
+    protected Uuid? parentId;
 
     public Map<string, string> Annotations { get; set; }
 
@@ -41,7 +41,7 @@ public class TypeDef
 
     protected byte[] content;
 
-    public UUID? ParentId => parentId;
+    public Uuid? ParentId => parentId;
 
     public byte[] Content
     {
@@ -110,7 +110,7 @@ public class TypeDef
         return null;
     }
 
-    public UUID Id
+    public Uuid Id
     {
         get { return typeId; }
     }
@@ -142,7 +142,7 @@ public class TypeDef
 
     }
 
-    public static UUID GetTypeUUID(Type type)
+    public static Uuid GetTypeUUID(Type type)
     {
         var attr = type.GetCustomAttribute<TypeIdAttribute>();
         if (attr != null)
@@ -153,7 +153,7 @@ public class TypeDef
         hash[6] = (byte)((hash[6] & 0xF) | 0x80);
         hash[8] = (byte)((hash[8] & 0xF) | 0x80);
 
-        var rt = new UUID(hash);
+        var rt = new Uuid(hash);
         return rt;
     }
 

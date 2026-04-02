@@ -32,13 +32,13 @@ using Esiur.Data;
 using System.Net;
 using System.Text.Json.Serialization;
 
-namespace Esiur.Net.Packets.HTTP;
-public class HTTPRequestPacket : Packet
+namespace Esiur.Net.Packets.Http;
+public class HttpRequestPacket : Packet
 {
 
 
     public StringKeyList Query;
-    public HTTPMethod Method;
+    public HttpMethod Method;
     public StringKeyList Headers;
 
     public bool WSMode;
@@ -52,28 +52,28 @@ public class HTTPRequestPacket : Packet
     public byte[] Message;
 
 
-    private HTTPMethod GetMethod(string method)
+    private HttpMethod GetMethod(string method)
     {
         switch (method.ToLower())
         {
             case "get":
-                return HTTPMethod.GET;
+                return HttpMethod.GET;
             case "post":
-                return HTTPMethod.POST;
+                return HttpMethod.POST;
             case "head":
-                return HTTPMethod.HEAD;
+                return HttpMethod.HEAD;
             case "put":
-                return HTTPMethod.PUT;
+                return HttpMethod.PUT;
             case "delete":
-                return HTTPMethod.DELETE;
+                return HttpMethod.DELETE;
             case "options":
-                return HTTPMethod.OPTIONS;
+                return HttpMethod.OPTIONS;
             case "trace":
-                return HTTPMethod.TRACE;
+                return HttpMethod.TRACE;
             case "connect":
-                return HTTPMethod.CONNECT;
+                return HttpMethod.CONNECT;
             default:
-                return HTTPMethod.UNKNOWN;
+                return HttpMethod.UNKNOWN;
         }
     }
 
@@ -219,7 +219,7 @@ public class HTTPRequestPacket : Packet
         }
 
         // Post Content-Length
-        if (Method == HTTPMethod.POST)
+        if (Method == HttpMethod.POST)
         {
             try
             {

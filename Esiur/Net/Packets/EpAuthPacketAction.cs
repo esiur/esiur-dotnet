@@ -6,26 +6,29 @@ namespace Esiur.Net.Packets
 {
     public enum EpAuthPacketAction : byte
     {
-        AuthenticateHash = 0x80,
-        AuthenticatePublicHash = 0x81,
-        AuthenticatePrivateHash = 0x82,
-        AuthenticatePublicPrivateHash = 0x83,
+        Handshake = 0x80,
+        FinalHandshake = 0x81,
 
-        AuthenticatePrivateHashCert = 0x88,
-        AuthenticatePublicPrivateHashCert = 0x89,
+        //AuthenticateHash = 0x80,
+        //AuthenticatePublicHash = 0x81,
+        //AuthenticatePrivateHash = 0x82,
+        //AuthenticatePublicPrivateHash = 0x83,
 
-        IAuthPlain = 0x90,
-        IAuthHashed = 0x91,
-        IAuthEncrypted = 0x92,
+        //AuthenticatePrivateHashCert = 0x88,
+        //AuthenticatePublicPrivateHashCert = 0x89,
+
+        //IAuthPlain = 0x90,
+        //IAuthHashed = 0x91,
+        //IAuthEncrypted = 0x92,
 
 
-        EstablishNewSession = 0x98,
-        EstablishResumeSession = 0x99,
+        //EstablishNewSession = 0x98,
+        //EstablishResumeSession = 0x99,
 
-        EncryptKeyExchange = 0xA0,
+        //EncryptKeyExchange = 0xA0,
 
-        RegisterEndToEndKey = 0xA8,
-        RegisterHomomorphic = 0xA9,
+        //RegisterEndToEndKey = 0xA8,
+        //RegisterHomomorphic = 0xA9,
 
     }
 }

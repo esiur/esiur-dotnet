@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public enum TDUIdentifier
+    public enum TduIdentifier
     {
         Null = 0x0,
         False = 0x1,

@@ -4,11 +4,11 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public struct ParsedTDU
+    public struct ParsedTdu
     {
-        public TDUIdentifier Identifier;
+        public TduIdentifier Identifier;
         public int Index;
-        public TDUClass Class;
+        public TduClass Class;
         public uint Offset;
         public ulong ContentLength;
         public byte[] Data;
@@ -17,21 +17,21 @@ namespace Esiur.Data
         public byte[] Metadata;
         public uint Ends;
 
-        public static ParsedTDU Parse(byte[] data, uint offset, uint ends)
+        public static ParsedTdu Parse(byte[] data, uint offset, uint ends)
         {
 
             var h = data[offset++];
 
-            var cls = (TDUClass)(h >> 6);
+            var cls = (TduClass)(h >> 6);
 
-            if (cls == TDUClass.Fixed)
+            if (cls == TduClass.Fixed)
             {
                 var exp = (h & 0x38) >> 3;
 
                 if (exp == 0)
-                    return new ParsedTDU()
+                    return new ParsedTdu()
                     {
-                        Identifier = (TDUIdentifier)h,
+                        Identifier = (TduIdentifier)h,
                         Data = data,
                         Offset = offset,
                         Class = cls,
@@ -45,17 +45,17 @@ namespace Esiur.Data
                 ulong cl = (ulong)(1 << (exp - 1));
 
                 if (ends - offset < cl)
-                    return new ParsedTDU()
+                    return new ParsedTdu()
                     {
-                        Class = TDUClass.Invalid,
+                        Class = TduClass.Invalid,
                         TotalLength = (cl - (ends - offset))
                     };
 
                 //offset += (uint)cl;
 
-                return new ParsedTDU()
+                return new ParsedTdu()
                 {
-                    Identifier = (TDUIdentifier)h,
+                    Identifier = (TduIdentifier)h,
                     Data = data,
                     Offset = offset,
                     Class = cls,
@@ -66,14 +66,14 @@ namespace Esiur.Data
                     Ends = ends
                 };
             }
-            else if (cls == TDUClass.Typed)
+            else if (cls == TduClass.Typed)
             {
                 ulong cll = (ulong)(h >> 3) & 0x7;
 
                 if (ends - offset < cll)
-                    return new ParsedTDU()
+                    return new ParsedTdu()
                     {
-                        Class = TDUClass.Invalid,
+                        Class = TduClass.Invalid,
                         TotalLength = (cll - (ends - offset))
                     };
 
@@ -83,19 +83,19 @@ namespace Esiur.Data
                     cl = cl << 8 | data[offset++];
 
                 if (ends - offset < cl)
-                    return new ParsedTDU()
+                    return new ParsedTdu()
                     {
                         TotalLength = (cl - (ends - offset)),
-                        Class = TDUClass.Invalid,
+                        Class = TduClass.Invalid,
                     };
 
                 var metaData = DC.Clip(data, offset + 1, data[offset]);
                 offset += data[offset] + (uint)1;
 
 
-                return new ParsedTDU()
+                return new ParsedTdu()
                 {
-                    Identifier = (TDUIdentifier)(h & 0xC7),
+                    Identifier = (TduIdentifier)(h & 0xC7),
                     Data = data,
                     Offset = offset,
                     Class = cls,
@@ -111,9 +111,9 @@ namespace Esiur.Data
                 ulong cll = (ulong)(h >> 3) & 0x7;
 
                 if (ends - offset < cll)
-                    return new ParsedTDU()
+                    return new ParsedTdu()
                     {
-                        Class = TDUClass.Invalid,
+                        Class = TduClass.Invalid,
                         TotalLength = (cll - (ends - offset))
                     };
 
@@ -123,17 +123,17 @@ namespace Esiur.Data
                     cl = cl << 8 | data[offset++];
 
                 if (ends - offset < cl)
-                    return new ParsedTDU()
+                    return new ParsedTdu()
                     {
-                        Class = TDUClass.Invalid,
+                        Class = TduClass.Invalid,
                         TotalLength = (cl - (ends - offset))
                     };
 
 
                 return
-                    new ParsedTDU()
+                    new ParsedTdu()
                     {
-                        Identifier = (TDUIdentifier)(h & 0xC7),
+                        Identifier = (TduIdentifier)(h & 0xC7),
                         Data = data,
                         Offset = offset,
                         Class = cls,

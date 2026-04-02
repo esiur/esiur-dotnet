@@ -32,13 +32,13 @@ using System.Collections;
 using Esiur.Misc;
 using Esiur.Data;
 
-namespace Esiur.Net.TCP;
-public class TCPConnection : NetworkConnection
+namespace Esiur.Net.Tcp;
+public class TcpConnection : NetworkConnection
 {
 
     private KeyList<string, object> variables = new KeyList<string, object>();
 
-    public TCPServer Server { get; internal set; }
+    public TcpServer Server { get; internal set; }
 
     public KeyList<string, object> Variables
     {

@@ -59,23 +59,23 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         get => membership;
         set
         {
-            if (membership != null)
-                membership.Authorization -= Membership_Authorization;
+            //if (membership != null)
+            //    membership.Authorization -= Membership_Authorization;
 
             membership = value;
 
-            if (membership != null)
-                membership.Authorization += Membership_Authorization;
+            //if (membership != null)
+            //    membership.Authorization += Membership_Authorization;
         }
     }
 
-    private void Membership_Authorization(AuthorizationIndication indication)
-    {
-        lock (Connections.SyncRoot)
-            foreach (var connection in Connections)
-                if (connection.Session == indication.Session)
-                    connection.ProcessAuthorization(indication.Results);
-    }
+    //private void Membership_Authorization(AuthorizationIndication indication)
+    //{
+    //    lock (Connections.SyncRoot)
+    //        foreach (var connection in Connections)
+    //            if (connection.Session == indication.Session)
+    //                connection.ProcessAuthorization(indication.Results);
+    //}
 
     [Attribute]
     public EntryPoint EntryPoint

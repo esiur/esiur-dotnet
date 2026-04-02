@@ -35,9 +35,9 @@ using Esiur.Data;
 using Esiur.Core;
 using Esiur.Resource;
 
-namespace Esiur.Net.HTTP;
+namespace Esiur.Net.Http;
 
-public abstract class HTTPFilter : IResource
+public abstract class HttpFilter : IResource
 {
     public Instance Instance
     {
@@ -60,14 +60,14 @@ public abstract class HTTPFilter : IResource
     }
     */
 
-    public abstract AsyncReply<bool> Execute(HTTPConnection sender);
+    public abstract AsyncReply<bool> Execute(HttpConnection sender);
 
-    public virtual void ClientConnected(HTTPConnection HTTP)
+    public virtual void ClientConnected(HttpConnection HTTP)
     {
         //return false;
     }
 
-    public virtual void ClientDisconnected(HTTPConnection HTTP)
+    public virtual void ClientDisconnected(HttpConnection HTTP)
     {
         //return false;
     }

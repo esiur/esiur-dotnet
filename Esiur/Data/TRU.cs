@@ -14,54 +14,54 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public class TRU
+    public class Tru
     {
 
-        static TRUIdentifier[] refTypes = new TRUIdentifier[]
+        static TruIdentifier[] refTypes = new TruIdentifier[]
           {
-                    TRUIdentifier.Dynamic,
-                    TRUIdentifier.RawData,
-                    TRUIdentifier.String,
-                    TRUIdentifier.Resource,
-                    TRUIdentifier.Record,
-                    TRUIdentifier.Map,
-                    TRUIdentifier.List,
-                    TRUIdentifier.TypedList,
-                    TRUIdentifier.TypedMap,
-                    TRUIdentifier.Tuple2,
-                    TRUIdentifier.Tuple3,
-                    TRUIdentifier.Tuple4,
-                    TRUIdentifier.Tuple5,
-                    TRUIdentifier.Tuple6,
-                    TRUIdentifier.Tuple7,
-                    TRUIdentifier.TypedRecord,
-                    TRUIdentifier.TypedResource
+                    TruIdentifier.Dynamic,
+                    TruIdentifier.RawData,
+                    TruIdentifier.String,
+                    TruIdentifier.Resource,
+                    TruIdentifier.Record,
+                    TruIdentifier.Map,
+                    TruIdentifier.List,
+                    TruIdentifier.TypedList,
+                    TruIdentifier.TypedMap,
+                    TruIdentifier.Tuple2,
+                    TruIdentifier.Tuple3,
+                    TruIdentifier.Tuple4,
+                    TruIdentifier.Tuple5,
+                    TruIdentifier.Tuple6,
+                    TruIdentifier.Tuple7,
+                    TruIdentifier.TypedRecord,
+                    TruIdentifier.TypedResource
           };
 
-        static Map<TDUIdentifier, TRUIdentifier> typesMap = new Map<TDUIdentifier, TRUIdentifier>()
+        static Map<TduIdentifier, TruIdentifier> typesMap = new Map<TduIdentifier, TruIdentifier>()
         {
-            [TDUIdentifier.UInt8] = TRUIdentifier.UInt8,
-            [TDUIdentifier.Int8] = TRUIdentifier.Int8,
-            [TDUIdentifier.UInt16] = TRUIdentifier.UInt16,
-            [TDUIdentifier.Int16] = TRUIdentifier.Int16,
-            [TDUIdentifier.UInt32] = TRUIdentifier.UInt32,
-            [TDUIdentifier.Int32] = TRUIdentifier.Int32,
-            [TDUIdentifier.UInt64] = TRUIdentifier.UInt64,
-            [TDUIdentifier.Int64] = TRUIdentifier.Int64,
-            [TDUIdentifier.UInt128] = TRUIdentifier.UInt128,
-            [TDUIdentifier.Int128] = TRUIdentifier.Int128,
-            [TDUIdentifier.Char8] = TRUIdentifier.Char,
-            [TDUIdentifier.DateTime] = TRUIdentifier.DateTime,
-            [TDUIdentifier.Float32] = TRUIdentifier.Float32,
-            [TDUIdentifier.Float64] = TRUIdentifier.Float64,
-            [TDUIdentifier.Decimal128] = TRUIdentifier.Decimal,
-            [TDUIdentifier.False] = TRUIdentifier.Bool,
-            [TDUIdentifier.True] = TRUIdentifier.Bool,
-            [TDUIdentifier.Map] = TRUIdentifier.Map,
-            [TDUIdentifier.List] = TRUIdentifier.List,
-            [TDUIdentifier.RawData] = TRUIdentifier.RawData,
-            [TDUIdentifier.Record] = TRUIdentifier.Record,
-            [TDUIdentifier.String] = TRUIdentifier.String,
+            [TduIdentifier.UInt8] = TruIdentifier.UInt8,
+            [TduIdentifier.Int8] = TruIdentifier.Int8,
+            [TduIdentifier.UInt16] = TruIdentifier.UInt16,
+            [TduIdentifier.Int16] = TruIdentifier.Int16,
+            [TduIdentifier.UInt32] = TruIdentifier.UInt32,
+            [TduIdentifier.Int32] = TruIdentifier.Int32,
+            [TduIdentifier.UInt64] = TruIdentifier.UInt64,
+            [TduIdentifier.Int64] = TruIdentifier.Int64,
+            [TduIdentifier.UInt128] = TruIdentifier.UInt128,
+            [TduIdentifier.Int128] = TruIdentifier.Int128,
+            [TduIdentifier.Char8] = TruIdentifier.Char,
+            [TduIdentifier.DateTime] = TruIdentifier.DateTime,
+            [TduIdentifier.Float32] = TruIdentifier.Float32,
+            [TduIdentifier.Float64] = TruIdentifier.Float64,
+            [TduIdentifier.Decimal128] = TruIdentifier.Decimal,
+            [TduIdentifier.False] = TruIdentifier.Bool,
+            [TduIdentifier.True] = TruIdentifier.Bool,
+            [TduIdentifier.Map] = TruIdentifier.Map,
+            [TduIdentifier.List] = TruIdentifier.List,
+            [TduIdentifier.RawData] = TruIdentifier.RawData,
+            [TduIdentifier.Record] = TruIdentifier.Record,
+            [TduIdentifier.String] = TruIdentifier.String,
         };
 
 
@@ -129,7 +129,7 @@ namespace Esiur.Data
         public Type? GetRuntimeType(Warehouse warehouse)
         {
 
-            if (Identifier == TRUIdentifier.TypedList)
+            if (Identifier == TruIdentifier.TypedList)
             {
                 var sub = SubTypes?[0].GetRuntimeType(warehouse);
                 if (sub == null)
@@ -139,7 +139,7 @@ namespace Esiur.Data
 
                 return rt;
             }
-            else if (Identifier == TRUIdentifier.TypedMap)
+            else if (Identifier == TruIdentifier.TypedMap)
             {
                 var subs = SubTypes.Select(x => x.GetRuntimeType(warehouse)).ToArray();
                 var rt = typeof(Map<,>).MakeGenericType(subs);
@@ -148,59 +148,59 @@ namespace Esiur.Data
 
             return Identifier switch
             {
-                (TRUIdentifier.Void) => typeof(void),
-                (TRUIdentifier.Dynamic) => typeof(object),
-                (TRUIdentifier.Bool) => Nullable ? typeof(bool?) : typeof(bool),
-                (TRUIdentifier.Char) => Nullable ? typeof(char?) : typeof(char),
-                (TRUIdentifier.UInt8) => Nullable ? typeof(byte?) : typeof(byte),
-                (TRUIdentifier.Int8) => Nullable ? typeof(sbyte?) : typeof(sbyte),
-                (TRUIdentifier.Int16) => Nullable ? typeof(short?) : typeof(short),
-                (TRUIdentifier.UInt16) => Nullable ? typeof(ushort?) : typeof(ushort),
-                (TRUIdentifier.Int32) => Nullable ? typeof(int?) : typeof(int),
-                (TRUIdentifier.UInt32) => Nullable ? typeof(uint?) : typeof(uint),
-                (TRUIdentifier.Int64) => Nullable ? typeof(ulong?) : typeof(long),
-                (TRUIdentifier.UInt64) => Nullable ? typeof(ulong?) : typeof(ulong),
-                (TRUIdentifier.Float32) => Nullable ? typeof(float?) : typeof(float),
-                (TRUIdentifier.Float64) => Nullable ? typeof(double?) : typeof(double),
-                (TRUIdentifier.Decimal) => Nullable ? typeof(decimal?) : typeof(decimal),
-                (TRUIdentifier.String) => typeof(string),
-                (TRUIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
-                (TRUIdentifier.Resource) => typeof(IResource),
-                (TRUIdentifier.Record) => typeof(IRecord),
-                (TRUIdentifier.TypedRecord) => warehouse.GetTypeDefById((UUID)UUID!, TypeDefKind.Record)?.DefinedType,
-                (TRUIdentifier.TypedResource) => warehouse.GetTypeDefById((UUID)UUID!, TypeDefKind.Resource)?.DefinedType,
-                (TRUIdentifier.Enum) => warehouse.GetTypeDefById((UUID)UUID!, TypeDefKind.Enum)?.DefinedType,
+                (TruIdentifier.Void) => typeof(void),
+                (TruIdentifier.Dynamic) => typeof(object),
+                (TruIdentifier.Bool) => Nullable ? typeof(bool?) : typeof(bool),
+                (TruIdentifier.Char) => Nullable ? typeof(char?) : typeof(char),
+                (TruIdentifier.UInt8) => Nullable ? typeof(byte?) : typeof(byte),
+                (TruIdentifier.Int8) => Nullable ? typeof(sbyte?) : typeof(sbyte),
+                (TruIdentifier.Int16) => Nullable ? typeof(short?) : typeof(short),
+                (TruIdentifier.UInt16) => Nullable ? typeof(ushort?) : typeof(ushort),
+                (TruIdentifier.Int32) => Nullable ? typeof(int?) : typeof(int),
+                (TruIdentifier.UInt32) => Nullable ? typeof(uint?) : typeof(uint),
+                (TruIdentifier.Int64) => Nullable ? typeof(ulong?) : typeof(long),
+                (TruIdentifier.UInt64) => Nullable ? typeof(ulong?) : typeof(ulong),
+                (TruIdentifier.Float32) => Nullable ? typeof(float?) : typeof(float),
+                (TruIdentifier.Float64) => Nullable ? typeof(double?) : typeof(double),
+                (TruIdentifier.Decimal) => Nullable ? typeof(decimal?) : typeof(decimal),
+                (TruIdentifier.String) => typeof(string),
+                (TruIdentifier.DateTime) => Nullable ? typeof(DateTime?) : typeof(DateTime),
+                (TruIdentifier.Resource) => typeof(IResource),
+                (TruIdentifier.Record) => typeof(IRecord),
+                (TruIdentifier.TypedRecord) => warehouse.GetTypeDefById((Uuid)UUID!, TypeDefKind.Record)?.DefinedType,
+                (TruIdentifier.TypedResource) => warehouse.GetTypeDefById((Uuid)UUID!, TypeDefKind.Resource)?.DefinedType,
+                (TruIdentifier.Enum) => warehouse.GetTypeDefById((Uuid)UUID!, TypeDefKind.Enum)?.DefinedType,
 
                 _ => null
             };
         }
 
-        public TRUIdentifier Identifier;
+        public TruIdentifier Identifier;
         public bool Nullable;
-        public UUID? UUID;
+        public Uuid? UUID;
         //public RepresentationType? SubType1; // List + Map
         //public RepresentationType? SubType2; // Map
         //public RepresentationType? SubType3; // No types yet
 
-        public TRU[]? SubTypes = null;
+        public Tru[]? SubTypes = null;
 
-        public TRU ToNullable()
+        public Tru ToNullable()
         {
-            return new TRU(Identifier, true, UUID, SubTypes);
+            return new Tru(Identifier, true, UUID, SubTypes);
         }
 
         public bool IsTyped()
         {
-            if (Identifier == TRUIdentifier.TypedList && SubTypes[0].Identifier == TRUIdentifier.UInt8)
+            if (Identifier == TruIdentifier.TypedList && SubTypes[0].Identifier == TruIdentifier.UInt8)
                 return false;
 
-            if (Identifier == TRUIdentifier.TypedResource)
+            if (Identifier == TruIdentifier.TypedResource)
                 return false;
 
             return (UUID != null) || (SubTypes != null && SubTypes.Length > 0);
         }
 
-        public bool Match(TRU other)
+        public bool Match(Tru other)
         {
             //if (UUID == null && (SubTypes == null || SubTypes.Length == 0))
             //    return false;
@@ -224,19 +224,19 @@ namespace Esiur.Data
         }
 
 
-        public (TDUIdentifier, byte[]) GetMetadata()
+        public (TduIdentifier, byte[]) GetMetadata()
         {
             switch (Identifier)
             {
-                case TRUIdentifier.TypedList:
-                    return (TDUIdentifier.TypedList, SubTypes[0].Compose());
-                case TRUIdentifier.TypedRecord:
-                    return (TDUIdentifier.Record, UUID?.Data);
-                case TRUIdentifier.TypedMap:
-                    return (TDUIdentifier.TypedMap,
+                case TruIdentifier.TypedList:
+                    return (TduIdentifier.TypedList, SubTypes[0].Compose());
+                case TruIdentifier.TypedRecord:
+                    return (TduIdentifier.Record, UUID?.Data);
+                case TruIdentifier.TypedMap:
+                    return (TduIdentifier.TypedMap,
                         SubTypes[0].Compose().Concat(SubTypes[1].Compose()).ToArray());
-                case TRUIdentifier.Enum:
-                    return (TDUIdentifier.TypedEnum, UUID?.Data);
+                case TruIdentifier.Enum:
+                    return (TduIdentifier.TypedEnum, UUID?.Data);
 
                 default:
 
@@ -267,12 +267,12 @@ namespace Esiur.Data
         //        case TRUIdentifier.            }
         //}
 
-        private static Dictionary<Type, TRU> _cache = new Dictionary<Type, TRU>();
+        private static Dictionary<Type, Tru> _cache = new Dictionary<Type, Tru>();
 
-        public static TRU? FromType(Type type)
+        public static Tru? FromType(Type type)
         {
             if (type == null)
-                return new TRU(TRUIdentifier.Void, true);
+                return new Tru(TruIdentifier.Void, true);
 
             if (_cache.ContainsKey(type))
                 return _cache[type];
@@ -287,33 +287,33 @@ namespace Esiur.Data
                 nullable = true;
             }
 
-            TRU? tru = null;
+            Tru? tru = null;
 
             if (type == typeof(IResource))
             {
-                return new TRU(TRUIdentifier.Resource, nullable);
+                return new Tru(TruIdentifier.Resource, nullable);
             }
             else if (type == typeof(IRecord) || type == typeof(Record))
             {
-                return new TRU(TRUIdentifier.Record, nullable);
+                return new Tru(TruIdentifier.Record, nullable);
             }
             else if (type == typeof(Map<object, object>)
                 || type == typeof(Dictionary<object, object>)) 
             { 
-                return new TRU(TRUIdentifier.Map, nullable);
+                return new Tru(TruIdentifier.Map, nullable);
             }
             else if (Codec.ImplementsInterface(type, typeof(IResource)))
             {
-                tru = new TRU(
-                   TRUIdentifier.TypedResource,
+                tru = new Tru(
+                   TruIdentifier.TypedResource,
                    nullable,
                    TypeDef.GetTypeUUID(type)
                 );
             }
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
-                tru = new TRU(
-                   TRUIdentifier.TypedRecord,
+                tru = new Tru(
+                   TruIdentifier.TypedRecord,
                    nullable,
                    TypeDef.GetTypeUUID(type)
                 );
@@ -329,7 +329,7 @@ namespace Esiur.Data
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object))
                     {
-                        tru = new TRU(TRUIdentifier.List, nullable);
+                        tru = new Tru(TruIdentifier.List, nullable);
                     }
                     else
                     {
@@ -338,8 +338,8 @@ namespace Esiur.Data
                             return null;
 
 
-                        tru = new TRU(TRUIdentifier.TypedList, nullable, null,
-                            new TRU[] { subType });
+                        tru = new Tru(TruIdentifier.TypedList, nullable, null,
+                            new Tru[] { subType });
 
                     }
                 }
@@ -349,7 +349,7 @@ namespace Esiur.Data
                     var args = type.GetGenericArguments();
                     if (args[0] == typeof(object) && args[1] == typeof(object))
                     {
-                        tru = new TRU(TRUIdentifier.Map, nullable);
+                        tru = new Tru(TruIdentifier.Map, nullable);
                     }
                     else
                     {
@@ -361,8 +361,8 @@ namespace Esiur.Data
                         if (subType2 == null)
                             return null;
 
-                        tru = new TRU(TRUIdentifier.TypedMap, nullable, null,
-                           new TRU[] { subType1, subType2 });
+                        tru = new Tru(TruIdentifier.TypedMap, nullable, null,
+                           new Tru[] { subType1, subType2 });
 
                     }
                 }
@@ -375,7 +375,7 @@ namespace Esiur.Data
                 else if (genericType == typeof(ValueTuple<,>))
                 {
                     var args = type.GetGenericArguments();
-                    var subTypes = new TRU[args.Length];
+                    var subTypes = new Tru[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
                         var t = FromType(args[i]);
@@ -385,13 +385,13 @@ namespace Esiur.Data
                     }
 
 
-                    tru = new TRU(TRUIdentifier.Tuple2, nullable, null, subTypes);
+                    tru = new Tru(TruIdentifier.Tuple2, nullable, null, subTypes);
 
                 }
                 else if (genericType == typeof(ValueTuple<,,>))
                 {
                     var args = type.GetGenericArguments();
-                    var subTypes = new TRU[args.Length];
+                    var subTypes = new Tru[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
                         var t = FromType(args[i]);
@@ -400,14 +400,14 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    tru = new TRU(TRUIdentifier.Tuple3, nullable, null, subTypes);
+                    tru = new Tru(TruIdentifier.Tuple3, nullable, null, subTypes);
 
                 }
                 else if (genericType == typeof(ValueTuple<,,,>))
                 {
 
                     var args = type.GetGenericArguments();
-                    var subTypes = new TRU[args.Length];
+                    var subTypes = new Tru[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
                         var t = FromType(args[i]);
@@ -416,12 +416,12 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    tru = new TRU(TRUIdentifier.Tuple4, nullable, null, subTypes);
+                    tru = new Tru(TruIdentifier.Tuple4, nullable, null, subTypes);
                 }
                 else if (genericType == typeof(ValueTuple<,,,,>))
                 {
                     var args = type.GetGenericArguments();
-                    var subTypes = new TRU[args.Length];
+                    var subTypes = new Tru[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
                         var t = FromType(args[i]);
@@ -430,12 +430,12 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    tru = new TRU(TRUIdentifier.Tuple5, nullable, null, subTypes);
+                    tru = new Tru(TruIdentifier.Tuple5, nullable, null, subTypes);
                 }
                 else if (genericType == typeof(ValueTuple<,,,,,>))
                 {
                     var args = type.GetGenericArguments();
-                    var subTypes = new TRU[args.Length];
+                    var subTypes = new Tru[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
                         var t = FromType(args[i]);
@@ -444,12 +444,12 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    tru = new TRU(TRUIdentifier.Tuple6, nullable, null, subTypes);
+                    tru = new Tru(TruIdentifier.Tuple6, nullable, null, subTypes);
                 }
                 else if (genericType == typeof(ValueTuple<,,,,,,>))
                 {
                     var args = type.GetGenericArguments();
-                    var subTypes = new TRU[args.Length];
+                    var subTypes = new Tru[args.Length];
                     for (var i = 0; i < args.Length; i++)
                     {
                         var t = FromType(args[i]);
@@ -458,7 +458,7 @@ namespace Esiur.Data
                         subTypes[i] = t;
                     }
 
-                    tru = new TRU(TRUIdentifier.Tuple7, nullable, null, subTypes);
+                    tru = new Tru(TruIdentifier.Tuple7, nullable, null, subTypes);
                 }
                 else
                     return null;
@@ -467,7 +467,7 @@ namespace Esiur.Data
             {
                 var elementType = type.GetElementType();
                 if (elementType == typeof(object))
-                    tru = new TRU(TRUIdentifier.List, nullable);
+                    tru = new Tru(TruIdentifier.List, nullable);
                 else
                 {
                     var subType = FromType(elementType);
@@ -475,14 +475,14 @@ namespace Esiur.Data
                     if (subType == null)
                         return null;
 
-                    tru = new TRU(TRUIdentifier.TypedList, nullable, null,
-                        new TRU[] { subType });
+                    tru = new Tru(TruIdentifier.TypedList, nullable, null,
+                        new Tru[] { subType });
 
                 }
             }
             else if (type.IsEnum)
             {
-                tru = new TRU(TRUIdentifier.Enum, nullable, TypeDef.GetTypeUUID(type));
+                tru = new Tru(TruIdentifier.Enum, nullable, TypeDef.GetTypeUUID(type));
             }
             else if (type.IsInterface)
             {
@@ -503,30 +503,30 @@ namespace Esiur.Data
             // last check
             return type switch
             {
-                _ when type == typeof(void) => new TRU(TRUIdentifier.Void, nullable),
-                _ when type == typeof(object) => new TRU(TRUIdentifier.Dynamic, nullable),
-                _ when type == typeof(bool) => new TRU(TRUIdentifier.Bool, nullable),
-                _ when type == typeof(char) => new TRU(TRUIdentifier.Char, nullable),
-                _ when type == typeof(byte) => new TRU(TRUIdentifier.UInt8, nullable),
-                _ when type == typeof(sbyte) => new TRU(TRUIdentifier.Int8, nullable),
-                _ when type == typeof(short) => new TRU(TRUIdentifier.Int16, nullable),
-                _ when type == typeof(ushort) => new TRU(TRUIdentifier.UInt16, nullable),
-                _ when type == typeof(int) => new TRU(TRUIdentifier.Int32, nullable),
-                _ when type == typeof(uint) => new TRU(TRUIdentifier.UInt32, nullable),
-                _ when type == typeof(long) => new TRU(TRUIdentifier.Int64, nullable),
-                _ when type == typeof(ulong) => new TRU(TRUIdentifier.UInt64, nullable),
-                _ when type == typeof(float) => new TRU(TRUIdentifier.Float32, nullable),
-                _ when type == typeof(double) => new TRU(TRUIdentifier.Float64, nullable),
-                _ when type == typeof(decimal) => new TRU(TRUIdentifier.Decimal, nullable),
-                _ when type == typeof(string) => new TRU(TRUIdentifier.String, nullable),
-                _ when type == typeof(DateTime) => new TRU(TRUIdentifier.DateTime, nullable),
-                _ when type == typeof(ResourceLink) => new TRU(TRUIdentifier.Resource, nullable),
+                _ when type == typeof(void) => new Tru(TruIdentifier.Void, nullable),
+                _ when type == typeof(object) => new Tru(TruIdentifier.Dynamic, nullable),
+                _ when type == typeof(bool) => new Tru(TruIdentifier.Bool, nullable),
+                _ when type == typeof(char) => new Tru(TruIdentifier.Char, nullable),
+                _ when type == typeof(byte) => new Tru(TruIdentifier.UInt8, nullable),
+                _ when type == typeof(sbyte) => new Tru(TruIdentifier.Int8, nullable),
+                _ when type == typeof(short) => new Tru(TruIdentifier.Int16, nullable),
+                _ when type == typeof(ushort) => new Tru(TruIdentifier.UInt16, nullable),
+                _ when type == typeof(int) => new Tru(TruIdentifier.Int32, nullable),
+                _ when type == typeof(uint) => new Tru(TruIdentifier.UInt32, nullable),
+                _ when type == typeof(long) => new Tru(TruIdentifier.Int64, nullable),
+                _ when type == typeof(ulong) => new Tru(TruIdentifier.UInt64, nullable),
+                _ when type == typeof(float) => new Tru(TruIdentifier.Float32, nullable),
+                _ when type == typeof(double) => new Tru(TruIdentifier.Float64, nullable),
+                _ when type == typeof(decimal) => new Tru(TruIdentifier.Decimal, nullable),
+                _ when type == typeof(string) => new Tru(TruIdentifier.String, nullable),
+                _ when type == typeof(DateTime) => new Tru(TruIdentifier.DateTime, nullable),
+                _ when type == typeof(ResourceLink) => new Tru(TruIdentifier.Resource, nullable),
                 _ => null
             };
 
         }
 
-        public TRU(TRUIdentifier identifier, bool nullable, UUID? uuid = null, TRU[]? subTypes = null)
+        public Tru(TruIdentifier identifier, bool nullable, Uuid? uuid = null, Tru[]? subTypes = null)
         {
             Nullable = nullable;
             Identifier = identifier;
@@ -553,13 +553,13 @@ namespace Esiur.Data
             return rt.ToArray();
         }
 
-        public static (uint, TRU) Parse(byte[] data, uint offset)
+        public static (uint, Tru) Parse(byte[] data, uint offset)
         {
             var oOffset = offset;
 
             var header = data[offset++];
             bool nullable = (header & 0x80) > 0;
-            var identifier = (TRUIdentifier)(header & 0x7F);
+            var identifier = (TruIdentifier)(header & 0x7F);
 
 
             if ((header & 0x40) > 0)
@@ -568,7 +568,7 @@ namespace Esiur.Data
                 var hasUUID = (header & 0x4) > 0;
                 var subsCount = (header >> 3) & 0x7;
 
-                UUID? uuid = null;
+                Uuid? uuid = null;
 
                 if (hasUUID)
                 {
@@ -576,19 +576,19 @@ namespace Esiur.Data
                     offset += 16;
                 }
 
-                var subs = new TRU[subsCount];
+                var subs = new Tru[subsCount];
 
                 for (var i = 0; i < subsCount; i++)
                 {
-                    (var len, subs[i]) = TRU.Parse(data, offset);
+                    (var len, subs[i]) = Tru.Parse(data, offset);
                     offset += len;
                 }
 
-                return (offset - oOffset, new TRU(identifier, nullable, uuid, subs));
+                return (offset - oOffset, new Tru(identifier, nullable, uuid, subs));
             }
             else
             {
-                return (1, new TRU(identifier, nullable));
+                return (1, new Tru(identifier, nullable));
             }
         }
 

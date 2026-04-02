@@ -31,7 +31,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Esiur.Security.Cryptography;
-using static System.Collections.Specialized.BitVector32;
 using Esiur.Net.Packets;
 
 namespace Esiur.Security.Authority;
@@ -44,21 +43,21 @@ public class Session
 
 
 
-    public IKeyExchanger KeyExchanger { get; set; } = null;
+    //public IKeyExchanger KeyExchanger { get; set; } = null;
     public ISymetricCipher SymetricCipher { get; set; } = null;
 
 
     public Map<EpAuthPacketHeader, object> LocalHeaders { get; set; } = new Map<EpAuthPacketHeader, object>();
     public Map<EpAuthPacketHeader, object> RemoteHeaders { get; set; } = new Map<EpAuthPacketHeader, object>();
 
-    public AuthenticationMethod LocalMethod { get; set; }
-    public AuthenticationMethod RemoteMethod { get; set; }
+    //public AuthenticationMethod AuthenticationMethod { get; set; }
+    //public AuthenticationMethod RemoteMethod { get; set; }
 
-    public AuthenticationType AuthenticationType { get; set; }
+    public AuthenticationMode AuthenticationMode { get; set; }
+    public EncryptionMode EncryptionMode { get; set; }
 
+    public IAuthenticationHandler AuthenticationHandler { get; set; }
+    //public IAuthenticationHandler AuthenticationResponder { get; set; }
 
-    public string AuthorizedAccount { get; set; }
-
- 
-
+    public string AuthorizedIdentity { get; set; }
 }

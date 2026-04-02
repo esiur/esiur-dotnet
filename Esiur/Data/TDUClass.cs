@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public enum TDUClass
+    public enum TduClass
     {
         Fixed = 0x0,
         Dynamic = 0x1,

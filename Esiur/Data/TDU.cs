@@ -8,11 +8,11 @@ using static Esiur.Data.Codec;
 namespace Esiur.Data;
 
 // Transmission Data Unit
-public struct TDU
+public struct Tdu
 {
-    public TDUIdentifier Identifier;
+    public TduIdentifier Identifier;
     //public int Index;
-    public TDUClass Class;
+    public TduClass Class;
     //public ulong ContentLength;
 
     public byte[] Composed;
@@ -52,35 +52,35 @@ public struct TDU
 
     //private ulong TotalSize;
 
-    public TDU()
+    public Tdu()
     {
 
     }
 
-    public TDU(TDUIdentifier identifier)
+    public Tdu(TduIdentifier identifier)
     {
         Identifier = identifier;
         Composed = new byte[0];
     }
 
-    public TDU(TDUIdentifier identifier,
+    public Tdu(TduIdentifier identifier,
                                 byte[] data, ulong length, byte[] metadata = null)
     {
         Identifier = identifier;
         //Index = (byte)identifier & 0x7;
-        Class = (TDUClass)((byte)identifier >> 6);
+        Class = (TduClass)((byte)identifier >> 6);
         Metadata = metadata;
 
 
-        if (Class == TDUClass.Fixed)
+        if (Class == TduClass.Fixed)
         {
             if (length == 0)
                 Composed = new byte[1] { (byte)identifier };
             else
                 Composed = DC.Combine(new byte[] { (byte)Identifier }, 0, 1, data, 0, (uint)length);
         }
-        else if (Class == TDUClass.Dynamic
-            || Class == TDUClass.Extension)
+        else if (Class == TduClass.Dynamic
+            || Class == TduClass.Extension)
         {
 
             if (length == 0)
@@ -169,7 +169,7 @@ public struct TDU
                 Buffer.BlockCopy(data, 0, Composed, 8, (int)length);
             }
         }
-        else if (Class == TDUClass.Typed)
+        else if (Class == TduClass.Typed)
         {
             if (metadata == null)
                 throw new Exception("Metadata must be provided for types.");
@@ -297,12 +297,12 @@ public struct TDU
     }
 
 
-    public bool MatchType(TDU with)
+    public bool MatchType(Tdu with)
     {
         if (Identifier != with.Identifier)
             return false;
 
-        if (Class != TDUClass.Typed || with.Class != TDUClass.Typed)
+        if (Class != TduClass.Typed || with.Class != TduClass.Typed)
             return false;
 
         if (!Metadata.SequenceEqual(with.Metadata))

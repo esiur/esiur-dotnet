@@ -50,12 +50,12 @@ partial class EpConnection
     KeyList<uint, WeakReference<EpResource>> suspendedResources = new KeyList<uint, WeakReference<EpResource>>();
 
     KeyList<uint, EpResourceAttachRequestInfo> resourceRequests = new KeyList<uint, EpResourceAttachRequestInfo>();
-    KeyList<UUID, AsyncReply<TypeDef>> typeDefsByIdRequests = new KeyList<UUID, AsyncReply<TypeDef>>();
+    KeyList<Uuid, AsyncReply<TypeDef>> typeDefsByIdRequests = new KeyList<Uuid, AsyncReply<TypeDef>>();
 
     KeyList<string, AsyncReply<TypeDef>> typeDefsByNameRequests = new KeyList<string, AsyncReply<TypeDef>>();
 
 
-    Dictionary<UUID, TypeDef> typeDefs = new Dictionary<UUID, TypeDef>();
+    Dictionary<Uuid, TypeDef> typeDefs = new Dictionary<Uuid, TypeDef>();
 
     KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
 
@@ -186,7 +186,7 @@ partial class EpConnection
     }
 
 
-    public AsyncReply StaticCall(UUID typeId, byte index, object parameters)
+    public AsyncReply StaticCall(Uuid typeId, byte index, object parameters)
     {
         return SendRequest(EpPacketRequest.StaticCall, typeId, index, parameters);
     }
@@ -270,7 +270,7 @@ partial class EpConnection
         SendReply(EpPacketReply.Chunk, callbackId, chunk);
     }
 
-    void EpReplyCompleted(uint callbackId, ParsedTDU dataType)
+    void EpReplyCompleted(uint callbackId, ParsedTdu dataType)
     {
         var req = requests.Take(callbackId);
 
@@ -301,12 +301,12 @@ partial class EpConnection
         }
     }
 
-    void EpExtensionAction(byte actionId, ParsedTDU? dataType, byte[] data)
+    void EpExtensionAction(byte actionId, ParsedTdu? dataType, byte[] data)
     {
         // nothing is supported now
     }
 
-    void EpReplyPropagated(uint callbackId, ParsedTDU dataType, byte[] data)
+    void EpReplyPropagated(uint callbackId, ParsedTdu dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -330,7 +330,7 @@ partial class EpConnection
         }
     }
 
-    void EpReplyError(uint callbackId, ParsedTDU dataType, byte[] data, ErrorType type)
+    void EpReplyError(uint callbackId, ParsedTdu dataType, byte[] data, ErrorType type)
     {
         var req = requests.Take(callbackId);
 
@@ -349,7 +349,7 @@ partial class EpConnection
         req.TriggerError(new AsyncException(type, errorCode, errorMsg));
     }
 
-    void EpReplyProgress(uint callbackId, ParsedTDU dataType, byte[] data)
+    void EpReplyProgress(uint callbackId, ParsedTdu dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -368,7 +368,7 @@ partial class EpConnection
         req.TriggerProgress(ProgressType.Execution, current, total);
     }
 
-    void EpReplyWarning(uint callbackId, ParsedTDU dataType, byte[] data)
+    void EpReplyWarning(uint callbackId, ParsedTdu dataType, byte[] data)
     {
         var req = requests[callbackId];
 
@@ -389,7 +389,7 @@ partial class EpConnection
 
 
 
-    void EpReplyChunk(uint callbackId, ParsedTDU dataType)
+    void EpReplyChunk(uint callbackId, ParsedTdu dataType)
     {
         var req = requests[callbackId];
 
@@ -404,16 +404,16 @@ partial class EpConnection
             req.TriggerChunk(parsed);
     }
 
-    void EpNotificationResourceReassigned(ParsedTDU dataType)
+    void EpNotificationResourceReassigned(ParsedTdu dataType)
     {
         // uint resourceId, uint newResourceId
     }
 
-    void EpNotificationResourceMoved(ParsedTDU dataType, byte[] data) { }
+    void EpNotificationResourceMoved(ParsedTdu dataType, byte[] data) { }
 
-    void EpNotificationSystemFailure(ParsedTDU dataType, byte[] data) { }
+    void EpNotificationSystemFailure(ParsedTdu dataType, byte[] data) { }
 
-    void EpNotificationResourceDestroyed(ParsedTDU dataType, byte[] data)
+    void EpNotificationResourceDestroyed(ParsedTdu dataType, byte[] data)
     {
         var (size, rt) = Codec.ParseSync(dataType, Instance.Warehouse);
 
@@ -444,7 +444,7 @@ partial class EpConnection
 
     }
 
-    void EpNotificationPropertyModified(ParsedTDU dataType)
+    void EpNotificationPropertyModified(ParsedTdu dataType)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
@@ -488,7 +488,7 @@ partial class EpConnection
     }
 
 
-    void EpNotificationEventOccurred(ParsedTDU dataType, byte[] data)
+    void EpNotificationEventOccurred(ParsedTdu dataType, byte[] data)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
@@ -537,7 +537,7 @@ partial class EpConnection
         });
     }
 
-    void EpRequestAttachResource(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestAttachResource(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
@@ -579,7 +579,7 @@ partial class EpConnection
         });
     }
 
-    void EpRequestReattachResource(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestReattachResource(uint callback, ParsedTdu dataType, byte[] data)
     {
         // resourceId, index, value
         var (valueOffset, valueSize, args) =
@@ -627,7 +627,7 @@ partial class EpConnection
         });
     }
 
-    void EpRequestDetachResource(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestDetachResource(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
@@ -658,7 +658,7 @@ partial class EpConnection
         });
     }
 
-    void EpRequestCreateResource(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestCreateResource(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (_, parsed) = Codec.ParseAsync(dataType, this, null);
 
@@ -668,8 +668,8 @@ partial class EpConnection
 
         TypeDef type = null;
 
-        if (args[1] is UUID)
-            type = Instance.Warehouse.GetTypeDefById((UUID)args[1]);
+        if (args[1] is Uuid)
+            type = Instance.Warehouse.GetTypeDefById((Uuid)args[1]);
         else if (args[1] is string)
             type = Instance.Warehouse.GetTypeDefByName((string)args[1]);
 
@@ -719,7 +719,7 @@ partial class EpConnection
     }
 
 
-    void EpRequestDeleteResource(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestDeleteResource(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
@@ -748,7 +748,7 @@ partial class EpConnection
         });
     }
 
-    void EpRequestMoveResource(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestMoveResource(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -789,12 +789,12 @@ partial class EpConnection
 
 
 
-    void EpRequestToken(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestToken(uint callback, ParsedTdu dataType, byte[] data)
     {
         // @TODO: To be implemented
     }
 
-    void EpRequestLinkTypeDefs(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestLinkTypeDefs(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
@@ -827,7 +827,7 @@ partial class EpConnection
             Instance.Warehouse.Query(resourceLink).Then(queryCallback);
     }
 
-    void EpRequestTypeDefByName(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestTypeDefByName(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
@@ -846,12 +846,12 @@ partial class EpConnection
         }
     }
 
-    void EpRequestTypeDefById(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestTypeDefById(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
 
-        var typeId = (UUID)value;
+        var typeId = (Uuid)value;
 
         var t = Instance.Warehouse.GetTypeDefById(typeId);
 
@@ -868,7 +868,7 @@ partial class EpConnection
 
 
 
-    void EpRequestTypeDefByResourceId(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestTypeDefByResourceId(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
@@ -891,7 +891,7 @@ partial class EpConnection
 
 
 
-    void EpRequestGetResourceIdByLink(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestGetResourceIdByLink(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
         var resourceLink = (string)parsed;
@@ -919,7 +919,7 @@ partial class EpConnection
 
     }
 
-    void EpRequestQueryResources(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestQueryResources(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
 
@@ -977,7 +977,7 @@ partial class EpConnection
     }
 
 
-    void EpRequestProcedureCall(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestProcedureCall(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse, 1);
@@ -1037,12 +1037,12 @@ partial class EpConnection
         }
     }
 
-    void EpRequestStaticCall(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestStaticCall(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                      dataType.ContentLength, Instance.Warehouse, 2);
 
-        var typeId = new UUID((byte[])args[0]);
+        var typeId = new Uuid((byte[])args[0]);
         var index = (byte)args[1];
 
 
@@ -1114,7 +1114,7 @@ partial class EpConnection
         }
     }
 
-    void EpRequestInvokeFunction(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestInvokeFunction(uint callback, ParsedTdu dataType, byte[] data)
     {
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
                                                                              dataType.ContentLength, Instance.Warehouse, 2);
@@ -1466,7 +1466,7 @@ partial class EpConnection
         }
     }
 
-    void EpRequestSubscribe(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestSubscribe(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -1525,7 +1525,7 @@ partial class EpConnection
 
     }
 
-    void EpRequestUnsubscribe(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestUnsubscribe(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -1586,7 +1586,7 @@ partial class EpConnection
 
 
 
-    void EpRequestSetProperty(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestSetProperty(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,
@@ -1719,7 +1719,7 @@ partial class EpConnection
     /// </summary>
     /// <param name="typeId">Type UUID.</param>
     /// <returns>TypeSchema.</returns>
-    public AsyncReply<TypeDef> GetTypeDefById(UUID typeId)
+    public AsyncReply<TypeDef> GetTypeDefById(Uuid typeId)
     {
         if (typeDefs.ContainsKey(typeId))
             return new AsyncReply<TypeDef>(typeDefs[typeId]);
@@ -1902,7 +1902,7 @@ partial class EpConnection
 
                         // TypeId, Age, Link, Hops, PropertyValue[]
                         var args = (object[])result;
-                        var typeId = (UUID)args[0];
+                        var typeId = (Uuid)args[0];
                         var age = Convert.ToUInt64(args[1]);
                         var link = (string)args[2];
                         var hops = (byte)args[3];
@@ -2156,7 +2156,7 @@ partial class EpConnection
 
 
 
-    void EpRequestKeepAlive(uint callback, ParsedTDU dataType, byte[] data)
+    void EpRequestKeepAlive(uint callback, ParsedTdu dataType, byte[] data)
     {
 
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(data, dataType.Offset,

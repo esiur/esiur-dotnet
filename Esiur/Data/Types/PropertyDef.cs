@@ -24,7 +24,7 @@ public class PropertyDef : MemberDef
         set;
     }
 
-    public TRU ValueType { get; set; }
+    public Tru ValueType { get; set; }
 
 
     /*
@@ -93,7 +93,7 @@ public class PropertyDef : MemberDef
 
         offset += (uint)data[offset] + 1;
 
-        var (dts, valueType) = TRU.Parse(data, offset);
+        var (dts, valueType) = Tru.Parse(data, offset);
 
         offset += dts;
 
@@ -200,8 +200,8 @@ public class PropertyDef : MemberDef
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
 
         var propType = genericPropType == typeof(PropertyContext<>) ?
-                TRU.FromType(pi.PropertyType.GetGenericArguments()[0]) :
-                TRU.FromType(pi.PropertyType);
+                Tru.FromType(pi.PropertyType.GetGenericArguments()[0]) :
+                Tru.FromType(pi.PropertyType);
 
         if (propType == null)
             throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");

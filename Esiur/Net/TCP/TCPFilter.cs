@@ -32,9 +32,9 @@ using Esiur.Net.Sockets;
 using Esiur.Core;
 using Esiur.Resource;
 
-namespace Esiur.Net.TCP;
+namespace Esiur.Net.Tcp;
 
-public abstract class TCPFilter : IResource
+public abstract class TcpFilter : IResource
 {
     
     public Instance Instance
@@ -48,17 +48,17 @@ public abstract class TCPFilter : IResource
 
     public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
 
-    public virtual bool Connected(TCPConnection sender)
+    public virtual bool Connected(TcpConnection sender)
     {
         return false;
     }
 
-    public virtual bool Disconnected(TCPConnection sender)
+    public virtual bool Disconnected(TcpConnection sender)
     {
         return false;
     }
 
-    public abstract bool Execute(byte[] msg, NetworkBuffer data, TCPConnection sender);
+    public abstract bool Execute(byte[] msg, NetworkBuffer data, TcpConnection sender);
 
     public void Destroy()
     {

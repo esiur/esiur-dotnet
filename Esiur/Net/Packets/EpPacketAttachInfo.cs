@@ -10,9 +10,9 @@ struct EpPacketAttachInfo
     public string Link;
     public ulong Age;
     public byte[] Content;
-    public UUID TypeId;
+    public Uuid TypeId;
 
-    public EpPacketAttachInfo(UUID typeId, ulong age, string link, byte[] content)
+    public EpPacketAttachInfo(Uuid typeId, ulong age, string link, byte[] content)
     {
         TypeId = typeId;
         Age = age;

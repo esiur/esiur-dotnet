@@ -40,25 +40,25 @@ using Esiur.Resource;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Reflection;
-using Esiur.Net.Packets.HTTP;
+using Esiur.Net.Packets.Http;
 
-namespace Esiur.Net.HTTP;
-public class HTTPServer : NetworkServer<HTTPConnection>, IResource
+namespace Esiur.Net.Http;
+public class HttpServer : NetworkServer<HttpConnection>, IResource
 {
-    Dictionary<string, HTTPSession> sessions = new Dictionary<string, HTTPSession>();
-    HTTPFilter[] filters = new HTTPFilter[0];
+    Dictionary<string, HttpSession> sessions = new Dictionary<string, HttpSession>();
+    HttpFilter[] filters = new HttpFilter[0];
 
-    Dictionary<HTTPMethod, List<RouteInfo>> routes = new()
+    Dictionary<Packets.Http.HttpMethod, List<RouteInfo>> routes = new()
     {
-        [HTTPMethod.GET] = new List<RouteInfo>(),
-        [HTTPMethod.POST] = new List<RouteInfo>(),
-        [HTTPMethod.HEAD] = new List<RouteInfo>(),
-        [HTTPMethod.OPTIONS] = new List<RouteInfo>(),
-        [HTTPMethod.UNKNOWN] = new List<RouteInfo>(),
-        [HTTPMethod.DELETE] = new List<RouteInfo>(),
-        [HTTPMethod.TRACE] = new List<RouteInfo>(),
-        [HTTPMethod.CONNECT] = new List<RouteInfo>(),
-        [HTTPMethod.PUT] = new List<RouteInfo>()
+        [Packets.Http.HttpMethod.GET] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.POST] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.HEAD] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.OPTIONS] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.UNKNOWN] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.DELETE] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.TRACE] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.CONNECT] = new List<RouteInfo>(),
+        [Packets.Http.HttpMethod.PUT] = new List<RouteInfo>()
     };
 
     //List<RouteInfo> GetRoutes = new List<RouteInfo>();
@@ -86,7 +86,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 
             var last = ps.LastOrDefault();
 
-            if (last != null && last.ParameterType == typeof(HTTPConnection))
+            if (last != null && last.ParameterType == typeof(HttpConnection))
             {
 
                 SenderIndex = ps.Length - 1;
@@ -101,7 +101,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         }
 
 
-        public bool Invoke(HTTPConnection sender)
+        public bool Invoke(HttpConnection sender)
         {
             var match = Pattern.Match(sender.Request.URL);
 
@@ -176,9 +176,9 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     }
 
 
-    public HTTPSession CreateSession(string id, int timeout)
+    public HttpSession CreateSession(string id, int timeout)
     {
-        var s = new HTTPSession();
+        var s = new HttpSession();
 
         s.Set(id, timeout);
 
@@ -214,7 +214,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         return Cookie;
     }
 
-    protected override void ClientDisconnected(HTTPConnection connection)
+    protected override void ClientDisconnected(HttpConnection connection)
     {
         foreach (var filter in filters)
             filter.ClientDisconnected(connection);
@@ -222,7 +222,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
 
 
 
-    internal bool Execute(HTTPConnection sender)
+    internal bool Execute(HttpConnection sender)
     {
         if (!sender.WSMode)
             foreach (var route in routes[sender.Request.Method])
@@ -243,14 +243,14 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     public void MapGet(string pattern, Delegate handler)
     {
         var regex = Global.GetRouteRegex(pattern);
-        var list = routes[HTTPMethod.GET];
+        var list = routes[Packets.Http.HttpMethod.GET];
         list.Add(new RouteInfo(handler, regex));
     }
 
     public void MapPost(string pattern, Delegate handler)
     {
         var regex = Global.GetRouteRegex(pattern);
-        var list = routes[HTTPMethod.POST];
+        var list = routes[Packets.Http.HttpMethod.POST];
         list.Add(new RouteInfo(handler, regex));
     }
 
@@ -329,7 +329,7 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
         }
         else if (trigger == ResourceTrigger.SystemInitialized)
         {
-            filters = await Instance.Children<HTTPFilter>();
+            filters = await Instance.Children<HttpFilter>();
         }
 
         return true;
@@ -337,19 +337,19 @@ public class HTTPServer : NetworkServer<HTTPConnection>, IResource
     }
 
 
-    public override void Add(HTTPConnection connection)
+    public override void Add(HttpConnection connection)
     {
         connection.Server = this;
         base.Add(connection);
     }
 
-    public override void Remove(HTTPConnection connection)
+    public override void Remove(HttpConnection connection)
     {
         connection.Server = null;
         base.Remove(connection);
     }
 
-    protected override void ClientConnected(HTTPConnection connection)
+    protected override void ClientConnected(HttpConnection connection)
     {
         //if (filters.Length == 0 && routes.)
         //{

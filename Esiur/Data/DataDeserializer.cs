@@ -17,246 +17,246 @@ namespace Esiur.Data;
 
 public static class DataDeserializer
 {
-    public static object NullParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object NullParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return null;
     }
 
-    public static object NullParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object NullParser(ParsedTdu tdu, Warehouse warehouse)
     {
         return null;
     }
 
-    public static object BooleanTrueParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object BooleanTrueParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return true;
     }
 
-    public static object BooleanTrueParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object BooleanTrueParser(ParsedTdu tdu, Warehouse warehouse)
     {
         return true;
     }
 
-    public static object BooleanFalseParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object BooleanFalseParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return false;
     }
 
-    public static object BooleanFalseParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object BooleanFalseParser(ParsedTdu tdu, Warehouse warehouse)
     {
         return false;
     }
 
-    public static object NotModifiedParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object NotModifiedParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return NotModified.Default;
     }
 
-    public static object NotModifiedParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object NotModifiedParser(ParsedTdu tdu, Warehouse warehouse)
     {
         return NotModified.Default;
     }
 
-    public static object UInt8ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object UInt8ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data[tdu.Offset];
     }
-    public static object UInt8Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static object UInt8Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         return tdu.Data[tdu.Offset];
     }
 
-    public static object Int8ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object Int8ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return (sbyte)tdu.Data[tdu.Offset];
     }
-    public static object Int8Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static object Int8Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         return (sbyte)tdu.Data[tdu.Offset];
     }
 
-    public static unsafe object Char16ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Char16ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(char*)ptr;
     }
 
-    public static unsafe object Char16Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Char16Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(char*)ptr;
     }
 
-    public static object Char8ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object Char8ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return (char)tdu.Data[tdu.Offset];
     }
 
-    public static object Char8Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static object Char8Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         return (char)tdu.Data[tdu.Offset];
     }
 
 
-    public static unsafe object Int16ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Int16ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(short*)ptr;
     }
 
-    public static unsafe object Int16Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Int16Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(short*)ptr;
     }
 
-    public static unsafe object UInt16ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object UInt16ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(ushort*)ptr;
     }
 
-    public static unsafe object UInt16Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object UInt16Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(ushort*)ptr;
     }
 
-    public static unsafe object Int32ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Int32ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(int*)ptr;
     }
 
-    public static unsafe object Int32Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Int32Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(int*)ptr;
     }
 
-    public static unsafe object UInt32ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object UInt32ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(uint*)ptr;
     }
 
-    public static unsafe object UInt32Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object UInt32Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(uint*)ptr;
     }
 
 
-    public static unsafe object Float32ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Float32ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(float*)ptr;
     }
 
-    public static unsafe object Float32Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Float32Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(float*)ptr;
     }
 
-    public static unsafe object Float64ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Float64ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(double*)ptr;
     }
 
-    public static unsafe object Float64Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Float64Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(double*)ptr;
     }
 
 
-    public static unsafe object Decimal128ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Decimal128ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(decimal*)ptr;
     }
 
-    public static unsafe object Decimal128Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Decimal128Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(decimal*)ptr;
     }
 
-    public static unsafe object UUIDParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object UUIDParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
-        return new UUID(tdu.Data, tdu.Offset);
+        return new Uuid(tdu.Data, tdu.Offset);
     }
 
-    public static unsafe object UUIDParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object UUIDParser(ParsedTdu tdu, Warehouse warehouse)
     {
-        return new UUID(tdu.Data, tdu.Offset);
+        return new Uuid(tdu.Data, tdu.Offset);
     }
 
 
 
-    public static unsafe object Int128ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Int128ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr1 = &tdu.Data[tdu.Offset])
         fixed (byte* ptr2 = &tdu.Data[tdu.Offset + 8])
             return new Int128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object Int128Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Int128Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr1 = &tdu.Data[tdu.Offset])
         fixed (byte* ptr2 = &tdu.Data[tdu.Offset + 8])
             return new Int128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object UInt128ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object UInt128ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr1 = &tdu.Data[tdu.Offset])
         fixed (byte* ptr2 = &tdu.Data[tdu.Offset + 8])
             return new UInt128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object UInt128Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object UInt128Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr1 = &tdu.Data[tdu.Offset])
         fixed (byte* ptr2 = &tdu.Data[tdu.Offset + 8])
             return new UInt128(*(ulong*)ptr1, *(ulong*)ptr2);
     }
 
-    public static unsafe object Int64ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object Int64ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(long*)ptr;
     }
 
-    public static unsafe object Int64Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object Int64Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(long*)ptr;
     }
 
 
-    public static unsafe object UInt64ParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object UInt64ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(ulong*)ptr;
     }
 
-    public static unsafe object UInt64Parser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object UInt64Parser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return *(ulong*)ptr;
     }
 
 
-    public static unsafe object DateTimeParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object DateTimeParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new DateTime(*(long*)ptr, DateTimeKind.Utc);
 
     }
-    public static unsafe object DateTimeParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object DateTimeParser(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new DateTime(*(long*)ptr, DateTimeKind.Utc);
@@ -264,7 +264,7 @@ public static class DataDeserializer
     }
 
 
-    public static object ResourceLinkParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static object ResourceLinkParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var link = tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
         if (connection == null)
@@ -277,13 +277,13 @@ public static class DataDeserializer
         }
     }
 
-    public static object ResourceLinkParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object ResourceLinkParser(ParsedTdu tdu, Warehouse warehouse)
     {
         var link = tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
         return new ResourceLink(link);
     }
 
-    public static unsafe object ResourceParser8Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser8Async(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         if (connection == null)
             return new ResourceId(false, tdu.Data[tdu.Offset]);
@@ -291,12 +291,12 @@ public static class DataDeserializer
             return connection.Fetch(tdu.Data[tdu.Offset], requestSequence);
     }
 
-    public static unsafe object ResourceParser8(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object ResourceParser8(ParsedTdu tdu, Warehouse warehouse)
     {
         return new ResourceId(false, tdu.Data[tdu.Offset]);
     }
 
-    public static unsafe object LocalResourceParser8Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser8Async(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         if (connection == null)
             return new ResourceId(true, tdu.Data[tdu.Offset]);
@@ -304,12 +304,12 @@ public static class DataDeserializer
             return connection.Instance.Warehouse.GetById(tdu.Data[tdu.Offset]);
     }
 
-    public static unsafe object LocalResourceParser8(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object LocalResourceParser8(ParsedTdu tdu, Warehouse warehouse)
     {
         return new ResourceId(true, tdu.Data[tdu.Offset]);
     }
 
-    public static unsafe object ResourceParser16Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser16Async(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -318,14 +318,14 @@ public static class DataDeserializer
                 return connection.Fetch(*(ushort*)ptr, requestSequence);
     }
 
-    public static unsafe object ResourceParser16(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object ResourceParser16(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new ResourceId(false, *(ushort*)ptr);
     }
 
 
-    public static unsafe object LocalResourceParser16Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser16Async(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -334,13 +334,13 @@ public static class DataDeserializer
                 return connection.Instance.Warehouse.GetById(*(ushort*)ptr);
     }
 
-    public static unsafe object LocalResourceParser16(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object LocalResourceParser16(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new ResourceId(true, *(ushort*)ptr);
     }
 
-    public static unsafe object ResourceParser32Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object ResourceParser32Async(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -349,14 +349,14 @@ public static class DataDeserializer
                 return connection.Fetch(*(uint*)ptr, requestSequence);
     }
 
-    public static unsafe object ResourceParser32(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object ResourceParser32(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new ResourceId(false, *(uint*)ptr);
     }
 
 
-    public static unsafe object LocalResourceParser32Async(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object LocalResourceParser32Async(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             if (connection == null)
@@ -365,35 +365,35 @@ public static class DataDeserializer
                 return connection.Instance.Warehouse.GetById(*(uint*)ptr);
     }
 
-    public static unsafe object LocalResourceParser32(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object LocalResourceParser32(ParsedTdu tdu, Warehouse warehouse)
     {
         fixed (byte* ptr = &tdu.Data[tdu.Offset])
             return new ResourceId(true, *(uint*)ptr);
     }
 
 
-    public static unsafe object RawDataParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object RawDataParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data.Clip(tdu.Offset, (uint)tdu.ContentLength);
     }
 
-    public static unsafe object RawDataParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object RawDataParser(ParsedTdu tdu, Warehouse warehouse)
     {
         return tdu.Data.Clip(tdu.Offset, (uint)tdu.ContentLength);
     }
 
 
-    public static unsafe object StringParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object StringParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
     }
 
-    public static unsafe object StringParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object StringParser(ParsedTdu tdu, Warehouse warehouse)
     {
         return tdu.Data.GetString(tdu.Offset, (uint)tdu.ContentLength);
     }
 
-    public static unsafe object RecordParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object RecordParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var typeId = tdu.Metadata.GetUUID(0);
         var typeDef = connection.Instance.Warehouse.GetTypeDefById(typeId,
@@ -403,8 +403,8 @@ public static class DataDeserializer
 
         var list = new AsyncBag<object>();
 
-        ParsedTDU current;
-        ParsedTDU? previous = null;
+        ParsedTdu current;
+        ParsedTdu? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
@@ -414,22 +414,22 @@ public static class DataDeserializer
         {
             for (var i = 0; i < typeDef.Properties.Length; i++)
             {
-                current = ParsedTDU.Parse(tdu.Data, offset, ends);
+                current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-                if (current.Class == TDUClass.Invalid)
+                if (current.Class == TduClass.Invalid)
                     throw new Exception("Unknown type.");
 
 
-                if (current.Identifier == TDUIdentifier.TypeContinuation)
+                if (current.Identifier == TduIdentifier.TypeContinuation)
                 {
                     current.Class = previous.Value.Class;
                     current.Identifier = previous.Value.Identifier;
                     current.Metadata = previous.Value.Metadata;
                 }
-                else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+                else if (current.Identifier == TduIdentifier.TypeOfTarget)
                 {
                     var (idf, mt) = typeDef.Properties[i].ValueType.GetMetadata();
-                    current.Class = TDUClass.Typed;
+                    current.Class = TduClass.Typed;
                     current.Identifier = idf;
                     current.Metadata = mt;
                     current.Index = (int)idf & 0x7;
@@ -515,7 +515,7 @@ public static class DataDeserializer
     }
 
 
-    public static unsafe object RecordParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object RecordParser(ParsedTdu tdu, Warehouse warehouse)
     {
         var typeId = tdu.Metadata.GetUUID(0);
         var typeDef = warehouse.GetTypeDefById(typeId, TypeDefKind.Record);
@@ -529,8 +529,8 @@ public static class DataDeserializer
 
         var list = new List<object>();
 
-        ParsedTDU current;
-        ParsedTDU? previous = null;
+        ParsedTdu current;
+        ParsedTdu? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
@@ -539,22 +539,22 @@ public static class DataDeserializer
 
         for (var i = 0; i < typeDef.Properties.Length; i++)
         {
-            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+            current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-            if (current.Class == TDUClass.Invalid)
+            if (current.Class == TduClass.Invalid)
                 throw new Exception("Unknown type.");
 
 
-            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            if (current.Identifier == TduIdentifier.TypeContinuation)
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
                 current.Metadata = previous.Value.Metadata;
             }
-            else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+            else if (current.Identifier == TduIdentifier.TypeOfTarget)
             {
                 var (idf, mt) = typeDef.Properties[i].ValueType.GetMetadata();
-                current.Class = TDUClass.Typed;
+                current.Class = TduClass.Typed;
                 current.Identifier = idf;
                 current.Metadata = mt;
                 current.Index = (int)idf & 0x7;
@@ -605,17 +605,17 @@ public static class DataDeserializer
         }
     }
 
-    public static unsafe object ConstantParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe object ConstantParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         throw new NotImplementedException();
     }
 
-    public static unsafe object ConstantParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object ConstantParser(ParsedTdu tdu, Warehouse warehouse)
     {
         throw new NotImplementedException();
     }
 
-    public static unsafe AsyncReply EnumParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static unsafe AsyncReply EnumParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
 
         var typeId = tdu.Metadata.GetUUID(0);
@@ -643,7 +643,7 @@ public static class DataDeserializer
         }
     }
 
-    public static unsafe object EnumParser(ParsedTDU tdu, Warehouse warehouse)
+    public static unsafe object EnumParser(ParsedTdu tdu, Warehouse warehouse)
     {
 
         var typeId = tdu.Metadata.GetUUID(0);
@@ -664,7 +664,7 @@ public static class DataDeserializer
     }
 
 
-    public static AsyncReply RecordListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static AsyncReply RecordListParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IRecord>();
 
@@ -691,7 +691,7 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static object RecordListParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object RecordListParser(ParsedTdu tdu, Warehouse warehouse)
     {
         var rt = new List<IRecord>();
 
@@ -717,7 +717,7 @@ public static class DataDeserializer
         return rt.ToArray();
     }
 
-    public static AsyncReply ResourceListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static AsyncReply ResourceListParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IResource>();
 
@@ -745,7 +745,7 @@ public static class DataDeserializer
     }
 
 
-    public static object ResourceListParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object ResourceListParser(ParsedTdu tdu, Warehouse warehouse)
     {
         var rt = new List<IResource>();
 
@@ -771,7 +771,7 @@ public static class DataDeserializer
         return rt.ToArray();
     }
 
-    public static AsyncBag<object> ListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static AsyncBag<object> ListParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         //var rt = new AsyncBag<object>();
 
@@ -806,8 +806,8 @@ public static class DataDeserializer
 
         //var list = new List<object>();
 
-        ParsedTDU current;
-        ParsedTDU? previous = null;
+        ParsedTdu current;
+        ParsedTdu? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
@@ -815,13 +815,13 @@ public static class DataDeserializer
 
         while (length > 0)
         {
-            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+            current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-            if (current.Class == TDUClass.Invalid)
+            if (current.Class == TduClass.Invalid)
                 throw new Exception("Unknown type.");
 
 
-            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            if (current.Identifier == TduIdentifier.TypeContinuation)
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
@@ -850,12 +850,12 @@ public static class DataDeserializer
 
     }
 
-    public static object ListParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object ListParser(ParsedTdu tdu, Warehouse warehouse)
     {
         var list = new List<object>();
 
-        ParsedTDU current;
-        ParsedTDU? previous = null;
+        ParsedTdu current;
+        ParsedTdu? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
@@ -863,13 +863,13 @@ public static class DataDeserializer
 
         while (length > 0)
         {
-            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+            current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-            if (current.Class == TDUClass.Invalid)
+            if (current.Class == TduClass.Invalid)
                 throw new Exception("Unknown type.");
 
 
-            if (current.Identifier == TDUIdentifier.TypeContinuation)
+            if (current.Identifier == TduIdentifier.TypeContinuation)
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
@@ -923,25 +923,25 @@ public static class DataDeserializer
     }
 
 
-    public static AsyncReply TypedMapParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedMapParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
 
         var rt = new AsyncReply();
 
         // get key type
 
-        var (keyCs, keysTru) = TRU.Parse(tdu.Metadata, 0);
-        var (valueCs, valuesTru) = TRU.Parse(tdu.Metadata, keyCs);
+        var (keyCs, keysTru) = Tru.Parse(tdu.Metadata, 0);
+        var (valueCs, valuesTru) = Tru.Parse(tdu.Metadata, keyCs);
 
         var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(
             keysTru.GetRuntimeType(connection.Instance.Warehouse),
             valuesTru.GetRuntimeType(connection.Instance.Warehouse)));
 
 
-        var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset,
+        var keysTdu = ParsedTdu.Parse(tdu.Data, tdu.Offset,
                                       (uint)(tdu.Offset + tdu.ContentLength));
 
-        var valuesTdu = ParsedTDU.Parse(tdu.Data,
+        var valuesTdu = ParsedTdu.Parse(tdu.Data,
                                         (uint)(keysTdu.Offset + keysTdu.ContentLength),
                                         tdu.Ends);
 
@@ -1011,29 +1011,29 @@ public static class DataDeserializer
 
     }
 
-    public static Array TypedArrayParser(ParsedTDU tdu, TRU tru, Warehouse warehouse)
+    public static Array TypedArrayParser(ParsedTdu tdu, Tru tru, Warehouse warehouse)
     {
         switch (tru.Identifier)
         {
-            case TRUIdentifier.Int32:
+            case TruIdentifier.Int32:
                 return GroupInt32Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.Int64:
+            case TruIdentifier.Int64:
                 return GroupInt64Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.Int16:
+            case TruIdentifier.Int16:
                 return GroupInt16Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.UInt32:
+            case TruIdentifier.UInt32:
                 return GroupUInt32Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.UInt64:
+            case TruIdentifier.UInt64:
                 return GroupUInt64Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.UInt16:
+            case TruIdentifier.UInt16:
                 return GroupUInt16Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength));
-            case TRUIdentifier.Enum:
+            case TruIdentifier.Enum:
 
                 var enumType = tru.GetRuntimeType(warehouse);
 
@@ -1053,8 +1053,8 @@ public static class DataDeserializer
 
                 var list = new List<object>();
 
-                ParsedTDU current;
-                ParsedTDU? previous = null;
+                ParsedTdu current;
+                ParsedTdu? previous = null;
 
                 var offset = tdu.Offset;
                 var length = tdu.ContentLength;
@@ -1062,22 +1062,22 @@ public static class DataDeserializer
 
                 while (length > 0)
                 {
-                    current = ParsedTDU.Parse(tdu.Data, offset, ends);
+                    current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-                    if (current.Class == TDUClass.Invalid)
+                    if (current.Class == TduClass.Invalid)
                         throw new Exception("Unknown type.");
 
 
-                    if (current.Identifier == TDUIdentifier.TypeContinuation)
+                    if (current.Identifier == TduIdentifier.TypeContinuation)
                     {
                         current.Class = previous.Value.Class;
                         current.Identifier = previous.Value.Identifier;
                         current.Metadata = previous.Value.Metadata;
                     }
-                    else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+                    else if (current.Identifier == TduIdentifier.TypeOfTarget)
                     {
                         var (idf, mt) = tru.GetMetadata();
-                        current.Class = TDUClass.Typed;
+                        current.Class = TduClass.Typed;
                         current.Identifier = idf;
                         current.Metadata = mt;
                         current.Index = (int)idf & 0x7;
@@ -1107,21 +1107,21 @@ public static class DataDeserializer
 
     }
 
-    public static object TypedMapParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object TypedMapParser(ParsedTdu tdu, Warehouse warehouse)
     {
         // get key type
 
-        var (keyCs, keysTru) = TRU.Parse(tdu.Metadata, 0);
-        var (valueCs, valuesTru) = TRU.Parse(tdu.Metadata, keyCs);
+        var (keyCs, keysTru) = Tru.Parse(tdu.Metadata, 0);
+        var (valueCs, valuesTru) = Tru.Parse(tdu.Metadata, keyCs);
 
         var map = (IMap)Activator.CreateInstance(typeof(Map<,>).MakeGenericType(keysTru.GetRuntimeType(warehouse), valuesTru.GetRuntimeType(warehouse)));
 
 
 
-        var keysTdu = ParsedTDU.Parse(tdu.Data, tdu.Offset,
+        var keysTdu = ParsedTdu.Parse(tdu.Data, tdu.Offset,
                                       (uint)(tdu.Offset + tdu.ContentLength));
 
-        var valuesTdu = ParsedTDU.Parse(tdu.Data,
+        var valuesTdu = ParsedTdu.Parse(tdu.Data,
                                         (uint)(keysTdu.Offset + keysTdu.ContentLength),
                                         tdu.Ends);
 
@@ -1135,20 +1135,20 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TupleParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static AsyncReply TupleParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
 
         var rt = new AsyncReply();
 
         // var tupleSize = tdu.Metadata[0];
 
-        var trus = new List<TRU>();
+        var trus = new List<Tru>();
 
         uint mtOffset = 0;
 
         while (mtOffset < tdu.Metadata.Length)
         {
-            var (cs, tru) = TRU.Parse(tdu.Metadata, mtOffset);
+            var (cs, tru) = Tru.Parse(tdu.Metadata, mtOffset);
             trus.Add(tru);
             mtOffset += cs;
         }
@@ -1156,8 +1156,8 @@ public static class DataDeserializer
         var results = new AsyncBag<object>();
         var types = trus.Select(x => x.GetRuntimeType(connection.Instance.Warehouse)).ToArray();
 
-        ParsedTDU current;
-        ParsedTDU? previous = null;
+        ParsedTdu current;
+        ParsedTdu? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
@@ -1166,15 +1166,15 @@ public static class DataDeserializer
 
         for (var i = 0; i < trus.Count; i++)
         {
-            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+            current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-            if (current.Class == TDUClass.Invalid)
+            if (current.Class == TduClass.Invalid)
                 throw new Exception("Unknown type.");
 
-            if (current.Identifier == TDUIdentifier.TypeOfTarget)
+            if (current.Identifier == TduIdentifier.TypeOfTarget)
             {
                 var (idf, mt) = trus[i].GetMetadata();
-                current.Class = TDUClass.Typed;
+                current.Class = TduClass.Typed;
                 current.Identifier = idf;
                 current.Metadata = mt;
                 current.Index = (int)idf & 0x7;
@@ -1234,16 +1234,16 @@ public static class DataDeserializer
         return rt;
     }
 
-    public static object TupleParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object TupleParser(ParsedTdu tdu, Warehouse warehouse)
     {
         var tupleSize = tdu.Metadata[0];
 
-        var trus = new List<TRU>();
+        var trus = new List<Tru>();
 
         uint mtOffset = 1;
         for (var i = 0; i < tupleSize; i++)
         {
-            var (cs, tru) = TRU.Parse(tdu.Metadata, mtOffset);
+            var (cs, tru) = Tru.Parse(tdu.Metadata, mtOffset);
             trus.Add(tru);
             mtOffset += cs;
         }
@@ -1251,8 +1251,8 @@ public static class DataDeserializer
         var results = new List<object>();
         var types = trus.Select(x => x.GetRuntimeType(warehouse)).ToArray();
 
-        ParsedTDU current;
-        ParsedTDU? previous = null;
+        ParsedTdu current;
+        ParsedTdu? previous = null;
 
         var offset = tdu.Offset;
         var length = tdu.ContentLength;
@@ -1261,15 +1261,15 @@ public static class DataDeserializer
 
         for (var i = 0; i < tupleSize; i++)
         {
-            current = ParsedTDU.Parse(tdu.Data, offset, ends);
+            current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-            if (current.Class == TDUClass.Invalid)
+            if (current.Class == TduClass.Invalid)
                 throw new Exception("Unknown type.");
 
-            if (current.Identifier == TDUIdentifier.TypeOfTarget)
+            if (current.Identifier == TduIdentifier.TypeOfTarget)
             {
                 var (idf, mt) = trus[i].GetMetadata();
-                current.Class = TDUClass.Typed;
+                current.Class = TduClass.Typed;
                 current.Identifier = idf;
                 current.Metadata = mt;
                 current.Index = (int)idf & 0x7;
@@ -1325,30 +1325,30 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TypedArrayParserAsync(ParsedTDU tdu, TRU tru, EpConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedArrayParserAsync(ParsedTdu tdu, Tru tru, EpConnection connection, uint[] requestSequence)
     {
         switch (tru.Identifier)
         {
-            case TRUIdentifier.Int32:
+            case TruIdentifier.Int32:
                 return new AsyncReply(GroupInt32Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
-            case TRUIdentifier.Int64:
+            case TruIdentifier.Int64:
                 return new AsyncReply(GroupInt64Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
-            case TRUIdentifier.Int16:
+            case TruIdentifier.Int16:
                 return new AsyncReply(GroupInt16Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
-            case TRUIdentifier.UInt32:
+            case TruIdentifier.UInt32:
                 return new AsyncReply(GroupUInt32Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
-            case TRUIdentifier.UInt64:
+            case TruIdentifier.UInt64:
                 return new AsyncReply(GroupUInt64Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
-            case TRUIdentifier.UInt16:
+            case TruIdentifier.UInt16:
                 return new AsyncReply(GroupUInt16Codec.Decode(tdu.Data.AsSpan(
                                                     (int)tdu.Offset, (int)tdu.ContentLength)));
 
-            case TRUIdentifier.Enum:
+            case TruIdentifier.Enum:
                 var enumType = tru.GetRuntimeType(connection.Instance.Warehouse);
 
                 var rt = Array.CreateInstance(enumType, (int)tdu.ContentLength);
@@ -1370,8 +1370,8 @@ public static class DataDeserializer
 
                 list.ArrayType = tru.GetRuntimeType(connection.Instance.Warehouse);
 
-                ParsedTDU current;
-                ParsedTDU? previous = null;
+                ParsedTdu current;
+                ParsedTdu? previous = null;
 
                 var offset = tdu.Offset;
                 var length = tdu.ContentLength;
@@ -1379,22 +1379,22 @@ public static class DataDeserializer
 
                 while (length > 0)
                 {
-                    current = ParsedTDU.Parse(tdu.Data, offset, ends);
+                    current = ParsedTdu.Parse(tdu.Data, offset, ends);
 
-                    if (current.Class == TDUClass.Invalid)
+                    if (current.Class == TduClass.Invalid)
                         throw new Exception("Unknown type.");
 
 
-                    if (current.Identifier == TDUIdentifier.TypeContinuation)
+                    if (current.Identifier == TduIdentifier.TypeContinuation)
                     {
                         current.Class = previous.Value.Class;
                         current.Identifier = previous.Value.Identifier;
                         current.Metadata = previous.Value.Metadata;
                     }
-                    else if (current.Identifier == TDUIdentifier.TypeOfTarget)
+                    else if (current.Identifier == TduIdentifier.TypeOfTarget)
                     {
                         var (idf, mt) = tru.GetMetadata();
-                        current.Class = TDUClass.Typed;
+                        current.Class = TduClass.Typed;
                         current.Identifier = idf;
                         current.Metadata = mt;
                         current.Index = (int)idf & 0x7;
@@ -1421,10 +1421,10 @@ public static class DataDeserializer
 
     }
 
-    public static AsyncReply TypedListParserAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static AsyncReply TypedListParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         // get the type
-        var (hdrCs, tru) = TRU.Parse(tdu.Metadata, 0);
+        var (hdrCs, tru) = Tru.Parse(tdu.Metadata, 0);
 
         return TypedArrayParserAsync(tdu, tru, connection, requestSequence);
 
@@ -1498,10 +1498,10 @@ public static class DataDeserializer
         //}
     }
 
-    public static object TypedListParser(ParsedTDU tdu, Warehouse warehouse)
+    public static object TypedListParser(ParsedTdu tdu, Warehouse warehouse)
     {
         // get the type
-        var (hdrCs, tru) = TRU.Parse(tdu.Metadata, 0);
+        var (hdrCs, tru) = Tru.Parse(tdu.Metadata, 0);
 
         return TypedArrayParser(tdu, tru, warehouse);
     }
@@ -1511,7 +1511,7 @@ public static class DataDeserializer
         var rt = new AsyncBag<PropertyValue>();
 
 
-        ListParserAsync(new ParsedTDU() { Data = data, Offset = offset, ContentLength = length }
+        ListParserAsync(new ParsedTdu() { Data = data, Offset = offset, ContentLength = length }
                         , connection, requestSequence).Then(x =>
         {
 

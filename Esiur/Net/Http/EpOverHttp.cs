@@ -6,13 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Net.HTTP;
-public class EPoHTTP : HTTPFilter
+namespace Esiur.Net.Http;
+public class EpOverHttp : HttpFilter
 {
     [Attribute]
     EntryPoint EntryPoint { get; set; }
 
-    public override AsyncReply<bool> Execute(HTTPConnection sender)
+    public override AsyncReply<bool> Execute(HttpConnection sender)
     {
         if (sender.Request.URL != "EP")
             return new AsyncReply<bool>(false);

@@ -32,8 +32,8 @@ using Esiur.Net.Sockets;
 using Esiur.Core;
 using Esiur.Protocol;
 
-namespace Esiur.Net.HTTP;
-public class EPoWS : HTTPFilter
+namespace Esiur.Net.Http;
+public class EpOvwerWebsocket : HttpFilter
 {
     [Attribute]
     public EpServer Server
@@ -42,7 +42,7 @@ public class EPoWS : HTTPFilter
         set;
     }
 
-    public override AsyncReply<bool> Execute(HTTPConnection sender)
+    public override AsyncReply<bool> Execute(HttpConnection sender)
     {
 
         if (sender.IsWebsocketRequest())

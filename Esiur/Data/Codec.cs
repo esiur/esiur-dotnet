@@ -41,8 +41,8 @@ public static class Codec
 
     //delegate AsyncReply AsyncParser(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence);
 
-    delegate object AsyncParser(ParsedTDU tdu, EpConnection connection, uint[] requestSequence);
-    delegate object SyncParser(ParsedTDU tdu, Warehouse warehouse);
+    delegate object AsyncParser(ParsedTdu tdu, EpConnection connection, uint[] requestSequence);
+    delegate object SyncParser(ParsedTdu tdu, Warehouse warehouse);
 
     static AsyncParser[][] FixedAsyncParsers = new AsyncParser[][]
     {
@@ -195,20 +195,20 @@ public static class Codec
     public static (uint, object) ParseAsync(byte[] data, uint offset, EpConnection connection, uint[] requestSequence)
     {
 
-        var tdu = ParsedTDU.Parse(data, offset, (uint)data.Length);
+        var tdu = ParsedTdu.Parse(data, offset, (uint)data.Length);
 
-        if (tdu.Class == TDUClass.Invalid)
+        if (tdu.Class == TduClass.Invalid)
             throw new NullReferenceException("DataType can't be parsed.");
 
-        if (tdu.Class == TDUClass.Fixed)
+        if (tdu.Class == TduClass.Fixed)
         {
             return ((uint)tdu.TotalLength, FixedAsyncParsers[tdu.Exponent][tdu.Index](tdu, connection, requestSequence));
         }
-        else if (tdu.Class == TDUClass.Dynamic)
+        else if (tdu.Class == TduClass.Dynamic)
         {
             return ((uint)tdu.TotalLength, DynamicAsyncParsers[tdu.Index](tdu, connection, requestSequence));
         }
-        else if (tdu.Class == TDUClass.Typed)
+        else if (tdu.Class == TduClass.Typed)
         {
             return ((uint)tdu.TotalLength, TypedAsyncParsers[tdu.Index](tdu, connection, requestSequence));
         }
@@ -219,20 +219,20 @@ public static class Codec
         }
     }
 
-    public static (uint, object) ParseAsync(ParsedTDU tdu, EpConnection connection, uint[] requestSequence)
+    public static (uint, object) ParseAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
-        if (tdu.Class == TDUClass.Invalid)
+        if (tdu.Class == TduClass.Invalid)
             throw new NullReferenceException("DataType can't be parsed.");
 
-        if (tdu.Class == TDUClass.Fixed)
+        if (tdu.Class == TduClass.Fixed)
         {
             return ((uint)tdu.TotalLength, FixedAsyncParsers[tdu.Exponent][tdu.Index](tdu, connection, requestSequence));
         }
-        else if (tdu.Class == TDUClass.Dynamic)
+        else if (tdu.Class == TduClass.Dynamic)
         {
             return ((uint)tdu.TotalLength, DynamicAsyncParsers[tdu.Index](tdu, connection, requestSequence));
         }
-        else if (tdu.Class == TDUClass.Typed)
+        else if (tdu.Class == TduClass.Typed)
         {
             return ((uint)tdu.TotalLength, TypedAsyncParsers[tdu.Index](tdu, connection, requestSequence));
         }
@@ -243,17 +243,17 @@ public static class Codec
         }
     }
 
-    public static (uint, object) ParseSync(ParsedTDU tdu, Warehouse warehouse)
+    public static (uint, object) ParseSync(ParsedTdu tdu, Warehouse warehouse)
     {
-        if (tdu.Class == TDUClass.Fixed)
+        if (tdu.Class == TduClass.Fixed)
         {
             return ((uint)tdu.TotalLength, FixedParsers[tdu.Exponent][tdu.Index](tdu, warehouse));
         }
-        else if (tdu.Class == TDUClass.Dynamic)
+        else if (tdu.Class == TduClass.Dynamic)
         {
             return ((uint)tdu.TotalLength, DynamicParsers[tdu.Index](tdu, warehouse));
         }
-        else if (tdu.Class == TDUClass.Typed)
+        else if (tdu.Class == TduClass.Typed)
         {
             return ((uint)tdu.TotalLength, TypedParsers[tdu.Index](tdu, warehouse));
         }
@@ -266,21 +266,21 @@ public static class Codec
 
     public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse)
     {
-        var tdu = ParsedTDU.Parse(data, offset, (uint)data.Length);
+        var tdu = ParsedTdu.Parse(data, offset, (uint)data.Length);
 
-        if (tdu.Class == TDUClass.Invalid)
+        if (tdu.Class == TduClass.Invalid)
             throw new NullReferenceException("DataType can't be parsed.");
 
 
-        if (tdu.Class == TDUClass.Fixed)
+        if (tdu.Class == TduClass.Fixed)
         {
             return ((uint)tdu.TotalLength, FixedParsers[tdu.Exponent][tdu.Index](tdu, warehouse));
         }
-        else if (tdu.Class == TDUClass.Dynamic)
+        else if (tdu.Class == TduClass.Dynamic)
         {
             return ((uint)tdu.TotalLength, DynamicParsers[tdu.Index](tdu, warehouse));
         }
-        else if (tdu.Class == TDUClass.Typed)
+        else if (tdu.Class == TduClass.Typed)
         {
             return ((uint)tdu.TotalLength, TypedParsers[tdu.Index](tdu, warehouse));
         }
@@ -307,7 +307,7 @@ public static class Codec
         return false;
     }
 
-    public delegate TDU Composer(object value, Warehouse warehouse, EpConnection connection);
+    public delegate Tdu Composer(object value, Warehouse warehouse, EpConnection connection);
 
     public static Dictionary<Type, Composer> Composers = new Dictionary<Type, Composer>()
     {
@@ -347,7 +347,7 @@ public static class Codec
         //[typeof(List<byte?>)] = DataSerializer.RawDataComposerFromList,
         [typeof(string)] = DataSerializer.StringComposer,
         [typeof(ResourceLink)] = DataSerializer.ResourceLinkComposer,
-        [typeof(UUID)] = DataSerializer.UUIDComposer,
+        [typeof(Uuid)] = DataSerializer.UUIDComposer,
         // Special
         [typeof(object[])] = DataSerializer.ListComposer,
         [typeof(List<object>)] = DataSerializer.ListComposer,
@@ -381,11 +381,11 @@ public static class Codec
     };
 
 
-    internal static TDU
+    internal static Tdu
         ComposeInternal(object valueOrSource, Warehouse warehouse, EpConnection connection)
     {
         if (valueOrSource == null)
-            return new TDU(TDUIdentifier.Null, null, 0);
+            return new Tdu(TduIdentifier.Null, null, 0);
 
         var type = valueOrSource.GetType();
 
@@ -412,7 +412,7 @@ public static class Codec
             valueOrSource = ((IUserType)valueOrSource).Get();
 
         if (valueOrSource == null)
-            return new TDU(TDUIdentifier.Null, null, 0);
+            return new Tdu(TduIdentifier.Null, null, 0);
 
 
         type = valueOrSource.GetType();
@@ -488,7 +488,7 @@ public static class Codec
 
         }
 
-        return new TDU(TDUIdentifier.Null, null, 0);
+        return new Tdu(TduIdentifier.Null, null, 0);
 
     }
 

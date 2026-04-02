@@ -11,5 +11,4 @@ namespace Esiur.Net.Packets
         Action = 0x2,
         Event = 0x3,
     }
-
 }

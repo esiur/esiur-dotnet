@@ -9,7 +9,7 @@ using System.Text;
 namespace Esiur.Data
 {
     //[StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct UUID
+    public struct Uuid
     {
         //4e7db2d8-a785-1b99-1854-4b4018bc5677
         //byte a1;
@@ -32,7 +32,7 @@ namespace Esiur.Data
         public byte[] Data { get; private set; }
 
 
-        public UUID(byte[] data, uint offset)
+        public Uuid(byte[] data, uint offset)
         {
             if (offset + 16 > data.Length)
                 throw new Exception("UUID data size must be at least 16 bytes");
@@ -74,7 +74,7 @@ namespace Esiur.Data
 
         }
 
-        public UUID(byte[] data) {
+        public Uuid(byte[] data) {
 
             if (data.Length != 16)
                 throw new Exception("UUID data size must be 16 bytes");
@@ -107,13 +107,13 @@ namespace Esiur.Data
 
         public override bool Equals(object obj)
         {
-            if (obj is UUID b)
+            if (obj is Uuid b)
                 return Data.SequenceEqual(b.Data);
 
             return false;
         }
 
-        public static bool operator == (UUID a, UUID b)
+        public static bool operator == (Uuid a, Uuid b)
         {
             return a.Data.SequenceEqual(b.Data);
 
@@ -135,7 +135,7 @@ namespace Esiur.Data
             //        && a.e6 == b.e6;
         }
 
-        public static bool operator !=(UUID a, UUID b)
+        public static bool operator !=(Uuid a, Uuid b)
         {
             return !(a == b);
         }

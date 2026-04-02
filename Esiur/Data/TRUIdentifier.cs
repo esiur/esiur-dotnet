@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    public enum TRUIdentifier
+    public enum TruIdentifier
     {
         Void = 0x0,
         Dynamic = 0x1,

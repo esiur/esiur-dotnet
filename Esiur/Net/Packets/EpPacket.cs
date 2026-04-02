@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017-2025 Ahmed Kh. Zamil
+Copyright (c) 2017-2026 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ class EpPacket : Packet
 
     public byte Extension { get; set; }
 
-    public ParsedTDU? DataType { get; set; }
+    public ParsedTdu? Tdu { get; set; }
 
 
     private uint dataLengthNeeded;
@@ -124,16 +124,16 @@ class EpPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            DataType = ParsedTDU.Parse(data, offset, ends);
+            Tdu = ParsedTdu.Parse(data, offset, ends);
 
-            if (DataType.Value.Class == TDUClass.Invalid)
-                return -(int)DataType.Value.TotalLength;
+            if (Tdu.Value.Class == TduClass.Invalid)
+                return -(int)Tdu.Value.TotalLength;
 
-            offset += (uint)DataType.Value.TotalLength;
+            offset += (uint)Tdu.Value.TotalLength;
         }
         else
         {
-            DataType = null;
+            Tdu = null;
         }
 
         return offset - originalOffset;

@@ -39,6 +39,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
 		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.2" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
@@ -60,6 +61,10 @@
 	<ItemGroup>
 	  <Compile Remove="Data\NullabilityInfo.cs" />
 	  <Compile Remove="Data\NullabilityInfoContext.cs" />
+	  <Compile Remove="Net\Packets\EpAuthPacketAuthMode.cs" />
+	  <Compile Remove="Security\Authority\AuthenticationMethod.cs" />
+	  <Compile Remove="Security\Authority\IAuthenticationInitiator.cs" />
+	  <Compile Remove="Security\Authority\IAuthenticationResponder.cs" />
 	</ItemGroup>
 
 
@@ -69,7 +74,11 @@
 		<None Include="Data\Types\ArgumentDef.cs" />
 		<None Include="Data\Types\AttributeDef.cs" />
 		<None Include="LICENSE" Pack="true" PackagePath=""></None>
+		<None Include="Net\Packets\EpAuthPacketAuthMode.cs" />
 		<None Include="README.md" Pack="true" PackagePath="" />
+		<None Include="Security\Authority\AuthenticationMethod.cs" />
+		<None Include="Security\Authority\IAuthenticationInitiator.cs" />
+		<None Include="Security\Authority\IAuthenticationResponder.cs" />
 	</ItemGroup>
 
 

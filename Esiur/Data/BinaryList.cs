@@ -64,7 +64,7 @@ public class BinaryList
     }
 
 
-    public BinaryList AddUUID(UUID value)
+    public BinaryList AddUUID(Uuid value)
     {
         list.AddRange(value.Data);
         return this;

@@ -40,7 +40,7 @@ public class Storable : global::System.Attribute
 
     SerializerFunction serializer;
     DeserializerFunction deserializer;
-    TRU dataType;
+    Tru dataType;
 
     public Storable()
     {
@@ -57,12 +57,12 @@ public class Storable : global::System.Attribute
         get { return serializer; }
     }
 
-    public Storable(TRU type)
+    public Storable(Tru type)
     {
         this.dataType = type;
     }
 
-    public Storable(TRU type, SerializerFunction serializer, DeserializerFunction deserializer)
+    public Storable(Tru type, SerializerFunction serializer, DeserializerFunction deserializer)
     {
         this.dataType = type;
         this.serializer = serializer;

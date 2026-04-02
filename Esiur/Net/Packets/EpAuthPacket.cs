@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2017-2026 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -37,19 +37,7 @@ namespace Esiur.Net.Packets;
 
 public class EpAuthPacket : Packet
 {
-
     public EpAuthPacketCommand Command
-    {
-        get;
-        set;
-    }
-    public EpAuthPacketInitialize Initialization
-    {
-        get;
-        set;
-    }
-
-    public EpAuthPacketAcknowledge Acknowledgement
     {
         get;
         set;
@@ -67,17 +55,31 @@ public class EpAuthPacket : Packet
         set;
     }
 
-    public AuthenticationMethod LocalMethod
+    public EpAuthPacketAcknowledgement Acknowledgement
     {
         get;
         set;
     }
 
-    public AuthenticationMethod RemoteMethod
+
+    public EpAuthPacketAuthMode AuthMode
     {
         get;
         set;
     }
+
+    public EpAuthPacketEncryptionMode EncryptionMode
+    {
+        get;
+        set;
+    }
+
+    //public AuthenticationMethod AuthenticationMethod
+    //{
+    //    get;
+    //    set;
+    //}
+
 
     public byte ErrorCode
     {
@@ -91,52 +93,14 @@ public class EpAuthPacket : Packet
         set;
     }
 
-
-    public EpAuthPacketPublicKeyAlgorithm PublicKeyAlgorithm
-    {
-        get;
-        set;
-    }
-
-    public EpAuthPacketHashAlgorithm HashAlgorithm
-    {
-        get;
-        set;
-    }
-
-
-    public byte[] Certificate
-    {
-        get;
-        set;
-    }
-
-    public byte[] Challenge
-    {
-        get;
-        set;
-    }
-
-    public byte[] AsymetricEncryptionKey
-    {
-        get;
-        set;
-    }
-
-
     public byte[] SessionId
     {
         get;
         set;
     }
 
-    public byte[] AccountId
-    {
-        get;
-        set;
-    }
 
-    public ParsedTDU? DataType
+    public ParsedTdu? Tdu
     {
         get;
         set;
@@ -177,284 +141,46 @@ public class EpAuthPacket : Packet
             return -dataLengthNeeded;
 
         Command = (EpAuthPacketCommand)(data[offset] >> 6);
+        var hasTdu = (data[offset] & 0x20) != 0;
 
         if (Command == EpAuthPacketCommand.Initialize)
         {
-            LocalMethod = (AuthenticationMethod)(data[offset] >> 4 & 0x3);
-            RemoteMethod = (AuthenticationMethod)(data[offset] >> 2 & 0x3);
-
-            Initialization = (EpAuthPacketInitialize)(data[offset++] & 0xFC); // remove last two reserved LSBs
-
-            if (NotEnough(offset, ends, 1))
-                return -dataLengthNeeded;
-
-            DataType = ParsedTDU.Parse(data, offset, ends);
-
-            if (DataType.Value.Class == TDUClass.Invalid)
-                return -(int)DataType.Value.TotalLength;
-
-
-            offset += (uint)DataType.Value.TotalLength;
-
+            AuthMode = (EpAuthPacketAuthMode)(data[offset] >> 3 & 0x7);
+            EncryptionMode = (EpAuthPacketEncryptionMode)(data[offset++] & 0x7);
         }
         else if (Command == EpAuthPacketCommand.Acknowledge)
         {
-
-            LocalMethod = (AuthenticationMethod)(data[offset] >> 4 & 0x3);
-            RemoteMethod = (AuthenticationMethod)(data[offset] >> 2 & 0x3);
-
-            Acknowledgement = (EpAuthPacketAcknowledge)(data[offset++] & 0xFC); // remove last two reserved LSBs
-
-            if (NotEnough(offset, ends, 1))
-                return -dataLengthNeeded;
-
-            DataType = ParsedTDU.Parse(data, offset, ends);
-
-            if (DataType.Value.Class == TDUClass.Invalid)
-                return -(int)DataType.Value.TotalLength;
-
-
-            offset += (uint)DataType.Value.TotalLength;
+            // remove last two reserved LSBs
+            Acknowledgement = (EpAuthPacketAcknowledgement)(data[offset++]);// & 0xFC);
         }
         else if (Command == EpAuthPacketCommand.Action)
         {
-            Action = (EpAuthPacketAction)data[offset++]; // (EPAuthPacketAction)(data[offset++] & 0x3f);
-
-            if (Action == EpAuthPacketAction.AuthenticateHash
-                || Action == EpAuthPacketAction.AuthenticatePublicHash
-                || Action == EpAuthPacketAction.AuthenticatePrivateHash
-                || Action == EpAuthPacketAction.AuthenticatePublicPrivateHash)
-            {
-                if (NotEnough(offset, ends, 3))
-                    return -dataLengthNeeded;
-
-                HashAlgorithm = (EpAuthPacketHashAlgorithm)data[offset++];
-
-                var hashLength = data.GetUInt16(offset, Endian.Little);
-                offset += 2;
-
-
-                if (NotEnough(offset, ends, hashLength))
-                    return -dataLengthNeeded;
-
-                Challenge = data.Clip(offset, hashLength);
-                offset += hashLength;
-
-            }
-            else if (Action == EpAuthPacketAction.AuthenticatePrivateHashCert
-                || Action == EpAuthPacketAction.AuthenticatePublicPrivateHashCert)
-            {
-                if (NotEnough(offset, ends, 3))
-                    return -dataLengthNeeded;
-
-                HashAlgorithm = (EpAuthPacketHashAlgorithm)data[offset++];
-
-                var hashLength = data.GetUInt16(offset, Endian.Little);
-                offset += 2;
-
-
-                if (NotEnough(offset, ends, hashLength))
-                    return -dataLengthNeeded;
-
-                Challenge = data.Clip(offset, hashLength);
-                offset += hashLength;
-
-                if (NotEnough(offset, ends, 2))
-                    return -dataLengthNeeded;
-
-                var certLength = data.GetUInt16(offset, Endian.Little);
-                offset += 2;
-
-                if (NotEnough(offset, ends, certLength))
-                    return -dataLengthNeeded;
-
-                Certificate = data.Clip(offset, certLength);
-
-                offset += certLength;
-            }
-            else if (Action == EpAuthPacketAction.IAuthPlain)
-            {
-                if (NotEnough(offset, ends, 5))
-                    return -dataLengthNeeded;
-
-                Reference = data.GetUInt32(offset, Endian.Little);
-                offset += 4;
-
-                DataType = ParsedTDU.Parse(data, offset, ends);
-
-                if (DataType.Value.Class == TDUClass.Invalid)
-                    return -(int)DataType.Value.TotalLength;
-
-                offset += (uint)DataType.Value.TotalLength;
-
-            }
-            else if (Action == EpAuthPacketAction.IAuthHashed)
-            {
-                if (NotEnough(offset, ends, 7))
-                    return -dataLengthNeeded;
-
-                Reference = data.GetUInt32(offset, Endian.Little);
-                offset += 4;
-
-                HashAlgorithm = (EpAuthPacketHashAlgorithm)data[offset++];
-
-                var cl = data.GetUInt16(offset, Endian.Little);
-                offset += 2;
-
-                if (NotEnough(offset, ends, cl))
-                    return -dataLengthNeeded;
-
-                Challenge = data.Clip(offset, cl);
-
-                offset += cl;
-
-            }
-            else if (Action == EpAuthPacketAction.IAuthEncrypted)
-            {
-                if (NotEnough(offset, ends, 7))
-                    return -dataLengthNeeded;
-
-                Reference = data.GetUInt32(offset, Endian.Little);
-                offset += 4;
-
-                PublicKeyAlgorithm = (EpAuthPacketPublicKeyAlgorithm)data[offset++];
-
-                var cl = data.GetUInt16(offset, Endian.Little);
-                offset += 2;
-
-                if (NotEnough(offset, ends, cl))
-                    return -dataLengthNeeded;
-
-                Challenge = data.Clip(offset, cl);
-
-                offset += cl;
-
-            }
-            else if (Action == EpAuthPacketAction.EstablishNewSession)
-            {
-                // Nothing here
-            }
-            else if (Action == EpAuthPacketAction.EstablishResumeSession)
-            {
-                if (NotEnough(offset, ends, 1))
-                    return -dataLengthNeeded;
-
-                var sessionLength = data[offset++];
-
-                if (NotEnough(offset, ends, sessionLength))
-                    return -dataLengthNeeded;
-
-                SessionId = data.Clip(offset, sessionLength);
-
-                offset += sessionLength;
-            }
-
-            else if (Action == EpAuthPacketAction.EncryptKeyExchange)
-            {
-                if (NotEnough(offset, ends, 2))
-                    return -dataLengthNeeded;
-
-                var keyLength = data.GetUInt16(offset, Endian.Little);
-
-                offset += 2;
-
-                if (NotEnough(offset, ends, keyLength))
-                    return -dataLengthNeeded;
-
-                AsymetricEncryptionKey = data.Clip(offset, keyLength);
-
-                offset += keyLength;
-            }
-
-            else if (Action == EpAuthPacketAction.RegisterEndToEndKey
-                || Action == EpAuthPacketAction.RegisterHomomorphic)
-            {
-                if (NotEnough(offset, ends, 3))
-                    return -dataLengthNeeded;
-
-                PublicKeyAlgorithm = (EpAuthPacketPublicKeyAlgorithm)data[offset++];
-
-                var keyLength = data.GetUInt16(offset, Endian.Little);
-
-                offset += 2;
-
-                if (NotEnough(offset, ends, keyLength))
-                    return -dataLengthNeeded;
-
-                AsymetricEncryptionKey = data.Clip(offset, keyLength);
-
-                offset += keyLength;
-
-            }
+            // remove last two reserved LSBs
+            Action = (EpAuthPacketAction)(data[offset++]);// & 0xFC);
         }
         else if (Command == EpAuthPacketCommand.Event)
         {
-
-            Event = (EpAuthPacketEvent)data[offset++];
-
-            if (Event == EpAuthPacketEvent.ErrorTerminate
-                || Event == EpAuthPacketEvent.ErrorMustEncrypt
-                || Event == EpAuthPacketEvent.ErrorRetry)
-            {
-                if (NotEnough(offset, ends, 3))
-                    return -dataLengthNeeded;
-
-                ErrorCode = data[offset++];
-                var msgLength = data.GetUInt16(offset, Endian.Little);
-                offset += 2;
-
-                if (NotEnough(offset, ends, msgLength))
-                    return -dataLengthNeeded;
-
-
-                Message = data.GetString(offset, msgLength);
-
-                offset += msgLength;
-            }
-            else if (Event == EpAuthPacketEvent.IndicationEstablished)
-            {
-                if (NotEnough(offset, ends, 2))
-                    return -dataLengthNeeded;
-
-                var sessionLength = data[offset++];
-
-                if (NotEnough(offset, ends, sessionLength))
-                    return -dataLengthNeeded;
-
-                SessionId = data.Clip(offset, sessionLength);
-
-                offset += sessionLength;
-
-                if (NotEnough(offset, ends, 1))
-                    return -dataLengthNeeded;
-
-                var accountLength = data[offset++];
-
-                if (NotEnough(offset, ends, accountLength))
-                    return -dataLengthNeeded;
-
-                AccountId = data.Clip(offset, accountLength);
-
-                offset += accountLength;
-            }
-
-            else if (Event == EpAuthPacketEvent.IAuthPlain
-                || Event == EpAuthPacketEvent.IAuthHashed
-                || Event == EpAuthPacketEvent.IAuthEncrypted)
-            {
-                if (NotEnough(offset, ends, 1))
-                    return -dataLengthNeeded;
-
-                DataType = ParsedTDU.Parse(data, offset, ends);
-
-                if (DataType.Value.Class == TDUClass.Invalid)
-                    return -(int)DataType.Value.TotalLength;
-
-                offset += (uint)DataType.Value.TotalLength;
-
-            }
+            // remove last two reserved LSBs
+            Event = (EpAuthPacketEvent)(data[offset++]);// & 0xFC);
+        }
+        else
+        {
+            return -1; // invalid command
         }
 
+        if (hasTdu)
+        {
+            if (NotEnough(offset, ends, 1))
+                return -dataLengthNeeded;
+
+            Tdu = ParsedTdu.Parse(data, offset, ends);
+
+            if (Tdu.Value.Class == TduClass.Invalid)
+                return -(int)Tdu.Value.TotalLength;
+
+            offset += (uint)Tdu.Value.TotalLength;
+
+        }
 
         return offset - oOffset;
 

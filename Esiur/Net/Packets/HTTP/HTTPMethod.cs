@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Net.Packets.HTTP
+namespace Esiur.Net.Packets.Http
 {
-    public enum HTTPMethod : byte
+    public enum HttpMethod : byte
     {
         GET,
         POST,

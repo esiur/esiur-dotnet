@@ -40,11 +40,11 @@ namespace Esiur.Net.UDP;
     public EndPoint SenderPoint;
     public 
 }*/
-public class UDPServer : IResource
+public class UdpServer : IResource
 {
     Thread receiver;
     UdpClient udp;
-    UDPFilter[] filters = new UDPFilter[0];
+    UdpFilter[] filters = new UdpFilter[0];
 
     public event DestroyedEvent OnDestroy;
     
@@ -80,7 +80,7 @@ public class UDPServer : IResource
 
             foreach (var child in filters)
             {
-                var f = child as UDPFilter;
+                var f = child as UdpFilter;
 
                 try
                 {
@@ -195,7 +195,7 @@ public class UDPServer : IResource
         }
         else if (trigger == ResourceTrigger.SystemInitialized)
         {
-            filters = await Instance.Children<UDPFilter>();
+            filters = await Instance.Children<UdpFilter>();
         }
 
         return true;

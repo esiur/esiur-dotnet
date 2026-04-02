@@ -28,18 +28,18 @@ using System.Text;
 using Esiur.Misc;
 using Esiur.Data;
 
-namespace Esiur.Net.Packets.HTTP;
-public class HTTPResponsePacket : Packet
+namespace Esiur.Net.Packets.Http;
+public class HttpResponsePacket : Packet
 {
 
     public StringKeyList Headers { get; } = new StringKeyList(true);
     public string Version { get; set; } = "HTTP/1.1";
 
     public byte[] Message;
-    public HTTPResponseCode Number { get; set; } = HTTPResponseCode.OK;
+    public HttpResponseCode Number { get; set; } = HttpResponseCode.OK;
     public string Text;
 
-    public List<HTTPCookie> Cookies { get; } = new List<HTTPCookie>();
+    public List<HttpCookie> Cookies { get; } = new List<HttpCookie>();
     public bool Handled;
 
     public override string ToString()
@@ -51,11 +51,11 @@ public class HTTPResponsePacket : Packet
             + "\n\tMessage: " + (Message != null ? Message.Length.ToString() : "NULL");
     }
 
-    private string MakeHeader(HTTPComposeOption options)
+    private string MakeHeader(HttpComposeOption options)
     {
         string header = $"{Version} {(int)Number} {Text}\r\nServer: Esiur {Global.Version}\r\nDate: {DateTime.Now.ToUniversalTime().ToString("r")}\r\n";
 
-        if (options == HTTPComposeOption.AllCalculateLength)
+        if (options == HttpComposeOption.AllCalculateLength)
             Headers["Content-Length"] = Message?.Length.ToString() ?? "0";
 
         foreach (var kv in Headers)
@@ -75,16 +75,16 @@ public class HTTPResponsePacket : Packet
     }
 
 
-    public bool Compose(HTTPComposeOption options)
+    public bool Compose(HttpComposeOption options)
     {
         List<byte> msg = new List<byte>();
 
-        if (options != HTTPComposeOption.DataOnly)
+        if (options != HttpComposeOption.DataOnly)
         {
             msg.AddRange(Encoding.UTF8.GetBytes(MakeHeader(options)));
         }
 
-        if (options != HTTPComposeOption.SpecifiedHeadersOnly)
+        if (options != HttpComposeOption.SpecifiedHeadersOnly)
         {
             if (Message != null)
                 msg.AddRange(Message);
@@ -97,7 +97,7 @@ public class HTTPResponsePacket : Packet
 
     public override bool Compose()
     {
-        return Compose(HTTPComposeOption.AllDontCalculateLength);
+        return Compose(HttpComposeOption.AllDontCalculateLength);
     }
 
     public override long Parse(byte[] data, uint offset, uint ends)
@@ -129,7 +129,7 @@ public class HTTPResponsePacket : Packet
         if (sMethod.Length == 3)
         {
             Version = sMethod[0].Trim();
-            Number = (HTTPResponseCode)Convert.ToInt32(sMethod[1].Trim());
+            Number = (HttpResponseCode)Convert.ToInt32(sMethod[1].Trim());
             Text = sMethod[2];
         }
 
@@ -163,7 +163,7 @@ public class HTTPResponsePacket : Packet
                 if (cookie.Length >= 1)
                 {
                     string[] splitCookie = cookie[0].Split('=');
-                    HTTPCookie c = new HTTPCookie(splitCookie[0], splitCookie[1]);
+                    HttpCookie c = new HttpCookie(splitCookie[0], splitCookie[1]);
 
                     for (int j = 1; j < cookie.Length; j++)
                     {

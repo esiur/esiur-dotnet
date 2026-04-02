@@ -59,12 +59,12 @@ public class Warehouse
     uint resourceCounter = 0;
 
 
-    KeyList<TypeDefKind, KeyList<UUID, TypeDef>> typeDefs
-        = new KeyList<TypeDefKind, KeyList<UUID, TypeDef>>()
+    KeyList<TypeDefKind, KeyList<Uuid, TypeDef>> typeDefs
+        = new KeyList<TypeDefKind, KeyList<Uuid, TypeDef>>()
         {
-            [TypeDefKind.Resource] = new KeyList<UUID, TypeDef>(),
-            [TypeDefKind.Record] = new KeyList<UUID, TypeDef>(),
-            [TypeDefKind.Enum] = new KeyList<UUID, TypeDef>(),
+            [TypeDefKind.Resource] = new KeyList<Uuid, TypeDef>(),
+            [TypeDefKind.Record] = new KeyList<Uuid, TypeDef>(),
+            [TypeDefKind.Enum] = new KeyList<Uuid, TypeDef>(),
         };
 
     bool warehouseIsOpen = false;
@@ -557,7 +557,7 @@ public class Warehouse
     /// </summary>
     /// <param name="typeId">typeId.</param>
     /// <returns>TypeDef.</returns>
-    public TypeDef GetTypeDefById(UUID typeId, TypeDefKind? typeDefKind = null)
+    public TypeDef GetTypeDefById(Uuid typeId, TypeDefKind? typeDefKind = null)
     {
         if (typeDefKind == null)
         {

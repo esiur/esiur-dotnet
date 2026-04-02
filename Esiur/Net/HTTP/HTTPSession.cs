@@ -35,11 +35,11 @@ using Esiur.Data;
 using Esiur.Misc;
 using Esiur.Core;
 
-namespace Esiur.Net.HTTP;
-public class HTTPSession : IDestructible //<T> where T : TClient
+namespace Esiur.Net.Http;
+public class HttpSession : IDestructible //<T> where T : TClient
 {
-    public delegate void SessionModifiedEvent(HTTPSession session, string key, object oldValue, object newValue);
-    public delegate void SessionEndedEvent(HTTPSession session);
+    public delegate void SessionModifiedEvent(HttpSession session, string key, object oldValue, object newValue);
+    public delegate void SessionEndedEvent(HttpSession session);
 
     private string id;
     private Timer timer;
@@ -58,7 +58,7 @@ public class HTTPSession : IDestructible //<T> where T : TClient
         get { return variables; }
     }
 
-    public HTTPSession()
+    public HttpSession()
     {
         variables = new KeyList<string, object>();
         variables.OnModified += new KeyList<string, object>.Modified(VariablesModified);

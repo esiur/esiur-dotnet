@@ -30,12 +30,10 @@ using System.Threading.Tasks;
 
 namespace Esiur.Security.Authority;
 
-public enum CertificateType
+public enum AuthenticationMode:byte
 {
-    CAPublic = 0,
-    CAPrivate,
-    DomainPublic,
-    DomainPrivate,
-    UserPublic,
-    UserPrivate
+    None = 0x0,
+    InitializerIdentity = 0x1,
+    ResponderIdentity = 0x2,
+    DualIdentity = 0x3,
 }

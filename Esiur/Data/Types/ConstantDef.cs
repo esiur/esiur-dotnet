@@ -13,7 +13,7 @@ public class ConstantDef : MemberDef
     public object Value { get; set; }
 
     public Map<string, string> Annotations { get; set; }
-    public TRU ValueType { get; set; }
+    public Tru ValueType { get; set; }
 
     public FieldInfo FieldInfo { get; set; }
 
@@ -27,7 +27,7 @@ public class ConstantDef : MemberDef
         var name = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        var (dts, valueType) = TRU.Parse(data, offset);
+        var (dts, valueType) = Tru.Parse(data, offset);
 
         offset += dts;
 
@@ -100,7 +100,7 @@ public class ConstantDef : MemberDef
     {
         var annotationAttrs = ci.GetCustomAttributes<AnnotationAttribute>(true);
 
-        var valueType = TRU.FromType(ci.FieldType);
+        var valueType = Tru.FromType(ci.FieldType);
 
         if (valueType == null)
             throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");

@@ -24,7 +24,7 @@ SOFTWARE.
 
 using Esiur.Data;
 using Esiur.Core;
-using Esiur.Net.HTTP;
+using Esiur.Net.Http;
 using Esiur.Net.Sockets;
 using Esiur.Resource;
 using Esiur.Security.Permissions;
@@ -148,7 +148,7 @@ class Program
         var server = await wh.Put("sys/server", new EpServer() { Membership = membership });
 
 
-        var web = await wh.Put("sys/web", new HTTPServer() { Port = 8088 });
+        var web = await wh.Put("sys/web", new HttpServer() { Port = 8088 });
 
         var service = await wh.Put("sys/service", new MyService());
         var res1 = await wh.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
@@ -177,7 +177,7 @@ class Program
         //    sender.Send("Not found");
         //});
 
-        web.MapGet("/", (HTTPConnection sender) =>
+        web.MapGet("/", (HttpConnection sender) =>
         {
             sender.Send("Hello");
         });

@@ -32,7 +32,7 @@ namespace Esiur.Security.Authority;
 
 public class Authentication
 {
-    AuthenticationType type;
+    AuthenticationMode type;
 
     public AuthenticationMethod Method { get; set; }
 
@@ -52,12 +52,12 @@ public class Authentication
         set;
     }
 
-    public AuthenticationType Type
+    public AuthenticationMode Type
     {
         get => type;
     }
 
-    public Authentication(AuthenticationType type)
+    public Authentication(AuthenticationMode type)
     {
         this.type = type;
     }

@@ -140,28 +140,28 @@ public static class TypeDefGenerator
     }
 
 
-    static string GetTypeName(TRU tru, TypeDef[] typeDefs)
+    static string GetTypeName(Tru tru, TypeDef[] typeDefs)
     {
         string name;
 
-        if (tru.Identifier == TRUIdentifier.TypedResource)// == DataType.Resource)
+        if (tru.Identifier == TruIdentifier.TypedResource)// == DataType.Resource)
             name = typeDefs.First(x => x.Id == tru.UUID && (x.Kind == TypeDefKind.Resource)).Name;
-        else if (tru.Identifier == TRUIdentifier.TypedRecord)
+        else if (tru.Identifier == TruIdentifier.TypedRecord)
             name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Record).Name;
-        else if (tru.Identifier == TRUIdentifier.Enum)
+        else if (tru.Identifier == TruIdentifier.Enum)
             name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Enum).Name;
-        else if (tru.Identifier == TRUIdentifier.TypedList)
+        else if (tru.Identifier == TruIdentifier.TypedList)
             name = GetTypeName(tru.SubTypes[0], typeDefs) + "[]";
-        else if (tru.Identifier == TRUIdentifier.TypedMap)
+        else if (tru.Identifier == TruIdentifier.TypedMap)
             name = "Map<" + GetTypeName(tru.SubTypes[0], typeDefs)
                     + "," + GetTypeName(tru.SubTypes[1], typeDefs)
                     + ">";
-        else if (tru.Identifier == TRUIdentifier.Tuple2 ||
-                 tru.Identifier == TRUIdentifier.Tuple3 ||
-                 tru.Identifier == TRUIdentifier.Tuple4 ||
-                 tru.Identifier == TRUIdentifier.Tuple5 ||
-                 tru.Identifier == TRUIdentifier.Tuple6 ||
-                 tru.Identifier == TRUIdentifier.Tuple7)
+        else if (tru.Identifier == TruIdentifier.Tuple2 ||
+                 tru.Identifier == TruIdentifier.Tuple3 ||
+                 tru.Identifier == TruIdentifier.Tuple4 ||
+                 tru.Identifier == TruIdentifier.Tuple5 ||
+                 tru.Identifier == TruIdentifier.Tuple6 ||
+                 tru.Identifier == TruIdentifier.Tuple7)
             name = "(" + String.Join(",", tru.SubTypes.Select(x => GetTypeName(x, typeDefs)))
                     + ")";
         else
@@ -169,26 +169,26 @@ public static class TypeDefGenerator
 
             name = tru.Identifier switch
             {
-                TRUIdentifier.Dynamic => "object",
-                TRUIdentifier.Bool => "bool",
-                TRUIdentifier.Char => "char",
-                TRUIdentifier.DateTime => "DateTime",
-                TRUIdentifier.Decimal => "decimal",
-                TRUIdentifier.Float32 => "float",
-                TRUIdentifier.Float64 => "double",
-                TRUIdentifier.Int16 => "short",
-                TRUIdentifier.Int32 => "int",
-                TRUIdentifier.Int64 => "long",
-                TRUIdentifier.Int8 => "sbyte",
-                TRUIdentifier.String => "string",
-                TRUIdentifier.Map => "Map<object, object>",
-                TRUIdentifier.UInt16 => "ushort",
-                TRUIdentifier.UInt32 => "uint",
-                TRUIdentifier.UInt64 => "ulong",
-                TRUIdentifier.UInt8 => "byte",
-                TRUIdentifier.List => "object[]",
-                TRUIdentifier.Resource => "IResource",
-                TRUIdentifier.Record => "IRecord",
+                TruIdentifier.Dynamic => "object",
+                TruIdentifier.Bool => "bool",
+                TruIdentifier.Char => "char",
+                TruIdentifier.DateTime => "DateTime",
+                TruIdentifier.Decimal => "decimal",
+                TruIdentifier.Float32 => "float",
+                TruIdentifier.Float64 => "double",
+                TruIdentifier.Int16 => "short",
+                TruIdentifier.Int32 => "int",
+                TruIdentifier.Int64 => "long",
+                TruIdentifier.Int8 => "sbyte",
+                TruIdentifier.String => "string",
+                TruIdentifier.Map => "Map<object, object>",
+                TruIdentifier.UInt16 => "ushort",
+                TruIdentifier.UInt32 => "uint",
+                TruIdentifier.UInt64 => "ulong",
+                TruIdentifier.UInt8 => "byte",
+                TruIdentifier.List => "object[]",
+                TruIdentifier.Resource => "IResource",
+                TruIdentifier.Record => "IRecord",
                 _ => "object"
             };
         }

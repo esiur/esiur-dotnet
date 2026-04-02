@@ -7,7 +7,12 @@ namespace Esiur.Security.Authority;
 public enum AuthenticationMethod : byte
 {
     None,
-    Credentials,
-    Token,
-    Certificate
+    PpapCredentialsAnonymous,
+    PpapCredentialsCredentials,
+    PpapCredentialsHec,
+    PpapHecAnonymous,
+    PpapHecCredentials,
+    PpapHecHec,
+    HashAnonymous,
+
 }

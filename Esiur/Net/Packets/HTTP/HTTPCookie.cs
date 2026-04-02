@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Net.Packets.HTTP
+namespace Esiur.Net.Packets.Http
 {
-    public struct HTTPCookie
+    public struct HttpCookie
     {
         public string Name;
         public string Value;
@@ -13,7 +13,7 @@ namespace Esiur.Net.Packets.HTTP
         public bool HttpOnly;
         public string Domain;
 
-        public HTTPCookie(string name, string value)
+        public HttpCookie(string name, string value)
         {
             Name = name;
             Value = value;
@@ -23,7 +23,7 @@ namespace Esiur.Net.Packets.HTTP
             Domain = null;
         }
 
-        public HTTPCookie(string name, string value, DateTime expires)
+        public HttpCookie(string name, string value, DateTime expires)
         {
             Name = name;
             Value = value;

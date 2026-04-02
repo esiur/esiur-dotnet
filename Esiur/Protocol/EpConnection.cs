@@ -27,12 +27,13 @@ using Esiur.Data;
 using Esiur.Data.Types;
 using Esiur.Misc;
 using Esiur.Net;
-using Esiur.Net.HTTP;
+using Esiur.Net.Http;
 using Esiur.Net.Packets;
-using Esiur.Net.Packets.HTTP;
+using Esiur.Net.Packets.Http;
 using Esiur.Net.Sockets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Cryptography;
 using Esiur.Security.Membership;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
@@ -41,11 +42,13 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
+using static System.Collections.Specialized.BitVector32;
 
 namespace Esiur.Protocol;
 
@@ -53,9 +56,9 @@ public partial class EpConnection : NetworkConnection, IStore
 {
 
 
-    public delegate void ProtocolGeneralHandler(EpConnection connection, ParsedTDU dataType, byte[] data);
+    public delegate void ProtocolGeneralHandler(EpConnection connection, ParsedTdu dataType, byte[] data);
 
-    public delegate void ProtocolRequestReplyHandler(EpConnection connection, uint callbackId, ParsedTDU dataType, byte[] data);
+    public delegate void ProtocolRequestReplyHandler(EpConnection connection, uint callbackId, ParsedTdu dataType, byte[] data);
 
     // Delegates
     public delegate void ReadyEvent(EpConnection sender);
@@ -96,13 +99,15 @@ public partial class EpConnection : NetworkConnection, IStore
 
     AsyncReply<bool> openReply;
 
-    byte[] localPasswordOrToken;
-    bool ready, readyToEstablish;
+
+    //byte[] localPasswordOrToken;
+    bool authenticated, readyToEstablish;
 
     string _hostname;
     ushort _port;
 
     bool initialPacket = true;
+    bool isInitiator = false;
 
 
     // Properties
@@ -135,8 +140,8 @@ public partial class EpConnection : NetworkConnection, IStore
     public ExceptionLevel ExceptionLevel { get; set; }
                 = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
-    [Attribute]
-    public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
+    //[Attribute]
+    //public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
 
 
     [Attribute]
@@ -145,8 +150,8 @@ public partial class EpConnection : NetworkConnection, IStore
     [Attribute]
     public uint ReconnectInterval { get; set; } = 5;
 
-    [Attribute]
-    public string Username { get; set; }
+    //[Attribute]
+    //public string Username { get; set; }
 
     [Attribute]
     public bool UseWebSocket { get; set; }
@@ -154,14 +159,14 @@ public partial class EpConnection : NetworkConnection, IStore
     [Attribute]
     public bool SecureWebSocket { get; set; }
 
-    [Attribute]
-    public string Password { get; set; }
+    //[Attribute]
+    //public string Password { get; set; }
 
-    [Attribute]
-    public string Token { get; set; }
+    //[Attribute]
+    //public string Token { get; set; }
 
-    [Attribute]
-    public ulong TokenIndex { get; set; }
+    //[Attribute]
+    //public ulong TokenIndex { get; set; }
 
     [Attribute]
     public string Domain { get; set; }
@@ -218,10 +223,11 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         base.Assign(socket);
 
-        session.LocalHeaders[EpAuthPacketHeader.IPAddress] = socket.RemoteEndPoint.Address.GetAddressBytes();
+        session.LocalHeaders[EpAuthPacketHeader.IPAddress] 
+                                = socket.RemoteEndPoint.Address.GetAddressBytes();
 
         if (socket.State == SocketState.Established &&
-            session.AuthenticationType == AuthenticationType.Client)
+            isInitiator)
         {
             Declare();
         }
@@ -229,56 +235,40 @@ public partial class EpConnection : NetworkConnection, IStore
 
     private void Declare()
     {
+        //if (session.KeyExchanger != null)
+        //{
+        //    // create key
+        //    var key = session.KeyExchanger.GetPublicKey();
+        //    session.LocalHeaders[EpAuthPacketHeader.CipherKey] = key;
+        //}
 
-        if (session.KeyExchanger != null)
+
+        if (!isInitiator)
+            return;
+
+        if (session.AuthenticationMode != AuthenticationMode.None)
         {
-            // create key
-            var key = session.KeyExchanger.GetPublicKey();
-            session.LocalHeaders[EpAuthPacketHeader.CipherKey] = key;
+            if (session.AuthenticationHandler == null)
+                throw new Exception("Authentication handler must be assigned for the session.");
+            
+            var initAuthData = session.AuthenticationHandler.Initialize(session);
+
+            session.LocalHeaders.Add(EpAuthPacketHeader.AuthenticationData, initAuthData);
         }
 
-
-        if (session.LocalMethod == AuthenticationMethod.Credentials
-            && session.RemoteMethod == AuthenticationMethod.None)
+        if (session.EncryptionMode != EncryptionMode.None)
         {
-            // change to Map<byte, object> for compatibility
-            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
-
-            // declare (Credentials -> No Auth, No Enctypt)
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketInitialize.CredentialsNoAuth)
-                .AddUInt8Array(headers)
-                .Done();
-
-        }
-        else if (session.LocalMethod == AuthenticationMethod.Token
-            && session.RemoteMethod == AuthenticationMethod.None)
-        {
-            // change to Map<byte, object> for compatibility
-            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
-
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketInitialize.TokenNoAuth)
-                .AddUInt8Array(headers)
-                .Done();
-        }
-        else if (session.LocalMethod == AuthenticationMethod.None
-            && session.RemoteMethod == AuthenticationMethod.None)
-        {
-            // change to Map<byte, object> for compatibility
-            var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
-
-            // @REVIEW: MITM Attack can still occur
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketInitialize.NoAuthNoAuth)
-                .AddUInt8Array(headers)
-                .Done();
-        }
-        else
-        {
-            throw new NotImplementedException("Authentication method is not implemented.");
+            // get the handler
         }
 
+        // change to Map<byte, object> for compatibility
+        var headers = Codec.Compose(session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value)), this.Instance.Warehouse, this);
+
+        SendParams()
+            .AddUInt8((byte)(0x20 | ((byte)session.AuthenticationMode << 2)
+            | (byte)session.EncryptionMode))
+            .AddUInt8Array(headers)
+            .Done();
     }
 
     /// <summary>
@@ -288,50 +278,52 @@ public partial class EpConnection : NetworkConnection, IStore
     /// <param name="domain">Working domain.</param>
     /// <param name="username">Username.</param>
     /// <param name="password">Password.</param>
-    public EpConnection(ISocket socket, string domain, string username, string password)
+    public EpConnection(ISocket socket, IAuthenticationHandler authenticationInitiator, Map<EpAuthPacketHeader, object> headers)
     {
         this.session = new Session();
 
-        session.AuthenticationType = AuthenticationType.Client;
-        session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
-        session.LocalHeaders[EpAuthPacketHeader.Username] = username;
-        session.LocalMethod = AuthenticationMethod.Credentials;
-        session.RemoteMethod = AuthenticationMethod.None;
+        //if (authenticationHandler.Type != AuthenticationType.Initiator)
+        //    throw new Exception(""
+        session.AuthenticationType = AuthenticationMode.Initiator;
+        session.LocalHeaders = headers;
+        session.AuthenticationInitiator = authenticationInitiator;
 
 
-        this.localPasswordOrToken = DC.ToBytes(password);
+        //this.localPasswordOrToken = DC.ToBytes(password);
 
         init();
 
         Assign(socket);
     }
 
-    public EpConnection(ISocket socket, string domain, ulong tokenIndex, string token)
-    {
-        this.session = new Session();
+    //public EpConnection(ISocket socket, string domain, ulong tokenIndex, string token)
+    //{
+    //    this.session = new Session();
 
 
-        session.AuthenticationType = AuthenticationType.Client;
-        session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
-        session.LocalHeaders[EpAuthPacketHeader.TokenIndex] = tokenIndex;
-        session.LocalMethod = AuthenticationMethod.Credentials;
-        session.RemoteMethod = AuthenticationMethod.None;
-        this.localPasswordOrToken = DC.ToBytes(token);
+    //    session.AuthenticationType = AuthenticationType.Client;
+    //    session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
+    //    session.LocalHeaders[EpAuthPacketHeader.TokenIndex] = tokenIndex;
+    //    session.LocalMethod = AuthenticationMethod.Credentials;
+    //    session.RemoteMethod = AuthenticationMethod.None;
+    //    this.localPasswordOrToken = DC.ToBytes(token);
 
-        init();
+    //    init();
 
-        Assign(socket);
-    }
+    //    Assign(socket);
+    //}
 
 
     /// <summary>
     /// Create a new instance of a distributed connection
     /// </summary>
-    public EpConnection()
+    public EpConnection(IAuthenticationHandler authenticationResponder)
     {
         session = new Session();
-        session.AuthenticationType = AuthenticationType.Host;
-        session.LocalMethod = AuthenticationMethod.None;
+        session.AuthenticationType = AuthenticationMode.Responder;
+        session.AuthenticationResponder = authenticationResponder;
+
+        authenticationResponder.Initiate(session);
         init();
     }
 
@@ -350,7 +342,7 @@ public partial class EpConnection : NetworkConnection, IStore
     }
 
 
-    public List<AsyncQueueItem<EpResourceQueueItem>> GetFinishedQueue() 
+    public List<AsyncQueueItem<EpResourceQueueItem>> GetFinishedQueue()
     {
         var l = queue.Processed.ToArray().ToList();
         queue.Processed.Clear();
@@ -374,7 +366,7 @@ public partial class EpConnection : NetworkConnection, IStore
         });
 
         // set local nonce
-        session.LocalHeaders[EpAuthPacketHeader.Nonce] = Global.GenerateBytes(32);
+        //session.LocalHeaders[EpAuthPacketHeader.Nonce] = Global.GenerateBytes(32);
 
         keepAliveTimer = new System.Timers.Timer(KeepAliveInterval * 1000);
         keepAliveTimer.Elapsed += KeepAliveTimer_Elapsed; ;
@@ -398,7 +390,7 @@ public partial class EpConnection : NetworkConnection, IStore
         SendRequest(EpPacketRequest.KeepAlive, now, interval)
                 .Then(x =>
                 {
-                    Jitter =Convert.ToUInt32(((object[])x)[1]);
+                    Jitter = Convert.ToUInt32(((object[])x)[1]);
                     keepAliveTimer.Start();
                 }).Error(ex =>
                 {
@@ -425,7 +417,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
     private uint processPacket(byte[] msg, uint offset, uint ends, NetworkBuffer data, int chunkId)
     {
-        if (ready)
+        if (authenticated)
         {
             var rt = packet.Parse(msg, offset, ends);
 
@@ -440,7 +432,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
                 offset += (uint)rt;
 
-                if (packet.DataType == null)
+                if (packet.Tdu == null)
                     return offset;
 
                 //Console.WriteLine("Incoming: " +  packet + " " + packet.CallbackId);
@@ -448,7 +440,7 @@ public partial class EpConnection : NetworkConnection, IStore
                 if (packet.Method == EpPacketMethod.Notification)
                 {
 
-                    var dt = packet.DataType.Value;
+                    var dt = packet.Tdu.Value;
 
                     switch (packet.Notification)
                     {
@@ -476,7 +468,7 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
                 else if (packet.Method == EpPacketMethod.Request)
                 {
-                    var dt = packet.DataType.Value;
+                    var dt = packet.Tdu.Value;
 
                     switch (packet.Request)
                     {
@@ -548,7 +540,7 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
                 else if (packet.Method == EpPacketMethod.Reply)
                 {
-                    var dt = packet.DataType.Value;
+                    var dt = packet.Tdu.Value;
 
                     switch (packet.Reply)
                     {
@@ -581,15 +573,13 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
                 else if (packet.Method == EpPacketMethod.Extension)
                 {
-                    EpExtensionAction(packet.Extension, packet.DataType, msg);
+                    EpExtensionAction(packet.Extension, packet.Tdu, msg);
                 }
             }
         }
         else
         {
-
             // check if the request through Websockets
-
             if (initialPacket)
             {
                 initialPacket = false;
@@ -597,22 +587,22 @@ public partial class EpConnection : NetworkConnection, IStore
                 if (msg.Length > 3 && Encoding.Default.GetString(msg, 0, 3) == "GET")
                 {
                     // Parse with http packet
-                    var req = new HTTPRequestPacket();
+                    var req = new HttpRequestPacket();
                     var pSize = req.Parse(msg, 0, (uint)msg.Length);
                     if (pSize > 0)
                     {
                         // check for WS upgrade
 
-                        if (HTTPConnection.IsWebsocketRequest(req))
+                        if (HttpConnection.IsWebsocketRequest(req))
                         {
 
                             Socket?.Unhold();
 
-                            var res = new HTTPResponsePacket();
+                            var res = new HttpResponsePacket();
 
-                            HTTPConnection.Upgrade(req, res);
+                            HttpConnection.Upgrade(req, res);
 
-                            res.Compose(HTTPComposeOption.AllCalculateLength);
+                            res.Compose(HttpComposeOption.AllCalculateLength);
                             Send(res.Data);
                             // replace my socket with websockets
                             var tcpSocket = this.Unassign();
@@ -622,9 +612,9 @@ public partial class EpConnection : NetworkConnection, IStore
                         else
                         {
 
-                            var res = new HTTPResponsePacket();
-                            res.Number = HTTPResponseCode.BadRequest;
-                            res.Compose(HTTPComposeOption.AllCalculateLength);
+                            var res = new HttpResponsePacket();
+                            res.Number = HttpResponseCode.BadRequest;
+                            res.Compose(HttpComposeOption.AllCalculateLength);
                             Send(res.Data);
                             //@TODO: kill the connection
                         }
@@ -651,712 +641,787 @@ public partial class EpConnection : NetworkConnection, IStore
             {
                 offset += (uint)rt;
 
-                if (session.AuthenticationType == AuthenticationType.Host)
+                if (session.AuthenticationMethod == AuthenticationMethod.None)
                 {
-                    ProcessHostAuth(msg);
+                    // establish session without authentication
                 }
-                else if (session.AuthenticationType == AuthenticationType.Client)
+
+                if (session.AuthenticationHandler == null)
                 {
-                    ProcessClientAuth(msg);
+                    throw new Exception("No authentication handler assigned for the session.");
                 }
+
+                try
+                {
+                    var result = session.AuthenticationHandler.Process(authPacket);
+                    if (result.Ruling == AuthenticationRuling.Succeeded)
+                    {
+                        if (this.Instance == null)
+                        {
+                            Server.Instance.Warehouse.Put(
+                                Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
+                                .Then(x =>
+                                {
+                                    session.AuthorizedIdentity = result.Identity;
+
+                                    authenticated = true;
+                                    Status = EpConnectionStatus.Connected;
+                                    openReply?.Trigger(true);
+                                    openReply = null;
+                                    OnReady?.Invoke(this);
+
+                                    Server?.Membership?.Login(session);
+                                    LoginDate = DateTime.Now;
+
+                                }).Error(x =>
+                                {
+                                    openReply?.TriggerError(x);
+                                    openReply = null;
+                                });
+                        }
+                        else
+                        {
+                            session.AuthorizedIdentity = result.Identity;
+                            authenticated = true;
+                            Status = EpConnectionStatus.Connected;
+                            openReply?.Trigger(true);
+                            openReply = null;
+                            OnReady?.Invoke(this);
+                            Server?.Membership?.Login(session);
+                        }
+                    }
+                    else if (result.Ruling == AuthenticationRuling.InProgress)
+                    {
+                        SendParams()
+                         .AddUInt8((byte)EpAuthPacketCommand.Acknowledge)
+                         .AddUInt8Array(Codec.Compose(
+                                         result.HandshakePayload
+                                        , this.Instance.Warehouse, this))
+                         .Done();
+
+                    }
+                    else if (result.Ruling == AuthenticationRuling.Failed)
+                    {
+                        // Send the server side error
+                        SendParams()
+                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+                            .AddUInt8Array(Codec.Compose(
+                                new object[] {(ushort)result.ExceptionCode,
+                                        result.ExceptionMessage }
+                                , this.Instance.Warehouse, this))
+                            .Done();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Send the server side error
+                    SendParams()
+                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+                        .AddUInt8Array(Codec.Compose(
+                            new object[] { (ushort)ExceptionCode.GeneralFailure,
+                                    ex.Message }
+                        , this.Instance.Warehouse, this))
+                        .Done();
+                }
+
             }
         }
 
         return offset;
     }
 
-    private void ProcessClientAuth(byte[] data)
-    {
-        if (authPacket.Command == EpAuthPacketCommand.Acknowledge)
-        {
-            // if there is a mismatch in authentication
-            if (session.LocalMethod != authPacket.RemoteMethod
-                || session.RemoteMethod != authPacket.LocalMethod)
-            {
-                openReply?.TriggerError(new Exception("Peer refused authentication method."));
-                openReply = null;
-            }
-
-            // Parse remote headers
-
-            var dataType = authPacket.DataType.Value;
-
-            var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
-
-            var rt = (Map<byte, object>)parsed;
-
-            session.RemoteHeaders = rt.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
-
-            if (session.LocalMethod == AuthenticationMethod.None)
-            {
-                // send establish
-                SendParams()
-                            .AddUInt8((byte)EpAuthPacketAction.EstablishNewSession)
-                            .Done();
-            }
-            else if (session.LocalMethod == AuthenticationMethod.Credentials
-                    || session.LocalMethod == AuthenticationMethod.Token)
-            {
-                var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
-                var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
-
-                // send our hash
-                var hashFunc = SHA256.Create();
-                // local nonce + password or token + remote nonce
-                var challenge = hashFunc.ComputeHash(new BinaryList()
-                                                    .AddUInt8Array(localNonce)
-                                                    .AddUInt8Array(localPasswordOrToken)
-                                                    .AddUInt8Array(remoteNonce)
-                                                    .ToArray());
-
-                SendParams()
-                    .AddUInt8((byte)EpAuthPacketAction.AuthenticateHash)
-                    .AddUInt8((byte)EpAuthPacketHashAlgorithm.SHA256)
-                    .AddUInt16((ushort)challenge.Length)
-                    .AddUInt8Array(challenge)
-                    .Done();
-            }
-
-        }
-        else if (authPacket.Command == EpAuthPacketCommand.Action)
-        {
-            if (authPacket.Action == EpAuthPacketAction.AuthenticateHash)
-            {
-                var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
-                var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
-
-                // check if the server knows my password
-                var hashFunc = SHA256.Create();
-
-                var challenge = hashFunc.ComputeHash(new BinaryList()
-                                                        .AddUInt8Array(remoteNonce)
-                                                        .AddUInt8Array(localPasswordOrToken)
-                                                        .AddUInt8Array(localNonce)
-                                                        .ToArray());
-
-
-                if (challenge.SequenceEqual(authPacket.Challenge))
-                {
-                    // send establish request
-                    SendParams()
-                                .AddUInt8((byte)EpAuthPacketAction.EstablishNewSession)
-                                .Done();
-                }
-                else
-                {
-                    SendParams()
-                                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                .AddUInt8((byte)ExceptionCode.ChallengeFailed)
-                                .AddUInt16(16)
-                                .AddString("Challenge Failed")
-                                .Done();
-
-                }
-            }
-        }
-        else if (authPacket.Command == EpAuthPacketCommand.Event)
-        {
-            if (authPacket.Event == EpAuthPacketEvent.ErrorTerminate
-                || authPacket.Event == EpAuthPacketEvent.ErrorMustEncrypt
-                || authPacket.Event == EpAuthPacketEvent.ErrorRetry)
-            {
-                invalidCredentials = true;
-                openReply?.TriggerError(new AsyncException(ErrorType.Management, authPacket.ErrorCode, authPacket.Message));
-                openReply = null;
-                OnError?.Invoke(this, authPacket.ErrorCode, authPacket.Message);
-                Close();
-            }
-            else if (authPacket.Event == EpAuthPacketEvent.IndicationEstablished)
-            {
-                session.Id = authPacket.SessionId;
-                session.AuthorizedAccount = authPacket.AccountId.GetString(0, (uint)authPacket.AccountId.Length);
-
-                ready = true;
-                Status = EpConnectionStatus.Connected;
-
-
-                // put it in the warehouse
-
-                if (this.Instance == null)
-                {
-                    Server.Instance.Warehouse.Put(Server + "/" + session.AuthorizedAccount.Replace("/", "_"), this)
-                        .Then(x =>
-                    {
-                        openReply?.Trigger(true);
-                        OnReady?.Invoke(this);
-                        openReply = null;
-
-
-                    }).Error(x =>
-                    {
-                        openReply?.TriggerError(x);
-                        openReply = null;
-                    });
-                }
-                else
-                {
-                    openReply?.Trigger(true);
-                    openReply = null;
-
-                    OnReady?.Invoke(this);
-                }
-
-                // start perodic keep alive timer
-                keepAliveTimer.Start();
-
-            }
-            else if (authPacket.Event == EpAuthPacketEvent.IAuthPlain)
-            {
-                var dataType = authPacket.DataType.Value;
-                var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
-                var rt = (Map<byte, object>)parsed;
-
-                var headers = rt.Select(x => new KeyValuePair<EpAuthPacketIAuthHeader, object>((EpAuthPacketIAuthHeader)x.Key, x.Value));
-                var iAuthRequest = new AuthorizationRequest(headers);
-
-                if (Authenticator == null)
-                {
-                    SendParams()
-                     .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                     .AddUInt8((byte)ExceptionCode.NotSupported)
-                     .AddUInt16(13)
-                     .AddString("Not supported")
-                     .Done();
-                }
-                else
-                {
-                    Authenticator(iAuthRequest).Then(response =>
-                    {
-                        SendParams()
-                            .AddUInt8((byte)EpAuthPacketAction.IAuthPlain)
-                            .AddUInt32((uint)headers[EpAuthPacketIAuthHeader.Reference])
-                            .AddUInt8Array(Codec.Compose(response, this.Instance.Warehouse, this))
-                            .Done();
-                    })
-                    .Timeout(iAuthRequest.Timeout * 1000,
-                        () =>
-                        {
-                            SendParams()
-                                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                .AddUInt8((byte)ExceptionCode.Timeout)
-                                .AddUInt16(7)
-                                .AddString("Timeout")
-                                .Done();
-                        });
-                }
-            }
-            else if (authPacket.Event == EpAuthPacketEvent.IAuthHashed)
-            {
-                var dataType = authPacket.DataType.Value;
-                var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
-                var rt = (Map<byte, object>)parsed;
-
-
-                var headers = rt.Select(x => new KeyValuePair<EpAuthPacketIAuthHeader, object>((EpAuthPacketIAuthHeader)x.Key, x.Value));
-                var iAuthRequest = new AuthorizationRequest(headers);
-
-                if (Authenticator == null)
-                {
-                    SendParams()
-                     .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                     .AddUInt8((byte)ExceptionCode.NotSupported)
-                     .AddUInt16(13)
-                     .AddString("Not supported")
-                     .Done();
-                }
-                else
-                {
-
-                    Authenticator(iAuthRequest).Then(response =>
-                    {
-                        var sha = SHA256.Create();
-                        var hash = sha.ComputeHash(new BinaryList()
-                            .AddUInt8Array((byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce])
-                            .AddUInt8Array(Codec.Compose(response, this.Instance.Warehouse, this))
-                            .AddUInt8Array((byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce])
-                            .ToArray());
-
-                        SendParams()
-                            .AddUInt8((byte)EpAuthPacketAction.IAuthHashed)
-                            .AddUInt32((uint)headers[EpAuthPacketIAuthHeader.Reference])
-                            .AddUInt8((byte)EpAuthPacketHashAlgorithm.SHA256)
-                            .AddUInt16((ushort)hash.Length)
-                            .AddUInt8Array(hash)
-                            .Done();
-                    })
-                    .Timeout(iAuthRequest.Timeout * 1000,
-                        () =>
-                        {
-                            SendParams()
-                                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                .AddUInt8((byte)ExceptionCode.Timeout)
-                                .AddUInt16(7)
-                                .AddString("Timeout")
-                                .Done();
-                        });
-                }
-            }
-            else if (authPacket.Event == EpAuthPacketEvent.IAuthEncrypted)
-            {
-                throw new NotImplementedException("IAuthEncrypted not implemented.");
-            }
-        }
-    }
-
-    private void ProcessHostAuth(byte[] data)
-    {
-        if (authPacket.Command == EpAuthPacketCommand.Initialize)
-        {
-            // Parse headers
-
-            var dataType = authPacket.DataType.Value;
-
-            var (_, parsed) = Codec.ParseSync(dataType, Server.Instance.Warehouse);
-
-            var rt = (Map<byte, object>)parsed;
-
-            session.RemoteHeaders = rt.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
-
-            session.RemoteMethod = authPacket.LocalMethod;
-
-
-            if (authPacket.Initialization == EpAuthPacketInitialize.CredentialsNoAuth)
-            {
-                try
-                {
-
-                    var username = (string)session.RemoteHeaders[EpAuthPacketHeader.Username];
-                    var domain = (string)session.RemoteHeaders[EpAuthPacketHeader.Domain];
-                    //var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
-
-                    if (Server.Membership == null)
-                    {
-                        var errMsg = DC.ToBytes("Membership not set.");
-
-                        SendParams()
-                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                            .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                            .AddUInt16((ushort)errMsg.Length)
-                            .AddUInt8Array(errMsg)
-                            .Done();
-                    }
-                    else Server.Membership.UserExists(username, domain).Then(x =>
-                    {
-                        if (x != null)
-                        {
-                            session.AuthorizedAccount = x;
-
-                            var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
-
-                            SendParams()
-                                        .AddUInt8((byte)EpAuthPacketAcknowledge.NoAuthCredentials)
-                                        .AddUInt8Array(Codec.Compose(localHeaders, Server.Instance.Warehouse, this))
-                                        .Done();
-                        }
-                        else
-                        {
-                            // Send user not found error
-                            SendParams()
-                                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                        .AddUInt16(14)
-                                        .AddString("User not found")
-                                        .Done();
-                        }
-                    });
-                }
-                catch (Exception ex)
-                {
-                    // Send the server side error
-                    var errMsg = DC.ToBytes(ex.Message);
-
-                    SendParams()
-                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                        .AddUInt16((ushort)errMsg.Length)
-                        .AddUInt8Array(errMsg)
-                        .Done();
-                }
-            }
-            else if (authPacket.Initialization == EpAuthPacketInitialize.TokenNoAuth)
-            {
-                try
-                {
-                    if (Server.Membership == null)
-                    {
-                        SendParams()
-                                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                            .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                            .AddUInt16(15)
-                                            .AddString("Token not found")
-                                            .Done();
-                    }
-                    // Check if user and token exists
-                    else
-                    {
-                        var tokenIndex = (ulong)session.RemoteHeaders[EpAuthPacketHeader.TokenIndex];
-                        var domain = (string)session.RemoteHeaders[EpAuthPacketHeader.Domain];
-                        //var nonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
-
-                        Server.Membership.TokenExists(tokenIndex, domain).Then(x =>
-                        {
-                            if (x != null)
-                            {
-                                session.AuthorizedAccount = x;
-
-                                var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
-
-                                SendParams()
-                                            .AddUInt8((byte)EpAuthPacketAcknowledge.NoAuthToken)
-                                            .AddUInt8Array(Codec.Compose(localHeaders, this.Instance.Warehouse, this))
-                                            .Done();
-
-                            }
-                            else
-                            {
-                                // Send token not found error.
-                                SendParams()
-                                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                            .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
-                                            .AddUInt16(15)
-                                            .AddString("Token not found")
-                                            .Done();
-                            }
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Sender server side error.
-
-                    var errMsg = DC.ToBytes(ex.Message);
-
-                    SendParams()
-                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                        .AddUInt16((ushort)errMsg.Length)
-                        .AddUInt8Array(errMsg)
-                        .Done();
-                }
-            }
-            else if (authPacket.Initialization == EpAuthPacketInitialize.NoAuthNoAuth)
-            {
-                try
-                {
-                    // Check if guests are allowed
-                    if (Server.Membership?.GuestsAllowed ?? true)
-                    {
-                        var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
-
-                        session.AuthorizedAccount = "g-" + Global.GenerateCode();
-
-                        readyToEstablish = true;
-
-                        SendParams()
-                                    .AddUInt8((byte)EpAuthPacketAcknowledge.NoAuthNoAuth)
-                                    .AddUInt8Array(Codec.Compose(localHeaders,Server.Instance.Warehouse, this))
-                                    .Done();
-                    }
-                    else
-                    {
-                        // Send access denied error because the server does not allow guests.
-                        SendParams()
-                                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                    .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                    .AddUInt16(18)
-                                    .AddString("Guests not allowed")
-                                    .Done();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Send the server side error.
-                    var errMsg = DC.ToBytes(ex.Message);
-
-                    SendParams()
-                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                        .AddUInt16((ushort)errMsg.Length)
-                        .AddUInt8Array(errMsg)
-                        .Done();
-                }
-            }
-
-        }
-        else if (authPacket.Command == EpAuthPacketCommand.Action)
-        {
-            if (authPacket.Action == EpAuthPacketAction.AuthenticateHash)
-            {
-                var remoteHash = authPacket.Challenge;
-                AsyncReply<byte[]> reply = null;
-
-                try
-                {
-                    if (session.RemoteMethod == AuthenticationMethod.Credentials)
-                    {
-                        reply = Server.Membership.GetPassword((string)session.RemoteHeaders[EpAuthPacketHeader.Username],
-                                                      (string)session.RemoteHeaders[EpAuthPacketHeader.Domain]);
-                    }
-                    else if (session.RemoteMethod == AuthenticationMethod.Token)
-                    {
-                        reply = Server.Membership.GetToken((ulong)session.RemoteHeaders[EpAuthPacketHeader.TokenIndex],
-                                                      (string)session.RemoteHeaders[EpAuthPacketHeader.Domain]);
-                    }
-                    else
-                    {
-                        throw new NotImplementedException("Authentication method unsupported.");
-                    }
-
-                    reply.Then((pw) =>
-                    {
-                        if (pw != null)
-                        {
-                            var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
-                            var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
-
-                            var hashFunc = SHA256.Create();
-                            var hash = hashFunc.ComputeHash((new BinaryList())
-                                                                .AddUInt8Array(remoteNonce)
-                                                                .AddUInt8Array(pw)
-                                                                .AddUInt8Array(localNonce)
-                                                                .ToArray());
-
-                            if (hash.SequenceEqual(remoteHash))
-                            {
-                                // send our hash
-                                var localHash = hashFunc.ComputeHash((new BinaryList())
-                                                    .AddUInt8Array(localNonce)
-                                                    .AddUInt8Array(pw)
-                                                    .AddUInt8Array(remoteNonce)
-                                                    .ToArray());
-
-                                SendParams()
-                                    .AddUInt8((byte)EpAuthPacketAction.AuthenticateHash)
-                                    .AddUInt8((byte)EpAuthPacketHashAlgorithm.SHA256)
-                                    .AddUInt16((ushort)localHash.Length)
-                                    .AddUInt8Array(localHash)
-                                    .Done();
-
-                                readyToEstablish = true;
-                            }
-                            else
-                            {
-                                //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
-                                SendParams()
-                                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                                    .AddUInt8((byte)ExceptionCode.AccessDenied)
-                                    .AddUInt16(13)
-                                    .AddString("Access Denied")
-                                    .Done();
-                            }
-                        }
-                    });
-                }
-                catch (Exception ex)
-                {
-                    var errMsg = DC.ToBytes(ex.Message);
-
-                    SendParams()
-                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                        .AddUInt16((ushort)errMsg.Length)
-                        .AddUInt8Array(errMsg)
-                        .Done();
-                }
-            }
-            else if (authPacket.Action == EpAuthPacketAction.IAuthPlain)
-            {
-                var reference = authPacket.Reference;
-                var dataType = authPacket.DataType.Value;
-
-                var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
-
-                Server.Membership.AuthorizePlain(session, reference, value)
-                    .Then(x => ProcessAuthorization(x));
-
-
-            }
-            else if (authPacket.Action == EpAuthPacketAction.IAuthHashed)
-            {
-                var reference = authPacket.Reference;
-                var value = authPacket.Challenge;
-                var algorithm = authPacket.HashAlgorithm;
-
-                Server.Membership.AuthorizeHashed(session, reference, algorithm, value)
-                    .Then(x => ProcessAuthorization(x));
-
-            }
-            else if (authPacket.Action == EpAuthPacketAction.IAuthEncrypted)
-            {
-                var reference = authPacket.Reference;
-                var value = authPacket.Challenge;
-                var algorithm = authPacket.PublicKeyAlgorithm;
-
-                Server.Membership.AuthorizeEncrypted(session, reference, algorithm, value)
-                    .Then(x => ProcessAuthorization(x));
-            }
-            else if (authPacket.Action == EpAuthPacketAction.EstablishNewSession)
-            {
-                if (readyToEstablish)
-                {
-
-                    if (Server.Membership == null)
-                    {
-                        ProcessAuthorization(null);
-                    }
-                    else
-                    {
-                        Server.Membership?.Authorize(session).Then(x =>
-                        {
-                            ProcessAuthorization(x);
-                        });
-                    }
-
-                    //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
-
-                }
-                else
-                {
-                    SendParams()
-                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                        .AddUInt16(9)
-                        .AddString("Not ready")
-                        .Done();
-                }
-            }
-        }
-    }
-
-    internal void ProcessAuthorization(AuthorizationResults results)
-    {
-        if (results == null || results.Response == Security.Membership.AuthorizationResultsResponse.Success)
-        {
-            var r = new Random();
-            session.Id = new byte[32];
-            r.NextBytes(session.Id);
-            var accountId = session.AuthorizedAccount.ToBytes();
-
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.IndicationEstablished)
-                .AddUInt8((byte)session.Id.Length)
-                .AddUInt8Array(session.Id)
-                .AddUInt8((byte)accountId.Length)
-                .AddUInt8Array(accountId)
-                .Done();
-
-            if (this.Instance == null)
-            {
-                Server.Instance.Warehouse.Put(
-                    Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
-                    .Then(x =>
-                {
-                    ready = true;
-                    Status = EpConnectionStatus.Connected;
-                    openReply?.Trigger(true);
-                    openReply = null;
-                    OnReady?.Invoke(this);
-
-                    Server?.Membership?.Login(session);
-                    LoginDate = DateTime.Now;
-
-                }).Error(x =>
-                {
-                    openReply?.TriggerError(x);
-                    openReply = null;
-
-                });
-            }
-            else
-            {
-                ready = true;
-                Status = EpConnectionStatus.Connected;
-
-                openReply?.Trigger(true);
-                openReply = null;
-
-                OnReady?.Invoke(this);
-                Server?.Membership?.Login(session);
-            }
-        }
-        else if (results.Response == Security.Membership.AuthorizationResultsResponse.Failed)
-        {
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                .AddUInt8((byte)ExceptionCode.ChallengeFailed)
-                .AddUInt16(21)
-                .AddString("Authentication failed")
-                .Done();
-        }
-        else if (results.Response == Security.Membership.AuthorizationResultsResponse.Expired)
-        {
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                .AddUInt8((byte)ExceptionCode.Timeout)
-                .AddUInt16(22)
-                .AddString("Authentication expired")
-                .Done();
-        }
-        else if (results.Response == Security.Membership.AuthorizationResultsResponse.ServiceUnavailable)
-        {
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
-                .AddUInt8((byte)ExceptionCode.GeneralFailure)
-                .AddUInt16(19)
-                .AddString("Service unavailable")
-                .Done();
-        }
-        else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthPlain)
-        {
-            var args = new Map<EpAuthPacketIAuthHeader, object>()
-            {
-                [EpAuthPacketIAuthHeader.Reference] = results.Reference,
-                [EpAuthPacketIAuthHeader.Destination] = results.Destination,
-                [EpAuthPacketIAuthHeader.Trials] = results.Trials,
-                [EpAuthPacketIAuthHeader.Clue] = results.Clue,
-                [EpAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
-            }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
-
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.IAuthPlain)
-                .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
-                .Done();
-
-        }
-        else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthHashed)
-        {
-            var args = new Map<EpAuthPacketIAuthHeader, object>()
-            {
-                [EpAuthPacketIAuthHeader.Reference] = results.Reference,
-                [EpAuthPacketIAuthHeader.Destination] = results.Destination,
-                [EpAuthPacketIAuthHeader.Expire] = results.Expire,
-                //[EpAuthPacketIAuthHeader.Issue] = results.Issue,
-                [EpAuthPacketIAuthHeader.Clue] = results.Clue,
-                [EpAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
-            }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
-
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.IAuthHashed)
-                .AddUInt8Array(Codec.Compose(args, Server.Instance.Warehouse, this))
-                .Done();
-
-        }
-        else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthEncrypted)
-        {
-            var args = new Map<EpAuthPacketIAuthHeader, object>()
-            {
-                [EpAuthPacketIAuthHeader.Destination] = results.Destination,
-                [EpAuthPacketIAuthHeader.Expire] = results.Expire,
-                [EpAuthPacketIAuthHeader.Clue] = results.Clue,
-                [EpAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
-            }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
-
-            SendParams()
-                .AddUInt8((byte)EpAuthPacketEvent.IAuthEncrypted)
-                .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
-                .Done();
-        }
-    }
+    //private void ProcessClientAuth(byte[] data)
+    //{
+    //    if (authPacket.Command == EpAuthPacketCommand.Acknowledge)
+    //    {
+    //        // if there is a mismatch in authentication
+    //        if (session.LocalMethod != authPacket.RemoteMethod
+    //            || session.RemoteMethod != authPacket.LocalMethod)
+    //        {
+    //            openReply?.TriggerError(new Exception("Peer refused authentication method."));
+    //            openReply = null;
+    //        }
+
+    //        // Parse remote headers
+
+    //        var dataType = authPacket.DataType.Value;
+
+    //        var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
+
+    //        var rt = (Map<byte, object>)parsed;
+
+    //        session.RemoteHeaders = rt.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
+
+    //        if (session.LocalMethod == AuthenticationMethod.None)
+    //        {
+    //            // send establish
+    //            SendParams()
+    //                        .AddUInt8((byte)EpAuthPacketAction.EstablishNewSession)
+    //                        .Done();
+    //        }
+    //        else if (session.LocalMethod == AuthenticationMethod.Credentials
+    //                || session.LocalMethod == AuthenticationMethod.Token)
+    //        {
+    //            var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
+    //            var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
+
+    //            // send our hash
+    //            var hashFunc = SHA256.Create();
+    //            // local nonce + password or token + remote nonce
+    //            var challenge = hashFunc.ComputeHash(new BinaryList()
+    //                                                .AddUInt8Array(localNonce)
+    //                                                .AddUInt8Array(localPasswordOrToken)
+    //                                                .AddUInt8Array(remoteNonce)
+    //                                                .ToArray());
+
+    //            SendParams()
+    //                .AddUInt8((byte)EpAuthPacketAction.AuthenticateHash)
+    //                .AddUInt8((byte)EpAuthPacketHashAlgorithm.SHA256)
+    //                .AddUInt16((ushort)challenge.Length)
+    //                .AddUInt8Array(challenge)
+    //                .Done();
+    //        }
+
+    //    }
+    //    else if (authPacket.Command == EpAuthPacketCommand.Action)
+    //    {
+    //        if (authPacket.Action == EpAuthPacketAction.AuthenticateHash)
+    //        {
+    //            var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
+    //            var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
+
+    //            // check if the server knows my password
+    //            var hashFunc = SHA256.Create();
+
+    //            var challenge = hashFunc.ComputeHash(new BinaryList()
+    //                                                    .AddUInt8Array(remoteNonce)
+    //                                                    .AddUInt8Array(localPasswordOrToken)
+    //                                                    .AddUInt8Array(localNonce)
+    //                                                    .ToArray());
+
+
+    //            if (challenge.SequenceEqual(authPacket.Challenge))
+    //            {
+    //                // send establish request
+    //                SendParams()
+    //                            .AddUInt8((byte)EpAuthPacketAction.EstablishNewSession)
+    //                            .Done();
+    //            }
+    //            else
+    //            {
+    //                SendParams()
+    //                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                            .AddUInt8((byte)ExceptionCode.ChallengeFailed)
+    //                            .AddUInt16(16)
+    //                            .AddString("Challenge Failed")
+    //                            .Done();
+
+    //            }
+    //        }
+    //    }
+    //    else if (authPacket.Command == EpAuthPacketCommand.Event)
+    //    {
+    //        if (authPacket.Event == EpAuthPacketEvent.ErrorTerminate
+    //            || authPacket.Event == EpAuthPacketEvent.ErrorMustEncrypt
+    //            || authPacket.Event == EpAuthPacketEvent.ErrorRetry)
+    //        {
+    //            invalidCredentials = true;
+    //            openReply?.TriggerError(new AsyncException(ErrorType.Management, authPacket.ErrorCode, authPacket.Message));
+    //            openReply = null;
+    //            OnError?.Invoke(this, authPacket.ErrorCode, authPacket.Message);
+    //            Close();
+    //        }
+    //        else if (authPacket.Event == EpAuthPacketEvent.IndicationEstablished)
+    //        {
+    //            session.Id = authPacket.SessionId;
+    //            session.AuthorizedAccount = authPacket.AccountId.GetString(0, (uint)authPacket.AccountId.Length);
+
+    //            ready = true;
+    //            Status = EpConnectionStatus.Connected;
+
+
+    //            // put it in the warehouse
+
+    //            if (this.Instance == null)
+    //            {
+    //                Server.Instance.Warehouse.Put(Server + "/" + session.AuthorizedAccount.Replace("/", "_"), this)
+    //                    .Then(x =>
+    //                {
+    //                    openReply?.Trigger(true);
+    //                    OnReady?.Invoke(this);
+    //                    openReply = null;
+
+
+    //                }).Error(x =>
+    //                {
+    //                    openReply?.TriggerError(x);
+    //                    openReply = null;
+    //                });
+    //            }
+    //            else
+    //            {
+    //                openReply?.Trigger(true);
+    //                openReply = null;
+
+    //                OnReady?.Invoke(this);
+    //            }
+
+    //            // start perodic keep alive timer
+    //            keepAliveTimer.Start();
+
+    //        }
+    //        else if (authPacket.Event == EpAuthPacketEvent.IAuthPlain)
+    //        {
+    //            var dataType = authPacket.DataType.Value;
+    //            var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
+    //            var rt = (Map<byte, object>)parsed;
+
+    //            var headers = rt.Select(x => new KeyValuePair<EpAuthPacketIAuthHeader, object>((EpAuthPacketIAuthHeader)x.Key, x.Value));
+    //            var iAuthRequest = new AuthorizationRequest(headers);
+
+    //            if (Authenticator == null)
+    //            {
+    //                SendParams()
+    //                 .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                 .AddUInt8((byte)ExceptionCode.NotSupported)
+    //                 .AddUInt16(13)
+    //                 .AddString("Not supported")
+    //                 .Done();
+    //            }
+    //            else
+    //            {
+    //                Authenticator(iAuthRequest).Then(response =>
+    //                {
+    //                    SendParams()
+    //                        .AddUInt8((byte)EpAuthPacketAction.IAuthPlain)
+    //                        .AddUInt32((uint)headers[EpAuthPacketIAuthHeader.Reference])
+    //                        .AddUInt8Array(Codec.Compose(response, this.Instance.Warehouse, this))
+    //                        .Done();
+    //                })
+    //                .Timeout(iAuthRequest.Timeout * 1000,
+    //                    () =>
+    //                    {
+    //                        SendParams()
+    //                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                            .AddUInt8((byte)ExceptionCode.Timeout)
+    //                            .AddUInt16(7)
+    //                            .AddString("Timeout")
+    //                            .Done();
+    //                    });
+    //            }
+    //        }
+    //        else if (authPacket.Event == EpAuthPacketEvent.IAuthHashed)
+    //        {
+    //            var dataType = authPacket.DataType.Value;
+    //            var (_, parsed) = Codec.ParseSync(dataType, Instance.Warehouse);
+    //            var rt = (Map<byte, object>)parsed;
+
+
+    //            var headers = rt.Select(x => new KeyValuePair<EpAuthPacketIAuthHeader, object>((EpAuthPacketIAuthHeader)x.Key, x.Value));
+    //            var iAuthRequest = new AuthorizationRequest(headers);
+
+    //            if (Authenticator == null)
+    //            {
+    //                SendParams()
+    //                 .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                 .AddUInt8((byte)ExceptionCode.NotSupported)
+    //                 .AddUInt16(13)
+    //                 .AddString("Not supported")
+    //                 .Done();
+    //            }
+    //            else
+    //            {
+
+    //                Authenticator(iAuthRequest).Then(response =>
+    //                {
+    //                    var sha = SHA256.Create();
+    //                    var hash = sha.ComputeHash(new BinaryList()
+    //                        .AddUInt8Array((byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce])
+    //                        .AddUInt8Array(Codec.Compose(response, this.Instance.Warehouse, this))
+    //                        .AddUInt8Array((byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce])
+    //                        .ToArray());
+
+    //                    SendParams()
+    //                        .AddUInt8((byte)EpAuthPacketAction.IAuthHashed)
+    //                        .AddUInt32((uint)headers[EpAuthPacketIAuthHeader.Reference])
+    //                        .AddUInt8((byte)EpAuthPacketHashAlgorithm.SHA256)
+    //                        .AddUInt16((ushort)hash.Length)
+    //                        .AddUInt8Array(hash)
+    //                        .Done();
+    //                })
+    //                .Timeout(iAuthRequest.Timeout * 1000,
+    //                    () =>
+    //                    {
+    //                        SendParams()
+    //                            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                            .AddUInt8((byte)ExceptionCode.Timeout)
+    //                            .AddUInt16(7)
+    //                            .AddString("Timeout")
+    //                            .Done();
+    //                    });
+    //            }
+    //        }
+    //        else if (authPacket.Event == EpAuthPacketEvent.IAuthEncrypted)
+    //        {
+    //            throw new NotImplementedException("IAuthEncrypted not implemented.");
+    //        }
+    //    }
+    //}
+
+    //private void ProcessHostAuth(byte[] data)
+    //{
+    //    if (authPacket.Command == EpAuthPacketCommand.Initialize)
+    //    {
+    //        // Parse headers
+
+    //        var dataType = authPacket.DataType.Value;
+
+    //        var (_, parsed) = Codec.ParseSync(dataType, Server.Instance.Warehouse);
+
+    //        var rt = (Map<byte, object>)parsed;
+
+    //        session.RemoteHeaders = rt.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
+
+    //        session.RemoteMethod = authPacket.LocalMethod;
+
+
+    //        if (authPacket.Initialization == EpAuthPacketInitialize.CredentialsNoAuth)
+    //        {
+    //            try
+    //            {
+
+    //                var username = (string)session.RemoteHeaders[EpAuthPacketHeader.Username];
+    //                var domain = (string)session.RemoteHeaders[EpAuthPacketHeader.Domain];
+    //                //var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
+
+    //                if (Server.Membership == null)
+    //                {
+    //                    var errMsg = DC.ToBytes("Membership not set.");
+
+    //                    SendParams()
+    //                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                        .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //                        .AddUInt16((ushort)errMsg.Length)
+    //                        .AddUInt8Array(errMsg)
+    //                        .Done();
+    //                }
+    //                else Server.Membership.UserExists(username, domain).Then(x =>
+    //                {
+    //                    if (x != null)
+    //                    {
+    //                        session.AuthorizedAccount = x;
+
+    //                        var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+
+    //                        SendParams()
+    //                                    .AddUInt8((byte)EpAuthPacketAcknowledge.NoAuthCredentials)
+    //                                    .AddUInt8Array(Codec.Compose(localHeaders, Server.Instance.Warehouse, this))
+    //                                    .Done();
+    //                    }
+    //                    else
+    //                    {
+    //                        // Send user not found error
+    //                        SendParams()
+    //                                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                                    .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+    //                                    .AddUInt16(14)
+    //                                    .AddString("User not found")
+    //                                    .Done();
+    //                    }
+    //                });
+    //            }
+    //            catch (Exception ex)
+    //            {
+    //                // Send the server side error
+    //                var errMsg = DC.ToBytes(ex.Message);
+
+    //                SendParams()
+    //                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //                    .AddUInt16((ushort)errMsg.Length)
+    //                    .AddUInt8Array(errMsg)
+    //                    .Done();
+    //            }
+    //        }
+    //        else if (authPacket.Initialization == EpAuthPacketInitialize.TokenNoAuth)
+    //        {
+    //            try
+    //            {
+    //                if (Server.Membership == null)
+    //                {
+    //                    SendParams()
+    //                                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+    //                                        .AddUInt16(15)
+    //                                        .AddString("Token not found")
+    //                                        .Done();
+    //                }
+    //                // Check if user and token exists
+    //                else
+    //                {
+    //                    var tokenIndex = (ulong)session.RemoteHeaders[EpAuthPacketHeader.TokenIndex];
+    //                    var domain = (string)session.RemoteHeaders[EpAuthPacketHeader.Domain];
+    //                    //var nonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
+
+    //                    Server.Membership.TokenExists(tokenIndex, domain).Then(x =>
+    //                    {
+    //                        if (x != null)
+    //                        {
+    //                            session.AuthorizedAccount = x;
+
+    //                            var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+
+    //                            SendParams()
+    //                                        .AddUInt8((byte)EpAuthPacketAcknowledge.NoAuthToken)
+    //                                        .AddUInt8Array(Codec.Compose(localHeaders, this.Instance.Warehouse, this))
+    //                                        .Done();
+
+    //                        }
+    //                        else
+    //                        {
+    //                            // Send token not found error.
+    //                            SendParams()
+    //                                        .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                                        .AddUInt8((byte)ExceptionCode.UserOrTokenNotFound)
+    //                                        .AddUInt16(15)
+    //                                        .AddString("Token not found")
+    //                                        .Done();
+    //                        }
+    //                    });
+    //                }
+    //            }
+    //            catch (Exception ex)
+    //            {
+    //                // Sender server side error.
+
+    //                var errMsg = DC.ToBytes(ex.Message);
+
+    //                SendParams()
+    //                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //                    .AddUInt16((ushort)errMsg.Length)
+    //                    .AddUInt8Array(errMsg)
+    //                    .Done();
+    //            }
+    //        }
+    //        else if (authPacket.Initialization == EpAuthPacketInitialize.NoAuthNoAuth)
+    //        {
+    //            try
+    //            {
+    //                // Check if guests are allowed
+    //                if (Server.Membership?.GuestsAllowed ?? true)
+    //                {
+    //                    var localHeaders = session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+
+    //                    session.AuthorizedAccount = "g-" + Global.GenerateCode();
+
+    //                    readyToEstablish = true;
+
+    //                    SendParams()
+    //                                .AddUInt8((byte)EpAuthPacketAcknowledge.NoAuthNoAuth)
+    //                                .AddUInt8Array(Codec.Compose(localHeaders,Server.Instance.Warehouse, this))
+    //                                .Done();
+    //                }
+    //                else
+    //                {
+    //                    // Send access denied error because the server does not allow guests.
+    //                    SendParams()
+    //                                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                                .AddUInt8((byte)ExceptionCode.AccessDenied)
+    //                                .AddUInt16(18)
+    //                                .AddString("Guests not allowed")
+    //                                .Done();
+    //                }
+    //            }
+    //            catch (Exception ex)
+    //            {
+    //                // Send the server side error.
+    //                var errMsg = DC.ToBytes(ex.Message);
+
+    //                SendParams()
+    //                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //                    .AddUInt16((ushort)errMsg.Length)
+    //                    .AddUInt8Array(errMsg)
+    //                    .Done();
+    //            }
+    //        }
+
+    //    }
+    //    else if (authPacket.Command == EpAuthPacketCommand.Action)
+    //    {
+    //        if (authPacket.Action == EpAuthPacketAction.AuthenticateHash)
+    //        {
+    //            var remoteHash = authPacket.Challenge;
+    //            AsyncReply<byte[]> reply = null;
+
+    //            try
+    //            {
+    //                if (session.RemoteMethod == AuthenticationMethod.Credentials)
+    //                {
+    //                    reply = Server.Membership.GetPassword((string)session.RemoteHeaders[EpAuthPacketHeader.Username],
+    //                                                  (string)session.RemoteHeaders[EpAuthPacketHeader.Domain]);
+    //                }
+    //                else if (session.RemoteMethod == AuthenticationMethod.Token)
+    //                {
+    //                    reply = Server.Membership.GetToken((ulong)session.RemoteHeaders[EpAuthPacketHeader.TokenIndex],
+    //                                                  (string)session.RemoteHeaders[EpAuthPacketHeader.Domain]);
+    //                }
+    //                else
+    //                {
+    //                    throw new NotImplementedException("Authentication method unsupported.");
+    //                }
+
+    //                reply.Then((pw) =>
+    //                {
+    //                    if (pw != null)
+    //                    {
+    //                        var localNonce = (byte[])session.LocalHeaders[EpAuthPacketHeader.Nonce];
+    //                        var remoteNonce = (byte[])session.RemoteHeaders[EpAuthPacketHeader.Nonce];
+
+    //                        var hashFunc = SHA256.Create();
+    //                        var hash = hashFunc.ComputeHash((new BinaryList())
+    //                                                            .AddUInt8Array(remoteNonce)
+    //                                                            .AddUInt8Array(pw)
+    //                                                            .AddUInt8Array(localNonce)
+    //                                                            .ToArray());
+
+    //                        if (hash.SequenceEqual(remoteHash))
+    //                        {
+    //                            // send our hash
+    //                            var localHash = hashFunc.ComputeHash((new BinaryList())
+    //                                                .AddUInt8Array(localNonce)
+    //                                                .AddUInt8Array(pw)
+    //                                                .AddUInt8Array(remoteNonce)
+    //                                                .ToArray());
+
+    //                            SendParams()
+    //                                .AddUInt8((byte)EpAuthPacketAction.AuthenticateHash)
+    //                                .AddUInt8((byte)EpAuthPacketHashAlgorithm.SHA256)
+    //                                .AddUInt16((ushort)localHash.Length)
+    //                                .AddUInt8Array(localHash)
+    //                                .Done();
+
+    //                            readyToEstablish = true;
+    //                        }
+    //                        else
+    //                        {
+    //                            //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:DENIED");
+    //                            SendParams()
+    //                                .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                                .AddUInt8((byte)ExceptionCode.AccessDenied)
+    //                                .AddUInt16(13)
+    //                                .AddString("Access Denied")
+    //                                .Done();
+    //                        }
+    //                    }
+    //                });
+    //            }
+    //            catch (Exception ex)
+    //            {
+    //                var errMsg = DC.ToBytes(ex.Message);
+
+    //                SendParams()
+    //                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //                    .AddUInt16((ushort)errMsg.Length)
+    //                    .AddUInt8Array(errMsg)
+    //                    .Done();
+    //            }
+    //        }
+    //        else if (authPacket.Action == EpAuthPacketAction.IAuthPlain)
+    //        {
+    //            var reference = authPacket.Reference;
+    //            var dataType = authPacket.DataType.Value;
+
+    //            var (_, value) = Codec.ParseSync(dataType, Instance.Warehouse);
+
+    //            Server.Membership.AuthorizePlain(session, reference, value)
+    //                .Then(x => ProcessAuthorization(x));
+
+
+    //        }
+    //        else if (authPacket.Action == EpAuthPacketAction.IAuthHashed)
+    //        {
+    //            var reference = authPacket.Reference;
+    //            var value = authPacket.Challenge;
+    //            var algorithm = authPacket.HashAlgorithm;
+
+    //            Server.Membership.AuthorizeHashed(session, reference, algorithm, value)
+    //                .Then(x => ProcessAuthorization(x));
+
+    //        }
+    //        else if (authPacket.Action == EpAuthPacketAction.IAuthEncrypted)
+    //        {
+    //            var reference = authPacket.Reference;
+    //            var value = authPacket.Challenge;
+    //            var algorithm = authPacket.PublicKeyAlgorithm;
+
+    //            Server.Membership.AuthorizeEncrypted(session, reference, algorithm, value)
+    //                .Then(x => ProcessAuthorization(x));
+    //        }
+    //        else if (authPacket.Action == EpAuthPacketAction.EstablishNewSession)
+    //        {
+    //            if (readyToEstablish)
+    //            {
+
+    //                if (Server.Membership == null)
+    //                {
+    //                    ProcessAuthorization(null);
+    //                }
+    //                else
+    //                {
+    //                    Server.Membership?.Authorize(session).Then(x =>
+    //                    {
+    //                        ProcessAuthorization(x);
+    //                    });
+    //                }
+
+    //                //Global.Log("auth", LogType.Warning, "U:" + RemoteUsername + " IP:" + Socket.RemoteEndPoint.Address.ToString() + " S:AUTH");
+
+    //            }
+    //            else
+    //            {
+    //                SendParams()
+    //                    .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //                    .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //                    .AddUInt16(9)
+    //                    .AddString("Not ready")
+    //                    .Done();
+    //            }
+    //        }
+    //    }
+    //}
+
+    //internal void ProcessAuthorization(AuthorizationResults results)
+    //{
+    //    if (results == null || results.Response == Security.Membership.AuthorizationResultsResponse.Success)
+    //    {
+    //        var r = new Random();
+    //        session.Id = new byte[32];
+    //        r.NextBytes(session.Id);
+    //        var accountId = session.AuthorizedAccount.ToBytes();
+
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.IndicationEstablished)
+    //            .AddUInt8((byte)session.Id.Length)
+    //            .AddUInt8Array(session.Id)
+    //            .AddUInt8((byte)accountId.Length)
+    //            .AddUInt8Array(accountId)
+    //            .Done();
+
+    //        if (this.Instance == null)
+    //        {
+    //            Server.Instance.Warehouse.Put(
+    //                Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
+    //                .Then(x =>
+    //            {
+    //                ready = true;
+    //                Status = EpConnectionStatus.Connected;
+    //                openReply?.Trigger(true);
+    //                openReply = null;
+    //                OnReady?.Invoke(this);
+
+    //                Server?.Membership?.Login(session);
+    //                LoginDate = DateTime.Now;
+
+    //            }).Error(x =>
+    //            {
+    //                openReply?.TriggerError(x);
+    //                openReply = null;
+
+    //            });
+    //        }
+    //        else
+    //        {
+    //            ready = true;
+    //            Status = EpConnectionStatus.Connected;
+
+    //            openReply?.Trigger(true);
+    //            openReply = null;
+
+    //            OnReady?.Invoke(this);
+    //            Server?.Membership?.Login(session);
+    //        }
+    //    }
+    //    else if (results.Response == Security.Membership.AuthorizationResultsResponse.Failed)
+    //    {
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //            .AddUInt8((byte)ExceptionCode.ChallengeFailed)
+    //            .AddUInt16(21)
+    //            .AddString("Authentication failed")
+    //            .Done();
+    //    }
+    //    else if (results.Response == Security.Membership.AuthorizationResultsResponse.Expired)
+    //    {
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //            .AddUInt8((byte)ExceptionCode.Timeout)
+    //            .AddUInt16(22)
+    //            .AddString("Authentication expired")
+    //            .Done();
+    //    }
+    //    else if (results.Response == Security.Membership.AuthorizationResultsResponse.ServiceUnavailable)
+    //    {
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.ErrorTerminate)
+    //            .AddUInt8((byte)ExceptionCode.GeneralFailure)
+    //            .AddUInt16(19)
+    //            .AddString("Service unavailable")
+    //            .Done();
+    //    }
+    //    else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthPlain)
+    //    {
+    //        var args = new Map<EpAuthPacketIAuthHeader, object>()
+    //        {
+    //            [EpAuthPacketIAuthHeader.Reference] = results.Reference,
+    //            [EpAuthPacketIAuthHeader.Destination] = results.Destination,
+    //            [EpAuthPacketIAuthHeader.Trials] = results.Trials,
+    //            [EpAuthPacketIAuthHeader.Clue] = results.Clue,
+    //            [EpAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
+    //        }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
+
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.IAuthPlain)
+    //            .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
+    //            .Done();
+
+    //    }
+    //    else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthHashed)
+    //    {
+    //        var args = new Map<EpAuthPacketIAuthHeader, object>()
+    //        {
+    //            [EpAuthPacketIAuthHeader.Reference] = results.Reference,
+    //            [EpAuthPacketIAuthHeader.Destination] = results.Destination,
+    //            [EpAuthPacketIAuthHeader.Expire] = results.Expire,
+    //            //[EpAuthPacketIAuthHeader.Issue] = results.Issue,
+    //            [EpAuthPacketIAuthHeader.Clue] = results.Clue,
+    //            [EpAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
+    //        }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
+
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.IAuthHashed)
+    //            .AddUInt8Array(Codec.Compose(args, Server.Instance.Warehouse, this))
+    //            .Done();
+
+    //    }
+    //    else if (results.Response == Security.Membership.AuthorizationResultsResponse.IAuthEncrypted)
+    //    {
+    //        var args = new Map<EpAuthPacketIAuthHeader, object>()
+    //        {
+    //            [EpAuthPacketIAuthHeader.Destination] = results.Destination,
+    //            [EpAuthPacketIAuthHeader.Expire] = results.Expire,
+    //            [EpAuthPacketIAuthHeader.Clue] = results.Clue,
+    //            [EpAuthPacketIAuthHeader.RequiredFormat] = results.RequiredFormat,
+    //        }.Select(m => new KeyValuePair<byte, object>((byte)m.Key, m.Value));
+
+    //        SendParams()
+    //            .AddUInt8((byte)EpAuthPacketEvent.IAuthEncrypted)
+    //            .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this))
+    //            .Done();
+    //    }
+    //}
 
     protected override void DataReceived(NetworkBuffer data)
     {
@@ -1407,21 +1472,7 @@ public partial class EpConnection : NetworkConnection, IStore
             // assign domain from hostname if not provided
             var domain = Domain != null ? Domain : address;
 
-            if (Username != null // Instance.Attributes.ContainsKey("username")
-                  && Password != null)/// Instance.Attributes.ContainsKey("password"))
-            {
-                return Connect(AuthenticationMethod.Credentials, null, address, port, Username, 0, DC.ToBytes(Password), domain);
-            }
-            else if (Token != null)
-            {
-                return Connect(AuthenticationMethod.Token, null, address, port, null, TokenIndex, DC.ToBytes(Token), domain);
-            }
-            else
-            {
-
-                return Connect(AuthenticationMethod.None, null, address, port, null, 0, null, domain);
-
-            }
+            return Connect(null, address, port, domain);
         }
 
         return new AsyncReply<bool>(true);
@@ -1430,7 +1481,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
 
-    public AsyncReply<bool> Connect(AuthenticationMethod method = AuthenticationMethod.Certificate, ISocket socket = null, string hostname = null, ushort port = 0, string username = null, ulong tokenIndex = 0, byte[] passwordOrToken = null, string domain = null)
+    public AsyncReply<bool> Connect(ISocket socket = null, string hostname = null, ushort port = 0, string domain = null)
     {
         if (openReply != null)
             throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
@@ -1442,27 +1493,10 @@ public partial class EpConnection : NetworkConnection, IStore
         if (hostname != null)
         {
             session = new Session();
-            session.AuthenticationType = AuthenticationType.Client;
-            session.LocalMethod = method;
-            session.RemoteMethod = AuthenticationMethod.None;
-
+            session.AuthenticationType = AuthenticationMode.Initiator;
+            //session.AuthenticationMethod = method;
             session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
-            session.LocalHeaders[EpAuthPacketHeader.Nonce] = Global.GenerateBytes(32);
 
-            if (method == AuthenticationMethod.Credentials)
-            {
-                session.LocalHeaders[EpAuthPacketHeader.Username] = username;
-            }
-            else if (method == AuthenticationMethod.Token)
-            {
-                session.LocalHeaders[EpAuthPacketHeader.TokenIndex] = tokenIndex;
-            }
-            else if (method == AuthenticationMethod.Certificate)
-            {
-                throw new NotImplementedException("Unsupported authentication method.");
-            }
-
-            localPasswordOrToken = passwordOrToken;
             invalidCredentials = false;
         }
 
@@ -1582,7 +1616,7 @@ public partial class EpConnection : NetworkConnection, IStore
         return true;
     }
 
- 
+
     /// <summary>
     /// Store interface.
     /// </summary>
@@ -1617,14 +1651,14 @@ public partial class EpConnection : NetworkConnection, IStore
 
     protected override void Connected()
     {
-        if (session.AuthenticationType == AuthenticationType.Client)
+        if (session.AuthenticationType == AuthenticationMode.Initiator)
             Declare();
     }
 
     protected override void Disconnected()
     {
         // clean up
-        ready = false;
+        authenticated = false;
         readyToEstablish = false;
         Status = EpConnectionStatus.Closed;
 
@@ -1704,7 +1738,7 @@ public partial class EpConnection : NetworkConnection, IStore
             UnsubscribeAll();
             Instance.Warehouse.Remove(this);
 
-            if (ready)
+            if (authenticated)
                 Server.Membership?.Logout(session);
 
         }
@@ -1749,5 +1783,5 @@ public partial class EpConnection : NetworkConnection, IStore
         throw new NotImplementedException();
     }
 
-  
+
 }

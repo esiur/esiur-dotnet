@@ -813,9 +813,9 @@ public static class DC // Data Converter
         return ar.ToArray();
     }
 
-    public static UUID GetUUID(this byte[] data, uint offset)
+    public static Uuid GetUUID(this byte[] data, uint offset)
     {
-        return new UUID(data, offset);
+        return new Uuid(data, offset);
     }
 
     //public static Guid GetGuid(this byte[] data, uint offset)

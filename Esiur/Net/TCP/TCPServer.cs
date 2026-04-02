@@ -34,8 +34,8 @@ using Esiur.Core;
 using System.Net;
 using Esiur.Resource;
 
-namespace Esiur.Net.TCP;
-public class TCPServer : NetworkServer<TCPConnection>, IResource
+namespace Esiur.Net.Tcp;
+public class TcpServer : NetworkServer<TcpConnection>, IResource
 {
 
     [Attribute]
@@ -64,7 +64,7 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
     //}
     public Instance Instance { get; set; }
 
-    TCPFilter[] filters = null;
+    TcpFilter[] filters = null;
 
     public AsyncReply<bool> Trigger(ResourceTrigger trigger)
     {
@@ -93,7 +93,7 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
         }
         else if (trigger == ResourceTrigger.SystemInitialized)
         {
-            Instance.Children<TCPFilter>().Then(x => filters = x);
+            Instance.Children<TcpFilter>().Then(x => filters = x);
         }
 
         return new AsyncReply<bool>(true);
@@ -103,7 +103,7 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
 
 
 
-    internal bool Execute(TCPConnection sender, NetworkBuffer data)
+    internal bool Execute(TcpConnection sender, NetworkBuffer data)
     {
 
         if (filters == null)
@@ -120,12 +120,12 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
         return false;
     }
 
-    private void SessionModified(TCPConnection session, string key, object newValue)
+    private void SessionModified(TcpConnection session, string key, object newValue)
     {
 
     }
 
-    protected override void ClientDisconnected(TCPConnection connection)
+    protected override void ClientDisconnected(TcpConnection connection)
     {
         if (filters == null)
             return;
@@ -136,19 +136,19 @@ public class TCPServer : NetworkServer<TCPConnection>, IResource
         }
     }
 
-    public override void Add(TCPConnection connection)
+    public override void Add(TcpConnection connection)
     {
         connection.Server = this;
         base.Add(connection);
     }
 
-    public override void Remove(TCPConnection connection)
+    public override void Remove(TcpConnection connection)
     {
         connection.Server = null;
         base.Remove(connection);
     }
 
-    protected override void ClientConnected(TCPConnection connection)
+    protected override void ClientConnected(TcpConnection connection)
     {
         if (filters == null)
             return;

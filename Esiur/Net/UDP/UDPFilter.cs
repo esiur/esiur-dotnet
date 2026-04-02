@@ -33,7 +33,7 @@ using Esiur.Core;
 using Esiur.Resource;
 
 namespace Esiur.Net.UDP;
-public abstract class UDPFilter : IResource
+public abstract class UdpFilter : IResource
 {
 
     

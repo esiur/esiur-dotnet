@@ -29,7 +29,7 @@ public class EventDef : MemberDef
 
     public EventInfo EventInfo { get; set; }
 
-    public TRU ArgumentType { get; set; }
+    public Tru ArgumentType { get; set; }
 
 
     public static (uint, EventDef) Parse(byte[] data, uint offset, byte index, bool inherited)
@@ -42,7 +42,7 @@ public class EventDef : MemberDef
         var name = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        var (dts, argType) = TRU.Parse(data, offset);
+        var (dts, argType) = Tru.Parse(data, offset);
 
         offset += dts;
 
@@ -116,7 +116,7 @@ public class EventDef : MemberDef
 
 
         var argType = ei.EventHandlerType.GenericTypeArguments[0];
-        var evtType = TRU.FromType(argType);
+        var evtType = Tru.FromType(argType);
 
         if (evtType == null)
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");

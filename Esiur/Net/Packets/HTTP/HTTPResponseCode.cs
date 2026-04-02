@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Net.Packets.HTTP
+namespace Esiur.Net.Packets.Http
 {
-    public enum HTTPResponseCode : int
+    public enum HttpResponseCode : int
     {
         Switching = 101,
         OK = 200,

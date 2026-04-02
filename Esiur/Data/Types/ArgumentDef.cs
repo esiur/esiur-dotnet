@@ -12,7 +12,7 @@ public class ArgumentDef
 
     public bool Optional { get; set; }
 
-    public TRU Type { get; set; }
+    public Tru Type { get; set; }
 
     public ParameterInfo ParameterInfo { get; set; }
 
@@ -28,7 +28,7 @@ public class ArgumentDef
         var cs = (uint)data[offset++];
         var name = data.GetString(offset, cs);
         offset += cs;
-        var (size, type) = TRU.Parse(data, offset);
+        var (size, type) = Tru.Parse(data, offset);
 
         offset += size;
 
