@@ -19,7 +19,9 @@ public class SendList : BinaryList
 
     public override AsyncReply<object[]> Done()
     {
-        connection.Send(this.ToArray());
+        var s = this.ToArray();
+        //Console.WriteLine($"Sending {s.Length} -> {DC.ToHex(s)}");
+        connection.Send(s);
         return reply;
     }
 }

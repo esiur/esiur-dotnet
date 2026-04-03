@@ -644,6 +644,8 @@ public partial class EpConnection : NetworkConnection, IStore
             {
                 offset += (uint)rt;
 
+                //Console.WriteLine($"AuthPacket: RT: {rt} {authPacket.ToString()}");
+
                 if (authPacket.Command == EpAuthPacketCommand.Initialize && isInitiator)
                     throw new Exception("Bad authentication packet received. Connection is initiator but received an initialization packet.");
 
@@ -672,6 +674,7 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
 
                     //@TODO allow all for testing
+                    AuthenticatonCompleted("guest");
                     SendParams()
                             .AddUInt8((byte)EpAuthPacketAcknowledgement.SessionEstablished)
                             .Done();
@@ -762,7 +765,8 @@ public partial class EpConnection : NetworkConnection, IStore
     }
 
     void AuthenticatonCompleted(string identity)
-    {
+    {                    
+
         if (this.Instance == null)
         {
             Server.Instance.Warehouse.Put(
@@ -770,8 +774,8 @@ public partial class EpConnection : NetworkConnection, IStore
                 .Then(x =>
                 {
                     session.AuthorizedIdentity = identity;
-
                     authenticated = true;
+
                     Status = EpConnectionStatus.Connected;
                     openReply?.Trigger(true);
                     openReply = null;
@@ -1499,7 +1503,6 @@ public partial class EpConnection : NetworkConnection, IStore
         var packs = new List<string>();
 
         var chunkId = (new Random()).Next(1000, 1000000);
-
 
         this.Socket.Hold();
 
