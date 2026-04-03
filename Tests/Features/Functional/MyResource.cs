@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace Esiur.Tests.Distribution;
+namespace Esiur.Tests.Functional;
 
 [Resource]
 [Annotation("A", "B")]

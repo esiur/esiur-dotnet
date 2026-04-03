@@ -1,6 +1,6 @@
 ﻿/*
  
-Copyright (c) 2017 Ahmed Kh. Zamil
+Copyright (c) 2017-2026 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -50,7 +50,7 @@ using Esiur.Net.Packets;
 using System.Numerics;
 using Esiur.Protocol;
 
-namespace Esiur.Tests.Distribution;
+namespace Esiur.Tests.Functional;
 
 
 class Program
