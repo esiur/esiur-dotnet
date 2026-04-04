@@ -1,5 +1,6 @@
 ﻿
-using Esiur.Tests.Serialization;
+using Esiur.Tests.ComplexModel;
+
 using MessagePack;
 
 MessagePack.MessagePackSerializer.DefaultOptions = MessagePackSerializerOptions.Standard

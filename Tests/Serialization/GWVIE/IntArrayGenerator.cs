@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Esiur.Tests.Serialization;
+namespace Esiur.Tests.Gvwie;
 
 public static class IntArrayGenerator
 {

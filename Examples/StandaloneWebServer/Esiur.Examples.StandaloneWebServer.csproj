@@ -8,11 +8,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenAI" Version="2.9.1" />
+    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.1.1" />
   </ItemGroup>
 
   <ItemGroup>
-     <ProjectReference Include="..\..\..\Libraries\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
+    <Folder Include="Web\js\" />
+    <Folder Include="Web\img\" />
+  </ItemGroup>
+
+  <ItemGroup>
+ 	  <ProjectReference Include="..\..\Libraries\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
+
   </ItemGroup>
 
 </Project>

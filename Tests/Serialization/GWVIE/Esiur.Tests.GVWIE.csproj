@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Esiur\Esiur.csproj" />
+	  <ProjectReference Include="..\..\..\Libraries\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
 </Project>

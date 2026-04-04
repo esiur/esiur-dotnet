@@ -6,7 +6,7 @@ using FlatSharp.Attributes;
 using Esiur.Data;
 using Esiur.Resource;
 
-namespace Esiur.Tests.Serialization;
+namespace Esiur.Tests.ComplexModel;
 
 #nullable enable
 

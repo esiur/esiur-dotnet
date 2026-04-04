@@ -115,17 +115,17 @@ class Program
 
 
 
-        var a = new ECDH();
-        var b = new ECDH();
+        //var a = new ECDH();
+        //var b = new ECDH();
 
-        var apk = a.GetPublicKey();
-        var bpk = b.GetPublicKey();
+        //var apk = a.GetPublicKey();
+        //var bpk = b.GetPublicKey();
 
-        var ska = a.ComputeSharedKey(bpk);
-        var skb = b.ComputeSharedKey(apk);
+        //var ska = a.ComputeSharedKey(bpk);
+        //var skb = b.ComputeSharedKey(apk);
 
-        Console.WriteLine(ska.ToHex());
-        Console.WriteLine(skb.ToHex());
+        //Console.WriteLine(ska.ToHex());
+        //Console.WriteLine(skb.ToHex());
 
         //// Simple membership provider
         //var membership = new SimpleMembership() { GuestsAllowed = true };

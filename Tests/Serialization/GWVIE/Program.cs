@@ -1,5 +1,5 @@
 ﻿
-using Esiur.Tests.Serialization;
+using Esiur.Tests.Gvwie;
 using MessagePack;
 
 MessagePack.MessagePackSerializer.DefaultOptions = MessagePackSerializerOptions.Standard
@@ -8,8 +8,4 @@ MessagePack.MessagePackSerializer.DefaultOptions = MessagePackSerializerOptions.
 
 var ints = new IntArrayRunner();
 ints.Run();
-
-var models = new ModelRunner();
-models.Run();
-
 

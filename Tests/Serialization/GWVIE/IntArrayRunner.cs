@@ -1,4 +1,4 @@
-﻿using Esiur.Data.GVWIE;
+﻿using Esiur.Data.Gvwie;
 using FlatSharp;
 using FlatSharp.Attributes;
 using MessagePack;
@@ -11,7 +11,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Tests.Serialization
+namespace Esiur.Tests.Gvwie
 {
     [FlatBufferTable]
     public class ArrayRoot<T>

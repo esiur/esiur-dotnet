@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Authors>Ahmed Kh. Zamil</Authors>
+    <Company>Esiur</Company>
+    <Product>Esiur MongoDB Store</Product>
+    <Description>MongoDB Store for Esiur Library</Description>
+    <Copyright>Ahmed Kh. Zamil</Copyright>
+    <PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Version>1.5.6</Version>
+    <PackageId>Esiur.Stores.MongoDB</PackageId>
+	<LangVersion>latest</LangVersion>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Bson" Version="2.29.0" />
+    <PackageReference Include="MongoDB.Driver" Version="2.29.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Libraries\Esiur\Esiur.csproj" />
+  </ItemGroup>
+
+</Project>

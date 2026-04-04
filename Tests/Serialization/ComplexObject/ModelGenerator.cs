@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Linq;
 
 #nullable enable
-namespace Esiur.Tests.Serialization;
+namespace Esiur.Tests.ComplexModel;
 
 public static class ModelGenerator
 {

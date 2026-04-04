@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 #nullable enable
 
-namespace Esiur.Tests.Serialization;
+namespace Esiur.Tests.ComplexModel;
 
 public interface ICodec
 {
