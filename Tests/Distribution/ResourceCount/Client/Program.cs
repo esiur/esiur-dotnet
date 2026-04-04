@@ -23,7 +23,7 @@ var proxies = new dynamic[resourceCount];
 
 // --- Attach in batches to avoid overwhelming the runtime -------------
 var totalSw = Stopwatch.StartNew();
-
+var wh = new Warehouse();
 for (int batch = 0; batch < resourceCount; batch += batchSize)
 {
     int end = Math.Min(batch + batchSize, resourceCount);
@@ -35,7 +35,7 @@ for (int batch = 0; batch < resourceCount; batch += batchSize)
         batchTasks[i - batch] = Task.Run(async () =>
         {
             var sw = Stopwatch.StartNew();
-            proxies[capturedI] = await Warehouse.Get<IResource>(
+            proxies[capturedI] = await wh.Get<IResource>(
                 $"iip://{host}:{port}/sys/sensor_{capturedI}");
             sw.Stop();
 

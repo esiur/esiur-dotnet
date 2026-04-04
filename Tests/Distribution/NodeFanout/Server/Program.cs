@@ -9,8 +9,8 @@
 
 using Esiur.Resource;
 using Esiur.Stores;
-using Esiur.Net.IIP;
-using System.Diagnostics;
+ using System.Diagnostics;
+using Esiur.Protocol;
 
 var resourceCount = int.Parse(GetArg(args, "--resources", "100"));
 var intervalMs    = int.Parse(GetArg(args, "--interval",  "50"));
@@ -18,19 +18,20 @@ var port          = int.Parse(GetArg(args, "--port",      "10900"));
 
 Console.WriteLine($"[Server] resources={resourceCount}  interval={intervalMs}ms  port={port}");
 
+var wh = new Warehouse();
 // --- Warehouse setup -------------------------------------------------
-await Warehouse.Put("sys", new MemoryStore());
-await Warehouse.Put("sys/server", new DistributedServer() { Port = (ushort)port });
+await wh.Put("sys", new MemoryStore());
+await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
 
 // Create and register all sensor resources
 var sensors = new SensorResource[resourceCount];
 for (int i = 0; i < resourceCount; i++)
 {
     sensors[i] = new SensorResource { SensorId = i };
-    await Warehouse.Put($"sys/sensor_{i}", sensors[i]);
+    await wh.Put($"sys/sensor_{i}", sensors[i]);
 }
 
-await Warehouse.Open();
+await wh.Open();
 Console.WriteLine($"[Server] Listening on port {port} with {resourceCount} resources.");
 
 // --- Emit loop -------------------------------------------------------
@@ -68,7 +69,7 @@ _ = Task.Run(async () =>
 
 Console.WriteLine("Press ENTER to stop.");
 Console.ReadLine();
-await Warehouse.Close();
+await wh.Close();
 
 
 // --- Helpers ---------------------------------------------------------

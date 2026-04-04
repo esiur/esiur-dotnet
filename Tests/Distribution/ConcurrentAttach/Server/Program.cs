@@ -17,9 +17,9 @@
 // Usage (client only):      dotnet run -- --mode client --host 127.0.0.1 --concurrent 50 --resources 200
 // ============================================================
 
+using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
-using Esiur.Net.IIP;
 using System.Diagnostics;
 
 var mode        = GetArg(args, "--mode",       "both");
@@ -30,27 +30,28 @@ var resources   = int.Parse(GetArg(args, "--resources",  "200"));
 var timeoutMs   = int.Parse(GetArg(args, "--timeout",    "10000"));
 var rounds      = int.Parse(GetArg(args, "--rounds",     "5"));
 
+var wh = new Warehouse();
 // ----------------------------------------------------------------
 // SERVER SIDE
 // ----------------------------------------------------------------
 if (mode == "server" || mode == "both")
 {
-    await Warehouse.Put("sys", new MemoryStore());
-    await Warehouse.Put("sys/server", new DistributedServer() { Port = (ushort)port });
+    await wh.Put("sys", new MemoryStore());
+    await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
 
     for (int i = 0; i < resources; i++)
     {
-        await Warehouse.Put($"sys/sensor_{i}", new SensorResource { SensorId = i, Value = i });
+        await wh.Put($"sys/sensor_{i}", new SensorResource { SensorId = i, Value = i });
     }
 
-    await Warehouse.Open();
+    await wh.Open();
     Console.WriteLine($"[Server-T3] Ready: {resources} resources on port {port}");
 
     if (mode == "server")
     {
         Console.WriteLine("Press ENTER to stop.");
         Console.ReadLine();
-        await Warehouse.Close();
+        await wh.Close();
         return;
     }
 
@@ -88,7 +89,7 @@ for (int round = 0; round < rounds; round++)
         using var cts = new CancellationTokenSource(timeoutMs);
         try
         {
-            var proxy = await Warehouse.Get<IResource>(
+            var proxy = await wh.Get<IResource>(
                 $"iip://{host}:{port}/sys/sensor_{resourceIdx}");
 
             sw.Stop();
@@ -160,7 +161,7 @@ await File.WriteAllTextAsync("test3_concurrent_attach.csv", csv);
 Console.WriteLine("\n[Client-T3] Results written to test3_concurrent_attach.csv");
 
 if (mode == "both")
-    await Warehouse.Close();
+    await wh.Close();
 
 
 // ----------------------------------------------------------------

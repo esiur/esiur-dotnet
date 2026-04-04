@@ -32,11 +32,13 @@ var latencyLock = new object();
 var proxies = new dynamic[resourceCount];
 var sw = Stopwatch.StartNew();
 
+var wh = new Warehouse();
+
 try
 {
     for (int i = 0; i < resourceCount; i++)
     {
-        proxies[i] = await Warehouse.Get<IResource>($"iip://{host}:{port}/sys/sensor_{i}");
+        proxies[i] = await wh.Get<IResource>($"iip://{host}:{port}/sys/sensor_{i}");
 
         // Subscribe to property change notifications via the Esiur event model
         double lastValue = (double)proxies[i].Value;

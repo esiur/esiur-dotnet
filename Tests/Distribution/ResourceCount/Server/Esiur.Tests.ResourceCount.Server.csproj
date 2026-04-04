@@ -7,4 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Libraries\Esiur\Esiur.csproj" OutputItemType="Analyzer"/>
+  </ItemGroup>
+
 </Project>

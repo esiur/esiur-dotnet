@@ -8,25 +8,27 @@
 
 using Esiur.Resource;
 using Esiur.Stores;
-using Esiur.Net.IIP;
+using Esiur.Protocol;
 
 var resourceCount = int.Parse(GetArg(args, "--resources", "10000"));
 var port          = int.Parse(GetArg(args, "--port",      "10901"));
 
 Console.WriteLine($"[Server-T2] Creating {resourceCount} resources on port {port}");
 
-await Warehouse.Put("sys", new MemoryStore());
-await Warehouse.Put("sys/server", new DistributedServer() { Port = (ushort)port });
+var wh = new Warehouse();
+
+await wh.Put("sys", new MemoryStore());
+await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
 
 long memBefore = GC.GetTotalMemory(forceFullCollection: true);
 
 for (int i = 0; i < resourceCount; i++)
 {
     var s = new SensorResource { SensorId = i, Value = i * 0.1 };
-    await Warehouse.Put($"sys/sensor_{i}", s);
+    await wh.Put($"sys/sensor_{i}", s);
 }
 
-await Warehouse.Open();
+await wh.Open();
 
 long memAfter = GC.GetTotalMemory(forceFullCollection: true);
 double memMB = (memAfter - memBefore) / (1024.0 * 1024.0);
@@ -35,7 +37,7 @@ Console.WriteLine($"[Server-T2] Ready. Resources={resourceCount}  MemoryUsed={me
 Console.WriteLine($"[Server-T2] Per-resource ≈ {(memAfter - memBefore) / (double)resourceCount:F0} bytes");
 Console.WriteLine("Press ENTER to stop.");
 Console.ReadLine();
-await Warehouse.Close();
+await wh.Close();
 
 
 static string GetArg(string[] args, string key, string def)
