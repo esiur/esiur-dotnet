@@ -753,7 +753,7 @@ public class Instance
 		}
 		else
 		{
-			this.definition = Warehouse.GetTypeDefByType(resource.GetType());
+			this.definition = warehouse.GetTypeDefByType(resource.GetType());
 		}
 
 		// set ages

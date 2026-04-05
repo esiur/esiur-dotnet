@@ -117,30 +117,6 @@ namespace Esiur.Proxy
                             }
                         }
 
-//                        var code = @$"using Esiur.Resource; 
-//using Esiur.Core;
-
-//#nullable enable
-
-//namespace {ci.ClassSymbol.ContainingNamespace.ToDisplayString()} {{
-//";
-
-//                        if (IsInterfaceImplemented(ci, classes))
-//                            code += $"public partial class {ci.Name} {{\r\n";
-//                        else
-//                        {
-//                            code +=
-//$@" public partial class {ci.Name} : IResource {{
-//    public virtual Instance? Instance {{ get; set; }}
-//    public virtual event DestroyedEvent? OnDestroy;
-
-//    public virtual void Destroy() {{ OnDestroy?.Invoke(this); }}
-//";
-
-//                            if (!ci.HasTrigger)
-//                                code += "\tpublic virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);\r\n\r\n";
-//                        }
-
                         foreach (var f in ci.Fields)
                         {
                             var givenName = f.GetAttributes().FirstOrDefault(x => x.AttributeClass?.Name == "ExportAttribute")?.ConstructorArguments.FirstOrDefault().Value as string;
@@ -156,12 +132,17 @@ namespace Esiur.Proxy
                             
                             if (f.Type.Name.StartsWith("ResourceEventHandler") || f.Type.Name.StartsWith("CustomResourceEventHandler"))
                             {
-                                code.AppendLine($"public event {f.Type} {pn};");
+                                code.AppendLine($"\tpublic event {f.Type} {pn};");
                             }
                             else
                             {
-                                code.AppendLine($"\t{attrs}\r\n\t public {f.Type} {pn} {{ \r\n\t\t get => {fn}; \r\n\t\t set {{ \r\n\t\t this.{fn} = value; \r\n\t\t Instance?.Modified(); \r\n\t\t}}\r\n\t}}\r\n");
-
+                                code.AppendLine($"\tpublic {f.Type} {pn} {{");
+                                code.AppendLine($"\t\t get => {fn};");
+                                code.AppendLine($"\t\t set {{");
+                                code.AppendLine($"\t\t this.{fn} = value;");
+                                code.AppendLine($"\t\t Instance?.Modified();");
+                                code.AppendLine($"\t\t}}");
+                                code.AppendLine($"\t}}");
                             }
                         }
 

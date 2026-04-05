@@ -29,7 +29,7 @@ long   latencySamples   = 0;
 var latencyLock = new object();
 
 // --- Attach all resources -------------------------------------------
-var proxies = new dynamic[resourceCount];
+var proxies = new IResource[resourceCount];
 var sw = Stopwatch.StartNew();
 
 var wh = new Warehouse();
@@ -38,16 +38,18 @@ try
 {
     for (int i = 0; i < resourceCount; i++)
     {
-        proxies[i] = await wh.Get<IResource>($"iip://{host}:{port}/sys/sensor_{i}");
+        proxies[i] = await wh.Get<IResource>($"ep://{host}:{port}/sys/sensor_{i}");
+
+        dynamic resource = proxies[i];
 
         // Subscribe to property change notifications via the Esiur event model
-        double lastValue = (double)proxies[i].Value;
+        double lastValue = (double)resource.Value;
         long   lastTick  = Stopwatch.GetTimestamp();
         int    capturedI = i;
 
-        proxies[i].OnPropertyModified += (string propName, object oldVal, object newVal) =>
+        proxies[i].Instance.PropertyModified += (PropertyModificationInfo data) =>
         {
-            if (propName != "Value") return;
+            if (data.Name != "Value") return;
 
             long nowTick = Stopwatch.GetTimestamp();
             double elapsedMs = (nowTick - lastTick) * 1000.0 / Stopwatch.Frequency;
@@ -72,6 +74,7 @@ catch (Exception ex)
     Console.WriteLine($"[Client {clientId}] Attach error: {ex.Message}");
     return;
 }
+ 
 
 // --- Measurement window ---------------------------------------------
 sw.Restart();

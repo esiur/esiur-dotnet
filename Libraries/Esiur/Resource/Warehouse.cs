@@ -67,6 +67,8 @@ public class Warehouse
             [TypeDefKind.Enum] = new KeyList<Uuid, TypeDef>(),
         };
 
+    object typeDefsLock = new object();
+
     bool warehouseIsOpen = false;
 
     public delegate void StoreEvent(IStore store);
@@ -508,10 +510,13 @@ public class Warehouse
     /// <param name="typeDef">Resource type definition.</param>
     public void RegisterTypeDef(TypeDef typeDef)
     {
-        if (typeDefs[typeDef.Kind].ContainsKey(typeDef.Id))
-            throw new Exception($"TypeDef with same class Id already exists. {typeDefs[typeDef.Kind][typeDef.Id].Name} -> {typeDef.Name}");
+        lock (typeDefsLock)
+        {
+            if (typeDefs[typeDef.Kind].ContainsKey(typeDef.Id))
+                throw new Exception($"TypeDef with same class Id already exists. {typeDefs[typeDef.Kind][typeDef.Id].Name} -> {typeDef.Name}");
 
-		typeDefs[typeDef.Kind][typeDef.Id] = typeDef;
+            typeDefs[typeDef.Kind][typeDef.Id] = typeDef;
+        }
     }
 
 
@@ -522,9 +527,11 @@ public class Warehouse
     /// <returns>Resource TypeDef.</returns>
     public TypeDef GetTypeDefByType(Type type)
     {
+        
         if (!(type.IsClass || type.IsEnum))
             return null;
 
+       
         var baseType = ResourceProxy.GetBaseType(type);
 
         if (baseType == typeof(IResource)
@@ -541,15 +548,17 @@ public class Warehouse
         else
             return null;
 
-        var typeDef = typeDefs[typeDefKind].Values.FirstOrDefault(x => x.DefinedType == baseType);
-        if (typeDef != null)
+        lock (typeDefsLock)
+        {
+            var typeDef = typeDefs[typeDefKind].Values.FirstOrDefault(x => x.DefinedType == baseType);
+            if (typeDef != null)
+                return typeDef;
+
+            // create new TypeDef for type
+            typeDef = new TypeDef(baseType, this);
+            TypeDef.GetDependencies(typeDef, this);
             return typeDef;
-
-        // create new TypeDef for type
-        typeDef = new TypeDef(baseType, this);
-        TypeDef.GetDependencies(typeDef, this);
-
-        return typeDef;
+        }
     }
 
     /// <summary>

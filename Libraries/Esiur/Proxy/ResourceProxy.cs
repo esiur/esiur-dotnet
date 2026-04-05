@@ -11,6 +11,7 @@ namespace Esiur.Proxy;
 public static class ResourceProxy
 {
     static Dictionary<Type, Type> cache = new Dictionary<Type, Type>();
+    static object cacheLock = new object();
 
 #if NETSTANDARD
     static MethodInfo modifyMethod = typeof(Instance).GetTypeInfo().GetMethod("Modified");
@@ -48,33 +49,34 @@ public static class ResourceProxy
 
     public static Type GetProxy(Type type)
     {
-
-        if (cache.ContainsKey(type))
-            return cache[type];
-
-        // check if the type was made with code generation
-        if (type.GetCustomAttribute<ResourceAttribute>(false) != null)
+        lock (cacheLock)
         {
-            cache.Add(type, type);
-            return type;
-        }
+            if (cache.ContainsKey(type))
+                return cache[type];
 
-        if (!Codec.ImplementsInterface(type, typeof(IResource)))
-        {
-            cache.Add(type, type);
-            return type;
-        }
+            // check if the type was made with code generation
+            if (type.GetCustomAttribute<ResourceAttribute>(false) != null)
+            {
+                cache.Add(type, type);
+                return type;
+            }
+
+            if (!Codec.ImplementsInterface(type, typeof(IResource)))
+            {
+                cache.Add(type, type);
+                return type;
+            }
 
 #if NETSTANDARD
-        var typeInfo = type.GetTypeInfo();
+            var typeInfo = type.GetTypeInfo();
 
-        if (typeInfo.IsSealed || typeInfo.IsAbstract)
-            throw new Exception("Sealed/Abastract classes can't be proxied.");
+            if (typeInfo.IsSealed || typeInfo.IsAbstract)
+                throw new Exception("Sealed/Abastract classes can't be proxied.");
 
-        var props = from p in typeInfo.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                    where p.CanWrite && p.SetMethod.IsVirtual && !p.SetMethod.IsFinal &&
-                    p.GetCustomAttribute<ExportAttribute>(false) != null
-                    select p;
+            var props = from p in typeInfo.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                        where p.CanWrite && p.SetMethod.IsVirtual && !p.SetMethod.IsFinal &&
+                        p.GetCustomAttribute<ExportAttribute>(false) != null
+                        select p;
 
 #else
             if (type.IsSealed)
@@ -86,33 +88,34 @@ public static class ResourceProxy
                 select p;
 
 #endif
-        var assemblyName = new AssemblyName("Esiur.Proxy.T." + type.Assembly.GetName().Name);// type.Namespace);
-        assemblyName.Version = type.Assembly.GetName().Version;
-        assemblyName.CultureInfo = type.Assembly.GetName().CultureInfo;
-        //assemblyName.SetPublicKeyToken(null);
+            var assemblyName = new AssemblyName("Esiur.Proxy.T." + type.Assembly.GetName().Name);// type.Namespace);
+            assemblyName.Version = type.Assembly.GetName().Version;
+            assemblyName.CultureInfo = type.Assembly.GetName().CultureInfo;
+            //assemblyName.SetPublicKeyToken(null);
 
-        var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
-        var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name);
-        var typeName = "Esiur.Proxy.T." + type.FullName;// Assembly.CreateQualifiedName(assemblyName.FullName, "Esiur.Proxy.T." + type.FullName);
+            var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
+            var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name);
+            var typeName = "Esiur.Proxy.T." + type.FullName;// Assembly.CreateQualifiedName(assemblyName.FullName, "Esiur.Proxy.T." + type.FullName);
 
-        var typeBuilder = moduleBuilder.DefineType(typeName,
-            TypeAttributes.Public | TypeAttributes.Class, type);
+            var typeBuilder = moduleBuilder.DefineType(typeName,
+                TypeAttributes.Public | TypeAttributes.Class, type);
 
-        foreach (PropertyInfo propertyInfo in props)
-            CreateProperty(propertyInfo, typeBuilder, type);
+            foreach (PropertyInfo propertyInfo in props)
+                CreateProperty(propertyInfo, typeBuilder, type);
 
 
 
 #if NETSTANDARD
-        var t = typeBuilder.CreateTypeInfo().AsType();
-        cache.Add(type, t);
-        return t;
+            var t = typeBuilder.CreateTypeInfo().AsType();
+            cache.Add(type, t);
+            return t;
 #else
             
             var t = typeBuilder.CreateType();
             cache.Add(type, t);
             return t;
 #endif
+        }
     }
 
     public static Type GetProxy<T>()

@@ -12,12 +12,12 @@ namespace Esiur.Net.Packets
         Stream = 0x2,
 
         // Error
-        PermissionError = 0x81,
-        ExecutionError = 0x82,
+        PermissionError = 0x4,
+        ExecutionError = 0x5,
 
         // Partial
-        Progress = 0x10,
-        Chunk = 0x11,
-        Warning = 0x12
+        Progress = 0x8,
+        Chunk = 0x9,
+        Warning = 0xA
     }
 }

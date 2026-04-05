@@ -18,17 +18,28 @@ Console.WriteLine($"[Server-T2] Creating {resourceCount} resources on port {port
 var wh = new Warehouse();
 
 await wh.Put("sys", new MemoryStore());
-await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
+var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
 
 long memBefore = GC.GetTotalMemory(forceFullCollection: true);
 
+List<SensorResource> sensors = new List<SensorResource>();
+
 for (int i = 0; i < resourceCount; i++)
 {
-    var s = new SensorResource { SensorId = i, Value = i * 0.1 };
-    await wh.Put($"sys/sensor_{i}", s);
+    var sensor = await wh.Put($"sys/sensor_{i}", 
+        new SensorResource { SensorId = i, Value = i * 0.1 });
+    sensors.Add(sensor);
 }
 
 await wh.Open();
+
+server.MapCall("UpdateValues", () =>
+{
+    foreach(var sensor in sensors)
+    {
+        sensor.Value += 0.1;
+    }
+});
 
 long memAfter = GC.GetTotalMemory(forceFullCollection: true);
 double memMB = (memAfter - memBefore) / (1024.0 * 1024.0);

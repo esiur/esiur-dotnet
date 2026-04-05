@@ -267,263 +267,266 @@ namespace Esiur.Data
         //        case TRUIdentifier.            }
         //}
 
-        private static Dictionary<Type, Tru> _cache = new Dictionary<Type, Tru>();
+        private static Dictionary<Type, Tru> cache = new Dictionary<Type, Tru>();
+        private static object cacheLook = new object();
 
         public static Tru? FromType(Type type)
         {
             if (type == null)
                 return new Tru(TruIdentifier.Void, true);
 
-            if (_cache.ContainsKey(type))
-                return _cache[type];
-
-            var nullable = false;
-
-            var nullType = System.Nullable.GetUnderlyingType(type);
-
-            if (nullType != null)
+            lock (cacheLook)
             {
-                type = nullType;
-                nullable = true;
-            }
+                if (cache.ContainsKey(type))
+                    return cache[type];
 
-            Tru? tru = null;
+                var nullable = false;
 
-            if (type == typeof(IResource))
-            {
-                return new Tru(TruIdentifier.Resource, nullable);
-            }
-            else if (type == typeof(IRecord) || type == typeof(Record))
-            {
-                return new Tru(TruIdentifier.Record, nullable);
-            }
-            else if (type == typeof(Map<object, object>)
-                || type == typeof(Dictionary<object, object>)) 
-            { 
-                return new Tru(TruIdentifier.Map, nullable);
-            }
-            else if (Codec.ImplementsInterface(type, typeof(IResource)))
-            {
-                tru = new Tru(
-                   TruIdentifier.TypedResource,
-                   nullable,
-                   TypeDef.GetTypeUUID(type)
-                );
-            }
-            else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            {
-                tru = new Tru(
-                   TruIdentifier.TypedRecord,
-                   nullable,
-                   TypeDef.GetTypeUUID(type)
-                );
-            }
-            else if (type.IsGenericType)
-            {
-                var genericType = type.GetGenericTypeDefinition();
+                var nullType = System.Nullable.GetUnderlyingType(type);
 
-                if (genericType == typeof(List<>)
-                    || genericType == typeof(VarList<>)
-                    || genericType == typeof(IList<>))
+                if (nullType != null)
                 {
-                    var args = type.GetGenericArguments();
-                    if (args[0] == typeof(object))
+                    type = nullType;
+                    nullable = true;
+                }
+
+                Tru? tru = null;
+
+                if (type == typeof(IResource))
+                {
+                    return new Tru(TruIdentifier.Resource, nullable);
+                }
+                else if (type == typeof(IRecord) || type == typeof(Record))
+                {
+                    return new Tru(TruIdentifier.Record, nullable);
+                }
+                else if (type == typeof(Map<object, object>)
+                    || type == typeof(Dictionary<object, object>))
+                {
+                    return new Tru(TruIdentifier.Map, nullable);
+                }
+                else if (Codec.ImplementsInterface(type, typeof(IResource)))
+                {
+                    tru = new Tru(
+                       TruIdentifier.TypedResource,
+                       nullable,
+                       TypeDef.GetTypeUUID(type)
+                    );
+                }
+                else if (Codec.ImplementsInterface(type, typeof(IRecord)))
+                {
+                    tru = new Tru(
+                       TruIdentifier.TypedRecord,
+                       nullable,
+                       TypeDef.GetTypeUUID(type)
+                    );
+                }
+                else if (type.IsGenericType)
+                {
+                    var genericType = type.GetGenericTypeDefinition();
+
+                    if (genericType == typeof(List<>)
+                        || genericType == typeof(VarList<>)
+                        || genericType == typeof(IList<>))
                     {
-                        tru = new Tru(TruIdentifier.List, nullable);
+                        var args = type.GetGenericArguments();
+                        if (args[0] == typeof(object))
+                        {
+                            tru = new Tru(TruIdentifier.List, nullable);
+                        }
+                        else
+                        {
+                            var subType = FromType(args[0]);
+                            if (subType == null) // unrecongnized type
+                                return null;
+
+
+                            tru = new Tru(TruIdentifier.TypedList, nullable, null,
+                                new Tru[] { subType });
+
+                        }
+                    }
+                    else if (genericType == typeof(Map<,>)
+                        || genericType == typeof(Dictionary<,>))
+                    {
+                        var args = type.GetGenericArguments();
+                        if (args[0] == typeof(object) && args[1] == typeof(object))
+                        {
+                            tru = new Tru(TruIdentifier.Map, nullable);
+                        }
+                        else
+                        {
+                            var subType1 = FromType(args[0]);
+                            if (subType1 == null)
+                                return null;
+
+                            var subType2 = FromType(args[1]);
+                            if (subType2 == null)
+                                return null;
+
+                            tru = new Tru(TruIdentifier.TypedMap, nullable, null,
+                               new Tru[] { subType1, subType2 });
+
+                        }
+                    }
+                    else if (genericType == typeof(ResourceLink<>))
+                    {
+                        var args = type.GetGenericArguments();
+
+                        return FromType(args[0]);
+                    }
+                    else if (genericType == typeof(ValueTuple<,>))
+                    {
+                        var args = type.GetGenericArguments();
+                        var subTypes = new Tru[args.Length];
+                        for (var i = 0; i < args.Length; i++)
+                        {
+                            var t = FromType(args[i]);
+                            if (t == null)
+                                return null;
+                            subTypes[i] = t;
+                        }
+
+
+                        tru = new Tru(TruIdentifier.Tuple2, nullable, null, subTypes);
+
+                    }
+                    else if (genericType == typeof(ValueTuple<,,>))
+                    {
+                        var args = type.GetGenericArguments();
+                        var subTypes = new Tru[args.Length];
+                        for (var i = 0; i < args.Length; i++)
+                        {
+                            var t = FromType(args[i]);
+                            if (t == null)
+                                return null;
+                            subTypes[i] = t;
+                        }
+
+                        tru = new Tru(TruIdentifier.Tuple3, nullable, null, subTypes);
+
+                    }
+                    else if (genericType == typeof(ValueTuple<,,,>))
+                    {
+
+                        var args = type.GetGenericArguments();
+                        var subTypes = new Tru[args.Length];
+                        for (var i = 0; i < args.Length; i++)
+                        {
+                            var t = FromType(args[i]);
+                            if (t == null)
+                                return null;
+                            subTypes[i] = t;
+                        }
+
+                        tru = new Tru(TruIdentifier.Tuple4, nullable, null, subTypes);
+                    }
+                    else if (genericType == typeof(ValueTuple<,,,,>))
+                    {
+                        var args = type.GetGenericArguments();
+                        var subTypes = new Tru[args.Length];
+                        for (var i = 0; i < args.Length; i++)
+                        {
+                            var t = FromType(args[i]);
+                            if (t == null)
+                                return null;
+                            subTypes[i] = t;
+                        }
+
+                        tru = new Tru(TruIdentifier.Tuple5, nullable, null, subTypes);
+                    }
+                    else if (genericType == typeof(ValueTuple<,,,,,>))
+                    {
+                        var args = type.GetGenericArguments();
+                        var subTypes = new Tru[args.Length];
+                        for (var i = 0; i < args.Length; i++)
+                        {
+                            var t = FromType(args[i]);
+                            if (t == null)
+                                return null;
+                            subTypes[i] = t;
+                        }
+
+                        tru = new Tru(TruIdentifier.Tuple6, nullable, null, subTypes);
+                    }
+                    else if (genericType == typeof(ValueTuple<,,,,,,>))
+                    {
+                        var args = type.GetGenericArguments();
+                        var subTypes = new Tru[args.Length];
+                        for (var i = 0; i < args.Length; i++)
+                        {
+                            var t = FromType(args[i]);
+                            if (t == null)
+                                return null;
+                            subTypes[i] = t;
+                        }
+
+                        tru = new Tru(TruIdentifier.Tuple7, nullable, null, subTypes);
                     }
                     else
+                        return null;
+                }
+                else if (type.IsArray)
+                {
+                    var elementType = type.GetElementType();
+                    if (elementType == typeof(object))
+                        tru = new Tru(TruIdentifier.List, nullable);
+                    else
                     {
-                        var subType = FromType(args[0]);
-                        if (subType == null) // unrecongnized type
-                            return null;
+                        var subType = FromType(elementType);
 
+                        if (subType == null)
+                            return null;
 
                         tru = new Tru(TruIdentifier.TypedList, nullable, null,
                             new Tru[] { subType });
 
                     }
                 }
-                else if (genericType == typeof(Map<,>)
-                    || genericType == typeof(Dictionary<,>))
+                else if (type.IsEnum)
                 {
-                    var args = type.GetGenericArguments();
-                    if (args[0] == typeof(object) && args[1] == typeof(object))
-                    {
-                        tru = new Tru(TruIdentifier.Map, nullable);
-                    }
-                    else
-                    {
-                        var subType1 = FromType(args[0]);
-                        if (subType1 == null)
-                            return null;
-
-                        var subType2 = FromType(args[1]);
-                        if (subType2 == null)
-                            return null;
-
-                        tru = new Tru(TruIdentifier.TypedMap, nullable, null,
-                           new Tru[] { subType1, subType2 });
-
-                    }
+                    tru = new Tru(TruIdentifier.Enum, nullable, TypeDef.GetTypeUUID(type));
                 }
-                else if (genericType == typeof(ResourceLink<>))
+                else if (type.IsInterface)
                 {
-                    var args = type.GetGenericArguments();
-
-                    return FromType(args[0]);
+                    return null; // other interfaces are not supported
                 }
-                else if (genericType == typeof(ValueTuple<,>))
+
+                //else if (typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject) => TRUIdentifier.Structure)
+                //{
+
+                //}
+
+                if (tru != null)
                 {
-                    var args = type.GetGenericArguments();
-                    var subTypes = new Tru[args.Length];
-                    for (var i = 0; i < args.Length; i++)
-                    {
-                        var t = FromType(args[i]);
-                        if (t == null)
-                            return null;
-                        subTypes[i] = t;
-                    }
-
-
-                    tru = new Tru(TruIdentifier.Tuple2, nullable, null, subTypes);
-
+                    cache.Add(type, tru);
+                    return tru;
                 }
-                else if (genericType == typeof(ValueTuple<,,>))
+
+                // last check
+                return type switch
                 {
-                    var args = type.GetGenericArguments();
-                    var subTypes = new Tru[args.Length];
-                    for (var i = 0; i < args.Length; i++)
-                    {
-                        var t = FromType(args[i]);
-                        if (t == null)
-                            return null;
-                        subTypes[i] = t;
-                    }
-
-                    tru = new Tru(TruIdentifier.Tuple3, nullable, null, subTypes);
-
-                }
-                else if (genericType == typeof(ValueTuple<,,,>))
-                {
-
-                    var args = type.GetGenericArguments();
-                    var subTypes = new Tru[args.Length];
-                    for (var i = 0; i < args.Length; i++)
-                    {
-                        var t = FromType(args[i]);
-                        if (t == null)
-                            return null;
-                        subTypes[i] = t;
-                    }
-
-                    tru = new Tru(TruIdentifier.Tuple4, nullable, null, subTypes);
-                }
-                else if (genericType == typeof(ValueTuple<,,,,>))
-                {
-                    var args = type.GetGenericArguments();
-                    var subTypes = new Tru[args.Length];
-                    for (var i = 0; i < args.Length; i++)
-                    {
-                        var t = FromType(args[i]);
-                        if (t == null)
-                            return null;
-                        subTypes[i] = t;
-                    }
-
-                    tru = new Tru(TruIdentifier.Tuple5, nullable, null, subTypes);
-                }
-                else if (genericType == typeof(ValueTuple<,,,,,>))
-                {
-                    var args = type.GetGenericArguments();
-                    var subTypes = new Tru[args.Length];
-                    for (var i = 0; i < args.Length; i++)
-                    {
-                        var t = FromType(args[i]);
-                        if (t == null)
-                            return null;
-                        subTypes[i] = t;
-                    }
-
-                    tru = new Tru(TruIdentifier.Tuple6, nullable, null, subTypes);
-                }
-                else if (genericType == typeof(ValueTuple<,,,,,,>))
-                {
-                    var args = type.GetGenericArguments();
-                    var subTypes = new Tru[args.Length];
-                    for (var i = 0; i < args.Length; i++)
-                    {
-                        var t = FromType(args[i]);
-                        if (t == null)
-                            return null;
-                        subTypes[i] = t;
-                    }
-
-                    tru = new Tru(TruIdentifier.Tuple7, nullable, null, subTypes);
-                }
-                else
-                    return null;
+                    _ when type == typeof(void) => new Tru(TruIdentifier.Void, nullable),
+                    _ when type == typeof(object) => new Tru(TruIdentifier.Dynamic, nullable),
+                    _ when type == typeof(bool) => new Tru(TruIdentifier.Bool, nullable),
+                    _ when type == typeof(char) => new Tru(TruIdentifier.Char, nullable),
+                    _ when type == typeof(byte) => new Tru(TruIdentifier.UInt8, nullable),
+                    _ when type == typeof(sbyte) => new Tru(TruIdentifier.Int8, nullable),
+                    _ when type == typeof(short) => new Tru(TruIdentifier.Int16, nullable),
+                    _ when type == typeof(ushort) => new Tru(TruIdentifier.UInt16, nullable),
+                    _ when type == typeof(int) => new Tru(TruIdentifier.Int32, nullable),
+                    _ when type == typeof(uint) => new Tru(TruIdentifier.UInt32, nullable),
+                    _ when type == typeof(long) => new Tru(TruIdentifier.Int64, nullable),
+                    _ when type == typeof(ulong) => new Tru(TruIdentifier.UInt64, nullable),
+                    _ when type == typeof(float) => new Tru(TruIdentifier.Float32, nullable),
+                    _ when type == typeof(double) => new Tru(TruIdentifier.Float64, nullable),
+                    _ when type == typeof(decimal) => new Tru(TruIdentifier.Decimal, nullable),
+                    _ when type == typeof(string) => new Tru(TruIdentifier.String, nullable),
+                    _ when type == typeof(DateTime) => new Tru(TruIdentifier.DateTime, nullable),
+                    _ when type == typeof(ResourceLink) => new Tru(TruIdentifier.Resource, nullable),
+                    _ => null
+                };
             }
-            else if (type.IsArray)
-            {
-                var elementType = type.GetElementType();
-                if (elementType == typeof(object))
-                    tru = new Tru(TruIdentifier.List, nullable);
-                else
-                {
-                    var subType = FromType(elementType);
-
-                    if (subType == null)
-                        return null;
-
-                    tru = new Tru(TruIdentifier.TypedList, nullable, null,
-                        new Tru[] { subType });
-
-                }
-            }
-            else if (type.IsEnum)
-            {
-                tru = new Tru(TruIdentifier.Enum, nullable, TypeDef.GetTypeUUID(type));
-            }
-            else if (type.IsInterface)
-            {
-                return null; // other interfaces are not supported
-            }
-
-            //else if (typeof(Structure).IsAssignableFrom(t) || t == typeof(ExpandoObject) => TRUIdentifier.Structure)
-            //{
-
-            //}
-
-            if (tru != null)
-            {
-                _cache.Add(type, tru);
-                return tru;
-            }
-
-            // last check
-            return type switch
-            {
-                _ when type == typeof(void) => new Tru(TruIdentifier.Void, nullable),
-                _ when type == typeof(object) => new Tru(TruIdentifier.Dynamic, nullable),
-                _ when type == typeof(bool) => new Tru(TruIdentifier.Bool, nullable),
-                _ when type == typeof(char) => new Tru(TruIdentifier.Char, nullable),
-                _ when type == typeof(byte) => new Tru(TruIdentifier.UInt8, nullable),
-                _ when type == typeof(sbyte) => new Tru(TruIdentifier.Int8, nullable),
-                _ when type == typeof(short) => new Tru(TruIdentifier.Int16, nullable),
-                _ when type == typeof(ushort) => new Tru(TruIdentifier.UInt16, nullable),
-                _ when type == typeof(int) => new Tru(TruIdentifier.Int32, nullable),
-                _ when type == typeof(uint) => new Tru(TruIdentifier.UInt32, nullable),
-                _ when type == typeof(long) => new Tru(TruIdentifier.Int64, nullable),
-                _ when type == typeof(ulong) => new Tru(TruIdentifier.UInt64, nullable),
-                _ when type == typeof(float) => new Tru(TruIdentifier.Float32, nullable),
-                _ when type == typeof(double) => new Tru(TruIdentifier.Float64, nullable),
-                _ when type == typeof(decimal) => new Tru(TruIdentifier.Decimal, nullable),
-                _ when type == typeof(string) => new Tru(TruIdentifier.String, nullable),
-                _ when type == typeof(DateTime) => new Tru(TruIdentifier.DateTime, nullable),
-                _ when type == typeof(ResourceLink) => new Tru(TruIdentifier.Resource, nullable),
-                _ => null
-            };
-
         }
 
         public Tru(TruIdentifier identifier, bool nullable, Uuid? uuid = null, Tru[]? subTypes = null)

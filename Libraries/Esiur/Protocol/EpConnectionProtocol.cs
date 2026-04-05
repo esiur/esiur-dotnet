@@ -57,9 +57,11 @@ partial class EpConnection
 
     Dictionary<Uuid, TypeDef> typeDefs = new Dictionary<Uuid, TypeDef>();
 
+    object typeDefsLock = new object();
+
     KeyList<uint, AsyncReply> requests = new KeyList<uint, AsyncReply>();
 
-    volatile uint callbackCounter = 0;
+    volatile int callbackCounter = 0;
 
     Dictionary<IResource, List<byte>> subscriptions = new Dictionary<IResource, List<byte>>();
 
@@ -73,15 +75,18 @@ partial class EpConnection
 
 
     /// <summary>
-    /// Send IIP request.
+    /// Send EP request.
     /// </summary>
     /// <param name="action">Packet action.</param>
     /// <param name="args">Arguments to send.</param>
     /// <returns></returns>
+    /// 
+
     AsyncReply SendRequest(EpPacketRequest action, params object[] args)
     {
         var reply = new AsyncReply();
-        var c = callbackCounter++; // avoid thread racing
+        var c = (uint)Interlocked.Increment(ref callbackCounter);
+        //callbackCounter++; // avoid thread racing
         requests.Add(c, reply);
 
         if (args.Length == 0)
@@ -112,7 +117,7 @@ partial class EpConnection
     }
 
     /// <summary>
-    /// Send IIP notification.
+    /// Send EP notification.
     /// </summary>
     /// <param name="action">Packet action.</param>
     /// <param name="args">Arguments to send.</param>
@@ -343,7 +348,7 @@ partial class EpConnection
         var args = DataDeserializer.ListParser(dataType, Instance.Warehouse)
                                                 as object[];
 
-        var errorCode = (ushort)args[0];
+        var errorCode =Convert.ToUInt16( args[0]);
         var errorMsg = (string)args[1];
 
         req.TriggerError(new AsyncException(type, errorCode, errorMsg));
@@ -1721,60 +1726,66 @@ partial class EpConnection
     /// <returns>TypeSchema.</returns>
     public AsyncReply<TypeDef> GetTypeDefById(Uuid typeId)
     {
-        if (typeDefs.ContainsKey(typeId))
-            return new AsyncReply<TypeDef>(typeDefs[typeId]);
-        else if (typeDefsByIdRequests.ContainsKey(typeId))
-            return typeDefsByIdRequests[typeId];
+        lock (typeDefsLock)
+        {
+            if (typeDefs.ContainsKey(typeId))
+                return new AsyncReply<TypeDef>(typeDefs[typeId]);
+            else if (typeDefsByIdRequests.ContainsKey(typeId))
+                return typeDefsByIdRequests[typeId];
 
-        var reply = new AsyncReply<TypeDef>();
-        typeDefsByIdRequests.Add(typeId, reply);
+            var reply = new AsyncReply<TypeDef>();
+            typeDefsByIdRequests.Add(typeId, reply);
 
-        SendRequest(EpPacketRequest.TypeDefById, typeId)
-                    .Then((result) =>
-                    {
-                        var tt = TypeDef.Parse((byte[])result);
-                        typeDefsByIdRequests.Remove(typeId);
-                        typeDefs.Add(tt.Id, tt);
-                        Instance.Warehouse.RegisterTypeDef(tt);
-                        reply.Trigger(tt);
+            SendRequest(EpPacketRequest.TypeDefById, typeId)
+                        .Then((result) =>
+                        {
+                            var tt = TypeDef.Parse((byte[])result);
+                            typeDefsByIdRequests.Remove(typeId);
+                            typeDefs.Add(tt.Id, tt);
+                            Instance.Warehouse.RegisterTypeDef(tt);
+                            reply.Trigger(tt);
 
-                    }).Error((ex) =>
-                    {
-                        reply.TriggerError(ex);
-                    });
+                        }).Error((ex) =>
+                        {
+                            reply.TriggerError(ex);
+                        });
 
-        return reply;
+            return reply;
+        }
     }
 
 
     public AsyncReply<TypeDef> GetTypeDefByName(string typeName)
     {
-        var typeDef = typeDefs.Values.FirstOrDefault(x => x.Name == typeName);
-        if (typeDef != null)
-            return new AsyncReply<TypeDef>(typeDef);
+        lock (typeDefsLock)
+        {
+            var typeDef = typeDefs.Values.FirstOrDefault(x => x.Name == typeName);
+            if (typeDef != null)
+                return new AsyncReply<TypeDef>(typeDef);
 
-        if (typeDefsByNameRequests.ContainsKey(typeName))
-            return typeDefsByNameRequests[typeName];
+            if (typeDefsByNameRequests.ContainsKey(typeName))
+                return typeDefsByNameRequests[typeName];
 
-        var reply = new AsyncReply<TypeDef>();
-        typeDefsByNameRequests.Add(typeName, reply);
+            var reply = new AsyncReply<TypeDef>();
+            typeDefsByNameRequests.Add(typeName, reply);
 
 
-        SendRequest(EpPacketRequest.TypeDefByName, typeName)
-                    .Then((result) =>
-                    {
-                        var tt = TypeDef.Parse((byte[])result);
+            SendRequest(EpPacketRequest.TypeDefByName, typeName)
+                        .Then((result) =>
+                        {
+                            var tt = TypeDef.Parse((byte[])result);
 
-                        typeDefsByNameRequests.Remove(typeName);
-                        typeDefs.Add(tt.Id, tt);
-                        Instance.Warehouse.RegisterTypeDef(tt);
-                        reply.Trigger(tt);
-                    }).Error((ex) =>
-                    {
-                        reply.TriggerError(ex);
-                    });
+                            typeDefsByNameRequests.Remove(typeName);
+                            typeDefs.Add(tt.Id, tt);
+                            Instance.Warehouse.RegisterTypeDef(tt);
+                            reply.Trigger(tt);
+                        }).Error((ex) =>
+                        {
+                            reply.TriggerError(ex);
+                        });
 
-        return reply;
+            return reply;
+        }
     }
 
     // IStore interface 
@@ -1846,156 +1857,162 @@ partial class EpConnection
     /// </summary>
     /// <param name="id">Resource Id</param>
     /// <returns>DistributedResource</returns>
+    /// 
+    object fetchLock = new object();
     public AsyncReply<EpResource> Fetch(uint id, uint[] requestSequence)
     {
+        //lock (fetchLock)
+        //{
+            EpResource resource = null;
 
-        EpResource resource = null;
+            attachedResources[id]?.TryGetTarget(out resource);
 
-        attachedResources[id]?.TryGetTarget(out resource);
-
-        if (resource != null)
-            return new AsyncReply<EpResource>(resource);
-
-        resource = neededResources[id];
-
-        var requestInfo = resourceRequests[id];
-
-        if (requestInfo != null)
-        {
-            if (resource != null && (requestSequence?.Contains(id) ?? false))
-            {
-                // dead lock avoidance for loop reference.
+            if (resource != null)
                 return new AsyncReply<EpResource>(resource);
-            }
-            else if (resource != null && requestInfo.RequestSequence.Contains(id))
+
+            resource = neededResources[id];
+
+            var requestInfo = resourceRequests[id];
+
+            if (requestInfo != null)
             {
-                // dead lock avoidance for dependent reference.
+                if (resource != null && (requestSequence?.Contains(id) ?? false))
+                {
+                    // dead lock avoidance for loop reference.
+                    return new AsyncReply<EpResource>(resource);
+                }
+                else if (resource != null && requestInfo.RequestSequence.Contains(id))
+                {
+                    // dead lock avoidance for dependent reference.
+                    return new AsyncReply<EpResource>(resource);
+                }
+                else
+                {
+                    return requestInfo.Reply;
+                }
+            }
+            else if (resource != null && !resource.DistributedResourceSuspended)
+            {
+                // @REVIEW: this should never happen
+                Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
                 return new AsyncReply<EpResource>(resource);
+
             }
-            else
-            {
-                return requestInfo.Reply;
-            }
-        }
-        else if (resource != null && !resource.DistributedResourceSuspended)
-        {
-            // @REVIEW: this should never happen
-            Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
-            return new AsyncReply<EpResource>(resource);
 
-        }
+            var newSequence = requestSequence != null ? requestSequence.Concat(new uint[] { id }).ToArray() : new uint[] { id };
 
-        var newSequence = requestSequence != null ? requestSequence.Concat(new uint[] { id }).ToArray() : new uint[] { id };
+            var reply = new AsyncReply<EpResource>();
+            resourceRequests.Add(id, new EpResourceAttachRequestInfo(reply, newSequence));
 
-        var reply = new AsyncReply<EpResource>();
-        resourceRequests.Add(id, new EpResourceAttachRequestInfo(reply, newSequence));
-
-        SendRequest(EpPacketRequest.AttachResource, id)
-                    .Then((result) =>
-                    {
-                        if (result == null)
+            SendRequest(EpPacketRequest.AttachResource, id)
+                        .Then((result) =>
                         {
-                            reply.TriggerError(new AsyncException(ErrorType.Management,
-                                (ushort)ExceptionCode.ResourceNotFound, "Null response"));
-                            return;
-                        }
+                            if (result == null)
+                            {
+                                reply.TriggerError(new AsyncException(ErrorType.Management,
+                                    (ushort)ExceptionCode.ResourceNotFound, "Null response"));
+                                return;
+                            }
 
-                        // TypeId, Age, Link, Hops, PropertyValue[]
-                        var args = (object[])result;
-                        var typeId = (Uuid)args[0];
-                        var age = Convert.ToUInt64(args[1]);
-                        var link = (string)args[2];
-                        var hops = (byte)args[3];
-                        var pvData = (byte[])args[4];
+                            // TypeId, Age, Link, Hops, PropertyValue[]
+                            var args = (object[])result;
+                            var typeId = (Uuid)args[0];
+                            var age = Convert.ToUInt64(args[1]);
+                            var link = (string)args[2];
+                            var hops = (byte)args[3];
+                            var pvData = (byte[])args[4];
 
 
-                        EpResource dr;
-                        TypeDef typeDef = null;
+                            EpResource dr;
+                            TypeDef typeDef = null;
 
-                        if (resource == null)
-                        {
-                            typeDef = Instance.Warehouse.GetTypeDefById(typeId, TypeDefKind.Resource);
-                            if (typeDef?.DefinedType != null && typeDef.IsWrapper)
-                                dr = Activator.CreateInstance(typeDef.DefinedType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as EpResource;
+                            if (resource == null)
+                            {
+                                typeDef = Instance.Warehouse.GetTypeDefById(typeId, TypeDefKind.Resource);
+                                if (typeDef?.DefinedType != null && typeDef.IsWrapper)
+                                    dr = Activator.CreateInstance(typeDef.DefinedType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as EpResource;
+                                else
+                                    dr = new EpResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
+                            }
                             else
-                                dr = new EpResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
-                        }
-                        else
-                        {
-                            dr = resource;
-                            typeDef = resource.Instance.Definition;
-                        }
-
-
-                        var initResource = (EpResource ok) =>
-                        {
-                            var parsedReply = DataDeserializer.PropertyValueArrayParserAsync(pvData, 0, (uint)pvData.Length, this, newSequence);// Codec.proper (content, 0, this, newSequence, transmissionType);
-
-
-                            parsedReply.Then(results =>
                             {
-                                var pvs = results as PropertyValue[];
-
-                                //var pvs = new List<PropertyValue>();
-
-                                //for (var i = 0; i < ar.Length; i += 3)
-                                //    pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
-
-                                dr._Attach(pvs);
-                                resourceRequests.Remove(id);
-                                // move from needed to attached.
-                                neededResources.Remove(id);
-                                attachedResources[id] = new WeakReference<EpResource>(dr);
-                                reply.Trigger(dr);
-                            }).Error(ex => reply.TriggerError(ex));
+                                dr = resource;
+                                typeDef = resource.Instance.Definition;
+                            }
 
 
-                        };
-
-                        if (typeDef == null)
-                        {
-                            GetTypeDefById(typeId).Then((tmp) =>
+                            var initResource = (EpResource ok) =>
                             {
-                                // typeId, ResourceAge, ResourceLink, Content
+                                var parsedReply = DataDeserializer.PropertyValueArrayParserAsync(pvData, 0, (uint)pvData.Length, this, newSequence);// Codec.proper (content, 0, this, newSequence, transmissionType);
+
+
+                                parsedReply.Then(results =>
+                                {
+                                    var pvs = results as PropertyValue[];
+
+                                    //var pvs = new List<PropertyValue>();
+
+                                    //for (var i = 0; i < ar.Length; i += 3)
+                                    //    pvs.Add(new PropertyValue(ar[i + 2], Convert.ToUInt64(ar[i]), (DateTime)ar[i + 1]));
+
+                                    dr._Attach(pvs);
+                                    resourceRequests.Remove(id);
+                                    // move from needed to attached.
+                                    neededResources.Remove(id);
+                                    attachedResources[id] = new WeakReference<EpResource>(dr);
+                                    reply.Trigger(dr);
+                                }).Error(ex => reply.TriggerError(ex));
+
+
+                            };
+
+                            if (typeDef == null)
+                            {
+                                GetTypeDefById(typeId).Then((tmp) =>
+                                {
+                                    // typeId, ResourceAge, ResourceLink, Content
+                                    if (resource == null)
+                                    {
+                                        dr.ResourceDefinition = tmp;
+
+                                        Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr)
+                                        .Then(initResource)
+                                        .Error(ex => reply.TriggerError(ex));
+                                    }
+                                    else
+                                    {
+                                        initResource(resource);
+                                    }
+                                }).Error((ex) =>
+                                {
+                                    reply.TriggerError(ex);
+                                });
+
+                            }
+                            else
+                            {
                                 if (resource == null)
                                 {
-                                    dr.ResourceDefinition = tmp;
+                                    dr.ResourceDefinition = typeDef;
 
                                     Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr)
-                                    .Then(initResource)
-                                    .Error(ex => reply.TriggerError(ex));
+                                        .Then(initResource).Error((ex) => reply.TriggerError(ex));
                                 }
                                 else
                                 {
                                     initResource(resource);
                                 }
-                            }).Error((ex) =>
-                            {
-                                reply.TriggerError(ex);
-                            });
 
-                        }
-                        else
+                            }
+
+                        }).Error((ex) =>
                         {
-                            if (resource == null)
-                            {
-                                Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), dr)
-                                    .Then(initResource).Error((ex) => reply.TriggerError(ex));
-                            }
-                            else
-                            {
-                                initResource(resource);
-                            }
-
-                        }
-
-                    }).Error((ex) =>
-                    {
-                        reply.TriggerError(ex);
-                    });
+                            reply.TriggerError(ex);
+                        });
 
 
-        return reply;
+            return reply;
+        //}
     }
 
 

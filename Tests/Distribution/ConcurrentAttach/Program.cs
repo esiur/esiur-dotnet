@@ -17,9 +17,9 @@
 // Usage (client only):      dotnet run -- --mode client --host 127.0.0.1 --concurrent 50 --resources 200
 // ============================================================
 
+using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
-using Esiur.Protocol;
 using System.Diagnostics;
 
 var mode        = GetArg(args, "--mode",       "both");
@@ -29,30 +29,30 @@ var concurrent  = int.Parse(GetArg(args, "--concurrent", "50"));
 var resources   = int.Parse(GetArg(args, "--resources",  "200"));
 var timeoutMs   = int.Parse(GetArg(args, "--timeout",    "10000"));
 var rounds      = int.Parse(GetArg(args, "--rounds",     "5"));
-var wh = new Warehouse();
 
+var clientWh = new Warehouse();
+var serverWh = new Warehouse();
 // ----------------------------------------------------------------
 // SERVER SIDE
 // ----------------------------------------------------------------
 if (mode == "server" || mode == "both")
 {
-
-    await wh.Put("sys", new MemoryStore());
-    await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
+    await serverWh.Put("sys", new MemoryStore());
+    await serverWh.Put("sys/server", new EpServer() { Port = (ushort)port });
 
     for (int i = 0; i < resources; i++)
     {
-        await wh.Put($"sys/sensor_{i}", new SensorResource { SensorId = i, Value = i });
+        await serverWh.Put($"sys/sensor_{i}", new SensorResource { SensorId = i, Value = i });
     }
 
-    await wh.Open();
+    await serverWh.Open();
     Console.WriteLine($"[Server-T3] Ready: {resources} resources on port {port}");
 
     if (mode == "server")
     {
         Console.WriteLine("Press ENTER to stop.");
         Console.ReadLine();
-        await wh.Close();
+        await serverWh.Close();
         return;
     }
 
@@ -90,8 +90,8 @@ for (int round = 0; round < rounds; round++)
         using var cts = new CancellationTokenSource(timeoutMs);
         try
         {
-            var proxy = await wh.Get<IResource>(
-                $"iip://{host}:{port}/sys/sensor_{resourceIdx}");
+            var proxy = await clientWh.Get<IResource>(
+                $"ep://{host}:{port}/sys/sensor_{resourceIdx}");
 
             sw.Stop();
             latencies[taskIdx] = sw.Elapsed.TotalMilliseconds;
@@ -161,8 +161,11 @@ var csv = "round,concurrent,succeeded,failed,timed_out,total_wall_ms,min_ms,p50_
 await File.WriteAllTextAsync("test3_concurrent_attach.csv", csv);
 Console.WriteLine("\n[Client-T3] Results written to test3_concurrent_attach.csv");
 
-if (mode == "both")
-    await wh.Close();
+if (mode == "server" || mode == "both")
+    await serverWh.Close();
+
+if (mode == "client" || mode == "both")
+    await clientWh.Close();
 
 
 // ----------------------------------------------------------------
