@@ -21,7 +21,7 @@ Console.WriteLine($"[Server] resources={resourceCount}  interval={intervalMs}ms 
 var wh = new Warehouse();
 // --- Warehouse setup -------------------------------------------------
 await wh.Put("sys", new MemoryStore());
-await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
+var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
 
 // Create and register all sensor resources
 var sensors = new SensorResource[resourceCount];
@@ -33,6 +33,8 @@ for (int i = 0; i < resourceCount; i++)
 
 await wh.Open();
 Console.WriteLine($"[Server] Listening on port {port} with {resourceCount} resources.");
+
+
 
 // --- Emit loop -------------------------------------------------------
 // Continuously update all resource properties at the given interval.
@@ -63,7 +65,7 @@ _ = Task.Run(async () =>
         await Task.Delay(5000);
         long delta = totalEmitted - lastEmitted;
         lastEmitted = totalEmitted;
-        Console.WriteLine($"[Server] {DateTime.Now:HH:mm:ss}  emitted/5s={delta}  rate={delta/5.0:F0}/s");
+        Console.WriteLine($"[Server] {DateTime.Now:HH:mm:ss}  emitted/5s={delta}  rate={delta/5.0:F0}/s  Clients:{server.Connections.Count}");
     }
 });
 
