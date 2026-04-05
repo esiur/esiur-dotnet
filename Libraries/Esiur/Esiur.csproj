@@ -62,6 +62,7 @@
 	  <Compile Remove="Data\NullabilityInfo.cs" />
 	  <Compile Remove="Data\NullabilityInfoContext.cs" />
 	  <Compile Remove="Net\Packets\EpAuthPacketAuthMode.cs" />
+	  <Compile Remove="Net\Sockets\TcpSocket.cs" />
 	  <Compile Remove="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
 	  <Compile Remove="Security\Authority\Authentication.cs" />
 	  <Compile Remove="Security\Authority\AuthenticationMethod.cs" />
@@ -78,6 +79,7 @@
 		<None Include="Data\Types\AttributeDef.cs" />
 		<None Include="LICENSE" Pack="true" PackagePath=""></None>
 		<None Include="Net\Packets\EpAuthPacketAuthMode.cs" />
+		<None Include="Net\Sockets\TcpSocket.cs" />
 		<None Include="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
 		<None Include="README.md" Pack="true" PackagePath="" />
 		<None Include="Security\Authority\Authentication.cs" />

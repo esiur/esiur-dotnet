@@ -111,12 +111,12 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     {
         if (trigger == ResourceTrigger.Initialize)
         {
-            TCPSocket listener;
+            TcpSocket listener;
 
             if (IP != null)
-                listener = new TCPSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
+                listener = new TcpSocket(new IPEndPoint(IPAddress.Parse(IP), Port));
             else
-                listener = new TCPSocket(new IPEndPoint(IPAddress.Any, Port));
+                listener = new TcpSocket(new IPEndPoint(IPAddress.Any, Port));
 
             Start(listener);
         }

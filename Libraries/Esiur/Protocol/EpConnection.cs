@@ -1578,7 +1578,7 @@ public partial class EpConnection : NetworkConnection, IStore
             if (UseWebSocket || RuntimeInformation.OSDescription == "Browser")
                 socket = new FrameworkWebSocket();
             else
-                socket = new TCPSocket();
+                socket = new TcpSocket();
         }
 
         if (port > 0)

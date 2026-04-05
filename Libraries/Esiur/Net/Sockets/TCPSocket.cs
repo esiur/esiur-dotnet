@@ -36,7 +36,7 @@ using System.Threading.Tasks;
 using Esiur.Data;
 
 namespace Esiur.Net.Sockets;
-public class TCPSocket : ISocket
+public class TcpSocket : ISocket
 {
     public INetworkReceiver<ISocket> Receiver { get; set; }
 
@@ -111,7 +111,7 @@ public class TCPSocket : ISocket
 
     private static void ReceiveCallback(IAsyncResult ar)
     {
-        var socket = ar.AsyncState as TCPSocket;
+        var socket = ar.AsyncState as TcpSocket;
 
         try
         {
@@ -185,7 +185,7 @@ public class TCPSocket : ISocket
         get { return (IPEndPoint)sock.LocalEndPoint; }
     }
 
-    public TCPSocket()
+    public TcpSocket()
     {
         sock = new Socket(AddressFamily.InterNetwork,
                              SocketType.Stream,
@@ -195,7 +195,7 @@ public class TCPSocket : ISocket
 
     }
 
-    public TCPSocket(string hostname, ushort port)
+    public TcpSocket(string hostname, ushort port)
     {
         // create the socket
         sock = new Socket(AddressFamily.InterNetwork,
@@ -210,7 +210,7 @@ public class TCPSocket : ISocket
     }
      
 
-    public TCPSocket(IPEndPoint localEndPoint)
+    public TcpSocket(IPEndPoint localEndPoint)
     {
         // create the socket
         sock = new Socket(AddressFamily.InterNetwork,
@@ -245,7 +245,7 @@ public class TCPSocket : ISocket
     }
 
 
-    public TCPSocket(Socket socket)
+    public TcpSocket(Socket socket)
     {
         sock = socket;
         receiveBuffer = new byte[sock.ReceiveBufferSize];
@@ -330,7 +330,7 @@ public class TCPSocket : ISocket
 
     }
 
-    private static void Flush(TCPSocket socket)
+    private static void Flush(TcpSocket socket)
     {
         lock (socket.sendLock)
         {
@@ -386,7 +386,7 @@ public class TCPSocket : ISocket
 
         try
         {
-            var socket = (TCPSocket)ar.AsyncState;
+            var socket = (TcpSocket)ar.AsyncState;
 
             socket.sock?.EndSend(ar);
             Flush(socket);
@@ -429,7 +429,7 @@ public class TCPSocket : ISocket
         try
         {
             var s = sock.Accept();
-            return new TCPSocket(s);
+            return new TcpSocket(s);
         }
         catch
         {
@@ -443,7 +443,7 @@ public class TCPSocket : ISocket
         try
         {
             var s = await sock.AcceptAsync();
-            return new TCPSocket(s);
+            return new TcpSocket(s);
         }
         catch
         {
