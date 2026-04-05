@@ -9,6 +9,7 @@
 // Usage: dotnet run -- --host 127.0.0.1 --port 10900 --resources 100 --duration 30
 // ============================================================
 
+using Esiur.Protocol;
 using Esiur.Resource;
 using System.Diagnostics;
 
@@ -30,15 +31,17 @@ var latencyLock = new object();
 
 // --- Attach all resources -------------------------------------------
 var proxies = new IResource[resourceCount];
-var sw = Stopwatch.StartNew();
 
 var wh = new Warehouse();
+var connection = await wh.Get<EpConnection>($"ep://{host}:{port}");
+
+var sw = Stopwatch.StartNew();
 
 try
 {
     for (int i = 0; i < resourceCount; i++)
     {
-        proxies[i] = await wh.Get<IResource>($"ep://{host}:{port}/sys/sensor_{i}");
+        proxies[i] = await connection.Get($"sys/sensor_{i}");
 
         dynamic resource = proxies[i];
 
