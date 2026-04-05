@@ -16,7 +16,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Tests.Functional", "T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Tests.ComplexModel", "Tests\Serialization\ComplexObject\Esiur.Tests.ComplexModel.csproj", "{0255BB42-2742-59C6-F18D-42C6A7C0F017}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Tests.Gvwie", "Tests\Serialization\GWVIE\Esiur.Tests.Gvwie.csproj", "{93B71253-8B62-38F4-7B0F-EFEE2619FF2F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Tests.Gvwie", "Tests\Serialization\Gvwie\Esiur.Tests.Gvwie.csproj", "{93B71253-8B62-38F4-7B0F-EFEE2619FF2F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Esiur.Examples.StandaloneWebServer", "Examples\StandaloneWebServer\Esiur.Examples.StandaloneWebServer.csproj", "{A3AACA8A-D545-BF09-EE00-73485A89B84F}"
 EndProject
