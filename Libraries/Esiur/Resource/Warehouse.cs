@@ -519,6 +519,19 @@ public class Warehouse
         }
     }
 
+    public bool TryRegisterTypeDef(TypeDef typeDef)
+    {
+        lock (typeDefsLock)
+        {
+            if (typeDefs[typeDef.Kind].ContainsKey(typeDef.Id))
+                return false;
+
+            typeDefs[typeDef.Kind][typeDef.Id] = typeDef;
+
+            return true;
+        }
+    }
+
 
     /// <summary>
     /// Get a TypeDef by type from the warehouse. If not in the warehouse, a new TypeDef is created and added to the warehouse.

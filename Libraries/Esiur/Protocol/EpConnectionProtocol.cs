@@ -1742,7 +1742,7 @@ partial class EpConnection
                             var tt = TypeDef.Parse((byte[])result);
                             typeDefsByIdRequests.Remove(typeId);
                             typeDefs.Add(tt.Id, tt);
-                            Instance.Warehouse.RegisterTypeDef(tt);
+                            Instance.Warehouse.TryRegisterTypeDef(tt);
                             reply.Trigger(tt);
 
                         }).Error((ex) =>

@@ -11,11 +11,12 @@
 using Esiur.Protocol;
 using Esiur.Resource;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 var host = GetArg(args, "--host", "127.0.0.1");
 var port = int.Parse(GetArg(args, "--port", "10901"));
 var resourceCount = int.Parse(GetArg(args, "--resources", "10000"));
-var batchSize = int.Parse(GetArg(args, "--batch", "100"));
+var batchSize = int.Parse(GetArg(args, "--batch", "10000"));
 
 Console.WriteLine($"[Client-T2] Connecting to {host}:{port}, resources={resourceCount}");
 
@@ -29,6 +30,7 @@ var proxies = new IResource[resourceCount];
 
 // --- Attach in batches to avoid overwhelming the runtime -------------
 var totalSw = Stopwatch.StartNew();
+
 for (int batch = 0; batch < resourceCount; batch += batchSize)
 {
 
@@ -41,7 +43,11 @@ for (int batch = 0; batch < resourceCount; batch += batchSize)
         batchTasks[i - batch] = Task.Run(async () =>
         {
             var sw = Stopwatch.StartNew();
+
+            Console.WriteLine(capturedI);
             proxies[capturedI] = await connnection.Get($"sys/sensor_{capturedI}");
+
+            Console.WriteLine(proxies[capturedI].Instance.Link);
 
             sw.Stop();
 
@@ -77,7 +83,7 @@ Console.WriteLine("[Client-T2] Measuring notification latency under full resourc
 long received = 0;
 double sumLatencyMs = 0;
 
-for (int i = 0; i < Math.Min(500, resourceCount); i++)
+for (int i = 0; i < resourceCount; i++)
 {
     int capturedI = i;
     proxies[capturedI].Instance.PropertyModified += (PropertyModificationInfo data) =>

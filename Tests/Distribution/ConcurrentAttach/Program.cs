@@ -21,7 +21,6 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
 using System.Diagnostics;
-
 var mode        = GetArg(args, "--mode",       "both");
 var host        = GetArg(args, "--host",       "127.0.0.1");
 var port        = int.Parse(GetArg(args, "--port",       "10902"));
@@ -83,6 +82,8 @@ for (int round = 0; round < rounds; round++)
 
     var roundSw = Stopwatch.StartNew();
 
+    var connnection = await clientWh.Get<EpConnection>($"ep://{host}:{port}");
+
     // Fire all attachments simultaneously
     var tasks = targets.Select((resourceIdx, taskIdx) => Task.Run(async () =>
     {
@@ -90,8 +91,7 @@ for (int round = 0; round < rounds; round++)
         using var cts = new CancellationTokenSource(timeoutMs);
         try
         {
-            var proxy = await clientWh.Get<IResource>(
-                $"ep://{host}:{port}/sys/sensor_{resourceIdx}");
+            var proxy = await connnection.Get($"sys/sensor_{resourceIdx}");
 
             sw.Stop();
             latencies[taskIdx] = sw.Elapsed.TotalMilliseconds;
