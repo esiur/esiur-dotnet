@@ -23,7 +23,7 @@ Console.WriteLine($"[Client {clientId}] Connecting to {host}:{port}, resources={
 
 // Counters
 long   totalReceived    = 0;
-long   lateCount        = 0;     // notifications arriving > 500ms after the previous
+long   lateCount        = 0;     // notifications arriving > 400ms after the previous
 double sumLatencyMs     = 0;
 long   latencySamples   = 0;
 
@@ -64,7 +64,7 @@ try
             {
                 sumLatencyMs += elapsedMs;
                 latencySamples++;
-                if (elapsedMs > 500) lateCount++;
+                if (elapsedMs > 400) lateCount++;
             }
         };
     }
@@ -112,7 +112,7 @@ string csv = $"time_s,received_per_5s,rate_per_s,avg_interval_ms\n" +
 string outFile = $"client_{clientId}_results.csv";
 await File.WriteAllTextAsync(outFile, csv);
 Console.WriteLine($"[Client {clientId}] Results written to {outFile}");
-Console.WriteLine($"[Client {clientId}] Total received={totalReceived}  late(>500ms)={lateCount}");
+Console.WriteLine($"[Client {clientId}] Total received={totalReceived}  late(>400ms)={lateCount}");
 
 
 static string GetArg(string[] args, string key, string def)
