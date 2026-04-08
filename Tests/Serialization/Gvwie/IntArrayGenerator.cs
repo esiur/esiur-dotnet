@@ -8,107 +8,142 @@ namespace Esiur.Tests.Gvwie;
 
 public static class IntArrayGenerator
 {
+
+
+
     private static readonly Random rng = new Random(24241564);
 
-
-    public static long[] GenerateInt32Run(int length)
+    /// <summary>
+    /// Generate an array composed of ascending runs (consecutive integers).
+    /// Example output: [1,2,3,4,5, 5001,5002,5003, 10000001,10000002,...]
+    /// Parameters:
+    ///  - length: total array length
+    ///  - minRunSize / maxRunSize: inclusive bounds for run lengths
+    ///  - minValue / maxValue: allowed value range for run starts
+    ///  - allowNegative: if false, generated values will be non-negative
+    ///  - minGap / maxGap: approximate gap between runs (large gaps produce the jump examples)
+    /// </summary>
+    public static long[] GenerateRuns(int length,
+        int minRunSize = 3,
+        int maxRunSize = 8,
+        long minValue = -10_000_000L,
+        long maxValue = 10_000_000L,
+        bool allowNegative = true,
+        long minGap = 1_000L,
+        long maxGap = 10_000_000L)
     {
+        if (length <= 0)
+            return Array.Empty<long>();
+
+        if (minRunSize < 1) minRunSize = 1;
+        if (maxRunSize < minRunSize) maxRunSize = minRunSize;
+
+        // If negative runs not allowed, clamp minValue to 0
+        if (!allowNegative && minValue < 0) minValue = 0;
+
         var data = new long[length];
+        int idx = 0;
+        long prevEnd = long.MinValue;
 
-        int i = 0;
-        var inSmallRange = true;
-        var inShortRange = false;
-        var inLargeRange = false;
-        var inLongRange = false;
-
-        long range = 30;
-
-        while (i < length)
+        while (idx < length)
         {
-            // stay same range
-            if (rng.NextDouble() < 0.9)
-            {
-                if (inSmallRange)
-                    data[i++] = rng.Next(-64, 65);
-                else if (inShortRange)
-                    data[i++] = rng.NextInt64(range - 100, range + 100);
-                else if (inLargeRange)
-                    data[i++] = rng.NextInt64(range - 1000, range + 1000);
-                else if (inLongRange)
-                    data[i++] = rng.NextInt64(range - 10000, range + 10000);
-            }
-            else
-            {
-                // switch range
-                var rand = rng.NextDouble();
-                if (rand < 0.25)
-                {
-                    inSmallRange = true;
-                    inShortRange = false;
-                    inLargeRange = false;
-                    inLongRange = false;
-                    data[i++] = rng.Next(-64, 65);
-                }
-                else if (rand < 0.50)
-                {
-                    inSmallRange = false;
-                    inShortRange = true;
-                    inLargeRange = false;
-                    inLongRange = false;
-                    range = rng.NextInt64(1000, short.MaxValue);
-                    data[i++] = rng.NextInt64(range - 100, range + 100);
-                }
-                else if (rand < 0.75)
-                {
-                    inSmallRange = false;
-                    inShortRange = false;
-                    inLargeRange = true;
-                    inLongRange = false;
-                    range = rng.NextInt64(1000, int.MaxValue);
-                    data[i++] = rng.NextInt64(range - 1000, range + 1000);
-                }
-                else
-                {
-                    inSmallRange = false;
-                    inShortRange = false;
-                    inLargeRange = false;
-                    inLongRange = true;
-                    range = rng.NextInt64(10000, long.MaxValue);
-                    data[i++] = rng.NextInt64(range - 10000, range + 10000);
+            // choose run size
+            int runSize = rng.Next(minRunSize, maxRunSize + 1);
+            if (idx + runSize > length)
+                runSize = length - idx;
 
+            // pick a start. Aim for gaps between runs by either taking a random value
+            // or basing on previous end + gap. Try a few times to avoid accidental small gaps.
+            long start = 0;
+            long attemptUpper = maxValue - runSize; // inclusive exclusive handled by NextInt64
+            if (attemptUpper < minValue) attemptUpper = minValue;
+
+            bool picked = false;
+            for (int attempt = 0; attempt < 10 && !picked; attempt++)
+            {
+                // decide whether to use a jump based on minGap/maxGap or pick random
+                if (prevEnd != long.MinValue && rng.NextDouble() < 0.7)
+                {
+                    // generate a gap and place start after prevEnd + gap
+                    long gap = rng.NextInt64(minGap, Math.Max(minGap + 1, maxGap));
+                    long candidate = prevEnd + gap;
+                    // if candidate within allowed bounds adjust to fit
+                    if (candidate >= minValue && candidate <= attemptUpper)
+                    {
+                        start = candidate;
+                        picked = true;
+                        break;
+                    }
+                }
+
+                // fallback: pick random start in allowed bounds
+                start = rng.NextInt64(minValue, attemptUpper + 1);
+                // avoid being too close to previous run end if present
+                if (prevEnd == long.MinValue || Math.Abs(start - prevEnd) >= minGap)
+                {
+                    picked = true;
+                    break;
                 }
             }
 
+            if (!picked)
+            {
+                // final fallback: clamp to bounds
+                start = Math.Max(minValue, Math.Min(attemptUpper, prevEnd + minGap));
+            }
+
+            // fill the run with consecutive values, careful with overflow
+            for (int j = 0; j < runSize; j++)
+            {
+                long val;
+                try
+                {
+                    checked
+                    {
+                        val = start + j;
+                    }
+                }
+                catch (OverflowException)
+                {
+                    // clamp if overflow occurs
+                    val = (start >= 0) ? long.MaxValue - (runSize - j - 1) : long.MinValue + (runSize - j - 1);
+                }
+
+                data[idx++] = val;
+            }
+
+            prevEnd = data[idx - 1];
         }
 
         return data;
     }
 
+
     // Generate random int array of given length and distribution
-    public static int[] GenerateInt32(int length, string pattern = "uniform", 
+    public static int[] GenerateInt32(int length, GeneratorPattern pattern = GeneratorPattern.Uniform, 
         int range = int.MaxValue)
     {
         var data = new int[length];
 
-        switch (pattern.ToLower())
+        switch (pattern)
         {
-            case "uniform":
+            case GeneratorPattern.Uniform:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
                     data[i] = rng.Next(-range, range);
                 break;
 
-            case "positive":
+            case GeneratorPattern.Positive:
                 for (int i = 0; i < length; i++)
                     data[i] = rng.Next(0, range);
                 break;
 
-            case "negative":
+            case GeneratorPattern.Negative:
                 for (int i = 0; i < length; i++)
                     data[i] = -rng.Next(0, range);
                 break;
 
-            case "alternating":
+            case GeneratorPattern.Alternating:
                 for (int i = 0; i < length; i++)
                 {
                     int val = rng.Next(0, range);
@@ -116,14 +151,14 @@ public static class IntArrayGenerator
                 }
                 break;
 
-            case "small":
+            case GeneratorPattern.Small:
                 // Focused on small magnitudes to test ZigZag fast path
                 for (int i = 0; i < length; i++)
                     data[i] = rng.Next(-64, 65);
                 break;
 
 
-            case "ascending":
+            case GeneratorPattern.Ascending:
                 {
                     int start = rng.Next(-range, range);
                     for (int i = 0; i < length; i++)
@@ -247,30 +282,30 @@ public static class IntArrayGenerator
     }
 
     // Generate random int array of given length and distribution
-    public static long[] GenerateInt64(int length, string pattern = "uniform", 
+    public static long[] GenerateInt64(int length, GeneratorPattern pattern = GeneratorPattern.Uniform, 
         long range = long.MaxValue)
     {
         var data = new long[length];
 
-        switch (pattern.ToLower())
+        switch (pattern)
         {
-            case "uniform":
+            case GeneratorPattern.Uniform:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
                     data[i] = rng.NextInt64(-range, range);
                 break;
 
-            case "positive":
+            case GeneratorPattern.Positive:
                 for (int i = 0; i < length; i++)
                     data[i] = rng.NextInt64(0, range);
                 break;
 
-            case "negative":
+            case GeneratorPattern.Negative:
                 for (int i = 0; i < length; i++)
                     data[i] = -rng.NextInt64(0, range);
                 break;
 
-            case "alternating":
+            case GeneratorPattern.Alternating:
                 for (int i = 0; i < length; i++)
                 {
                     var val = rng.NextInt64(0, range);
@@ -278,14 +313,14 @@ public static class IntArrayGenerator
                 }
                 break;
 
-            case "small":
+            case GeneratorPattern.Small:
                 // Focused on small magnitudes to test ZigZag fast path
                 for (int i = 0; i < length; i++)
                     data[i] = rng.NextInt64(-64, 65);
                 break;
 
 
-            case "ascending":
+            case GeneratorPattern.Ascending:
                 {
                     var start = rng.NextInt64(-range, range);
                     for (int i = 0; i < length; i++)
@@ -300,29 +335,29 @@ public static class IntArrayGenerator
         return data;
     }
 
-    public static short[] GenerateInt16(int length, string pattern = "uniform", 
+    public static short[] GenerateInt16(int length, GeneratorPattern pattern = GeneratorPattern.Uniform, 
         short range = short.MaxValue)
     {
         var data = new short[length];
 
-        switch (pattern.ToLower())
+        switch (pattern)
         {
-            case "uniform":
+            case GeneratorPattern.Uniform:
                 for (int i = 0; i < length; i++)
                     data[i] = (short)rng.Next(-range, range + 1);
                 break;
 
-            case "positive":
+            case GeneratorPattern.Positive:
                 for (int i = 0; i < length; i++)
                     data[i] = (short)rng.Next(0, range + 1);
                 break;
 
-            case "negative":
+            case GeneratorPattern.Negative:
                 for (int i = 0; i < length; i++)
                     data[i] = (short)(-rng.Next(0, range + 1));
                 break;
 
-            case "alternating":
+            case GeneratorPattern.Alternating:
                 for (int i = 0; i < length; i++)
                 {
                     short val = (short)rng.Next(0, range + 1);
@@ -330,13 +365,13 @@ public static class IntArrayGenerator
                 }
                 break;
 
-            case "small":
+            case GeneratorPattern.Small:
                 for (int i = 0; i < length; i++)
                     data[i] = (short)rng.Next(-64, 65);
                 break;
 
 
-            case "ascending":
+            case GeneratorPattern.Ascending:
                 {
                     short start = (short)rng.Next(-range, range);
                     for (int i = 0; i < length; i++)
