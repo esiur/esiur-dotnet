@@ -225,7 +225,6 @@ namespace Esiur.Tests.Gvwie
             //var seq = new DerSequence(sample.Select(v => new DerInteger(v)).ToArray());
             //var ans1 = seq.GetDerEncoded();
 
-
             var avro = AvroConvert.Serialize(sample);
 
             var optimal = OptimalSignedEnocding(sample.Select(x => (long)x).ToArray());
