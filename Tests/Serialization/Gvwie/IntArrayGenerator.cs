@@ -120,8 +120,7 @@ public static class IntArrayGenerator
 
 
     // Generate random int array of given length and distribution
-    public static int[] GenerateInt32(int length, GeneratorPattern pattern = GeneratorPattern.Uniform, 
-        int range = int.MaxValue)
+    public static int[] GenerateInt32(int length, GeneratorPattern pattern = GeneratorPattern.Uniform)
     {
         var data = new int[length];
 
@@ -130,23 +129,23 @@ public static class IntArrayGenerator
             case GeneratorPattern.Uniform:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
-                    data[i] = rng.Next(-range, range);
+                    data[i] = rng.Next(int.MinValue, int.MaxValue);
                 break;
 
             case GeneratorPattern.Positive:
                 for (int i = 0; i < length; i++)
-                    data[i] = rng.Next(0, range);
+                    data[i] = rng.Next(0, int.MaxValue);
                 break;
 
             case GeneratorPattern.Negative:
                 for (int i = 0; i < length; i++)
-                    data[i] = -rng.Next(0, range);
+                    data[i] = -rng.Next(int.MinValue, 0);
                 break;
 
             case GeneratorPattern.Alternating:
                 for (int i = 0; i < length; i++)
                 {
-                    int val = rng.Next(0, range);
+                    int val = rng.Next(0, int.MaxValue);
                     data[i] = (i % 2 == 0) ? val : -val;
                 }
                 break;
@@ -160,12 +159,27 @@ public static class IntArrayGenerator
 
             case GeneratorPattern.Ascending:
                 {
-                    int start = rng.Next(-range, range);
+                    int start = rng.Next(int.MinValue, int.MaxValue);
                     for (int i = 0; i < length; i++)
                         data[i] = start + i;
                 }
                 break;
 
+            case GeneratorPattern.Clustering:
+                {
+                    // Build ascending runs and cast to int, clamping to int bounds
+                    var runs = GenerateRuns(length, 3, 50, ((long)int.MinValue), (long)int.MaxValue, true);
+                    for (int i = 0; i < length; i++)
+                    {
+                        long v = runs[i];
+                        if (v > int.MaxValue) data[i] = int.MaxValue;
+                        else if (v < int.MinValue) data[i] = int.MinValue;
+                        else data[i] = (int)v;
+                    }
+                }
+                break;
+
+
             default:
                 throw new ArgumentException($"Unknown pattern: {pattern}");
         }
@@ -175,33 +189,46 @@ public static class IntArrayGenerator
 
 
     // Generate random int array of given length and distribution
-    public static uint[] GenerateUInt32(int length, string pattern = "uniform",
+    public static uint[] GenerateUInt32(int length, GeneratorPattern pattern = GeneratorPattern.Uniform,
         uint range = uint.MaxValue)
     {
 
         var data = new uint[length];
 
-        switch (pattern.ToLower())
+        switch (pattern)
         {
-            case "uniform":
+            case GeneratorPattern.Uniform:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
                     data[i] = (uint)rng.NextInt64(0, (long)range);
                 break;
 
-            case "small":
+            case GeneratorPattern.Small:
                 // Focused on small magnitudes to test ZigZag fast path
                 for (int i = 0; i < length; i++)
                     data[i] = (uint)rng.Next(0, 127);
                 break;
 
-
-            case "ascending":
+            case GeneratorPattern.Clustering:
                 {
-                    uint start = (uint)rng.NextInt64(0, (long)range);
-                    for (uint i = 0; i < length; i++)
-                        data[i] = start + i;
+                    // Generate runs in a non-negative range and cast to uint
+                    var runs = GenerateRuns(length, 3, 50, 0, (long)range, false);
+                    for (int i = 0; i < length; i++)
+                    {
+                        long v = runs[i];
+                        if (v < 0) data[i] = 0u;
+                        else if ((ulong)v > uint.MaxValue) data[i] = uint.MaxValue;
+                        else data[i] = (uint)v;
+                    }
                 }
+                break;
+
+
+            case GeneratorPattern.Ascending:
+                uint start = (uint)rng.NextInt64(0, (long)range);
+                for (uint i = 0; i < length; i++)
+                    data[i] = start + i;
+
                 break;
 
             default:
@@ -212,30 +239,42 @@ public static class IntArrayGenerator
     }
 
     // Generate random int array of given length and distribution
-    public static ulong[] GenerateUInt64(int length, string pattern = "uniform")
+    public static ulong[] GenerateUInt64(int length, GeneratorPattern pattern = GeneratorPattern.Uniform)
     {
         var data = new ulong[length];
 
-        switch (pattern.ToLower())
+        switch (pattern)
         {
-            case "uniform":
+            case GeneratorPattern.Uniform:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
                     data[i] = (ulong)rng.NextInt64();
                 break;
 
-            case "small":
+            case GeneratorPattern.Small:
                 // Focused on small magnitudes to test ZigZag fast path
                 for (int i = 0; i < length; i++)
                     data[i] = (uint)rng.Next(0, 127);
                 break;
 
 
-            case "ascending":
+            case GeneratorPattern.Ascending:
+
+                uint start = (uint)rng.NextInt64();
+                for (uint i = 0; i < length; i++)
+                    data[i] = start + i;
+
+                break;
+
+            case GeneratorPattern.Clustering:
                 {
-                    uint start = (uint)rng.NextInt64();
-                    for (uint i = 0; i < length; i++)
-                        data[i] = start + i;
+                    var runs = GenerateRuns(length, 3, 50, 0, long.MaxValue, false);
+                    for (int i = 0; i < length; i++)
+                    {
+                        long v = runs[i];
+                        if (v < 0) data[i] = 0UL;
+                        else data[i] = (ulong)v;
+                    }
                 }
                 break;
 
@@ -246,31 +285,43 @@ public static class IntArrayGenerator
         return data;
     }
 
-    public static uint[] GenerateUInt16(int length, string pattern = "uniform",
-    ushort range = ushort.MaxValue)
+    public static uint[] GenerateUInt16(int length, GeneratorPattern pattern = GeneratorPattern.Uniform)
     {
         var data = new uint[length];
 
-        switch (pattern.ToLower())
+        switch (pattern)
         {
-            case "uniform":
+            case GeneratorPattern.Uniform:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
-                    data[i] = (ushort)rng.Next(0, range);
+                    data[i] = (ushort)rng.Next(0, ushort.MaxValue);
                 break;
 
-            case "small":
+            case GeneratorPattern.Small:
                 // Focused on small magnitudes to test ZigZag fast path
                 for (int i = 0; i < length; i++)
                     data[i] = (uint)rng.Next(0, 127);
                 break;
 
 
-            case "ascending":
+            case GeneratorPattern.Ascending:
+
+                var start = (ushort)rng.Next(0, ushort.MaxValue);
+                for (uint i = 0; i < length; i++)
+                    data[i] = start + i;
+
+                break;
+
+            case GeneratorPattern.Clustering:
                 {
-                    var start = (ushort)rng.Next(0, range);
-                    for (uint i = 0; i < length; i++)
-                        data[i] = start + i;
+                    var runs = GenerateRuns(length, 3, 50, 0, ushort.MaxValue, false);
+                    for (int i = 0; i < length; i++)
+                    {
+                        long v = runs[i];
+                        if (v < 0) data[i] = 0u;
+                        else if (v > ushort.MaxValue) data[i] = ushort.MaxValue;
+                        else data[i] = (uint)v;
+                    }
                 }
                 break;
 
@@ -282,7 +333,7 @@ public static class IntArrayGenerator
     }
 
     // Generate random int array of given length and distribution
-    public static long[] GenerateInt64(int length, GeneratorPattern pattern = GeneratorPattern.Uniform, 
+    public static long[] GenerateInt64(int length, GeneratorPattern pattern = GeneratorPattern.Uniform,
         long range = long.MaxValue)
     {
         var data = new long[length];
@@ -328,6 +379,14 @@ public static class IntArrayGenerator
                 }
                 break;
 
+            case GeneratorPattern.Clustering:
+                {
+                    var runs = GenerateRuns(length, 3, 50, -range, range, true);
+                    for (int i = 0; i < length; i++)
+                        data[i] = runs[i];
+                }
+                break;
+
             default:
                 throw new ArgumentException($"Unknown pattern: {pattern}");
         }
@@ -335,7 +394,7 @@ public static class IntArrayGenerator
         return data;
     }
 
-    public static short[] GenerateInt16(int length, GeneratorPattern pattern = GeneratorPattern.Uniform, 
+    public static short[] GenerateInt16(int length, GeneratorPattern pattern = GeneratorPattern.Uniform,
         short range = short.MaxValue)
     {
         var data = new short[length];
@@ -376,6 +435,19 @@ public static class IntArrayGenerator
                     short start = (short)rng.Next(-range, range);
                     for (int i = 0; i < length; i++)
                         data[i] = (short)(start + i);
+                }
+                break;
+
+            case GeneratorPattern.Clustering:
+                {
+                    var runs = GenerateRuns(length, 3, 50, -range, range, true);
+                    for (int i = 0; i < length; i++)
+                    {
+                        long v = runs[i];
+                        if (v > short.MaxValue) data[i] = short.MaxValue;
+                        else if (v < short.MinValue) data[i] = short.MinValue;
+                        else data[i] = (short)v;
+                    }
                 }
                 break;
 

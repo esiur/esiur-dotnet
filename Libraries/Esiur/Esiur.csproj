@@ -59,6 +59,7 @@
 
 
 	<ItemGroup>
+	  <Compile Remove="Data\Gvwie\GroupInt32Codec.cs" />
 	  <Compile Remove="Data\NullabilityInfo.cs" />
 	  <Compile Remove="Data\NullabilityInfoContext.cs" />
 	  <Compile Remove="Net\Packets\EpAuthPacketAuthMode.cs" />
@@ -73,6 +74,7 @@
 
 
 	<ItemGroup>
+		<None Include="Data\Gvwie\GroupInt32Codec.cs" />
 		<None Include="Data\NullabilityInfo.cs" />
 		<None Include="Data\NullabilityInfoContext.cs" />
 		<None Include="Data\Types\ArgumentDef.cs" />

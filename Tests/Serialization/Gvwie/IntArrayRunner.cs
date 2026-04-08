@@ -30,14 +30,14 @@ namespace Esiur.Tests.Gvwie
             const int TEST_ITERATIONS = 100;
             const int SAMPLE_SIZE = 100;
 
-            Console.WriteLine(";Esiur;FlatBuffer;ProtoBuffer;MessagePack;BSON;CBOR;Avro,Optimal");
+            Console.WriteLine(";Esiur;FlatBuffer;ProtoBuffer,MessagePack;BSON;CBOR;Avro,Optimal");
 
 
 
             Console.Write("Cluster (Int32);");
 
             PrintAverage(
-                Average(() => CompareInt(IntArrayGenerator.GenerateRuns(SAMPLE_SIZE)), TEST_ITERATIONS)
+                Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Clustering)), TEST_ITERATIONS)
             );
 
             Console.Write("Positive (Int32);");
@@ -111,60 +111,74 @@ namespace Esiur.Tests.Gvwie
         // Produces a CSV with header: SampleSize;Esiur;FlatBuffer;ProtoBuffer;MessagePack;BSON;CBOR;Avro;Optimal
         public void RunChart()
         {
-            var sizes = new int[] { 10, 100, 1000, 10000, 100000 };
+            var sizes = Enumerable.Range(12, 21)
+                              .Select(i => (int)Math.Pow(2, i))
+                              .ToArray();
+
 
             // Define generators to evaluate. Each entry maps a name to a function that
             // given a sample size returns the averages (double[]) by calling Average(...).
             var generators = new List<(string name, Func<int, int, double[]> fn)>()
             {
-                ("GenerateRuns", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateRuns(size)), iterations)),
-                ("Int32_Uniform", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Uniform)), iterations)),
+               ("Int32_Positive", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Positive)), iterations)),
+
+                ("Int32_Clustering", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Clustering)), iterations)),
                 ("Int32_Negative", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Negative)), iterations)),
                 ("Int32_Small", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Small)), iterations)),
                 ("Int32_Alternating", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Alternating)), iterations)),
                 ("Int32_Ascending", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Ascending)), iterations)),
-                ("Int64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt64(size)), iterations)),
-                ("Int32_Default", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size)), iterations)),
-                ("Int16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt16(size)), iterations)),
-                ("UInt64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt64(size)), iterations)),
-                ("UInt32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt32(size)), iterations)),
-                ("UInt16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt16(size)), iterations)),
+                //("Int64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt64(size)), iterations)),
+                //("Int32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size)), iterations)),
+                //("Int16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt16(size)), iterations)),
+                //("UInt64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt64(size)), iterations)),
+                //("UInt32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt32(size)), iterations)),
+                //("UInt16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt16(size)), iterations)),
             };
 
             foreach (var gen in generators)
             {
                 var sb = new System.Text.StringBuilder();
-                sb.AppendLine("SampleSize,Esiur,FlatBufferProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
+                var sbr = new System.Text.StringBuilder();
+
+                sb.AppendLine("SampleSize,Esiur,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
+                sbr.AppendLine("SampleSize,Esiur,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
 
                 foreach (var size in sizes)
                 {
                     // Choose iterations depending on size to keep total runtime reasonable
-                    int iterations;
-                    if (size <= 100) iterations = 1000;
-                    else if (size <= 1000) iterations = 200;
-                    else if (size <= 10000) iterations = 50;
-                    else iterations = 10;
+                    int iterations = 10;
+                    //if (size <= 100) iterations = 1000;
+                    //else if (size <= 1000) iterations = 200;
+                    //else if (size <= 10000) iterations = 50;
+                    //else iterations = 10;
 
                     Console.WriteLine($"Running {gen.name} sample size={size}, iterations={iterations}...");
 
                     var averages = gen.fn(size, iterations);
+                    PrintAverage(averages);
 
                     sb.Append(size);
+                    sbr.Append(size);
                     for (int i = 0; i < averages.Length; i++)
                     {
                         sb.Append(',');
                         sb.Append(Math.Round(averages[i]));
+                        sbr.Append(',');
+                        sbr.Append(((averages[i] - averages.Last()) / averages.Last()) * 100.0);
                     }
 
                     sb.AppendLine();
+                    sbr.AppendLine();
                 }
 
                 var file = $"run_chart_{gen.name}.csv";
                 System.IO.File.WriteAllText(file, sb.ToString());
-                Console.WriteLine($"Chart CSV written to: {file}");
+                var file2 = $"optimal_chart_{gen.name}.csv";
+                System.IO.File.WriteAllText(file, sbr.ToString());
+
+                Console.WriteLine($"Chart CSV written to: {file} {file2}");
             }
         }
-
 
         public static (int, int, int, int, int, int, int, int) CompareInt(long[] sample)
         {
