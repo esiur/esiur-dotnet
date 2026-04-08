@@ -134,7 +134,7 @@ namespace Esiur.Tests.Gvwie
             foreach (var gen in generators)
             {
                 var sb = new System.Text.StringBuilder();
-                sb.AppendLine("SampleSize;Esiur;FlatBuffer;ProtoBuffer;MessagePack;BSON;CBOR;Avro;Optimal");
+                sb.AppendLine("SampleSize,Esiur,FlatBufferProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
 
                 foreach (var size in sizes)
                 {
@@ -152,7 +152,7 @@ namespace Esiur.Tests.Gvwie
                     sb.Append(size);
                     for (int i = 0; i < averages.Length; i++)
                     {
-                        sb.Append(';');
+                        sb.Append(',');
                         sb.Append(Math.Round(averages[i]));
                     }
 
