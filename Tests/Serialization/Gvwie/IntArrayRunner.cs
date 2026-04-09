@@ -3,6 +3,7 @@ using FlatSharp;
 using FlatSharp.Attributes;
 using MessagePack;
 using MongoDB.Bson;
+using Org.BouncyCastle.Asn1.X509;
 using PeterO.Cbor;
 using ProtoBuf;
 using SolTechnology.Avro;
@@ -10,6 +11,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Esiur.Tests.Gvwie
 {
@@ -111,7 +113,7 @@ namespace Esiur.Tests.Gvwie
         // Produces a CSV with header: SampleSize;Esiur;FlatBuffer;ProtoBuffer;MessagePack;BSON;CBOR;Avro;Optimal
         public void RunChart()
         {
-            var sizes = Enumerable.Range(12, 21)
+            var sizes = Enumerable.Range(0, 21)
                               .Select(i => (int)Math.Pow(2, i))
                               .ToArray();
 
@@ -119,20 +121,21 @@ namespace Esiur.Tests.Gvwie
             // Define generators to evaluate. Each entry maps a name to a function that
             // given a sample size returns the averages (double[]) by calling Average(...).
             var generators = new List<(string name, Func<int, int, double[]> fn)>()
-            {
-               ("Int32_Positive", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Positive)), iterations)),
-
+            {                             
                 ("Int32_Clustering", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Clustering)), iterations)),
+                ("Int32_Positive", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Positive)), iterations)),
                 ("Int32_Negative", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Negative)), iterations)),
                 ("Int32_Small", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Small)), iterations)),
                 ("Int32_Alternating", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Alternating)), iterations)),
                 ("Int32_Ascending", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Ascending)), iterations)),
-                //("Int64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt64(size)), iterations)),
-                //("Int32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size)), iterations)),
-                //("Int16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt16(size)), iterations)),
-                //("UInt64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt64(size)), iterations)),
-                //("UInt32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt32(size)), iterations)),
-                //("UInt16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt16(size)), iterations)),
+                ("Int32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size)), iterations)),
+                ("UInt32", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt32(size)), iterations)),
+
+                ("Int16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt16(size)), iterations)),
+                ("UInt16", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt16(size)), iterations)),
+                ("Int64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt64(size)), iterations)),
+                ("UInt64", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateUInt64(size)), iterations)),
+
             };
 
             foreach (var gen in generators)
@@ -140,13 +143,13 @@ namespace Esiur.Tests.Gvwie
                 var sb = new System.Text.StringBuilder();
                 var sbr = new System.Text.StringBuilder();
 
-                sb.AppendLine("SampleSize,Esiur,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
-                sbr.AppendLine("SampleSize,Esiur,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
+                sb.AppendLine("SampleSize,Esiur,Aligned,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
+                sbr.AppendLine("SampleSize,Esiur,Aligned,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
 
                 foreach (var size in sizes)
                 {
                     // Choose iterations depending on size to keep total runtime reasonable
-                    int iterations = 10;
+                    int iterations = 100;
                     //if (size <= 100) iterations = 1000;
                     //else if (size <= 1000) iterations = 200;
                     //else if (size <= 10000) iterations = 50;
@@ -180,11 +183,12 @@ namespace Esiur.Tests.Gvwie
             }
         }
 
-        public static (int, int, int, int, int, int, int, int) CompareInt(long[] sample)
+        public static (int, int, int, int, int, int, int, int, int) CompareInt(long[] sample)
         {
             var intRoot = new ArrayRoot<long>() { Values = sample };
 
             var esiur = GroupInt64Codec.Encode(sample);
+            var esiurAligned = GroupInt64Codec.Encode(sample, true);
             var messagePack = MessagePackSerializer.Serialize(sample);
             var flatBuffer = SerializeFlatBuffers(intRoot);
 
@@ -203,17 +207,19 @@ namespace Esiur.Tests.Gvwie
 
             var optimal = OptimalSignedEnocding(sample);
             //Console.WriteLine($"{esiur.Length};{flatBuffer.Length};{protoBuffer.Length};{messagePack.Length};{bson.Length};{cbor.Length};{avro.Length};{optimal}");
-            return (esiur.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
+            return (esiur.Length, esiurAligned.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
 
         }
 
-        public static (int, int, int, int, int, int, int, int) CompareInt(int[] sample)
+        public static (int, int, int, int, int, int, int, int, int) CompareInt(int[] sample)
         {
             var intRoot = new ArrayRoot<int>() { Values = sample };
 
             var esiur = GroupInt32Codec.Encode(sample);
+            var esiurAligned = GroupInt32Codec.Encode(sample, true);
             var messagePack = MessagePackSerializer.Serialize(sample);
             var flatBuffer = SerializeFlatBuffers(intRoot);
+
 
             using var ms = new MemoryStream();
             Serializer.Serialize(ms, sample);
@@ -229,16 +235,17 @@ namespace Esiur.Tests.Gvwie
 
             var optimal = OptimalSignedEnocding(sample.Select(x => (long)x).ToArray());
             //Console.WriteLine($"{esiur.Length};{flatBuffer.Length};{protoBuffer.Length};{messagePack.Length};{bson.Length};{cbor.Length};{avro.Length};{optimal}");
-            return (esiur.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
+            return (esiur.Length, esiurAligned.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
 
         }
 
 
-        public static (int, int, int, int, int, int, int, int) CompareInt(short[] sample)
+        public static (int, int, int, int, int, int, int, int, int) CompareInt(short[] sample)
         {
             var intRoot = new ArrayRoot<short>() { Values = sample };
 
             var esiur = GroupInt16Codec.Encode(sample);
+            var esiurAligned = esiur;// GroupInt16Codec.Encode(sample, true);
             var messagePack = MessagePackSerializer.Serialize(sample);
             var flatBuffer = SerializeFlatBuffers(intRoot);
 
@@ -256,15 +263,16 @@ namespace Esiur.Tests.Gvwie
 
             var optimal = OptimalSignedEnocding(sample.Select(x => (long)x).ToArray());
             //Console.WriteLine($"{esiur.Length};{flatBuffer.Length};{protoBuffer.Length};{messagePack.Length};{bson.Length};{cbor.Length};{avro.Length};{optimal}");
-            return (esiur.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
+            return (esiur.Length, esiurAligned.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
 
         }
 
-        public static (int, int, int, int, int, int, int, int) CompareInt(uint[] sample)
+        public static (int, int, int, int, int, int, int, int, int) CompareInt(uint[] sample)
         {
             var intRoot = new ArrayRoot<uint>() { Values = sample };
 
             var esiur = GroupUInt32Codec.Encode(sample);
+            var esiurAligned = GroupUInt32Codec.Encode(sample, true);
             var messagePack = MessagePackSerializer.Serialize(sample);
             var flatBuffer = SerializeFlatBuffers(intRoot);
 
@@ -287,15 +295,16 @@ namespace Esiur.Tests.Gvwie
             var optimal = OptimalUnsignedEnocding(sample.Select(x => (ulong)x).ToArray());
             //Console.WriteLine($"{esiur.Length};{flatBuffer.Length};{protoBuffer.Length};{messagePack.Length};{bson.Length};{cbor.Length};{avro.Length};{optimal}");
 
-            return (esiur.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
+            return (esiur.Length, esiurAligned.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
 
         }
 
-        public static (int, int, int, int, int, int, int, int) CompareInt(ulong[] sample)
+        public static (int, int, int, int, int, int, int, int, int) CompareInt(ulong[] sample)
         {
             var intRoot = new ArrayRoot<ulong>() { Values = sample };
 
             var esiur = GroupUInt64Codec.Encode(sample);
+            var esiurPadded = GroupUInt64Codec.Encode(sample, true);
             var messagePack = MessagePackSerializer.Serialize(sample);
             var flatBuffer = SerializeFlatBuffers(intRoot);
 
@@ -315,14 +324,15 @@ namespace Esiur.Tests.Gvwie
             var optimal = OptimalUnsignedEnocding(sample);
             //Console.WriteLine($"{esiur.Length};{flatBuffer.Length};{protoBuffer.Length};{messagePack.Length};{bson.Length};{cbor.Length};{avro.Length};{optimal}");
 
-            return (esiur.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
+            return (esiur.Length, esiurPadded.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
         }
 
-        public static (int, int, int, int, int, int, int, int) CompareInt(ushort[] sample)
+        public static (int, int, int, int, int, int, int, int, int) CompareInt(ushort[] sample)
         {
             var intRoot = new ArrayRoot<ushort>() { Values = sample };
 
             var esiur = GroupUInt16Codec.Encode(sample);
+            var esiurAligned = esiur;// GroupUInt16Codec.Encode(sample, true);
             var messagePack = MessagePackSerializer.Serialize(sample);
             var flatBuffer = SerializeFlatBuffers(intRoot);
 
@@ -340,7 +350,7 @@ namespace Esiur.Tests.Gvwie
 
             var optimal = OptimalUnsignedEnocding(sample.Select(x => (ulong)x).ToArray());
             //Console.WriteLine($"{esiur.Length};{flatBuffer.Length};{protoBuffer.Length};{messagePack.Length};{bson.Length};{cbor.Length};{avro.Length};{optimal}");
-            return (esiur.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
+            return (esiur.Length, esiurAligned.Length, flatBuffer.Length, protoBuffer.Length, messagePack.Length, bson.Length, cbor.Length, avro.Length, optimal);
 
         }
 
@@ -393,25 +403,27 @@ namespace Esiur.Tests.Gvwie
         }
 
 
-        static double[] Average(Func<(int, int, int, int, int, int, int, int)> call, int count)
+        static double[] Average(Func<(int, int, int, int, int, int, int, int, int)> call, int count)
         {
-            var sum = new List<(int, int, int, int, int, int, int, int)>();
+            var sum = new List<(int, int, int, int, int, int, int, int, int)>();
 
             for (var i = 0; i < count; i++)
                 sum.Add(call());
 
 
-            var rt = new double[]{ sum.Average(x => x.Item1),
+            var rt = new double[]{ 
+                    sum.Average(x => x.Item1),
                     sum.Average(x => x.Item2),
                     sum.Average(x => x.Item3),
                     sum.Average(x => x.Item4),
                     sum.Average(x => x.Item5),
                     sum.Average(x => x.Item6),
                     sum.Average(x => x.Item7),
-                    sum.Average(x => x.Item8)
+                    sum.Average(x => x.Item8),
+                    sum.Average(x => x.Item9)
             };
 
-            Console.WriteLine($"{rt[0]};{rt[1]};{rt[2]};{rt[3]};{rt[4]};{rt[5]};{rt[6]};{rt[7]}");
+            Console.WriteLine($"{rt[0]};{rt[1]};{rt[2]};{rt[3]};{rt[4]};{rt[5]};{rt[6]};{rt[7]};{rt[8]}");
 
 
             return rt;
@@ -420,22 +432,22 @@ namespace Esiur.Tests.Gvwie
         static string PrintAverage(double[] values)
         {
             // Determine winner (lowest average size)
-            var names = new string[] { "Esiur", "FlatBuffer", "ProtoBuffer", "MessagePack", "BSON", "CBOR", "Avro", "Optimal" };
+            var names = new string[] { "Esiur", "Aligned", "FlatBuffer", "ProtoBuffer", "MessagePack", "BSON", "CBOR", "Avro", "Optimal" };
             var min = values.SkipLast(1).Min();
-            var idx = Array.IndexOf(values, min);
-            if (idx >= 0 && idx < names.Length)
+
+            int[] indexes = values.Select((value, index) => new { value, index })
+                     .Where(x => x.value == min)
+                     .Select(x => x.index)
+                     .ToArray();
+
+            foreach(var index in indexes)
             {
-                if (idx == 0)
-
-                    Console.ForegroundColor = ConsoleColor.Green;
-                else
-                    Console.ForegroundColor = ConsoleColor.Red;
-
-                Console.WriteLine($"Winner: {names[idx]} ({min:F0})");
-                Console.ForegroundColor = ConsoleColor.White;
-
-                return names[idx];
+                Console.ForegroundColor = index < 2 ? ConsoleColor.Green
+                    : ConsoleColor.Red;
+                Console.WriteLine($"Winner: {names[index]} ({min:F0})");
             }
+
+            Console.ForegroundColor = ConsoleColor.White;
 
             return "Unknown";
         }
@@ -447,5 +459,10 @@ namespace Esiur.Tests.Gvwie
             return buffer.Take(len).ToArray();
         }
 
+        public static T[] DeserializeFlatBuffers<T>(byte[] buffer)
+        {
+            var root = FlatBufferSerializer.Default.Parse<ArrayRoot<T>>( buffer);
+            return root.Values.ToArray();
+        }
     }
 }

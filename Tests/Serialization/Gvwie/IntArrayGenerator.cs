@@ -11,7 +11,7 @@ public static class IntArrayGenerator
 
 
 
-    private static readonly Random rng = new Random(24241564);
+    private static  Random rng = new Random(24241564);
 
     /// <summary>
     /// Generate an array composed of ascending runs (consecutive integers).
@@ -23,6 +23,9 @@ public static class IntArrayGenerator
     ///  - allowNegative: if false, generated values will be non-negative
     ///  - minGap / maxGap: approximate gap between runs (large gaps produce the jump examples)
     /// </summary>
+    /// 
+    public static void InitRng() => rng = new Random(24241564);
+
     public static long[] GenerateRuns(int length,
         int minRunSize = 3,
         int maxRunSize = 8,
