@@ -1,141 +1,4 @@
-﻿//using System;
-//using System.Collections.Generic;
-//using System.Linq;
-//using System.Text;
-//using System.Threading.Tasks;
-//using System;
-//using System.Collections.Generic;
-//using System.Runtime.CompilerServices;
-
-//namespace Esiur.Data.Gvwie;
-
-//public static class GroupInt64Codec
-//{
-//    // ----------------- Encoder -----------------
-//    public static byte[] Encode(IList<long> values)
-//    {
-//        var dst = new List<byte>(values.Count * 2);
-//        int i = 0;
-
-//        while (i < values.Count)
-//        {
-//            ulong zz = ZigZag64(values[i]);
-
-//            // Fast path: 1 byte when ZigZag fits in 7 bits
-//            if (zz <= 0x7Ful)
-//            {
-//                dst.Add((byte)zz); // MSB = 0 implicitly
-//                i++;
-//                continue;
-//            }
-
-//            // Group path: up to 16 items sharing a common width (1..8 bytes)
-//            int start = i;
-//            int count = 1;
-//            int width = WidthFromZigZag(zz);
-
-//            while (count < 16 && (i + count) < values.Count)
-//            {
-//                ulong z2 = ZigZag64(values[i + count]);
-//                int w2 = WidthFromZigZag(z2);
-//                width = Math.Max(width, w2);   // widen as needed
-//                count++;
-//            }
-
-//            // Header: 1 | (count-1)[4 bits] | (width-1)[3 bits]
-//            byte header = 0x80;
-//            header |= (byte)(((count - 1) & 0x0F) << 3);
-//            header |= (byte)((width - 1) & 0x07);
-//            dst.Add(header);
-
-//            // Payload: 'count' ZigZag values, LE, 'width' bytes each
-//            for (int k = 0; k < count; k++)
-//            {
-//                ulong z = ZigZag64(values[start + k]);
-//                WriteLE(dst, z, width);
-//            }
-
-//            i += count;
-//        }
-
-//        return dst.ToArray();
-//    }
-
-//    // ----------------- Decoder -----------------
-//    public static long[] Decode(ReadOnlySpan<byte> src)
-//    {
-//        var result = new List<long>();
-//        int pos = 0;
-
-//        while (pos < src.Length)
-//        {
-//            byte h = src[pos++];
-
-//            if ((h & 0x80) == 0)
-//            {
-//                // Fast path: 7-bit ZigZag
-//                ulong zz7 = (ulong)(h & 0x7F);
-//                result.Add(UnZigZag64(zz7));
-//                continue;
-//            }
-
-//            int count = ((h >> 3) & 0x0F) + 1; // 1..16
-//            int width = (h & 0x07) + 1;        // 1..8
-
-//            for (int j = 0; j < count; j++)
-//            {
-//                ulong raw = ReadLE(src, ref pos, width);
-//                long val = UnZigZag64(raw);
-//                result.Add(val);
-//            }
-//        }
-
-//        return result.ToArray();
-//    }
-
-//    // ----------------- Helpers -----------------
-
-//    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//    private static ulong ZigZag64(long v) => (ulong)((v << 1) ^ (v >> 63));
-
-//    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//    private static long UnZigZag64(ulong u) => (long)((u >> 1) ^ (ulong)-(long)(u & 1));
-
-//    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//    private static int WidthFromZigZag(ulong z)
-//    {
-//        if (z <= 0xFFUL) return 1;
-//        if (z <= 0xFFFFUL) return 2;
-//        if (z <= 0xFFFFFFUL) return 3;
-//        if (z <= 0xFFFFFFFFUL) return 4;
-//        if (z <= 0xFFFFFFFFFFUL) return 5;
-//        if (z <= 0xFFFFFFFFFFFFUL) return 6;
-//        if (z <= 0xFFFFFFFFFFFFFFUL) return 7;
-//        return 8;
-//    }
-
-//    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//    private static void WriteLE(List<byte> dst, ulong value, int width)
-//    {
-//        for (int i = 0; i < width; i++)
-//            dst.Add((byte)((value >> (8 * i)) & 0xFF));
-//    }
-
-//    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-//    private static ulong ReadLE(ReadOnlySpan<byte> src, ref int pos, int width)
-//    {
-//        if ((uint)(pos + width) > (uint)src.Length)
-//            throw new ArgumentException("Buffer underflow while reading group payload.");
-
-//        ulong v = 0;
-//        for (int i = 0; i < width; i++)
-//            v |= (ulong)src[pos++] << (8 * i);
-//        return v;
-//    }
-//}
-
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
@@ -143,16 +6,6 @@ namespace Esiur.Data.Gvwie;
 
 public static class GroupInt64Codec
 {
-    // Header layout for grouped values:
-    //   1 | cccc | www
-    //
-    // MSB = 1 => grouped form
-    // cccc = 0..14  => short count = cccc + 1   (1..15)
-    // cccc = 15     => extended count, followed by varint(count - 16)
-    // www  = 0..7   => width = www + 1          (1..8)
-    //
-    // MSB = 0 => literal fast path for ZigZag values in 7 bits
-
     // ----------------- Encoder -----------------
     public static byte[] Encode(IList<long> values, bool aligned = false)
     {
@@ -191,10 +44,11 @@ public static class GroupInt64Codec
                 count++;
             }
 
-            if (count <= 15)
+            if (count <= 12)
             {
                 // Short group:
                 // Header: 1 | (count-1)[4 bits] | (width-1)[3 bits]
+                // count field 0000..1011 => count 1..12
                 byte header = 0x80;
                 header |= (byte)(((count - 1) & 0x0F) << 3);
                 header |= (byte)((width - 1) & 0x07);
@@ -203,13 +57,33 @@ public static class GroupInt64Codec
             else
             {
                 // Extended group:
-                // Header: 1 | 1111 | (width-1)[3 bits]
-                // Followed by varint(count - 16)
+                // Header: 1 | g[4 bits] | (width-1)[3 bits]
+                //
+                // g = 1100 => LoL = 1 byte
+                // g = 1101 => LoL = 2 bytes
+                // g = 1110 => LoL = 3 bytes
+                // g = 1111 => LoL = 4 bytes
+                //
+                // LoL stores (count - 13) in little-endian form.
+
+                uint extra = checked((uint)(count - 13));
+                int lol = LengthOfLength(extra); // 1..4
+
+                byte groupBits = lol switch
+                {
+                    1 => 0b1100,
+                    2 => 0b1101,
+                    3 => 0b1110,
+                    4 => 0b1111,
+                    _ => throw new InvalidOperationException("Invalid LoL.")
+                };
+
                 byte header = 0x80;
-                header |= 0x78; // count bits = 1111
+                header |= (byte)(groupBits << 3);
                 header |= (byte)((width - 1) & 0x07);
                 dst.Add(header);
-                WriteVarUInt32(dst, checked((uint)(count - 16)));
+
+                WriteLE(dst, extra, lol);
             }
 
             // Payload: 'count' zigzag values, LE, 'width' bytes each
@@ -244,22 +118,29 @@ public static class GroupInt64Codec
             int width = (h & 0x07) + 1;
 
             int count;
-            if (countField == 15)
+
+            if (countField <= 11)
             {
-                // Extended group length
-                uint extra = ReadVarUInt32(src, ref pos);
-                count = checked(16 + (int)extra);
+                // Short group: 0..11 => count 1..12
+                count = countField + 1;
             }
             else
             {
-                count = countField + 1;
+                // Extended group:
+                // 12 => LoL=1
+                // 13 => LoL=2
+                // 14 => LoL=3
+                // 15 => LoL=4
+                int lol = countField - 11;
+
+                uint extra = checked((uint)ReadLE(src, ref pos, lol));
+                count = checked(13 + (int)extra);
             }
 
             for (int j = 0; j < count; j++)
             {
                 ulong raw = ReadLE(src, ref pos, width);
-                long val = UnZigZag64(raw);
-                result.Add(val);
+                result.Add(UnZigZag64(raw));
             }
         }
 
@@ -285,7 +166,15 @@ public static class GroupInt64Codec
         if (z <= 0xFFFFFFFFFFFFul) return aligned ? 8 : 6;
         if (z <= 0xFFFFFFFFFFFFFFul) return aligned ? 8 : 7;
         return 8;
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int LengthOfLength(uint value)
+    {
+        if (value <= 0xFFu) return 1;
+        if (value <= 0xFFFFu) return 2;
+        if (value <= 0xFFFFFFu) return 3;
+        return 4;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -296,49 +185,22 @@ public static class GroupInt64Codec
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteLE(List<byte> dst, uint value, int width)
+    {
+        for (int i = 0; i < width; i++)
+            dst.Add((byte)((value >> (8 * i)) & 0xFF));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ulong ReadLE(ReadOnlySpan<byte> src, ref int pos, int width)
     {
         if ((uint)(pos + width) > (uint)src.Length)
-            throw new ArgumentException("Buffer underflow while reading group payload.");
+            throw new ArgumentException("Buffer underflow while reading payload.");
 
         ulong v = 0;
         for (int i = 0; i < width; i++)
             v |= (ulong)src[pos++] << (8 * i);
+
         return v;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void WriteVarUInt32(List<byte> dst, uint value)
-    {
-        while (value >= 0x80)
-        {
-            dst.Add((byte)((value & 0x7F) | 0x80));
-            value >>= 7;
-        }
-
-        dst.Add((byte)value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint ReadVarUInt32(ReadOnlySpan<byte> src, ref int pos)
-    {
-        uint result = 0;
-        int shift = 0;
-
-        while (true)
-        {
-            if (pos >= src.Length)
-                throw new ArgumentException("Buffer underflow while reading varint.");
-
-            byte b = src[pos++];
-            result |= (uint)(b & 0x7F) << shift;
-
-            if ((b & 0x80) == 0)
-                return result;
-
-            shift += 7;
-            if (shift >= 35)
-                throw new ArgumentException("Varint is too long for UInt32.");
-        }
     }
 }

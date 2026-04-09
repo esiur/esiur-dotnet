@@ -32,7 +32,7 @@ namespace Esiur.Tests.Gvwie
             const int TEST_ITERATIONS = 100;
             const int SAMPLE_SIZE = 100;
 
-            Console.WriteLine(";Esiur;FlatBuffer;ProtoBuffer,MessagePack;BSON;CBOR;Avro,Optimal");
+            Console.WriteLine(";Esiur;Aligned;FlatBuffer;ProtoBuffer,MessagePack;BSON;CBOR;Avro,Optimal");
 
 
 
@@ -177,7 +177,7 @@ namespace Esiur.Tests.Gvwie
                 var file = $"run_chart_{gen.name}.csv";
                 System.IO.File.WriteAllText(file, sb.ToString());
                 var file2 = $"optimal_chart_{gen.name}.csv";
-                System.IO.File.WriteAllText(file, sbr.ToString());
+                System.IO.File.WriteAllText(file2, sbr.ToString());
 
                 Console.WriteLine($"Chart CSV written to: {file} {file2}");
             }

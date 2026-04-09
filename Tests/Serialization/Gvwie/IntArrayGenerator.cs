@@ -24,7 +24,7 @@ public static class IntArrayGenerator
     ///  - minGap / maxGap: approximate gap between runs (large gaps produce the jump examples)
     /// </summary>
     /// 
-    public static void InitRng() => rng = new Random(24241564);
+    public static void InitRng(int seed= 24241564) => rng = new Random(seed);
 
     public static long[] GenerateRuns(int length,
         int minRunSize = 3,
