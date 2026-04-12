@@ -32,8 +32,7 @@ namespace Esiur.Tests.Gvwie
             const int TEST_ITERATIONS = 100;
             const int SAMPLE_SIZE = 100;
 
-            Console.WriteLine(";Esiur;Aligned;FlatBuffer;ProtoBuffer,MessagePack;BSON;CBOR;Avro,Optimal");
-
+            Console.WriteLine(",Esiur,Aligned,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
 
 
             Console.Write("Cluster (Int32);");
@@ -57,11 +56,8 @@ namespace Esiur.Tests.Gvwie
             PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Small)), TEST_ITERATIONS)
             );
-            // CompareInt(int32small);
 
             Console.Write("Alternating (Int32);");
-            //CompareInt(int32alter);
-
             PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Alternating)), TEST_ITERATIONS)
             );
@@ -423,7 +419,7 @@ namespace Esiur.Tests.Gvwie
                     sum.Average(x => x.Item9)
             };
 
-            Console.WriteLine($"{rt[0]};{rt[1]};{rt[2]};{rt[3]};{rt[4]};{rt[5]};{rt[6]};{rt[7]};{rt[8]}");
+            Console.WriteLine($"{rt[0]},{rt[1]},{rt[2]},{rt[3]},{rt[4]},{rt[5]},{rt[6]},{rt[7]},{rt[8]}");
 
 
             return rt;
