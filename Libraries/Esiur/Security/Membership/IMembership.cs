@@ -37,6 +37,8 @@ namespace Esiur.Security.Membership;
 
 public interface IMembership
 {
+    public IAuthenticationHandler GetAuthenticationHandler(string domain);
+
     public event ResourceEventHandler<AuthorizationIndication> Authorization;
 
     AsyncReply<string> UserExists(string username, string domain);

@@ -37,7 +37,9 @@ using Esiur.Security.Membership;
 using System.Threading.Tasks;
 using Esiur.Data.Types;
 using Esiur.Net;
- 
+using Esiur.Security.Authority;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
 namespace Esiur.Protocol;
 
 public class EpServer : NetworkServer<EpConnection>, IResource
@@ -100,6 +102,12 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         | ExceptionLevel.Trace;
 
 
+
+    public void RegisterAuthenticationHandler<T>(string[] domains, AuthenticationMode[] modes) where T : class, IAuthenticationHandler
+    {
+
+    }
+    
     public Instance Instance
     {
         get;

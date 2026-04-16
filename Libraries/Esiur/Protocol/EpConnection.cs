@@ -664,9 +664,6 @@ public partial class EpConnection : NetworkConnection, IStore
                         }
                     }
 
-
-
-
                     //@TODO: get the authentication handler
                     if (session.RemoteHeaders.ContainsKey(EpAuthPacketHeader.AuthenticationData))
                     {
