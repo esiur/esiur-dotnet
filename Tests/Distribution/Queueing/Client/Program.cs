@@ -35,7 +35,7 @@ Console.WriteLine($"[Client-T2] Connecting to {host}:{port}, trials={trials}");
 var wh = new Warehouse();
 
 var serviceResource = await wh.Get<EpResource>(
-                $"ep://{host}:{port}/queueing");
+                $"ep://{host}:{port}/sys/queueing");
 
 var service = (dynamic)serviceResource;
 
@@ -43,10 +43,11 @@ serviceResource.PropertyChanged += Service_PropertyChanged;
 
 
 
-Console.WriteLine("Starting next test: Delay=" + delays[currentDelay] + " Alpha=" + alphas[currentAlpha]);
+Console.WriteLine("Starting test: Delay=" + delays[currentDelay] + " Alpha=" + alphas[currentAlpha]);
 
 service.StartUpdatesLocal(delays[currentDelay], trials, alphas[currentAlpha]);
 
+await Task.Delay(-1);
 
 
 void Service_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -61,7 +62,7 @@ void Service_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         Console.WriteLine(result);
         counter = 0;
 
-        if (currentAlpha == delays.Length - 1)
+        if (currentAlpha == alphas.Length - 1)
         {
             currentAlpha = 0;
             currentDelay++;
