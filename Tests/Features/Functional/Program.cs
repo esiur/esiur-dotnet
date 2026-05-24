@@ -88,7 +88,7 @@ class Program
         //TestSerialization(10.1d);
         //TestSerialization((byte)1);
         //TestSerialization((byte)2);
-        TestSerialization(new int[] { 1, 2, 3, 4 });
+        //TestSerialization(new int[] { 1, 2, 3, 4 });
         //var x = LogLevel.Warning;
 
         //TestSerialization(LogLevel.Warning);
@@ -213,18 +213,22 @@ class Program
     private static async void TestClient(IResource local)
     {
 
-        var con = await new Warehouse().Get<EpConnection>("EP://localhost", new EpConnectionConfig
+        var con = await new Warehouse().Get<EpConnection>("EP://localhost", new EpConnectionContext
         {
             AutoReconnect = true,
-            Username = "admin",
-            Password = "admin",
-            Authenticator = Authenticator
+            //Username = "admin",
+            //Password = "admin",
+            Identity = "demo",
+            AuthenticationProtocol = "hash"
         });
 
 
-        dynamic remote = await con.Get("sys/service");
-        var gr = await remote.GetGenericRecord();
-        Console.WriteLine(gr);
+        dynamic remote = await con.Get("sys/service");       
+        
+        TestObjectProps(local, remote);
+
+        //return;
+
         //return;
 
         Console.WriteLine("OK");
@@ -236,10 +240,7 @@ class Program
         var temp = await con.Call("temp");
         Console.WriteLine("Temp: " + temp.GetHashCode());
 
-        //var template = await con.GetTemplateByClassName("Test.MyResource");
 
-
-        TestObjectProps(local, remote);
 
 
         var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });

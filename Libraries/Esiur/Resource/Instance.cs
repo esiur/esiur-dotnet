@@ -710,7 +710,15 @@ public class Instance
 
 		}
 
-		return Ruling.DontCare;
+        // Apply default permissions if no manager is applicable or if the resource is not available.
+		if (action == ActionType.GetProperty 
+			|| action == ActionType.ViewTypeDef 
+			|| action == ActionType.ReceiveEvent
+			|| action == ActionType.Attach
+			|| action == ActionType.Execute)
+			return Ruling.Allowed;
+		else
+			return Ruling.Denied;
 
 	}
 
@@ -753,7 +761,7 @@ public class Instance
 		}
 		else
 		{
-			this.definition = warehouse.GetTypeDefByType(resource.GetType());
+			this.definition = warehouse.GetLocalTypeDefByType(resource.GetType());
 		}
 
 		// set ages

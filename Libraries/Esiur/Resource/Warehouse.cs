@@ -29,13 +29,16 @@ using Esiur.Misc;
 using Esiur.Net.Packets;
 using Esiur.Protocol;
 using Esiur.Proxy;
+using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
+using Org.BouncyCastle.Asn1.Cms;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -51,47 +54,83 @@ public class Warehouse
 
     //static byte prefixCounter;
 
-    //static AutoList<IStore, Instance> stores = new AutoList<IStore, Instance>(null);
-    ConcurrentDictionary<uint, WeakReference<IResource>> resources = new ConcurrentDictionary<uint, WeakReference<IResource>>();
-    ConcurrentDictionary<IStore, List<WeakReference<IResource>>> stores = new ConcurrentDictionary<IStore, List<WeakReference<IResource>>>();
+    ConcurrentDictionary<uint, WeakReference<IResource>> _resources = new ConcurrentDictionary<uint, WeakReference<IResource>>();
+    ConcurrentDictionary<IStore, List<WeakReference<IResource>>> _stores = new ConcurrentDictionary<IStore, List<WeakReference<IResource>>>();
+
+    volatile int _resourceCounter = 0;
+    volatile int _typeDefsCounter = 0;
 
 
-    uint resourceCounter = 0;
+    //KeyList<TypeDefKind, KeyList<uint, LocalTypeDef>> _localTypeDefs
+    //    = new KeyList<TypeDefKind, KeyList<uint, LocalTypeDef>>()
+    //    {
+    //        [TypeDefKind.Resource] = new KeyList<uint, LocalTypeDef>(),
+    //        [TypeDefKind.Record] = new KeyList<uint, LocalTypeDef>(),
+    //        [TypeDefKind.Enum] = new KeyList<uint, LocalTypeDef>(),
+    //    };
+
+    KeyList<ulong, TypeDef> _localTypeDefs
+        = new KeyList<ulong, TypeDef>();
 
 
-    KeyList<TypeDefKind, KeyList<Uuid, TypeDef>> typeDefs
-        = new KeyList<TypeDefKind, KeyList<Uuid, TypeDef>>()
-        {
-            [TypeDefKind.Resource] = new KeyList<Uuid, TypeDef>(),
-            [TypeDefKind.Record] = new KeyList<Uuid, TypeDef>(),
-            [TypeDefKind.Enum] = new KeyList<Uuid, TypeDef>(),
-        };
+    KeyList<string, KeyList<ulong, RemoteTypeDef>> _remoteTypeDefs
+        = new KeyList<string, KeyList<ulong, RemoteTypeDef>>();
 
-    object typeDefsLock = new object();
+    //KeyList<string, KeyList<TypeDefKind, KeyList<uint, RemoteTypeDef>>> _remoteTypeDefs 
+    //    = new KeyList<string, KeyList<TypeDefKind, KeyList<uint, RemoteTypeDef>>>();
 
-    bool warehouseIsOpen = false;
+
+    Map<string, IAuthenticationProvider> _authenticationProviders = new Map<string, IAuthenticationProvider>();
+    List<IPermissionsManager> _permissionsManagers = new List<IPermissionsManager>();
+
+
+    object _typeDefsLock = new object();
+
+    bool _warehouseIsOpen = false;
 
     public delegate void StoreEvent(IStore store);
     public event StoreEvent StoreConnected;
     public event StoreEvent StoreDisconnected;
 
-    public delegate AsyncReply<IStore> ProtocolInstance(string name, object properties);
+    public delegate AsyncReply<IStore> ProtocolInstance(string name, ResourceContext resourceContext);
 
     public KeyList<string, ProtocolInstance> Protocols { get; } = new KeyList<string, ProtocolInstance>();
 
     private Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
 
+    public void RegisterAuthenticationProvider(IAuthenticationProvider provider)
+    {
+        RegisterAuthenticationProvider(provider.DefaultName, provider);
+    }
+
+    public void RegisterAuthenticationProvider(string name, IAuthenticationProvider provider)
+    {
+        _authenticationProviders.Add(name, provider);
+    }
+
+
+    public void RegisterPermissionsManager(IPermissionsManager manager)
+    {
+        _permissionsManagers.Add(manager);
+    }
+
+    public IAuthenticationProvider GetAuthenticationProvider(string name)
+    {
+        if (_authenticationProviders.ContainsKey(name))
+            return _authenticationProviders[name];
+        throw new Exception("Authentication provider not found.");
+    }
+
     public Warehouse()
     {
         Protocols.Add("EP",
-            async (name, attributes)
-            => await New<EpConnection>(name, null, attributes));
+            async (name, context)
+            => await New<EpConnection>(name, context));
 
-        new TypeDef(typeof(EpAuthPacketIAuthHeader), this);
-
-        new TypeDef(typeof(EpAuthPacketIAuthDestination), this);
-        new TypeDef(typeof(EpAuthPacketIAuthFormat), this);
+        //new LocalTypeDef(typeof(EpAuthPacketIAuthHeader), this);
+        //new LocalTypeDef(typeof(EpAuthPacketIAuthDestination), this);
+        //new LocalTypeDef(typeof(EpAuthPacketIAuthFormat), this);
     }
 
 
@@ -102,13 +141,13 @@ public class Warehouse
     /// <returns></returns>
     public IStore GetStore(string name)
     {
-        foreach (var s in stores)
+        foreach (var s in _stores)
             if (s.Key.Instance.Name == name)
                 return s.Key;
         return null;
     }
 
-    public WeakReference<IResource>[] Resources => resources.Values.ToArray();
+    public WeakReference<IResource>[] Resources => _resources.Values.ToArray();
 
     /// <summary>
     /// Get a resource by instance Id.
@@ -117,10 +156,10 @@ public class Warehouse
     /// <returns></returns>
     public AsyncReply<IResource> GetById(uint id)
     {
-        if (resources.ContainsKey(id))
+        if (_resources.ContainsKey(id))
         {
             IResource r;
-            if (resources[id].TryGetTarget(out r))
+            if (_resources[id].TryGetTarget(out r))
                 return new AsyncReply<IResource>(r);
             else
                 return new AsyncReply<IResource>(null);
@@ -129,33 +168,33 @@ public class Warehouse
             return new AsyncReply<IResource>(null);
     }
 
-    void LoadGenerated()
-    {
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var generatedType = assembly.GetType("Esiur.Generated");
-            if (generatedType != null)
-            {
-                var resourceTypes = (Type[])generatedType.GetProperty("Resources").GetValue(null);
-                foreach (var t in resourceTypes)
-                {
-                    RegisterTypeDef(new TypeDef(t));
-                }
+    //void LoadGenerated()
+    //{
+    //    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+    //    {
+    //        var generatedType = assembly.GetType("Esiur.Generated");
+    //        if (generatedType != null)
+    //        {
+    //            var resourceTypes = (Type[])generatedType.GetProperty("Resources").GetValue(null);
+    //            foreach (var t in resourceTypes)
+    //            {
+    //                RegisterTypeDef(new TypeDef(t));
+    //            }
 
-                var recordTypes = (Type[])generatedType.GetProperty("Records").GetValue(null);
-                foreach (var t in recordTypes)
-                {
-                    RegisterTypeDef(new TypeDef(t));
-                }
+    //            var recordTypes = (Type[])generatedType.GetProperty("Records").GetValue(null);
+    //            foreach (var t in recordTypes)
+    //            {
+    //                RegisterTypeDef(new TypeDef(t));
+    //            }
 
-                var enumsTypes = (Type[])generatedType.GetProperty("Enums").GetValue(null);
-                foreach (var t in enumsTypes)
-                {
-                    RegisterTypeDef(new TypeDef(t));
-                }
-            }
-        }
-    }
+    //            var enumsTypes = (Type[])generatedType.GetProperty("Enums").GetValue(null);
+    //            foreach (var t in enumsTypes)
+    //            {
+    //                RegisterTypeDef(new TypeDef(t));
+    //            }
+    //        }
+    //    }
+    //}
 
     /// <summary>
     /// Open the warehouse.
@@ -164,16 +203,16 @@ public class Warehouse
     /// <returns>True, if no problem occurred.</returns>
     public async AsyncReply<bool> Open()
     {
-        if (warehouseIsOpen)
+        if (_warehouseIsOpen)
             return false;
 
         // Load generated models
-        LoadGenerated();
+        //LoadGenerated();
 
 
-        warehouseIsOpen = true;
+        _warehouseIsOpen = true;
 
-        var resSnap = resources.Select(x =>
+        var resSnap = _resources.Select(x =>
         {
             IResource r;
             if (x.Value.TryGetTarget(out r))
@@ -222,7 +261,7 @@ public class Warehouse
 
         var bag = new AsyncBag<bool>();
 
-        foreach (var resource in resources.Values)
+        foreach (var resource in _resources.Values)
         {
             IResource r;
             if (resource.TryGetTarget(out r))
@@ -233,11 +272,11 @@ public class Warehouse
             }
         }
 
-        foreach (var store in stores)
+        foreach (var store in _stores)
             bag.Add(store.Key.Trigger(ResourceTrigger.Terminate));
 
 
-        foreach (var resource in resources.Values)
+        foreach (var resource in _resources.Values)
         {
             IResource r;
             if (resource.TryGetTarget(out r))
@@ -248,7 +287,7 @@ public class Warehouse
         }
 
 
-        foreach (var store in stores)
+        foreach (var store in _stores)
             bag.Add(store.Key.Trigger(ResourceTrigger.SystemTerminated));
 
         bag.Seal();
@@ -274,7 +313,7 @@ public class Warehouse
     {
         var p = path.Trim().TrimStart('/').Split('/');
 
-        foreach (var store in stores.Keys)
+        foreach (var store in _stores.Keys)
         {
             if (p[0] == store.Instance.Name)
             {
@@ -298,7 +337,7 @@ public class Warehouse
     /// </summary>
     /// <param name="path"></param>
     /// <returns>Resource instance.</returns>
-    public async AsyncReply<T> Get<T>(string path, object attributes = null, IResource parent = null, IPermissionsManager manager = null)
+    public async AsyncReply<T> Get<T>(string path, ResourceContext resourceContext = null)
         where T : IResource
     {
 
@@ -309,11 +348,11 @@ public class Warehouse
 
             if (Protocols.ContainsKey(url[1]))
             {
-                if (!warehouseIsOpen)
+                if (!_warehouseIsOpen)
                     await Open();
 
                 var handler = Protocols[url[1]];
-                var store = await handler(url[2], attributes);
+                var store = await handler(url[2], resourceContext);
 
                 try
                 {
@@ -346,7 +385,7 @@ public class Warehouse
     /// <param name="resource">Resource instance.</param>
     /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
     /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-    public async AsyncReply<T> Put<T>(string path, T resource, ulong age = 0, IPermissionsManager manager = null, object attributes = null) where T : IResource
+    public async AsyncReply<T> Put<T>(string path, T resource, ResourceContext resourceContext = null) where T : IResource
     {
         if (resource.Instance != null)
             throw new Exception("Resource already initialized.");
@@ -385,18 +424,17 @@ public class Warehouse
 
         var resourceReference = new WeakReference<IResource>(resource);
 
-        resource.Instance = new Instance(this, resourceCounter++, instanceName, resource, store, age);
+        var resourceId = (uint)Interlocked.Increment(ref _resourceCounter);
 
-        if (attributes != null)
-            if (attributes is Map<string, object> attrs)
-                resource.Instance.SetAttributes(attrs);
-            else
-                resource.Instance.SetAttributes(Map<string, object>.FromObject(attributes));
+        resource.Instance = new Instance(this, resourceId, instanceName, resource, store, resourceContext?.Age ?? 0);
+
+        if (resourceContext?.Attributes != null)
+            resource.Instance.SetAttributes(resourceContext.Attributes);
 
         try
         {
             if (resource is IStore)
-                stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
+                _stores.TryAdd(resource as IStore, new List<WeakReference<IResource>>());
             else if ((IResource)resource != store)
             {
                 if (!await store.Put(resource, string.Join("/", location.Skip(1).ToArray())))
@@ -406,9 +444,9 @@ public class Warehouse
             var t = resource.GetType();
             Global.Counters["T-" + t.Namespace + "." + t.Name]++;
 
-            resources.TryAdd(resource.Instance.Id, resourceReference);
-            
-            if (warehouseIsOpen)
+            _resources.TryAdd(resource.Instance.Id, resourceReference);
+
+            if (_warehouseIsOpen)
             {
                 await resource.Trigger(ResourceTrigger.Initialize);
                 if (resource is IStore)
@@ -429,60 +467,81 @@ public class Warehouse
 
     }
 
-    public T Create<T>(object properties = null)
+    public T Create<T>(Map<string, object> properties = null)
     {
         return (T)Create(typeof(T), properties);
     }
 
-    public IResource Create(Type type, object properties = null)
+    public IResource CreateFromIndexedProperties(Type type, Map<byte, object> properties)
     {
         type = ResourceProxy.GetProxy(type);
-
         var res = Activator.CreateInstance(type) as IResource;
-
 
         if (properties != null)
         {
-            if (properties is Map<byte, object> map)
+            var typeDef = GetLocalTypeDefByType(type);
+            foreach (var p in properties)
             {
-                var typeDef = GetTypeDefByType(type);
-                foreach (var kvp in map)
-					typeDef.GetPropertyDefByIndex(kvp.Key).PropertyInfo.SetValue(res, kvp.Value);
-            }
-            else
-            {
-                var ps = Map<string, object>.FromObject(properties);
+                var pi = typeDef.GetPropertyDefByIndex(p.Key).PropertyInfo;
 
-                foreach (var p in ps)
+                if (pi != null)
                 {
-                    var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    if (pi != null)
+                    if (pi.CanWrite)
                     {
-                        if (pi.CanWrite)
+                        try
                         {
-                            try
-                            {
-                                pi.SetValue(res, p.Value);
-                            }
-                            catch (Exception ex)
-                            {
-                                Global.Log(ex);
-                            }
+                            pi.SetValue(res, p.Value);
+                        }
+                        catch (Exception ex)
+                        {
+                            Global.Log(ex);
                         }
                     }
-                    else
+                }
+            }
+        }
+
+
+        return res;
+    }
+
+    public IResource Create(Type type, Map<string, object> properties)
+    {
+        type = ResourceProxy.GetProxy(type);
+        var res = Activator.CreateInstance(type) as IResource;
+
+        if (properties != null)
+        {
+
+            foreach (var p in properties)
+            {
+                var pi = type.GetProperty(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (pi != null)
+                {
+                    if (pi.CanWrite)
                     {
-                        var fi = type.GetField(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                        if (fi != null)
+                        try
                         {
-                            try
-                            {
-                                fi.SetValue(res, p.Value);
-                            }
-                            catch (Exception ex)
-                            {
-                                Global.Log(ex);
-                            }
+                            pi.SetValue(res, p.Value);
+                        }
+                        catch (Exception ex)
+                        {
+                            Global.Log(ex);
+                        }
+                    }
+                }
+                else
+                {
+                    var fi = type.GetField(p.Key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (fi != null)
+                    {
+                        try
+                        {
+                            fi.SetValue(res, p.Value);
+                        }
+                        catch (Exception ex)
+                        {
+                            Global.Log(ex);
                         }
                     }
                 }
@@ -492,45 +551,118 @@ public class Warehouse
         return res;
     }
 
-    public async AsyncReply<IResource> New(Type type, string path, IPermissionsManager manager = null, object attributes = null, object properties = null)
+    public async AsyncReply<IResource> New(Type type, string path, ResourceContext resourceContext)
     {
-        var res = Create(type, properties);
-        return await Put(path, res, 0, manager, attributes);
+        var res = Create(type, resourceContext?.Properties);
+        return await Put(path, res, resourceContext);
     }
 
-    public async AsyncReply<T> New<T>(string path, IPermissionsManager manager = null, object attributes = null, object properties = null)
+    public async AsyncReply<T> New<T>(string path, ResourceContext resourceContext = null)
         where T : IResource
     {
-        return (T)(await New(typeof(T), path, manager, attributes, properties));
+        return (T)(await New(typeof(T), path, resourceContext));
+    }
+
+
+    public void IsProxyType(Type type)
+    {
+
+    }
+
+    public void RegisterProxyType(Type type)
+    {
+
     }
 
     /// <summary>
-    /// Put a resource schema in the schemas warehouse.
+    /// Register TypeDef.
     /// </summary>
     /// <param name="typeDef">Resource type definition.</param>
-    public void RegisterTypeDef(TypeDef typeDef)
+    public uint RegisterLocalTypeDef(LocalTypeDef typeDef)
     {
-        lock (typeDefsLock)
+        lock (_typeDefsLock)
         {
-            if (typeDefs[typeDef.Kind].ContainsKey(typeDef.Id))
-                throw new Exception($"TypeDef with same class Id already exists. {typeDefs[typeDef.Kind][typeDef.Id].Name} -> {typeDef.Name}");
+            //if (_localTypeDefs[typeDef.Kind].ContainsKey(typeDef.Id))
+            if (_localTypeDefs.ContainsKey(typeDef.Id))
+                throw new Exception($"TypeDef with same class Id already exists. {_localTypeDefs[typeDef.Id].Name} -> {typeDef.Name}");
+            //throw new Exception($"TypeDef with same class Id already exists. {_localTypeDefs[typeDef.Kind][typeDef.Id].Name} -> {typeDef.Name}");
 
-            typeDefs[typeDef.Kind][typeDef.Id] = typeDef;
+            var typeDefId = (uint)Interlocked.Increment(ref _typeDefsCounter);
+
+            typeDef.Id = typeDefId;
+
+            //_localTypeDefs[typeDef.Kind][typeDef.Id] = typeDef;
+            _localTypeDefs[typeDef.Id] = typeDef;
+
+            return typeDefId;
         }
     }
 
-    public bool TryRegisterTypeDef(TypeDef typeDef)
+    public bool TryRegisterLocalTypeDef(LocalTypeDef typeDef)
     {
-        lock (typeDefsLock)
+        lock (_typeDefsLock)
         {
-            if (typeDefs[typeDef.Kind].ContainsKey(typeDef.Id))
+            if (_localTypeDefs.ContainsKey(typeDef.Id))
                 return false;
 
-            typeDefs[typeDef.Kind][typeDef.Id] = typeDef;
+            var typeDefId = (uint)Interlocked.Increment(ref _typeDefsCounter);
+            typeDef.Id = typeDefId;
+
+            _localTypeDefs[typeDef.Id] = typeDef;
 
             return true;
         }
     }
+
+    public bool TryRegisterRemoteTypeDef(string domain, RemoteTypeDef typeDef)
+    {
+        lock (_typeDefsLock)
+        {
+            if (!_remoteTypeDefs.ContainsKey(domain))
+            {
+                _remoteTypeDefs.Add(domain, new KeyList<ulong, RemoteTypeDef>());
+            }
+
+            if (_remoteTypeDefs[domain].ContainsKey(typeDef.Id))
+                return false;
+
+            // @TODO: Try to find a proxy type for the remote type def, if not found, create a new proxy type and register it in the warehouse.
+            _remoteTypeDefs[domain][typeDef.Id] = typeDef;
+
+            var localTypeDefId = (uint)Interlocked.Increment(ref _typeDefsCounter);
+            typeDef.LocalTypeDefId = localTypeDefId;
+            _localTypeDefs[localTypeDefId] = typeDef;
+
+            return true;
+        }
+    }
+
+
+    //public TypeDef FindTypeDefByType(Type type)
+    //{
+    //    var remote = type.GetCustomAttribute<RemoteAttribute>();
+
+    //    if (remote != null)
+    //    {
+    //        return GetRemoteTypeDefByName(remote.Domain, remote.FullName);
+    //    }
+    //    else
+    //    {
+    //        return GetLocalTypeDefByType(type);
+    //    }
+    //}
+
+    //public TypeDef FindTypeDefByTypeDefId(TypeDefId typeDefId, string domain)
+    //{
+    //    if (typeDefId.Remote)
+    //    {
+    //        return GetRemoteTypeDefById(domain, typeDefId.Value);
+    //    }
+    //    else
+    //    {
+    //        return GetLocalTypeDefById(typeDefId.Value);
+    //    }
+    //}
 
 
     /// <summary>
@@ -538,13 +670,11 @@ public class Warehouse
     /// </summary>
     /// <param name="type">.Net type.</param>
     /// <returns>Resource TypeDef.</returns>
-    public TypeDef GetTypeDefByType(Type type)
+    public TypeDef GetLocalTypeDefByType(Type type)
     {
-        
-        if (!(type.IsClass || type.IsEnum))
-            return null;
+        //if (!(type.IsClass || type.IsEnum))
+        //    return null;
 
-       
         var baseType = ResourceProxy.GetBaseType(type);
 
         if (baseType == typeof(IResource)
@@ -561,16 +691,33 @@ public class Warehouse
         else
             return null;
 
-        lock (typeDefsLock)
+        lock (_typeDefsLock)
         {
-            var typeDef = typeDefs[typeDefKind].Values.FirstOrDefault(x => x.DefinedType == baseType);
-            if (typeDef != null)
-                return typeDef;
+            //var typeDef = _localTypeDefs.Values.FirstOrDefault(x => x is LocalTypeDef ltd 
+            //                                                    && ltd.DefinedType == baseType);
+
+            foreach (var td in _localTypeDefs.Values)
+            {
+                if (td is LocalTypeDef ltd && ltd.DefinedType == baseType)
+                {
+                    return td;
+                }
+                else if (td is RemoteTypeDef rtd && rtd.ProxyType == baseType)
+                {
+                    return td;
+                }
+            }
+
+            //if (typeDef != null)
+            //    return typeDef;
 
             // create new TypeDef for type
-            typeDef = new TypeDef(baseType, this);
-            TypeDef.GetDependencies(typeDef, this);
-            return typeDef;
+
+            //Console.WriteLine($"Creating {baseType.Name}");
+
+            var ntd = new LocalTypeDef(baseType, this);
+            //LocalTypeDef.GetDependencies(ntd, this);
+            return ntd;
         }
     }
 
@@ -579,28 +726,35 @@ public class Warehouse
     /// </summary>
     /// <param name="typeId">typeId.</param>
     /// <returns>TypeDef.</returns>
-    public TypeDef GetTypeDefById(Uuid typeId, TypeDefKind? typeDefKind = null)
+    public TypeDef GetLocalTypeDefById(ulong typeId)
     {
-        if (typeDefKind == null)
-        {
-            // look into resources
-            var typeDef = typeDefs[TypeDefKind.Resource][typeId];
-            if (typeDef != null)
-                return typeDef;
+        return _localTypeDefs[typeId];
+    }
 
-            // look into records
-            typeDef = typeDefs[TypeDefKind.Record][typeId];
-            if (typeDef != null)
-                return typeDef;
 
-            // look into enums
-            typeDef = typeDefs[TypeDefKind.Enum][typeId];
-            return typeDef;
- 
-        }
-        else
-            return typeDefs[typeDefKind.Value][typeId];
+    public RemoteTypeDef GetRemoteTypeDefById(string domain, ulong typeId)
+    {
+        if (string.IsNullOrEmpty(domain) || !_remoteTypeDefs.ContainsKey(domain))
+            return null;
+        return _remoteTypeDefs[domain][typeId];
 
+    }
+
+    public TypeDef GetRemoteTypeDefByName(string domain, string typeName, TypeDefKind? typeDefKind = null)
+    {
+        if (!string.IsNullOrEmpty(domain) || !_remoteTypeDefs.ContainsKey(domain))
+            return null;
+
+        return _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
+    }
+
+    public TypeDef GetRemoteTypeDefByType(Type type)
+    {
+        var remoteAttr = type.GetCustomAttribute<RemoteAttribute>();
+
+        if (remoteAttr == null) return null;
+
+        return GetRemoteTypeDefByName(remoteAttr.Domain, remoteAttr.FullName);
     }
 
     /// <summary>
@@ -608,42 +762,20 @@ public class Warehouse
     /// </summary>
     /// <param name="typeName">Class full name.</param>
     /// <returns>TypeDef.</returns>
-    public TypeDef GetTypeDefByName(string typeName, TypeDefKind? typeDefKind = null)
+    public TypeDef GetLocalTypeDefByName(string typeName)
     {
-        if (typeDefKind == null)
-        {
-            // look into resources
-            var typeDef = typeDefs[TypeDefKind.Resource].Values.FirstOrDefault(x => x.Name == typeName);
-            if (typeDef != null)
-                return typeDef;
-
-            // look into records
-            typeDef = typeDefs[TypeDefKind.Record].Values.FirstOrDefault(x => x.Name == typeName);
-            if (typeDef != null)
-                return typeDef;
-
-            // look into enums
-            typeDef = typeDefs[TypeDefKind.Enum].Values.FirstOrDefault(x => x.Name == typeName);
-             return typeDef;
- 
-        }
-        else
-        {
-            return typeDefs[typeDefKind.Value].Values.FirstOrDefault(x => x.Name == typeName);
-        }
+        return _localTypeDefs.Values.FirstOrDefault(x => x.Name == typeName);
     }
 
     public bool Remove(IResource resource)
     {
-
         if (resource.Instance == null)
             return false;
 
-
         WeakReference<IResource> resourceReference;
 
-        if (resources.ContainsKey(resource.Instance.Id))
-            resources.TryRemove(resource.Instance.Id, out resourceReference);
+        if (_resources.ContainsKey(resource.Instance.Id))
+            _resources.TryRemove(resource.Instance.Id, out resourceReference);
         else
             return false;
 
@@ -651,7 +783,7 @@ public class Warehouse
         if (resource != resource.Instance.Store)
         {
             List<WeakReference<IResource>> list;
-            if (stores.TryGetValue(resource.Instance.Store, out list))
+            if (_stores.TryGetValue(resource.Instance.Store, out list))
             {
 
                 lock (((ICollection)list).SyncRoot)
@@ -665,7 +797,7 @@ public class Warehouse
 
             List<WeakReference<IResource>> toBeRemoved;
 
-            stores.TryRemove(store, out toBeRemoved);
+            _stores.TryRemove(store, out toBeRemoved);
 
 
             foreach (var o in toBeRemoved)

@@ -4,9 +4,7 @@ using System.Text;
 
 namespace Esiur.Security.Authority
 {
-    public interface IAuthenticationResponder
+    internal class AuthenticationHandler
     {
-        public AuthenticationResult Process(Session session);
-
     }
 }

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Esiur.Core;
 using Esiur.Data;
+using Esiur.Protocol;
 using Esiur.Resource;
 
 namespace Esiur.Data.Types;
@@ -18,7 +20,7 @@ public class ConstantDef : MemberDef
     public FieldInfo FieldInfo { get; set; }
 
 
-    public static (uint, ConstantDef) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static async AsyncReply< ParseResult<ConstantDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
     {
         var oOffset = offset;
 
@@ -27,11 +29,16 @@ public class ConstantDef : MemberDef
         var name = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        var (dts, valueType) = Tru.Parse(data, offset);
+        //Console.WriteLine("Parsing constantDef " + name);
 
-        offset += dts;
+        //var (dts, valueType)
+        var valueType = await Tru.ParseAsync(data, offset, connection, requestSequence);
 
-        (dts, var value) = Codec.ParseSync(data, offset, Warehouse.Default);
+        //Console.WriteLine("Parsing constantDef 2 " + name);
+
+        offset += valueType.Size;
+
+        (var dts, var value) = Codec.ParseSync(data, offset, Warehouse.Default);
 
         offset += dts;
 
@@ -48,19 +55,19 @@ public class ConstantDef : MemberDef
             offset += len;
         }
 
-        return (offset - oOffset, new ConstantDef()
+        return new ParseResult<ConstantDef>( new ConstantDef()
         {
             Index = index,
             Name = name,
             Inherited = inherited,
-            ValueType = valueType,
+            ValueType = valueType.Value,
             Value = value,
             Annotations = annotations
-        });
+        }, offset - oOffset);
 
     }
 
-    public byte[] Compose()
+    public byte[] Compose(EpConnection connection)
     {
         var name = DC.ToBytes(Name);
 
@@ -75,7 +82,7 @@ public class ConstantDef : MemberDef
                     .AddUInt8(hdr)
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
-                    .AddUInt8Array(ValueType.Compose())
+                    .AddUInt8Array(ValueType.Compose(connection))
                     .AddUInt8Array(Codec.Compose(Value, null, null))
                     .AddInt32(exp.Length)
                     .AddUInt8Array(exp)
@@ -89,18 +96,18 @@ public class ConstantDef : MemberDef
                     .AddUInt8(hdr)
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
-                    .AddUInt8Array(ValueType.Compose())
+                    .AddUInt8Array(ValueType.Compose(connection))
                     .AddUInt8Array(Codec.Compose(Value, null, null))
                     .ToArray();
         }
     }
 
 
-    public static ConstantDef MakeConstantDef(Type type, FieldInfo ci, byte index = 0, string customName = null, TypeDef typeDef = null)
+    public static ConstantDef MakeConstantDef(Warehouse warehouse, Type type, FieldInfo ci, byte index = 0, string customName = null, TypeDef typeDef = null)
     {
         var annotationAttrs = ci.GetCustomAttributes<AnnotationAttribute>(true);
 
-        var valueType = Tru.FromType(ci.FieldType);
+        var valueType = Tru.FromType(ci.FieldType, warehouse);
 
         if (valueType == null)
             throw new Exception($"Unsupported type `{ci.FieldType}` in constant `{type.Name}.{ci.Name}`");

@@ -6,12 +6,12 @@ using System.Text;
 
 namespace Esiur.Protocol;
 
-internal class EpResourceAttachRequestInfo
+internal class FetchRequestInfo<TValue, TId>
 {
-    public AsyncReply<EpResource> Reply { get; set; }
-    public uint[] RequestSequence { get; set; }
+    public AsyncReply<TValue> Reply { get; set; }
+    public TId[] RequestSequence { get; set; }
 
-    public EpResourceAttachRequestInfo(AsyncReply<EpResource> reply, uint[] requestSequence)
+    public FetchRequestInfo(AsyncReply<TValue> reply, TId[] requestSequence)
     {
         Reply = reply;
         RequestSequence = requestSequence;

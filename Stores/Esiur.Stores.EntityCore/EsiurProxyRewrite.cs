@@ -69,9 +69,9 @@ public class EsiurProxyRewrite : IModelFinalizingConvention
         if (Codec.ImplementsInterface(entityType.ClrType, typeof(IResource)))
         {
             // check if the object exists
-            var obj = options.Warehouse.Create(entityType.ClrType) as IResource;
+            var obj = options.Warehouse.Create(entityType.ClrType, null) as IResource;
             options.Store.TypesByType[entityType.ClrType].PrimaryKey.SetValue(obj, id);
-            options.Warehouse.Put($"{options.Store.Instance.Name}/{entityType.ClrType.Name}/{id}", obj, 0, manager).Wait();
+            options.Warehouse.Put($"{options.Store.Instance.Name}/{entityType.ClrType.Name}/{id}", obj, new ResourceContext(0,  null, null, manager)).Wait();
             return obj;
         }
         else

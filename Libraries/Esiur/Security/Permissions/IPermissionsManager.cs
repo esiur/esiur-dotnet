@@ -52,4 +52,5 @@ public interface IPermissionsManager
     bool Initialize(Map<string, object> settings, IResource resource);
 
     Map<string, object> Settings { get; }
+
 }

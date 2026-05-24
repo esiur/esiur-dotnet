@@ -61,7 +61,7 @@ public static class TypeDefGenerator
     }
 
 
-    internal static string GenerateRecord(TypeDef typeDef, TypeDef[] typeDefs)
+    internal static string GenerateRecord(RemoteTypeDef typeDef, TypeDef[] typeDefs)
     {
         var cls = typeDef.Name.Split('.');
 
@@ -82,7 +82,8 @@ public static class TypeDefGenerator
             }
         }
 
-        rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
+        //rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[Remote(\"{typeDef.Name}\", \"{typeDef.Domain}\")]");
         rt.AppendLine($"[Export] public class {className} : IRecord {{");
 
 
@@ -109,7 +110,7 @@ public static class TypeDefGenerator
         return rt.ToString();
     }
 
-    internal static string GenerateEnum(TypeDef typeDef, TypeDef[] typeDefs)
+    internal static string GenerateEnum(RemoteTypeDef typeDef, TypeDef[] typeDefs)
     {
         var cls = typeDef.Name.Split('.');
 
@@ -129,7 +130,9 @@ public static class TypeDefGenerator
             }
         }
 
-        rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
+        //rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[Remote(\"{typeDef.Name}\", \"{typeDef.Domain}\")]");
+
         rt.AppendLine($"[Export] public enum {className} {{");
 
         rt.AppendLine(String.Join(",\r\n", typeDef.Constants.Select(x => $"{x.Name}={x.Value}")));
@@ -142,28 +145,36 @@ public static class TypeDefGenerator
 
     static string GetTypeName(Tru tru, TypeDef[] typeDefs)
     {
-        string name;
+        string name = null;
 
-        if (tru.Identifier == TruIdentifier.TypedResource)// == DataType.Resource)
-            name = typeDefs.First(x => x.Id == tru.UUID && (x.Kind == TypeDefKind.Resource)).Name;
-        else if (tru.Identifier == TruIdentifier.TypedRecord)
-            name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Record).Name;
-        else if (tru.Identifier == TruIdentifier.Enum)
-            name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Enum).Name;
-        else if (tru.Identifier == TruIdentifier.TypedList)
-            name = GetTypeName(tru.SubTypes[0], typeDefs) + "[]";
-        else if (tru.Identifier == TruIdentifier.TypedMap)
-            name = "Map<" + GetTypeName(tru.SubTypes[0], typeDefs)
-                    + "," + GetTypeName(tru.SubTypes[1], typeDefs)
-                    + ">";
-        else if (tru.Identifier == TruIdentifier.Tuple2 ||
-                 tru.Identifier == TruIdentifier.Tuple3 ||
-                 tru.Identifier == TruIdentifier.Tuple4 ||
-                 tru.Identifier == TruIdentifier.Tuple5 ||
-                 tru.Identifier == TruIdentifier.Tuple6 ||
-                 tru.Identifier == TruIdentifier.Tuple7)
-            name = "(" + String.Join(",", tru.SubTypes.Select(x => GetTypeName(x, typeDefs)))
-                    + ")";
+        if (tru is TruTypeDef truTypeDef)
+        {
+            name = truTypeDef.TypeDef.Name;// typeDefs.First(x => x.Id == tru.TypeDef.Value.Value).Name;
+        }
+        //if (tru.Identifier == TruIdentifier.TypedResource)// == DataType.Resource)
+        //    name = typeDefs.First(x => x.Id == tru.UUID && (x.Kind == TypeDefKind.Resource)).Name;
+        //else if (tru.Identifier == TruIdentifier.TypedRecord)
+        //    name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Record).Name;
+        //else if (tru.Identifier == TruIdentifier.Enum)
+        //    name = typeDefs.First(x => x.Id == tru.UUID && x.Kind == TypeDefKind.Enum).Name;
+
+        else if (tru is TruComposite truComposite)
+        {
+            if (tru.Identifier == TruIdentifier.TypedList)
+                name = GetTypeName(truComposite.SubTypes[0], typeDefs) + "[]";
+            else if (tru.Identifier == TruIdentifier.TypedMap)
+                name = "Map<" + GetTypeName(truComposite.SubTypes[0], typeDefs)
+                        + "," + GetTypeName(truComposite.SubTypes[1], typeDefs)
+                        + ">";
+            else if (tru.Identifier == TruIdentifier.Tuple2 ||
+                     tru.Identifier == TruIdentifier.Tuple3 ||
+                     tru.Identifier == TruIdentifier.Tuple4 ||
+                     tru.Identifier == TruIdentifier.Tuple5 ||
+                     tru.Identifier == TruIdentifier.Tuple6 ||
+                     tru.Identifier == TruIdentifier.Tuple7)
+                name = "(" + String.Join(",", truComposite.SubTypes.Select(x => GetTypeName(x, typeDefs)))
+                        + ")";
+        }
         else
         {
 
@@ -193,6 +204,8 @@ public static class TypeDefGenerator
             };
         }
 
+        if (name == null) return "object";
+
         return (tru.Nullable) ? name + "?" : name;
     }
 
@@ -205,8 +218,9 @@ public static class TypeDefGenerator
                 throw new Exception("Invalid EP URL");
 
             var path = urlRegex.Split(url);
-            var con = Warehouse.Default.Get<EpConnection>(path[1] + "://" + path[2],
-                    !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password) ? new { Username = username, Password = password } : null
+            var con = Warehouse.Default.Get<EpConnection>(path[1] + "://" + path[2], new ResourceContext(0, 
+                new Map<string, object> { ["username"] = username,  ["password"] = password }, null, null)
+                   // !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password) ? new { Username = username, Password = password } : null
                 ).Wait(20000);
 
             if (con == null)
@@ -279,7 +293,7 @@ public static class TypeDefGenerator
         }
     }
 
-    internal static string GenerateClass(TypeDef typeDef, TypeDef[] typeDefs, bool asyncSetters)
+    internal static string GenerateClass(RemoteTypeDef typeDef, TypeDef[] typeDefs, bool asyncSetters)
     {
         var cls = typeDef.Name.Split('.');
 
@@ -302,13 +316,14 @@ public static class TypeDefGenerator
         }
 
 
-        rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
+        rt.AppendLine($"[Remote(\"{typeDef.Name}\", \"{typeDef.Domain}\")]");
+        //rt.AppendLine($"[TypeId(\"{typeDef.Id.Data.ToHex(0, 16, null)}\")]");
 
         // extends
-        if (typeDef.ParentId == null)
+        if (typeDef.ParentTypeId == null)
             rt.AppendLine($"public class {className} : EpResource {{");
         else
-            rt.AppendLine($"public class {className} : {typeDefs.First(x => x.Id == typeDef.ParentId && x.Kind == TypeDefKind.Resource).Name} {{");
+            rt.AppendLine($"public class {className} : {typeDefs.First(x => x.Id == typeDef.ParentTypeId && x.Kind == TypeDefKind.Resource).Name} {{");
 
 
         rt.AppendLine($"public {className}(EpConnection connection, uint instanceId, ulong age, string link) : base(connection, instanceId, age, link) {{}}");

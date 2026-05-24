@@ -30,10 +30,20 @@ namespace Esiur.Data
         Record,
         List,
         Map,
-        Enum = 0x44,
-        TypedResource = 0x45, // Followed by UUID
-        TypedRecord = 0x46, // Followed by UUID
+        //Enum = 0x44,
+        //TypedResource = 0x45, // Followed by UUID
+        //TypedRecord = 0x46, // Followed by UUID
+        LocalType8 = 0x40,
+        RemoteType8 = 0x41,
+        LocalType16 = 0x42,
+        RemoteType16 = 0x43,
+        LocalType32 = 0x44,
+        RemoteType32 = 0x45,
+        LocalType64 = 0x46,
+        RemoteType64 = 0x47,
+
         TypedList = 0x48, // Followed by element type
+
         Tuple2 = 0x50, // Followed by element type
         TypedMap = 0x51, // Followed by key type and value type
         Tuple3 = 0x58,

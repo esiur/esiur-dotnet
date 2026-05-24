@@ -30,6 +30,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Esiur.Resource;
 
 namespace Esiur.Net.Packets;
 class EpPacket : Packet
@@ -44,11 +45,21 @@ class EpPacket : Packet
 
     public byte Extension { get; set; }
 
-    public ParsedTdu? Tdu { get; set; }
+    //public ParsedTdu? Tdu { get; set; }
 
+    //public byte[] TduPayload { get; set; }
+
+    public PlainTdu? Tdu { get; set;  }
 
     private uint dataLengthNeeded;
     private uint originalOffset;
+
+    Warehouse _warehouse;
+
+    public EpPacket(Warehouse warehouse)
+    {
+        _warehouse = warehouse;
+    }
 
     public override bool Compose()
     {
@@ -124,15 +135,22 @@ class EpPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            Tdu = ParsedTdu.Parse(data, offset, ends);
+            Tdu = PlainTdu.Parse(data, offset, ends);
 
             if (Tdu.Value.Class == TduClass.Invalid)
                 return -(int)Tdu.Value.TotalLength;
 
+            //Tdu = ParsedTdu.ParseSync(data, offset, ends, _warehouse);
+
+            //if (Tdu.Value.Class == TduClass.Invalid)
+            //    return -(int)Tdu.Value.TotalLength;
+
+            //offset += (uint)Tdu.Value.TotalLength;
             offset += (uint)Tdu.Value.TotalLength;
         }
         else
         {
+            //Tdu = null;
             Tdu = null;
         }
 

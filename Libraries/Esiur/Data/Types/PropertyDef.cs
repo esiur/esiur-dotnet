@@ -1,4 +1,5 @@
-﻿using Esiur.Data;
+﻿using Esiur.Core;
+using Esiur.Data;
 using Esiur.Protocol;
 using Esiur.Resource;
 using System;
@@ -80,7 +81,7 @@ public class PropertyDef : MemberDef
         return $"{Name}: {ValueType}";
     }
 
-    public static (uint, PropertyDef) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static async AsyncReply<ParseResult<PropertyDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
     {
         var oOffset = offset;
 
@@ -91,11 +92,13 @@ public class PropertyDef : MemberDef
         var permission = (PropertyPermission)((data[offset++] >> 1) & 0x3);
         var name = data.GetString(offset + 1, data[offset]);
 
+        //Console.WriteLine("Parsing propdef " + name);
+
         offset += (uint)data[offset] + 1;
 
-        var (dts, valueType) = Tru.Parse(data, offset);
+        var valueType = await Tru.ParseAsync(data, offset, connection, requestSequence);
 
-        offset += dts;
+        offset += valueType.Size;
 
         Map<string, string> annotations = null;
 
@@ -110,20 +113,20 @@ public class PropertyDef : MemberDef
             offset += len;
         }
 
-        return (offset - oOffset, new PropertyDef()
+        return new ParseResult<PropertyDef>(new PropertyDef()
         {
             Index = index,
             Name = name,
             Inherited = inherited,
             Permission = permission,
             HasHistory = hasHistory,
-            ValueType = valueType,
+            ValueType = valueType.Value,
             Annotations = annotations
-        });
+        }, offset - oOffset);
 
     }
 
-    public byte[] Compose()
+    public byte[] Compose(EpConnection connection)
     {
         var name = DC.ToBytes(Name);
 
@@ -178,7 +181,7 @@ public class PropertyDef : MemberDef
                 .AddUInt8((byte)(0x28 | pv))
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
-                .AddUInt8Array(ValueType.Compose())
+                .AddUInt8Array(ValueType.Compose(connection))
                 .AddUInt8Array(rexp)
                 .ToArray();
         }
@@ -188,20 +191,21 @@ public class PropertyDef : MemberDef
                 .AddUInt8((byte)(0x20 | pv))
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
-                .AddUInt8Array(ValueType.Compose())
+                .AddUInt8Array(ValueType.Compose(connection))
                 .ToArray();
         }
     }
 
  
 
-    public static PropertyDef MakePropertyDef(Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeDef schema)
+    public static PropertyDef MakePropertyDef(Warehouse warehouse, Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeDef schema)
     {
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
+        // @TODO: need to check if the type is remote
 
         var propType = genericPropType == typeof(PropertyContext<>) ?
-                Tru.FromType(pi.PropertyType.GetGenericArguments()[0]) :
-                Tru.FromType(pi.PropertyType);
+                Tru.FromType(pi.PropertyType.GetGenericArguments()[0], warehouse) :
+                Tru.FromType(pi.PropertyType, warehouse);
 
         if (propType == null)
             throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");

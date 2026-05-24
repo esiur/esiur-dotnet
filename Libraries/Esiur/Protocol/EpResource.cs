@@ -81,7 +81,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// <summary>
     /// Connection responsible for the distributed resource.
     /// </summary>
-    public EpConnection DistributedResourceConnection
+    public EpConnection ResourceConnection
     {
         get { return connection; }
     }
@@ -89,7 +89,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// <summary>
     /// Resource link
     /// </summary>
-    public string DistributedResourceLink
+    public string ResourceLink
     {
         get { return link; }
     }
@@ -97,7 +97,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// <summary>
     /// Instance Id given by the other end.
     /// </summary>
-    public uint DistributedResourceInstanceId
+    public uint ResourceInstanceId
     {
         get { return instanceId; }
         internal set { instanceId = value; }
@@ -128,9 +128,9 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// <summary>
     /// Resource is attached when all its properties are received.
     /// </summary>
-    public bool DistributedResourceAttached => attached;
+    public bool ResourceAttached => attached;
 
-    public bool DistributedResourceSuspended => suspended;
+    public bool ResourceSuspended => suspended;
 
 
     // public DistributedResourceStack Stack
@@ -216,10 +216,18 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     public AsyncReply Subscribe(EventDef et)
     {
         if (et == null)
-            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+        {
+            var rt = new AsyncReply();
+            rt.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+            return rt;
+        }
 
         if (!et.Subscribable)
-            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
+        {
+            var rt = new AsyncReply();
+            rt.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
+            return rt;
+        }
 
         return connection.SendSubscribeRequest(instanceId, et.Index);
     }
@@ -235,10 +243,18 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     public AsyncReply Unsubscribe(EventDef et)
     {
         if (et == null)
-            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+        {
+            var rt = new  AsyncReply();
+            rt.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+            return rt;
+        }
 
         if (!et.Subscribable)
-            return new AsyncReply().TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
+        {
+            var rt = new AsyncReply();
+            rt.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
+            return rt;
+        }
 
         return connection.SendUnsubscribeRequest(instanceId, et.Index);
     }

@@ -33,13 +33,6 @@ public partial class MyService
     [Export] bool boolean = true;
     [Export] bool[] booleanArray = new bool[] { true, false, true, false, true };
 
-    [Export]
-    public MyGenericRecord<MyResource> GetGenericRecord()
-    {
-        return new MyGenericRecord<MyResource>() { Needed = 3, Start = 10, Results = new MyResource[0], Total = 102 };
-    }
-
-    [Export] public static string staticFunction(string name) => $"Hello {name}";
 
     [Export] byte uInt8Test = 8;
     [Export] byte? uInt8Null = null;
@@ -85,25 +78,33 @@ public partial class MyService
 
     [Export] DateTime time = DateTime.Now;
 
+    [Export] public const double PI = Math.PI;
+
+    [Export] public MyService Me => this;
+
+    [Export] int PrivateInt32 { get; set; } = 99;
+
+    [Export("Object")] object objectTest = "String as object";
+
+    [Export] object[] objectArray = new object[] { 1, 1.2f, Math.PI, "Hello World" };
+
 
     [Export]
     Map<string, object> stringMap = new Map<string, object>()
     {
-        ["int"] = 33,
-        ["string"] = "Hello World"
+        ["Sequence"] = 123,
+        ["Message"] = "Hello World"
     };
 
     [Export]
     Map<int, string> intStringMap = new()
     {
         [4] = "Abcd",
-        [44] = "EfG"
+        [3] = "EfG"
     };
 
 
-    [Export("Object")] object objectTest = "object";
 
-    [Export] object[] objectArray = new object[] { 1, 1.2f, Math.PI, "Hello World" };
 
     [Export]
     public PropertyContext<int> PropertyContext
@@ -119,10 +120,10 @@ public partial class MyService
     int MyPasscode = 2025;
     public PropertyContext<int> Passcode
     {
-        get => new((sender) => sender.Session.AuthorizedIdentity == "alice" ? MyPasscode : 0);
+        get => new((sender) => sender.Session.RemoteIdentity == "alice" ? MyPasscode : 0);
         set
         {
-            if (value.Connection.Session.AuthorizedIdentity != "alice")
+            if (value.Connection.Session.RemoteIdentity != "alice")
                 throw new Exception("Only Alice is allowed.");
             MyPasscode = value.Value;
         }
@@ -159,9 +160,6 @@ public partial class MyService
     [Export]
     public void InvokeEvents(string msg, InvocationContext context)
     {
-        //if (context.Connection.Session.AuthorizedAccount != "Alice")
-        //  throw new Exception("Only Alice is allowed.");
-
         StringEvent?.Invoke(msg);
         ArrayEvent?.Invoke(new object[] { DateTime.UtcNow, "Event", msg });
     }
@@ -207,9 +205,13 @@ public partial class MyService
         return record;
     }
 
-    [Export] public const double PI = Math.PI;
 
-    [Export] public MyService Me => this;
+    [Export]
+    public MyGenericRecord<MyResource> GetGenericRecord()
+    {
+        return new MyGenericRecord<MyResource>() { Needed = 3, Start = 10, Results = new MyResource[0], Total = 102 };
+    }
 
-    [Export] int PrivateInt32 { get; set; } = 99;
+    [Export] public static string staticFunction(string name) => $"Hello {name}";
+
 }

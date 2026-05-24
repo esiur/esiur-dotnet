@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 using Esiur.Data;
+using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Security.Cryptography;
 using System;
@@ -38,29 +39,39 @@ namespace Esiur.Net.Packets;
 
 public class EpAuthPacket : Packet
 {
+
+    Warehouse _warehouse;
+
+    public EpAuthPacket(Warehouse warehouse)
+    {
+        _warehouse = warehouse;
+    }
+
     public EpAuthPacketCommand Command
     {
         get;
         set;
     }
 
-    public EpAuthPacketAction Action
-    {
-        get;
-        set;
-    }
+    public EpAuthPacketMethod Method { get; set; }
 
-    public EpAuthPacketEvent Event
-    {
-        get;
-        set;
-    }
+    //public EpAuthPacketAction Action
+    //{
+    //    get;
+    //    set;
+    //}
 
-    public EpAuthPacketAcknowledgement Acknowledgement
-    {
-        get;
-        set;
-    }
+    //public EpAuthPacketEvent Event
+    //{
+    //    get;
+    //    set;
+    //}
+
+    //public EpAuthPacketAcknowledgement Acknowledgement
+    //{
+    //    get;
+    //    set;
+    //}
 
 
     public AuthenticationMode AuthMode
@@ -101,7 +112,7 @@ public class EpAuthPacket : Packet
     }
 
 
-    public ParsedTdu? Tdu
+    public PlainTdu? Tdu
     {
         get;
         set;
@@ -113,8 +124,6 @@ public class EpAuthPacket : Packet
         get;
         set;
     }
-
-
 
     private uint dataLengthNeeded;
 
@@ -131,7 +140,7 @@ public class EpAuthPacket : Packet
 
     public override string ToString()
     {
-        return Command.ToString() + " " + Action.ToString();
+        return Command.ToString() + " " + Method.ToString();
     }
 
     public override long Parse(byte[] data, uint offset, uint ends)
@@ -146,23 +155,23 @@ public class EpAuthPacket : Packet
 
         if (Command == EpAuthPacketCommand.Initialize)
         {
-            AuthMode = (AuthenticationMode)(data[offset] >> 3 & 0x7);
+            AuthMode = (AuthenticationMode)(data[offset] >> 2 & 0x4);
             EncryptionMode = (EncryptionMode)(data[offset++] & 0x7);
         }
         else if (Command == EpAuthPacketCommand.Acknowledge)
         {
-            // remove last two reserved LSBs
-            Acknowledgement = (EpAuthPacketAcknowledgement)(data[offset++]);// & 0xFC);
+            // remove hasTdu
+            Method = (EpAuthPacketMethod)(data[offset++] & 0xDF);
         }
         else if (Command == EpAuthPacketCommand.Action)
         {
-            // remove last two reserved LSBs
-            Action = (EpAuthPacketAction)(data[offset++]);// & 0xFC);
+            // remove hasTdu
+            Method = (EpAuthPacketMethod)(data[offset++] & 0xDF);
         }
         else if (Command == EpAuthPacketCommand.Event)
         {
-            // remove last two reserved LSBs
-            Event = (EpAuthPacketEvent)(data[offset++]);// & 0xFC);
+            // remove hasTdu
+            Method = (EpAuthPacketMethod)(data[offset++] & 0xDF);
         }
         else
         {
@@ -174,7 +183,7 @@ public class EpAuthPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            Tdu = ParsedTdu.Parse(data, offset, ends);
+            Tdu = PlainTdu.Parse(data, offset, ends);//, _warehouse);
 
             if (Tdu.Value.Class == TduClass.Invalid)
                 return -(int)Tdu.Value.TotalLength;

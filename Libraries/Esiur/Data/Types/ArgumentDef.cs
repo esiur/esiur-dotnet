@@ -1,8 +1,11 @@
-﻿using Esiur.Data;
+﻿using Esiur.Core;
+using Esiur.Data;
+using Esiur.Protocol;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Drawing;
 using System.Reflection;
+using System.Text;
 
 namespace Esiur.Data.Types;
 
@@ -20,7 +23,7 @@ public class ArgumentDef
 
     public Map<string, string> Annotations { get; set; }
 
-    public static (uint, ArgumentDef) Parse(byte[] data, uint offset, int index)
+    public static async AsyncReply<ParseResult<ArgumentDef>> ParseAsync(byte[] data, uint offset, int index, EpConnection connection, ulong[] requestSequence)
     {
         var optional = (data[offset] & 0x1) == 0x1;
         var hasAnnotations = (data[offset++] & 0x2) == 0x2;
@@ -28,9 +31,9 @@ public class ArgumentDef
         var cs = (uint)data[offset++];
         var name = data.GetString(offset, cs);
         offset += cs;
-        var (size, type) = Tru.Parse(data, offset);
+        var type = await Tru.ParseAsync(data, offset, connection, requestSequence);
 
-        offset += size;
+        offset += type.Size;
 
         Map<string, string> annotations = null;
 
@@ -46,14 +49,14 @@ public class ArgumentDef
             cs += l;
         }
 
-        return (cs + 2 + size, new ArgumentDef()
+        return new ParseResult<ArgumentDef>(new ArgumentDef()
         {
             Name = name,
             Index = index,
-            Type = type,
+            Type = type.Value,
             Optional = optional,
             Annotations = annotations
-        });
+        }, cs + 2 + type.Size);
     }
 
     public ArgumentDef()
@@ -70,7 +73,7 @@ public class ArgumentDef
             return $"{Name}: {Type} ";
     }
 
-    public byte[] Compose()
+    public byte[] Compose(EpConnection connection)
     {
         var name = DC.ToBytes(Name);
 
@@ -80,7 +83,7 @@ public class ArgumentDef
                     .AddUInt8(Optional ? (byte)1 : (byte)0)
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
-                    .AddUInt8Array(Type.Compose())
+                    .AddUInt8Array(Type.Compose(connection))
                     .ToArray();
         }
         else
@@ -91,7 +94,7 @@ public class ArgumentDef
                     .AddUInt8((byte)(0x2 | (Optional ? 1 : 0)))
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
-                    .AddUInt8Array(Type.Compose())
+                    .AddUInt8Array(Type.Compose(connection))
                     .AddUInt8Array(exp)
                     .ToArray();
         }

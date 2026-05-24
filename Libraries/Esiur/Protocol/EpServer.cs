@@ -184,7 +184,7 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     public EpServer MapCall(string call, Delegate handler)
     {
-        var fd = FunctionDef.MakeFunctionDef(null, handler.Method, 0, call, null);
+        var fd = FunctionDef.MakeFunctionDef(Instance.Warehouse, null, handler.Method, 0, call, null);
         Calls.Add(call, new CallInfo() { Delegate = handler, Definition = fd });
         return this;
     }

@@ -8,13 +8,12 @@ namespace Esiur.Security.Authority
     public interface IAuthenticationHandler
     {
 
-        public AuthenticationMode Mode { get; }
-        public AuthenticationResult Initialize(Session session, object authenticationData);
+        public string Protocol { get; }
+        //public AuthenticationMode Mode { get; }
+        //public AuthenticationResult Initialize(object authData);
 
-        public AuthenticationResult Process(object authenticationData);
+        public AuthenticationResult Process(object authData);
 
-        public void Terminate(Session session);
-
-        public void Update(Session session, object authData);
+        //public AuthenticationResult? Result {  get; }
     }
 }

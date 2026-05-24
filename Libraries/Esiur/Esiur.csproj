@@ -59,33 +59,37 @@
 
 
 	<ItemGroup>
+	  <Compile Remove="Data\IRemoteRecord.cs" />
 	  <Compile Remove="Data\NullabilityInfo.cs" />
 	  <Compile Remove="Data\NullabilityInfoContext.cs" />
+	  <Compile Remove="Data\TypeDefId.cs" />
+	  <Compile Remove="Net\Packets\EpAuthPacketAcknowledgement.cs" />
+	  <Compile Remove="Net\Packets\EpAuthPacketAction.cs" />
 	  <Compile Remove="Net\Packets\EpAuthPacketAuthMode.cs" />
+	  <Compile Remove="Net\Packets\EpAuthPacketEvent.cs" />
 	  <Compile Remove="Net\Sockets\TcpSocket.cs" />
 	  <Compile Remove="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
-	  <Compile Remove="Security\Authority\Authentication.cs" />
 	  <Compile Remove="Security\Authority\AuthenticationMethod.cs" />
-	  <Compile Remove="Security\Authority\IAuthenticationInitiator.cs" />
-	  <Compile Remove="Security\Authority\IAuthenticationResponder.cs" />
 	  <Compile Remove="Security\Membership\SimpleMembership.cs" />
 	</ItemGroup>
 
 
 	<ItemGroup>
+		<None Include="Data\IRemoteRecord.cs" />
 		<None Include="Data\NullabilityInfo.cs" />
 		<None Include="Data\NullabilityInfoContext.cs" />
+		<None Include="Data\TypeDefId.cs" />
 		<None Include="Data\Types\ArgumentDef.cs" />
 		<None Include="Data\Types\AttributeDef.cs" />
 		<None Include="LICENSE" Pack="true" PackagePath=""></None>
+		<None Include="Net\Packets\EpAuthPacketAcknowledgement.cs" />
+		<None Include="Net\Packets\EpAuthPacketAction.cs" />
 		<None Include="Net\Packets\EpAuthPacketAuthMode.cs" />
+		<None Include="Net\Packets\EpAuthPacketEvent.cs" />
 		<None Include="Net\Sockets\TcpSocket.cs" />
 		<None Include="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
 		<None Include="README.md" Pack="true" PackagePath="" />
-		<None Include="Security\Authority\Authentication.cs" />
 		<None Include="Security\Authority\AuthenticationMethod.cs" />
-		<None Include="Security\Authority\IAuthenticationInitiator.cs" />
-		<None Include="Security\Authority\IAuthenticationResponder.cs" />
 		<None Include="Security\Membership\SimpleMembership.cs" />
 	</ItemGroup>
 

@@ -19,6 +19,8 @@ namespace Esiur.Net.Packets
         Referrer,
         Time,
         IPAddress,
+        Identity,
+        AuthenticationProtocol,
         AuthenticationData,
     }
 }

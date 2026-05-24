@@ -1,5 +1,6 @@
 ﻿using Esiur.Core;
 using Esiur.Data;
+using Esiur.Protocol;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -32,7 +33,7 @@ public class EventDef : MemberDef
     public Tru ArgumentType { get; set; }
 
 
-    public static (uint, EventDef) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static async AsyncReply<ParseResult<EventDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
     {
         var oOffset = offset;
 
@@ -42,9 +43,9 @@ public class EventDef : MemberDef
         var name = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        var (dts, argType) = Tru.Parse(data, offset);
+        var argType = await Tru.ParseAsync(data, offset, connection, requestSequence);
 
-        offset += dts;
+        offset += argType.Size;
 
         // Annotation ?
         Map<string, string> annotations = null;
@@ -59,18 +60,18 @@ public class EventDef : MemberDef
             offset += len;
         }
 
-        return (offset - oOffset, new EventDef()
+        return new ParseResult<EventDef>(new EventDef()
         {
             Index = index,
             Name = name,
             Inherited = inherited,
-            ArgumentType = argType,
+            ArgumentType = argType.Value,
             Subscribable = subscribable,
             Annotations = annotations
-        });
+        }, offset - oOffset);
     }
 
-    public byte[] Compose()
+    public byte[] Compose(EpConnection connection)
     {
         var name = Name.ToBytes();
 
@@ -87,7 +88,7 @@ public class EventDef : MemberDef
                     .AddUInt8(hdr)
                     .AddUInt8((byte)name.Length)
                     .AddUInt8Array(name)
-                    .AddUInt8Array(ArgumentType.Compose())
+                    .AddUInt8Array(ArgumentType.Compose(connection))
                     .AddInt32(exp.Length)
                     .AddUInt8Array(exp)
                     .ToArray();
@@ -99,12 +100,12 @@ public class EventDef : MemberDef
                 .AddUInt8(hdr)
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
-                .AddUInt8Array(ArgumentType.Compose())
+                .AddUInt8Array(ArgumentType.Compose(connection))
                 .ToArray();
     }
 
 
-    public static EventDef MakeEventDef(Type type, EventInfo ei, byte index, string name, TypeDef schema)
+    public static EventDef MakeEventDef(Warehouse warehouse, Type type, EventInfo ei, byte index, string name, TypeDef schema)
     {
 
         if (!ei.EventHandlerType.IsGenericType)
@@ -116,7 +117,8 @@ public class EventDef : MemberDef
 
 
         var argType = ei.EventHandlerType.GenericTypeArguments[0];
-        var evtType = Tru.FromType(argType);
+        // @TODO: need to check if the type is remote
+        var evtType = Tru.FromType(argType, warehouse);
 
         if (evtType == null)
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");

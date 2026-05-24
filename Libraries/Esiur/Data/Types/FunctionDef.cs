@@ -40,7 +40,7 @@ public class FunctionDef : MemberDef
     }
 
 
-    public static (uint, FunctionDef) Parse(byte[] data, uint offset, byte index, bool inherited)
+    public static async AsyncReply<ParseResult<FunctionDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
     {
 
         var oOffset = offset;
@@ -51,19 +51,21 @@ public class FunctionDef : MemberDef
         var name = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        // return type
-        var (rts, returnType) = Tru.Parse(data, offset);
-        offset += rts;
+        //Console.WriteLine("Parsing functionDef " + name);
 
+        // return type
+        var returnType = await Tru.ParseAsync(data, offset, connection, requestSequence);
+        offset += returnType.Size;
+            
         // arguments count
         var argsCount = data[offset++];
         List<ArgumentDef> arguments = new();
 
         for (var a = 0; a < argsCount; a++)
         {
-            var (cs, argType) = ArgumentDef.Parse(data, offset, a);
-            arguments.Add(argType);
-            offset += cs;
+            var argType = await ArgumentDef.ParseAsync(data, offset, a, connection, requestSequence);
+            arguments.Add(argType.Value);
+            offset += argType.Size;
         }
 
         Map<string, string> annotations = null;
@@ -79,7 +81,7 @@ public class FunctionDef : MemberDef
             offset += len;
         }
 
-        return (offset - oOffset, new FunctionDef()
+        return new ParseResult<FunctionDef>( new FunctionDef()
         {
             Index = index,
             Name = name,
@@ -87,11 +89,11 @@ public class FunctionDef : MemberDef
             IsStatic = isStatic,
             Inherited = inherited,
             Annotations = annotations,
-            ReturnType = returnType,
-        });
+            ReturnType = returnType.Value,
+        }, offset - oOffset);
     }
 
-    public byte[] Compose()
+    public byte[] Compose(EpConnection connection)
     {
 
         var name = DC.ToBytes(Name);
@@ -99,11 +101,11 @@ public class FunctionDef : MemberDef
         var bl = new BinaryList()
                 .AddUInt8((byte)name.Length)
                 .AddUInt8Array(name)
-                .AddUInt8Array(ReturnType.Compose())
+                .AddUInt8Array(ReturnType.Compose(connection))
                 .AddUInt8((byte)Arguments.Length);
 
         for (var i = 0; i < Arguments.Length; i++)
-            bl.AddUInt8Array(Arguments[i].Compose());
+            bl.AddUInt8Array(Arguments[i].Compose(connection));
 
 
         if (Annotations != null)
@@ -119,7 +121,7 @@ public class FunctionDef : MemberDef
     }
 
 
-    public static FunctionDef MakeFunctionDef(Type type, MethodInfo mi, byte index, string name, TypeDef schema)
+    public static FunctionDef MakeFunctionDef(Warehouse warehouse, Type type, MethodInfo mi, byte index, string name, TypeDef schema)
     {
 
         var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
@@ -128,23 +130,23 @@ public class FunctionDef : MemberDef
 
         if (genericRtType == typeof(AsyncReply<>))
         {
-            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0]);
+            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
         }
         else if (genericRtType == typeof(Task<>))
         {
-            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0]);
+            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
         }
         else if (genericRtType == typeof(IEnumerable<>) || genericRtType == typeof(IAsyncEnumerable<>))
         {
             // get export
-            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0]);
+            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
         }
         else
         {
             if (mi.ReturnType == typeof(Task))
-                rtType = Tru.FromType(null);
+                rtType = Tru.FromType(null, warehouse);
             else
-                rtType = Tru.FromType(mi.ReturnType);
+                rtType = Tru.FromType(mi.ReturnType, warehouse);
         }
 
         if (rtType == null)
@@ -214,7 +216,7 @@ public class FunctionDef : MemberDef
 
         var arguments = args.Select(x =>
         {
-            var argType = Tru.FromType(x.ParameterType);
+            var argType = Tru.FromType(x.ParameterType, warehouse);
 
             if (argType == null)
                 throw new Exception($"Unsupported type `{x.ParameterType}` in method `{type.Name}.{mi.Name}` parameter `{x.Name}`");

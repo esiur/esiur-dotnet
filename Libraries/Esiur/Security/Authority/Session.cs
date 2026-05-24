@@ -59,5 +59,6 @@ public class Session
     public IAuthenticationHandler AuthenticationHandler { get; set; }
     //public IAuthenticationHandler AuthenticationResponder { get; set; }
 
-    public string AuthorizedIdentity { get; set; }
+    public string LocalIdentity { get; set; }
+    public string RemoteIdentity { get; set; }
 }

@@ -36,7 +36,7 @@ namespace Esiur.Stores.MongoDB
     public class MongoDBStore<T> : MongoDBStore where T:IResource
     {
         [Export]
-        public async AsyncReply<T> New(string name = null, object properties = null)
+        public async AsyncReply<T> New(string name = null, Map<string, object> properties = null)
         {
             var resource = Instance.Warehouse.Create<T>(properties);
             await Instance.Warehouse.Put(this.Instance.Name + "/" + name, resource);

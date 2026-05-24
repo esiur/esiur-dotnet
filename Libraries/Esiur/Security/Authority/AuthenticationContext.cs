@@ -6,16 +6,14 @@ namespace Esiur.Security.Authority
 {
     public class AuthenticationContext
     {
-        public AuthenticationMode Mode { get; }
+        public AuthenticationDirection Direction { get; set; }
+        public AuthenticationMode Mode { get; set; }
 
-        public string? LocalDomain { get; }
-        public string? RemoteDomain { get; }
+        public string Domain { get; set; }
+        public string? InitiatorIdentity { get; set; }
+        public string? ResponderIdentity { get; set; }
+        public AuthenticationMaterial[] Materials { get; set; }
 
-        public string? LocalHost { get; }
-        public string? RemoteHost { get; }
-
-        //public AuthenticationComponentContext LocalToRemote { get; } = new();
-        //public AuthenticationComponentContext RemoteToLocal { get; } = new();
-
+        public string? HostName { get; set; }
     }
 }

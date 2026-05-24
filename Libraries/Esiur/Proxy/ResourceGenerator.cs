@@ -250,7 +250,7 @@ namespace Esiur.Proxy
         }
 
         // === Emission helpers (ported from your original generator) ===
-        private static void EmitTypeDefs(SourceProductionContext spc, TypeDef[] typeDefs)
+        private static void EmitTypeDefs(SourceProductionContext spc, RemoteTypeDef[] typeDefs)
         {
             foreach (var typeDef in typeDefs)
             {

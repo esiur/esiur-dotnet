@@ -96,11 +96,7 @@ public class Map<KT, VT> : Dictionary<KT, VT>, IMap // IEnumerable<KeyValuePair<
 
     public override string ToString()
     {
-        var rt = "";
-        foreach (var kv in this)
-            rt += kv.Key + ": " + kv.Value.ToString() + " \r\n";
-
-        return rt.TrimEnd('\r', '\n');
+        return "{" + string.Join(", ", this.Select(x => $"{x.Key}: {x.Value}")) + "}";
     }
 
     //public Map(Map<KT,VT> source)

@@ -91,7 +91,7 @@ public class AsyncReply
     }
 
     //int timeoutMilliseconds = 0;
-    public AsyncReply Timeout(int milliseconds, Action callback = null)
+    public void Timeout(int milliseconds, Action callback = null)
     {
 
         //timeoutMilliseconds = milliseconds;
@@ -107,7 +107,6 @@ public class AsyncReply
             }
         });
 
-        return this;
     }
 
     public object Wait(int millisecondsTimeout)
@@ -236,7 +235,7 @@ public class AsyncReply
         return this;
     }
 
-    public AsyncReply Trigger(object result)
+    public void Trigger(object result)
     {
         lock (asyncLock)
         {
@@ -245,13 +244,13 @@ public class AsyncReply
             //timeout?.Dispose();
 
             if (exception != null)
-                return this;
+                return;
 
             //if (Debug)
             //    Console.WriteLine($"AsyncReply: {Id} Trigger");
 
             if (resultReady)
-                return this;
+                return;
 
             this.result = result;
 
@@ -269,15 +268,15 @@ public class AsyncReply
 
         }
 
-        return this;
+        return;
     }
 
-    public AsyncReply TriggerError(Exception exception)
+    public void TriggerError(Exception exception)
     {
         //timeout?.Dispose();
 
         if (resultReady)
-            return this;
+            return;
 
         if (exception is AsyncException)
             this.exception = exception as AsyncException;
@@ -297,10 +296,9 @@ public class AsyncReply
 
         mutex?.Set();
 
-        return this;
     }
 
-    public AsyncReply TriggerProgress(ProgressType type, uint value, uint max)
+    public void TriggerProgress(ProgressType type, uint value, uint max)
     {
         //timeout?.Dispose();
 
@@ -308,10 +306,10 @@ public class AsyncReply
             foreach (var cb in progressCallbacks)
                 cb(type, value, max);
 
-        return this;
+        return;
     }
 
-    public AsyncReply TriggerWarning(byte level, string message)
+    public void TriggerWarning(byte level, string message)
     {
         //timeout?.Dispose();
 
@@ -319,11 +317,11 @@ public class AsyncReply
             foreach (var cb in warningCallbacks)
                 cb(level, message);
 
-        return this;
+        return ;
     }
 
 
-    public AsyncReply TriggerPropagation(object value)
+    public void TriggerPropagation(object value)
     {
         //timeout?.Dispose();
 
@@ -331,12 +329,12 @@ public class AsyncReply
             foreach (var cb in propagationCallbacks)
                 cb(value);
 
-        return this;
+        return;
     }
 
 
 
-    public AsyncReply TriggerChunk(object value)
+    public void TriggerChunk(object value)
     {
 
         //timeout?.Dispose();
@@ -347,7 +345,6 @@ public class AsyncReply
                 cb(value);
 
 
-        return this;
     }
 
     public AsyncAwaiter GetAwaiter()
