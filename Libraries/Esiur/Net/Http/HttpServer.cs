@@ -291,10 +291,10 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
      */
 
 
-    public async AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public async AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
 
-        if (trigger == ResourceTrigger.Initialize)
+        if (trigger == ResourceOperation.Initialize)
         {
             //var ip = (IPAddress)Instance.Attributes["ip"];
             //var port = (int)Instance.Attributes["port"];
@@ -318,16 +318,16 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
 
             Start(listener);
         }
-        else if (trigger == ResourceTrigger.Terminate)
+        else if (trigger == ResourceOperation.Terminate)
         {
             Stop();
         }
-        else if (trigger == ResourceTrigger.SystemReload)
+        else if (trigger == ResourceOperation.SystemReload)
         {
-            await Trigger(ResourceTrigger.Terminate);
-            await Trigger(ResourceTrigger.Initialize);
+            await Trigger(ResourceOperation.Terminate);
+            await Trigger(ResourceOperation.Initialize);
         }
-        else if (trigger == ResourceTrigger.SystemInitialized)
+        else if (trigger == ResourceOperation.SystemInitialized)
         {
             filters = await Instance.Children<HttpFilter>();
         }

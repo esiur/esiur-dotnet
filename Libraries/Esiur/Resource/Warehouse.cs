@@ -226,7 +226,7 @@ public class Warehouse
             //IResource r;
             //if (rk.Value.TryGetTarget(out r))
             //{
-            var rt = await r.Trigger(ResourceTrigger.Initialize);
+            var rt = await r.Trigger(ResourceOperation.Initialize);
             //if (!rt)
             //  return false;
 
@@ -239,7 +239,7 @@ public class Warehouse
 
         foreach (var r in resSnap)
         {
-            var rt = await r.Trigger(ResourceTrigger.SystemInitialized);
+            var rt = await r.Trigger(ResourceOperation.SystemInitialized);
             if (!rt)
             {
                 Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Definition.Name}]");
@@ -267,13 +267,13 @@ public class Warehouse
             if (resource.TryGetTarget(out r))
             {
                 if (!(r is IStore))
-                    bag.Add(r.Trigger(ResourceTrigger.Terminate));
+                    bag.Add(r.Trigger(ResourceOperation.Terminate));
 
             }
         }
 
         foreach (var store in _stores)
-            bag.Add(store.Key.Trigger(ResourceTrigger.Terminate));
+            bag.Add(store.Key.Trigger(ResourceOperation.Terminate));
 
 
         foreach (var resource in _resources.Values)
@@ -282,13 +282,13 @@ public class Warehouse
             if (resource.TryGetTarget(out r))
             {
                 if (!(r is IStore))
-                    bag.Add(r.Trigger(ResourceTrigger.SystemTerminated));
+                    bag.Add(r.Trigger(ResourceOperation.SystemTerminated));
             }
         }
 
 
         foreach (var store in _stores)
-            bag.Add(store.Key.Trigger(ResourceTrigger.SystemTerminated));
+            bag.Add(store.Key.Trigger(ResourceOperation.SystemTerminated));
 
         bag.Seal();
 
@@ -448,9 +448,9 @@ public class Warehouse
 
             if (_warehouseIsOpen)
             {
-                await resource.Trigger(ResourceTrigger.Initialize);
+                await resource.Handle(ResourceOperation.Initialize);
                 if (resource is IStore)
-                    await resource.Trigger(ResourceTrigger.Open);
+                    await resource.Handle(ResourceOperation.Open);
             }
 
             if (resource is IStore)

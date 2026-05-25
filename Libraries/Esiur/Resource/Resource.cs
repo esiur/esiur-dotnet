@@ -38,9 +38,9 @@ public class Resource : IResource
         OnDestroy?.Invoke(this);
     }
 
-    public virtual AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public virtual AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
-        if (trigger == ResourceTrigger.Initialize)
+        if (trigger == ResourceOperation.Initialize)
             return new AsyncReply<bool>(this.Create());
         else
             return new AsyncReply<bool>(true);

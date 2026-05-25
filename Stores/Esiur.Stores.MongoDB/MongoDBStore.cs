@@ -521,10 +521,10 @@ public class MongoDBStore : IStore
     public string Collection { get; set; }
     [Attribute]
     public string Database { get; set; }
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
 
-        if (trigger == ResourceTrigger.Initialize)
+        if (trigger == ResourceOperation.Initialize)
         {
 
             var collectionName = Collection ?? "resources";
@@ -574,7 +574,7 @@ public class MongoDBStore : IStore
 
             return new AsyncReply<bool>(true);
         }
-        else if (trigger == ResourceTrigger.Terminate)
+        else if (trigger == ResourceOperation.Terminate)
         {
             // save all resources
             foreach (var resource in resources.Values)

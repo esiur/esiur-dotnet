@@ -59,7 +59,7 @@ public class TemporaryStore : IStore
             return new AsyncReply<IResource>(null);
     }
 
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
         return new AsyncReply<bool>(true);
     }

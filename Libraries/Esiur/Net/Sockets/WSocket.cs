@@ -177,7 +177,7 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
         return sock.Begin();
     }
 
-    public bool Trigger(ResourceTrigger trigger)
+    public bool Trigger(ResourceOperation trigger)
     {
         return true;
     }

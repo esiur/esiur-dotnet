@@ -68,7 +68,7 @@ public class MemoryStore : IStore
     }
 
 
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
         return new AsyncReply<bool>(true);
     }

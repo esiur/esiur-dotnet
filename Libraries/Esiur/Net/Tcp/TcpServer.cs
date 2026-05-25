@@ -66,9 +66,9 @@ public class TcpServer : NetworkServer<TcpConnection>, IResource
 
     TcpFilter[] filters = null;
 
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
-        if (trigger == ResourceTrigger.Initialize)
+        if (trigger == ResourceOperation.Initialize)
         {
             TcpSocket listener;
 
@@ -82,16 +82,16 @@ public class TcpServer : NetworkServer<TcpConnection>, IResource
 
 
         }
-        else if (trigger == ResourceTrigger.Terminate)
+        else if (trigger == ResourceOperation.Terminate)
         {
             Stop();
         }
-        else if (trigger == ResourceTrigger.SystemReload)
+        else if (trigger == ResourceOperation.SystemReload)
         {
-            Trigger(ResourceTrigger.Terminate);
-            Trigger(ResourceTrigger.Initialize);
+            Trigger(ResourceOperation.Terminate);
+            Trigger(ResourceOperation.Initialize);
         }
-        else if (trigger == ResourceTrigger.SystemInitialized)
+        else if (trigger == ResourceOperation.SystemInitialized)
         {
             Instance.Children<TcpFilter>().Then(x => filters = x);
         }

@@ -38,7 +38,7 @@ public abstract class Store<T> : IStore where T : IResource
  
  
  
-    public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    public abstract AsyncReply<bool> Trigger(ResourceOperation trigger);
 
     //public async AsyncReply<T> New(string name = null, object attributes = null, object properties = null)
     //{

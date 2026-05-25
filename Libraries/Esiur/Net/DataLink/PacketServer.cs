@@ -67,36 +67,22 @@ public class PacketServer : IResource
         OnDestroy?.Invoke(this);
     }
 
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
-        if (trigger == ResourceTrigger.Initialize)
+        if (trigger == ResourceOperation.Initialize)
         {
-            /*
-            foreach (var resource in Instance.Children<IResource>())
-            {
-
-                if (resource is PacketFilter)
-                {
-                    filters.Add(resource as PacketFilter);
-                }
-                else if (resource is PacketSource)
-                {
-                    sources.Add(resource as PacketSource);
-                }
-            }
-            */
             foreach (var src in sources)
             {
                 src.OnNewPacket += PacketReceived;
                 src.Open();
             }
         }
-        else if (trigger == ResourceTrigger.Terminate)
+        else if (trigger == ResourceOperation.Terminate)
         {
-            //            foreach (var src in sources)
-            //              src.Close();
+            foreach (var src in sources)
+                src.Close();
         }
-        else if (trigger == ResourceTrigger.SystemReload)
+        else if (trigger == ResourceOperation.SystemReload)
         {
             foreach (var src in sources)
             {

@@ -35,7 +35,8 @@ public delegate bool QueryFilter<T>(T value);
 
 public interface IResource : IDestructible
 {
-    AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    AsyncReply<bool> Handle(ResourceOperation trigger);
+    AsyncReply<bool> Initialize(ResourceContext resourceContext);
 
     [NotMapped]
     [JsonIgnore]

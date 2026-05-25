@@ -450,7 +450,7 @@ public class SSLSocket : ISocket
         }
     }
 
-    public bool Trigger(ResourceTrigger trigger)
+    public bool Trigger(ResourceOperation trigger)
     {
         return true;
     }

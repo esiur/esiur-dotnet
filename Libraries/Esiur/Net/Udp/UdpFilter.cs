@@ -47,7 +47,7 @@ public abstract class UdpFilter : IResource
 
     public event DestroyedEvent OnDestroy;
 
-    public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    public abstract AsyncReply<bool> Trigger(ResourceOperation trigger);
 
     public abstract bool Execute(byte[] data, IPEndPoint sender);
 

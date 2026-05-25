@@ -177,9 +177,9 @@ public class UdpServer : IResource
         OnDestroy?.Invoke(this);
     }
 
-    async AsyncReply<bool> IResource.Trigger(ResourceTrigger trigger)
+    async AsyncReply<bool> IResource.Trigger(ResourceOperation trigger)
     {
-        if (trigger == ResourceTrigger.Initialize)
+        if (trigger == ResourceOperation.Initialize)
         {
             var address = IP == null ? IPAddress.Any : IPAddress.Parse(IP);
 
@@ -188,12 +188,12 @@ public class UdpServer : IResource
             receiver = new Thread(Receiving);
             receiver.Start();
         }
-        else if (trigger == ResourceTrigger.Terminate)
+        else if (trigger == ResourceOperation.Terminate)
         {
             if (receiver != null)
                 receiver.Abort();
         }
-        else if (trigger == ResourceTrigger.SystemInitialized)
+        else if (trigger == ResourceOperation.SystemInitialized)
         {
             filters = await Instance.Children<UdpFilter>();
         }

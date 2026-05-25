@@ -149,7 +149,7 @@ namespace Esiur.Net.Sockets
           
         }
 
-        public bool Trigger(ResourceTrigger trigger)
+        public bool Trigger(ResourceOperation trigger)
         {
             return true;
         }

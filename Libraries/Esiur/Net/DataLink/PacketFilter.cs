@@ -44,7 +44,7 @@ public abstract class PacketFilter : IResource
     public event DestroyedEvent OnDestroy;
  
 
-    public abstract AsyncReply<bool> Trigger(ResourceTrigger trigger);
+    public abstract AsyncReply<bool> Handle(ResourceOperation trigger);
 
     public abstract bool Execute(Packet packet);
 

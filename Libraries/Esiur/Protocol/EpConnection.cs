@@ -1694,13 +1694,13 @@ public partial class EpConnection : NetworkConnection, IStore
     /// </summary>
     /// <param name="trigger">Resource trigger.</param>
     /// <returns></returns>
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
 
         _authPacket = new EpAuthPacket(Instance.Warehouse);
         _packet = new EpPacket(Instance.Warehouse);
 
-        if (trigger == ResourceTrigger.Open)
+        if (trigger == ResourceOperation.Open)
         {
             // @TODO: Need a better way to check for initiator or responder
             if (this.Server != null)

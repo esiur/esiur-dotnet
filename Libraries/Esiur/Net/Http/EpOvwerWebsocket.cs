@@ -72,7 +72,7 @@ public class EpOvwerWebsocket : HttpFilter
 
     }
 
-    public override AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public override AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
         return new AsyncReply<bool>(true);
     }

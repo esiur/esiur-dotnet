@@ -223,9 +223,9 @@ public class EntityStore : IStore
 
     internal DbContextOptions Options { get; set; }
 
-    public AsyncReply<bool> Trigger(ResourceTrigger trigger)
+    public AsyncReply<bool> Trigger(ResourceOperation trigger)
     {
-        if (trigger == ResourceTrigger.Initialize)// SystemInitialized && DbContext != null)
+        if (trigger == ResourceOperation.Initialize)// SystemInitialized && DbContext != null)
         {
 
             if (Getter == null)
