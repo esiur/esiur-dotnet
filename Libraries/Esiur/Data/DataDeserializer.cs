@@ -1805,8 +1805,6 @@ public static class DataDeserializer
         }
     }
 
-
-
     public static AsyncReply TypedParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var tru = tdu.Metadata;
@@ -1831,20 +1829,6 @@ public static class DataDeserializer
         else if (tru is TruTypeDef truTypeDef)
         {
             return TypedObjectParserAsync(tdu, truTypeDef.TypeDef, connection, requestSequence);
-//            return tru.Identifier switch
-//            {
-//                TruIdentifier.LocalType8 or
-//                TruIdentifier.LocalType16 or
-//                TruIdentifier.LocalType32 or
-//                TruIdentifier.LocalType64 or
-//                TruIdentifier.RemoteType8 or
-//                TruIdentifier.RemoteType16 or
-//                TruIdentifier.RemoteType32 or
-//                TruIdentifier.RemoteType64 => TypedObjectParserAsync(tdu, truTypeDef.TypeDef, connection, requestSequence);
-//,
-
-//                _ => throw new Exception("Unsupported type for typed parser.")
-//            };
         }
 
         throw new Exception("Unknown TRU.");
@@ -1874,31 +1858,11 @@ public static class DataDeserializer
         }
         else if (tru is TruTypeDef truTypeDef)
         {
-            return tru.Identifier switch
-            {
-                TruIdentifier.LocalType8 or
-                TruIdentifier.LocalType16 or
-                TruIdentifier.LocalType32 or
-                TruIdentifier.LocalType64 or
-                TruIdentifier.RemoteType8 or
-                TruIdentifier.RemoteType16 or
-                TruIdentifier.RemoteType32 or
-                TruIdentifier.RemoteType64 => TypedObjectParser(tdu, truTypeDef.TypeDef, warehouse),
-                _ => throw new Exception("Unsupported type for typed parser.")
-            };
-
+            return TypedObjectParser(tdu, truTypeDef.TypeDef, warehouse);
         }
 
         throw new Exception("Unknown TRU.");
     }
-
-    //public static object TypedListParser(ParsedTdu tdu, Warehouse warehouse)
-    //{
-    //    // get the type
-    //    var (hdrCs, tru) = Tru.Parse(tdu.Metadata, 0);
-
-    //    return TypedArrayParser(tdu, tru, warehouse);
-    //}
 
     public static AsyncBag<PropertyValue> PropertyValueArrayParserAsync(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {

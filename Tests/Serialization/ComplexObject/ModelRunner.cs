@@ -279,13 +279,14 @@ public sealed class ModelRunner
         _codecs = new ICodec[]
         {
             new JsonCodec(),
-            new EsiurCodec(),
+            new EsiurCodec(),     
+            new DdsCdrCodec(),  
             new MessagePackCodec(),
             new ProtobufCodec(),
             new FlatBuffersCodec(),
             new CborCodec(),
             new BsonCodec(),
-            new AvroCodec()
+            new AvroCodec(),
         };
     }
 
@@ -380,7 +381,7 @@ public sealed class ModelRunner
             Console.WriteLine();
 
             Console.WriteLine("{0,-14} {1,12} {2,12} {3,10} {4,26} {5,18} {6,18}",
-                "Codec", "Mean(B)", "Median(B)", "Ratio", "Class vs JSON", "Enc CPU (µs)", "Dec CPU (µs)");
+                "Codec", "Mean(B)", "Median(B)", "Ratio", "Reduction", "Enc CPU (µs)", "Dec CPU (µs)");
             Console.WriteLine(new string('-', 118));
 
             foreach (var c in _codecs)
@@ -397,18 +398,19 @@ public sealed class ModelRunner
                 string meanS = double.IsNaN(mean) ? "N/A" : mean.ToString("F1");
                 string medS = double.IsNaN(med) ? "N/A" : med.ToString("F1");
                 string ratioS = double.IsNaN(ratio) ? "N/A" : ratio.ToString("F3");
+                string reduction = double.IsNaN(ratio) ? "N/A" : ((1 - ratio) * 100).ToString("F3");
 
                 // average CPU µs/op across samples where serialization succeeded
                 string encCpuS = (r.Samples == 0) ? "N/A" : (r.EncodeCpuUsSum / r.Samples).ToString("F1");
                 string decCpuS = (r.Samples == 0) ? "N/A" : (r.DecodeCpuUsSum / r.Samples).ToString("F1");
 
                 Console.WriteLine("{0,-14} {1,12} {2,12} {3,10} {4,26} {5,18} {6,18}",
-                    c.Name, meanS, medS, ratioS, cls, encCpuS, decCpuS);
+                    c.Name, meanS, medS, ratioS, reduction, encCpuS, decCpuS);
             }
 
             Console.WriteLine();
 
-            Console.ReadLine();
+            //Console.ReadLine();
         }
     }
 
