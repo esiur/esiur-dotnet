@@ -934,7 +934,8 @@ public partial class EpConnection : NetworkConnection, IStore
                     _openReply = null;
                     OnReady?.Invoke(this);
 
-                    Server?.Membership?.Login(_session);
+                    _session.AuthenticationHandler?.Provider?.Login(_session);
+                    //Server?.Membership?.Login(_session);
                     LoginDate = DateTime.Now;
 
                 }).Error(x =>
@@ -952,7 +953,9 @@ public partial class EpConnection : NetworkConnection, IStore
             _openReply?.Trigger(true);
             _openReply = null;
             OnReady?.Invoke(this);
-            Server?.Membership?.Login(_session);
+
+            _session.AuthenticationHandler?.Provider?.Login(_session);
+            //Server?.Membership?.Login(_session);
         }
     }
     //private void ProcessClientAuth(byte[] data)
@@ -1975,7 +1978,10 @@ public partial class EpConnection : NetworkConnection, IStore
             Instance?.Warehouse?.Remove(this);
 
             if (_authenticated)
-                Server.Membership?.Logout(_session);
+            {
+                _session.AuthenticationHandler?.Provider.Logout(_session);
+                //Server.Membership?.Logout(_session);
+            }
 
         }
         else if (AutoReconnect && !_invalidCredentials)

@@ -53,23 +53,26 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         set;
     }
 
-    IMembership membership;
+    //IMembership membership;
 
-    [Attribute]
-    public IMembership Membership
-    {
-        get => membership;
-        set
-        {
-            //if (membership != null)
-            //    membership.Authorization -= Membership_Authorization;
+    //[Attribute]
+    //public IMembership Membership
+    //{
+    //    get => membership;
+    //    set
+    //    {
+    //        //if (membership != null)
+    //        //    membership.Authorization -= Membership_Authorization;
 
-            membership = value;
+    //        membership = value;
 
-            //if (membership != null)
-            //    membership.Authorization += Membership_Authorization;
-        }
-    }
+    //        //if (membership != null)
+    //        //    membership.Authorization += Membership_Authorization;
+    //    }
+    //}
+
+    //[Attribute]
+    //public string MembershipProvider { get; set; }
 
     //private void Membership_Authorization(AuthorizationIndication indication)
     //{

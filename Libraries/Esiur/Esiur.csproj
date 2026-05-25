@@ -70,6 +70,7 @@
 	  <Compile Remove="Net\Sockets\TcpSocket.cs" />
 	  <Compile Remove="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
 	  <Compile Remove="Security\Authority\AuthenticationMethod.cs" />
+	  <Compile Remove="Security\Membership\IMembership.cs" />
 	  <Compile Remove="Security\Membership\SimpleMembership.cs" />
 	</ItemGroup>
 
@@ -90,6 +91,7 @@
 		<None Include="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
 		<None Include="README.md" Pack="true" PackagePath="" />
 		<None Include="Security\Authority\AuthenticationMethod.cs" />
+		<None Include="Security\Membership\IMembership.cs" />
 		<None Include="Security\Membership\SimpleMembership.cs" />
 	</ItemGroup>
 

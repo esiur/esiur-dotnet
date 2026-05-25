@@ -8,6 +8,7 @@ namespace Esiur.Security.Authority
     public interface IAuthenticationHandler
     {
 
+        IAuthenticationProvider Provider { get; }
         public string Protocol { get; }
         //public AuthenticationMode Mode { get; }
         //public AuthenticationResult Initialize(object authData);

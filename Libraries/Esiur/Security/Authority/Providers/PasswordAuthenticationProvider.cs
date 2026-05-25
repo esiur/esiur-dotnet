@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Esiur.Core;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -34,6 +35,16 @@ namespace Esiur.Security.Authority.Providers
         public virtual byte[] GetSelfCredential(string identity, string domain, string hostname)
         {
             return null;
+        }
+
+        public AsyncReply<bool> Login(Session session)
+        {
+            throw new NotImplementedException();
+        }
+
+        public AsyncReply<bool> Logout(Session session)
+        {
+            throw new NotImplementedException();
         }
     }
 }

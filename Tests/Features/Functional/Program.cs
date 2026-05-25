@@ -146,6 +146,7 @@ class Program
         // Create stores to keep objects.
         var system = await wh.Put("sys", new MemoryStore());
         var server = await wh.Put("sys/server", new EpServer() { 
+           
         //    Membership = membership 
         });
 

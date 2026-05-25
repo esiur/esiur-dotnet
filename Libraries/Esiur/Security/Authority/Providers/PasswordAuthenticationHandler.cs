@@ -13,21 +13,24 @@ namespace Esiur.Security.Authority.Providers
     {
         public string Protocol => "hash";
 
-        byte[] localNonce, remoteNonce;
-        byte[] localSalt, remoteSalt;
 
-        string initiatorIdentity, responderIdentity;
+        byte[] _localNonce, _remoteNonce;
+        byte[] _localSalt, _remoteSalt;
 
-        byte[] initiatorPassword, responderPassword;
+        string _initiatorIdentity, _responderIdentity;
 
-        string hostName, domain;
+        byte[] _initiatorPassword, _responderPassword;
 
-        int step = 0;
+        string _hostName, _domain;
 
-        AuthenticationMode mode;
-        AuthenticationDirection direction;
+        int _step = 0;
 
-        PasswordAuthenticationProvider provider;
+        AuthenticationMode _mode;
+        AuthenticationDirection _direction;
+
+        PasswordAuthenticationProvider _provider;
+
+        public IAuthenticationProvider Provider => _provider;
 
 
         public byte[] ComputeSha3(byte[] data, int bitLength = 256)
@@ -50,156 +53,156 @@ namespace Esiur.Security.Authority.Providers
             var remoteAuthData = (object[])authData;
             var localAuthData = new List<object>();
 
-            if (direction == AuthenticationDirection.Initiator)
+            if (_direction == AuthenticationDirection.Initiator)
             {
-                if (mode == AuthenticationMode.None)
+                if (_mode == AuthenticationMode.None)
                 {
-                    step = -1;
+                    _step = -1;
                     return new AuthenticationResult(AuthenticationRuling.Failed, null);
                 }
-                else if (mode == AuthenticationMode.InitializerIdentity)
+                else if (_mode == AuthenticationMode.InitializerIdentity)
                 {
-                    if (step == 0)
+                    if (_step == 0)
                     {
                         // step 0: send local nonce and initiator identity.
-                        if (initiatorIdentity == null)
-                            (initiatorIdentity, initiatorPassword) = provider.GetSelfIdentityAndCredential(domain, hostName);
+                        if (_initiatorIdentity == null)
+                            (_initiatorIdentity, _initiatorPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
                         else
-                            initiatorPassword = provider.GetSelfCredential(initiatorIdentity, domain, hostName);
+                            _initiatorPassword = _provider.GetSelfCredential(_initiatorIdentity, _domain, _hostName);
 
-                        if (initiatorPassword == null || initiatorIdentity == null)
+                        if (_initiatorPassword == null || _initiatorIdentity == null)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // send local nonce and initiator identity
-                        localAuthData.Add(localNonce);
-                        localAuthData.Add(initiatorIdentity);
+                        localAuthData.Add(_localNonce);
+                        localAuthData.Add(_initiatorIdentity);
 
                         return new AuthenticationResult(AuthenticationRuling.InProgress, localAuthData);
 
                     }
-                    else if (step == 1)
+                    else if (_step == 1)
                     {
                         // expect remote nonce, salt and challenge.
-                        remoteNonce = (byte[])remoteAuthData[0];
-                        remoteSalt = (byte[])remoteAuthData[1];
+                        _remoteNonce = (byte[])remoteAuthData[0];
+                        _remoteSalt = (byte[])remoteAuthData[1];
                         var remoteChallenge = (byte[])remoteAuthData[2];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
-                        if (remoteNonce.SequenceEqual(localNonce))
+                        if (_remoteNonce.SequenceEqual(_localNonce))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // make salted hash of password.
-                        var hashedPassword = ComputeSha3(initiatorPassword.Concat(remoteSalt).ToArray());
+                        var hashedPassword = ComputeSha3(_initiatorPassword.Concat(_remoteSalt).ToArray());
 
 
-                        var expectedRemoteChallenge = ComputeSha3(remoteNonce.Concat(hashedPassword)
-                                                           .Concat(localNonce)
+                        var expectedRemoteChallenge = ComputeSha3(_remoteNonce.Concat(hashedPassword)
+                                                           .Concat(_localNonce)
                                                            .ToArray());
 
                         // compare remote challenge
                         if (!remoteChallenge.SequenceEqual(expectedRemoteChallenge))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // make hash challenge response.
-                        var localChallenge = ComputeSha3(localNonce.Concat(hashedPassword)
-                                                           .Concat(remoteNonce)
+                        var localChallenge = ComputeSha3(_localNonce.Concat(hashedPassword)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray());
 
                         localAuthData.Add(localChallenge);
-                        step = -1;
+                        _step = -1;
 
                         // derive a session key from nonces and password.
                         // initiator identity + initiator password + initiator nonce + responder nonce
 
-                        var sessionKey = ComputeSha3(initiatorIdentity.ToBytes()
+                        var sessionKey = ComputeSha3(_initiatorIdentity.ToBytes()
                                                            .Concat(hashedPassword)
-                                                           .Concat(localNonce)
-                                                           .Concat(remoteNonce)
+                                                           .Concat(_localNonce)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray(), 512);
 
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, localAuthData, initiatorIdentity, null, sessionKey);
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, localAuthData, _initiatorIdentity, null, sessionKey);
                     }
                     else
                     {
                         return new AuthenticationResult(AuthenticationRuling.Failed, null);
                     }
                 }
-                else if (mode == AuthenticationMode.ResponderIdentity)
+                else if (_mode == AuthenticationMode.ResponderIdentity)
                 {
-                    if (step == 0)
+                    if (_step == 0)
                     {
                         // just send local nonce.
-                        localAuthData.Add(localNonce);
+                        localAuthData.Add(_localNonce);
                         return new AuthenticationResult(AuthenticationRuling.InProgress, localAuthData);
                     }
-                    else if (step == 1)
+                    else if (_step == 1)
                     {
                         // expect responder identity and nonce.
-                        remoteNonce = (byte[])remoteAuthData[0];
-                        responderIdentity = (string)remoteAuthData[1];
+                        _remoteNonce = (byte[])remoteAuthData[0];
+                        _responderIdentity = (string)remoteAuthData[1];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
-                        if (remoteNonce.SequenceEqual(localNonce))
+                        if (_remoteNonce.SequenceEqual(_localNonce))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // check if responder identity is valid and get password.
-                        (localSalt, responderPassword) = provider.GetHostedAccountCredential(responderIdentity, domain);
+                        (_localSalt, _responderPassword) = _provider.GetHostedAccountCredential(_responderIdentity, _domain);
 
-                        if (responderPassword == null)
+                        if (_responderPassword == null)
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // make hash challenge response.
-                        var localChallenge = ComputeSha3(localNonce.Concat(responderPassword)
-                                                           .Concat(remoteNonce)
+                        var localChallenge = ComputeSha3(_localNonce.Concat(_responderPassword)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray());
                         // send localSalt and challenge
-                        localAuthData.Add(localSalt);
+                        localAuthData.Add(_localSalt);
                         localAuthData.Add(localChallenge);
-                        step = 2;
+                        _step = 2;
 
                         return new AuthenticationResult(AuthenticationRuling.InProgress, localAuthData);
 
                     }
-                    else if (step == 2)
+                    else if (_step == 2)
                     {
                         // expect remote challenge.
                         var remoteChallenge = (byte[])remoteAuthData[0];
 
                         // compare remote challenge
 
-                        var expectedRemoteChallenge = ComputeSha3(remoteNonce.Concat(responderPassword)
-                                                   .Concat(localNonce)
+                        var expectedRemoteChallenge = ComputeSha3(_remoteNonce.Concat(_responderPassword)
+                                                   .Concat(_localNonce)
                                                    .ToArray());
 
                         if (!remoteChallenge.SequenceEqual(expectedRemoteChallenge))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // derive a session key from nonces and password.
                         // responder identity + responder hashed password + initiator nonce + responder nonce
 
-                        var sessionKey = ComputeSha3(responderIdentity.ToBytes()
-                                                           .Concat(responderPassword)
-                                                           .Concat(localNonce)
-                                                           .Concat(remoteNonce)
+                        var sessionKey = ComputeSha3(_responderIdentity.ToBytes()
+                                                           .Concat(_responderPassword)
+                                                           .Concat(_localNonce)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray(), 512);
 
-                        step = -1;
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, initiatorIdentity, responderIdentity, sessionKey);
+                        _step = -1;
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, _initiatorIdentity, _responderIdentity, sessionKey);
 
                     }
                     else
@@ -207,99 +210,99 @@ namespace Esiur.Security.Authority.Providers
                         return new AuthenticationResult(AuthenticationRuling.Failed, null);
                     }
                 }
-                else if (mode == AuthenticationMode.DualIdentity)
+                else if (_mode == AuthenticationMode.DualIdentity)
                 {
-                    if (step == 0)
+                    if (_step == 0)
                     {
                         // step 0: send local nonce and initiator identity.
-                        if (initiatorIdentity == null)
-                            (initiatorIdentity, initiatorPassword) = provider.GetSelfIdentityAndCredential(domain, hostName);
+                        if (_initiatorIdentity == null)
+                            (_initiatorIdentity, _initiatorPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
                         else
-                            initiatorPassword = provider.GetSelfCredential(initiatorIdentity, domain, hostName);
+                            _initiatorPassword = _provider.GetSelfCredential(_initiatorIdentity, _domain, _hostName);
 
-                        if (initiatorPassword == null || initiatorIdentity == null)
+                        if (_initiatorPassword == null || _initiatorIdentity == null)
                         {
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
-                        localAuthData.Add(localNonce);
-                        localAuthData.Add(initiatorIdentity);
+                        localAuthData.Add(_localNonce);
+                        localAuthData.Add(_initiatorIdentity);
                         return new AuthenticationResult(AuthenticationRuling.InProgress, localAuthData);
 
                     }
-                    else if (step == 1)
+                    else if (_step == 1)
                     {
                         // expect responder identity, nonce and salt.
-                        remoteNonce = (byte[])remoteAuthData[0];
-                        responderIdentity = (string)remoteAuthData[1];
-                        remoteSalt = (byte[])remoteAuthData[2];
+                        _remoteNonce = (byte[])remoteAuthData[0];
+                        _responderIdentity = (string)remoteAuthData[1];
+                        _remoteSalt = (byte[])remoteAuthData[2];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
-                        if (remoteNonce.SequenceEqual(localNonce))
+                        if (_remoteNonce.SequenceEqual(_localNonce))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // check if responder identity is valid and get password.
-                        (localSalt, responderPassword) = provider.GetHostedAccountCredential(responderIdentity, domain);
+                        (_localSalt, _responderPassword) = _provider.GetHostedAccountCredential(_responderIdentity, _domain);
 
-                        if (responderPassword == null)
+                        if (_responderPassword == null)
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // make salted hash of password.
-                        var hashedPassword = ComputeSha3(initiatorPassword.Concat(remoteSalt).ToArray());
+                        var hashedPassword = ComputeSha3(_initiatorPassword.Concat(_remoteSalt).ToArray());
 
                         // make hash challenge response.
-                        var localChallenge = ComputeSha3(localNonce.Concat(hashedPassword)
-                                                           .Concat(responderPassword)
-                                                           .Concat(remoteNonce)
+                        var localChallenge = ComputeSha3(_localNonce.Concat(hashedPassword)
+                                                           .Concat(_responderPassword)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray());
 
                         // send localSalt and challenge
-                        localAuthData.Add(localSalt);
+                        localAuthData.Add(_localSalt);
                         localAuthData.Add(localChallenge);
-                        step = 2;
+                        _step = 2;
 
                         return new AuthenticationResult(AuthenticationRuling.InProgress, localAuthData);
 
                     }
-                    else if (step == 2)
+                    else if (_step == 2)
                     {
                         // expect remote challenge.
                         var remoteChallenge = (byte[])remoteAuthData[0];
 
                         // make salted hash of password.
-                        var hashedPassword = ComputeSha3(initiatorPassword.Concat(remoteSalt).ToArray());
+                        var hashedPassword = ComputeSha3(_initiatorPassword.Concat(_remoteSalt).ToArray());
 
                         // compare remote challenge
-                        var expectedRemoteChallenge = ComputeSha3(remoteNonce.Concat(hashedPassword)
-                                                           .Concat(responderPassword)
-                                                           .Concat(localNonce)
+                        var expectedRemoteChallenge = ComputeSha3(_remoteNonce.Concat(hashedPassword)
+                                                           .Concat(_responderPassword)
+                                                           .Concat(_localNonce)
                                                            .ToArray());
 
                         if (!remoteChallenge.SequenceEqual(expectedRemoteChallenge))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // derive a session key from nonces and password.
                         // responder identity + responder password + initiator nonce + responder nonce
 
-                        var sessionKey = ComputeSha3(initiatorIdentity.ToBytes()
-                                                           .Concat(responderIdentity.ToBytes())
+                        var sessionKey = ComputeSha3(_initiatorIdentity.ToBytes()
+                                                           .Concat(_responderIdentity.ToBytes())
                                                            .Concat(hashedPassword)
-                                                           .Concat(responderPassword)
-                                                           .Concat(localNonce)
-                                                           .Concat(remoteNonce)
+                                                           .Concat(_responderPassword)
+                                                           .Concat(_localNonce)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray(), 512);
 
-                        step = -1;
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, initiatorIdentity, responderIdentity, sessionKey);
+                        _step = -1;
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, _initiatorIdentity, _responderIdentity, sessionKey);
 
                     }
                     else
@@ -309,66 +312,66 @@ namespace Esiur.Security.Authority.Providers
 
                 }
             }
-            else if (direction == AuthenticationDirection.Responder)
+            else if (_direction == AuthenticationDirection.Responder)
             {
-                if (mode == AuthenticationMode.None)
+                if (_mode == AuthenticationMode.None)
                 {
-                    step = -1;
+                    _step = -1;
                     return new AuthenticationResult(AuthenticationRuling.Failed, null);
                 }
-                else if (mode == AuthenticationMode.InitializerIdentity)
+                else if (_mode == AuthenticationMode.InitializerIdentity)
                 {
-                    if (step == 0)
+                    if (_step == 0)
                     {
                         if (remoteAuthData.Length < 2)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // step 0: expect remote nonce and initiator identity.
-                        remoteNonce = (byte[])remoteAuthData[0];
-                        initiatorIdentity = (string)remoteAuthData[1];
+                        _remoteNonce = (byte[])remoteAuthData[0];
+                        _initiatorIdentity = (string)remoteAuthData[1];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
                         // @TODO: We can change our localNonce then send it
-                        if (remoteNonce.SequenceEqual(localNonce))
+                        if (_remoteNonce.SequenceEqual(_localNonce))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // get initiator password from provider.
-                        (localSalt, initiatorPassword) = provider.GetHostedAccountCredential(initiatorIdentity, domain);
+                        (_localSalt, _initiatorPassword) = _provider.GetHostedAccountCredential(_initiatorIdentity, _domain);
 
                         // account not found or no password for this account.
-                        if (initiatorPassword == null || initiatorIdentity == null)
+                        if (_initiatorPassword == null || _initiatorIdentity == null)
                         {
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
-                        var localChallenge = ComputeSha3(localNonce.Concat(initiatorPassword)
-                                                               .Concat(remoteNonce)
+                        var localChallenge = ComputeSha3(_localNonce.Concat(_initiatorPassword)
+                                                               .Concat(_remoteNonce)
                                                                .ToArray());
 
                         // send local nonce, salt and challenge.
-                        localAuthData.Add(localNonce);
-                        localAuthData.Add(localSalt);
+                        localAuthData.Add(_localNonce);
+                        localAuthData.Add(_localSalt);
                         localAuthData.Add(localChallenge);
 
-                        step = 1;
+                        _step = 1;
                         return new AuthenticationResult(AuthenticationRuling.InProgress,
                                 localAuthData);
                     }
-                    else if (step == 1)
+                    else if (_step == 1)
                     {
                         // expect challenge response.
                         var remoteChallenge = (byte[])remoteAuthData[0];
 
-                        var expectedRemoteChallenge = ComputeSha3(remoteNonce.Concat(initiatorPassword)
-                                                                             .Concat(localNonce)
+                        var expectedRemoteChallenge = ComputeSha3(_remoteNonce.Concat(_initiatorPassword)
+                                                                             .Concat(_localNonce)
                                                                              .ToArray());
                         // compare remote challenge
                         if (!expectedRemoteChallenge.SequenceEqual(remoteChallenge))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
@@ -377,14 +380,14 @@ namespace Esiur.Security.Authority.Providers
                         // derive a session key from nonces and password.
                         // initiator identity + initiator password + initiator nonce + responder nonce
 
-                        var sessionKey = ComputeSha3(initiatorIdentity.ToBytes()
-                                                           .Concat(initiatorPassword)
-                                                           .Concat(remoteNonce)
-                                                           .Concat(localNonce)
+                        var sessionKey = ComputeSha3(_initiatorIdentity.ToBytes()
+                                                           .Concat(_initiatorPassword)
+                                                           .Concat(_remoteNonce)
+                                                           .Concat(_localNonce)
                                                            .ToArray(), 512);
 
-                        step = -1;
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, initiatorIdentity, responderIdentity, sessionKey);
+                        _step = -1;
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, _initiatorIdentity, _responderIdentity, sessionKey);
 
                     }
                     else
@@ -393,82 +396,82 @@ namespace Esiur.Security.Authority.Providers
                     }
 
                 }
-                else if (mode == AuthenticationMode.ResponderIdentity)
+                else if (_mode == AuthenticationMode.ResponderIdentity)
                 {
-                    if (step == 0)
+                    if (_step == 0)
                     {
                         if (remoteAuthData.Length < 1)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // step 0: receive remote nonce.
-                        remoteNonce = (byte[])remoteAuthData[0];
+                        _remoteNonce = (byte[])remoteAuthData[0];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
                         // @TODO: We can change our localNonce then send it
-                        if (remoteNonce.SequenceEqual(localNonce))
+                        if (_remoteNonce.SequenceEqual(_localNonce))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // get responder identity from provider.
-                        if (responderIdentity == null)
-                            (responderIdentity, responderPassword) = provider.GetSelfIdentityAndCredential(domain, hostName);
+                        if (_responderIdentity == null)
+                            (_responderIdentity, _responderPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
                         else
-                            responderPassword = provider.GetSelfCredential(responderIdentity, domain, hostName);
+                            _responderPassword = _provider.GetSelfCredential(_responderIdentity, _domain, _hostName);
 
-                        if (responderPassword == null || responderIdentity == null)
+                        if (_responderPassword == null || _responderIdentity == null)
                         {
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
-                        localAuthData.Add(localNonce);
-                        localAuthData.Add(responderIdentity);
+                        localAuthData.Add(_localNonce);
+                        localAuthData.Add(_responderIdentity);
 
-                        step = 1;
+                        _step = 1;
                         // send local nonce and identity.
                         return new AuthenticationResult(AuthenticationRuling.InProgress,
                                 localAuthData
                             );
                     }
-                    else if (step == 1)
+                    else if (_step == 1)
                     {
                         // expect remote salt and challenge.
-                        remoteSalt = (byte[])remoteAuthData[0];
+                        _remoteSalt = (byte[])remoteAuthData[0];
                         var remoteChallenge = (byte[])remoteAuthData[1];
 
                         // compute expected challenge response.
-                        var hashedPassword = ComputeSha3(responderPassword.Concat(remoteSalt).ToArray());
+                        var hashedPassword = ComputeSha3(_responderPassword.Concat(_remoteSalt).ToArray());
 
-                        var expectedRemoteChallenge = ComputeSha3(remoteNonce.Concat(hashedPassword)
-                                                   .Concat(localNonce)
+                        var expectedRemoteChallenge = ComputeSha3(_remoteNonce.Concat(hashedPassword)
+                                                   .Concat(_localNonce)
                                                    .ToArray());
 
                         // compare remote challenge
                         if (!expectedRemoteChallenge.SequenceEqual(remoteChallenge))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // compute our challenge response.
-                        var localChallenge = ComputeSha3(localNonce.Concat(hashedPassword)
-                                                           .Concat(remoteNonce)
+                        var localChallenge = ComputeSha3(_localNonce.Concat(hashedPassword)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray());
 
                         // derive a session key from nonces and password.
                         // responder identity + responder hashed password + initiator nonce + responder nonce
 
-                        var sessionKey = ComputeSha3(responderIdentity.ToBytes()
+                        var sessionKey = ComputeSha3(_responderIdentity.ToBytes()
                                                            .Concat(hashedPassword)
-                                                           .Concat(remoteNonce)
-                                                           .Concat(localNonce)
+                                                           .Concat(_remoteNonce)
+                                                           .Concat(_localNonce)
                                                            .ToArray(), 512);
 
                         localAuthData.Add(localChallenge);
 
-                        step = -1;
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, localAuthData, responderIdentity, null, sessionKey);
+                        _step = -1;
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, localAuthData, _responderIdentity, null, sessionKey);
                     }
                     else
                     {
@@ -476,83 +479,83 @@ namespace Esiur.Security.Authority.Providers
                     }
 
                 }
-                else if (mode == AuthenticationMode.DualIdentity)
+                else if (_mode == AuthenticationMode.DualIdentity)
                 {
-                    if (step == 0)
+                    if (_step == 0)
                     {
                         if (remoteAuthData.Length < 2)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // step 0: receive remote nonce and initiator identity.
-                        remoteNonce = (byte[])remoteAuthData[0];
-                        initiatorIdentity = (string)remoteAuthData[1];
+                        _remoteNonce = (byte[])remoteAuthData[0];
+                        _initiatorIdentity = (string)remoteAuthData[1];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
                         // @TODO: We can change our localNonce then send it
-                        if (remoteNonce.SequenceEqual(localNonce))
+                        if (_remoteNonce.SequenceEqual(_localNonce))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // get responder identity from provider.
-                        if (responderIdentity == null)
-                            (responderIdentity, responderPassword) = provider.GetSelfIdentityAndCredential(domain, hostName);
+                        if (_responderIdentity == null)
+                            (_responderIdentity, _responderPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
                         else
-                            responderPassword = provider.GetSelfCredential(responderIdentity, domain, hostName);
+                            _responderPassword = _provider.GetSelfCredential(_responderIdentity, _domain, _hostName);
 
-                        if (responderPassword == null || responderIdentity == null)
+                        if (_responderPassword == null || _responderIdentity == null)
                         {
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // get initiator password from provider.
-                        (localSalt, initiatorPassword) = provider.GetHostedAccountCredential(initiatorIdentity, domain);
+                        (_localSalt, _initiatorPassword) = _provider.GetHostedAccountCredential(_initiatorIdentity, _domain);
 
                         // account not found or no password for this account.
-                        if (initiatorPassword == null || initiatorIdentity == null)
+                        if (_initiatorPassword == null || _initiatorIdentity == null)
                         {
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // send local nonce, salt and responder identity.
-                        localAuthData.Add(localNonce);
-                        localAuthData.Add(localSalt);
-                        localAuthData.Add(responderIdentity);
+                        localAuthData.Add(_localNonce);
+                        localAuthData.Add(_localSalt);
+                        localAuthData.Add(_responderIdentity);
 
-                        step = 1;
+                        _step = 1;
                         // send local nonce and identity.
                         return new AuthenticationResult(AuthenticationRuling.InProgress,
                                 localAuthData
                             );
 
                     }
-                    else if (step == 1)
+                    else if (_step == 1)
                     {
                         // expect initiator salt and challenge.
                         var remoteSalt = (byte[])remoteAuthData[0];
                         var remoteChallenge = (byte[])remoteAuthData[1];
 
                         // compute expected challenge response.
-                        var hashedPassword = ComputeSha3(responderPassword.Concat(remoteSalt).ToArray());
+                        var hashedPassword = ComputeSha3(_responderPassword.Concat(remoteSalt).ToArray());
 
                         // compare remote challenge
-                        var expectedRemoteChallenge = ComputeSha3(remoteNonce.Concat(initiatorPassword)
+                        var expectedRemoteChallenge = ComputeSha3(_remoteNonce.Concat(_initiatorPassword)
                                                            .Concat(hashedPassword)
-                                                           .Concat(localNonce)
+                                                           .Concat(_localNonce)
                                                            .ToArray());
 
                         // compare remote challenge
                         if (!expectedRemoteChallenge.SequenceEqual(remoteChallenge))
                         {
-                            step = -1;
+                            _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
                         }
 
                         // compute our challenge
-                        var localChallenge = ComputeSha3(localNonce.Concat(hashedPassword)
-                                                           .Concat(initiatorPassword)
-                                                           .Concat(remoteNonce)
+                        var localChallenge = ComputeSha3(_localNonce.Concat(hashedPassword)
+                                                           .Concat(_initiatorPassword)
+                                                           .Concat(_remoteNonce)
                                                            .ToArray());
 
                         localAuthData.Add(localChallenge);
@@ -560,16 +563,16 @@ namespace Esiur.Security.Authority.Providers
                         // derive a session key from nonces and password.
                         // responder identity + responder password + initiator nonce + responder nonce
 
-                        var sessionKey = ComputeSha3(initiatorIdentity.ToBytes()
-                                                           .Concat(responderIdentity.ToBytes())
-                                                           .Concat(initiatorPassword)
+                        var sessionKey = ComputeSha3(_initiatorIdentity.ToBytes()
+                                                           .Concat(_responderIdentity.ToBytes())
+                                                           .Concat(_initiatorPassword)
                                                            .Concat(hashedPassword)
-                                                           .Concat(remoteNonce)
-                                                           .Concat(localNonce)
+                                                           .Concat(_remoteNonce)
+                                                           .Concat(_localNonce)
                                                            .ToArray(), 512);
 
-                        step = -1;
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, localAuthData, initiatorIdentity, responderIdentity, sessionKey);
+                        _step = -1;
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, localAuthData, _initiatorIdentity, _responderIdentity, sessionKey);
 
                     }
                     else
@@ -580,7 +583,7 @@ namespace Esiur.Security.Authority.Providers
             }
 
 
-            step = -1;
+            _step = -1;
             return new AuthenticationResult(AuthenticationRuling.Failed, null);
         }
 
@@ -592,15 +595,15 @@ namespace Esiur.Security.Authority.Providers
             string domain,
             PasswordAuthenticationProvider provider)
         {
-            localNonce = Global.GenerateBytes(20);
+            _localNonce = Global.GenerateBytes(20);
 
-            this.provider = provider;
-            this.initiatorIdentity = initiatorIdentity;
-            this.responderIdentity = responderIdentity;
-            this.mode = mode;
-            this.direction = direction;
-            this.domain = domain;
-            this.hostName = hostName;
+            this._provider = provider;
+            this._initiatorIdentity = initiatorIdentity;
+            this._responderIdentity = responderIdentity;
+            this._mode = mode;
+            this._direction = direction;
+            this._domain = domain;
+            this._hostName = hostName;
         }
     }
 }
