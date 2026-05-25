@@ -99,11 +99,11 @@ public class EpAuthPacket : Packet
         set;
     }
 
-    public string Message
-    {
-        get;
-        set;
-    }
+    //public string Message
+    //{
+    //    get;
+    //    set;
+    //}
 
     public byte[] SessionId
     {

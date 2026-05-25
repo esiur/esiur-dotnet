@@ -714,6 +714,14 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     if (_authPacket.AuthMode == AuthenticationMode.None)
                     {
+                        if (!(Server?.AllowUnauthorizedAccess ?? false))
+                        {
+                            SendAuth(EpAuthPacketMethod.ErrorTerminate);
+                            _invalidCredentials = true;
+                            //Close();
+                            return offset;
+                        }
+
                         //@TODO: check if allowed, pass for testing
                         SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
                         AuthenticatonCompleted(null, "guest");
@@ -772,7 +780,6 @@ public partial class EpConnection : NetworkConnection, IStore
                         SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
                         AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
                     }
-
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Acknowledge)
                 {
@@ -897,7 +904,9 @@ public partial class EpConnection : NetworkConnection, IStore
                         || _authPacket.Method == EpAuthPacketMethod.ErrorRetry)
                     {
                         _invalidCredentials = true;
-                        OnError?.Invoke(this, _authPacket.ErrorCode, _authPacket.Message ?? "Authentication error.");
+                        OnError?.Invoke(this, _authPacket.ErrorCode, "Authentication error.");
+                        _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
+
                         Close();
                     }
                     else if (_authPacket.Method == EpAuthPacketMethod.IndicationEstablished)

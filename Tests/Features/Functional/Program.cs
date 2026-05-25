@@ -49,6 +49,7 @@ using Esiur.Security.Membership;
 using Esiur.Net.Packets;
 using System.Numerics;
 using Esiur.Protocol;
+using Esiur.Security.Authority.Providers;
 
 namespace Esiur.Tests.Functional;
 
@@ -142,12 +143,12 @@ class Program
         //});
 
         var wh = new Warehouse();
-
+        wh.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
+        
         // Create stores to keep objects.
         var system = await wh.Put("sys", new MemoryStore());
-        var server = await wh.Put("sys/server", new EpServer() { 
-           
-        //    Membership = membership 
+        var server = await wh.Put("sys/server", new EpServer() {
+            AllowedAuthenticationProviders = new string[] { "hash" },
         });
 
 
@@ -213,13 +214,14 @@ class Program
 
     private static async void TestClient(IResource local)
     {
+        var wh = new Warehouse();
+        var auth = new ClientAuthenticationProvider();
+        wh.RegisterAuthenticationProvider(auth);
 
         var con = await new Warehouse().Get<EpConnection>("EP://localhost", new EpConnectionContext
         {
             AutoReconnect = true,
-            //Username = "admin",
-            //Password = "admin",
-            Identity = "demo",
+            Identity = "tester",
             AuthenticationProtocol = "hash"
         });
 

@@ -53,6 +53,12 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         set;
     }
 
+    [Attribute]
+    public string[] AllowedAuthenticationProviders { get; set; }
+
+    [Attribute]
+    public bool AllowUnauthorizedAccess { get; set; }
+
     //IMembership membership;
 
     //[Attribute]

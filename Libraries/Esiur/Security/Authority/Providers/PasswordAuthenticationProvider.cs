@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Esiur.Security.Authority.Providers
 {
-    internal class PasswordAuthenticationProvider : IAuthenticationProvider
+    public class PasswordAuthenticationProvider : IAuthenticationProvider
     {
         public string DefaultName => "hash";
 
@@ -37,14 +37,14 @@ namespace Esiur.Security.Authority.Providers
             return null;
         }
 
-        public AsyncReply<bool> Login(Session session)
+        public virtual AsyncReply<bool> Login(Session session)
         {
-            throw new NotImplementedException();
+            return new AsyncReply<bool>(false);
         }
 
-        public AsyncReply<bool> Logout(Session session)
+        public virtual AsyncReply<bool> Logout(Session session)
         {
-            throw new NotImplementedException();
+            return new AsyncReply<bool>(false);
         }
     }
 }

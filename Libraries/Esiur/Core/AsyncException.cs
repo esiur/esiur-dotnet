@@ -32,6 +32,7 @@ public class AsyncException : Exception
 {
     public readonly ErrorType Type;
     public readonly ExceptionCode Code;
+    //public readonly string Message;
 
     public AsyncException(Exception exception) : base(exception.Message, exception)
     {
@@ -42,7 +43,8 @@ public class AsyncException : Exception
     public override string StackTrace => InnerException != null && Type == ErrorType.Exception ? InnerException.StackTrace : base.StackTrace;
 
     public AsyncException(ErrorType type, ushort code, string message)
-        : base(type == ErrorType.Management ? ((ExceptionCode)code).ToString() : message)
+        //: base(type == ErrorType.Management ? ((ExceptionCode)code).ToString() : message)
+        : base(message)
     {
         this.Type = type;
         this.Code = (ExceptionCode)code;
