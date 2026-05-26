@@ -35,10 +35,12 @@ public abstract class Store<T> : IStore where T : IResource
 
     public abstract bool Record(IResource resource, string propertyName, object value, ulong? age, DateTime? dateTime);
 
- 
- 
- 
-    public abstract AsyncReply<bool> Trigger(ResourceOperation trigger);
+
+
+
+
+    public abstract AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null);
+
 
     //public async AsyncReply<T> New(string name = null, object attributes = null, object properties = null)
     //{

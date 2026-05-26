@@ -46,7 +46,7 @@ public abstract class HttpFilter : IResource
     }
 
     public event DestroyedEvent OnDestroy;
-    public abstract AsyncReply<bool> Trigger(ResourceOperation trigger);
+    public abstract AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null);
 
     /*
     public virtual void SessionModified(HTTPSession session, string key, object oldValue, object newValue)

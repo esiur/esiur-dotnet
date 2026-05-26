@@ -145,30 +145,28 @@ public partial class EpConnection : NetworkConnection, IStore
 
     // Attributes
 
-    [Attribute]
+    //[Attribute]
     public uint KeepAliveTime { get; set; } = 10;
 
-    [Attribute]
+    //[Attribute]
     public ExceptionLevel ExceptionLevel { get; set; }
                 = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
+ 
+
     //[Attribute]
-    //public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
-
-
-    [Attribute]
     public bool AutoReconnect { get; set; } = false;
 
-    [Attribute]
+    //[Attribute]
     public uint ReconnectInterval { get; set; } = 5;
 
     //[Attribute]
     //public string Username { get; set; }
 
-    [Attribute]
+    //[Attribute]
     public bool UseWebSocket { get; set; }
 
-    [Attribute]
+    //[Attribute]
     public bool SecureWebSocket { get; set; }
 
     //[Attribute]
@@ -1694,17 +1692,23 @@ public partial class EpConnection : NetworkConnection, IStore
     /// </summary>
     /// <param name="trigger">Resource trigger.</param>
     /// <returns></returns>
-    public AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public AsyncReply<bool> Handle(ResourceOperation trigger, IResourceContext context = null)
     {
 
-        _authPacket = new EpAuthPacket(Instance.Warehouse);
-        _packet = new EpPacket(Instance.Warehouse);
 
-        if (trigger == ResourceOperation.Open)
+        if (trigger == ResourceOperation.Initialize)
+        {
+            _authPacket = new EpAuthPacket(Instance.Warehouse);
+            _packet = new EpPacket(Instance.Warehouse);
+
+
+        }
+        else if (trigger == ResourceOperation.Open)
         {
             // @TODO: Need a better way to check for initiator or responder
             if (this.Server != null)
                 return new AsyncReply<bool>(true);
+
 
             var host = Instance.Name.Split(':');
 
@@ -1712,7 +1716,31 @@ public partial class EpConnection : NetworkConnection, IStore
             var port = host.Length > 1 ? ushort.Parse(host[1]) : (ushort)10518;
 
             // assign domain from hostname if not provided
-            if (_remoteDomain == null)
+
+
+            if (context is EpConnectionContext epContext)
+            {
+                var provider = Instance.Warehouse.GetAuthenticationProvider(epContext.AuthenticationProtocol);
+
+                _remoteDomain = epContext.Domain ?? address;
+
+                Session.AuthenticationHandler = provider.CreateAuthenticationHandler(new AuthenticationContext(){
+                    Direction = AuthenticationDirection.Initiator,
+                    Domain = _remoteDomain,
+                    HostName = address,
+                    InitiatorIdentity = epContext.Identity,
+                    Mode = epContext.AuthenticationMode,                    
+                });
+
+                Session.LocalIdentity = epContext.Identity;
+                ReconnectInterval = epContext.ReconnectInterval;
+                ExceptionLevel = epContext.ExceptionLevel;
+                UseWebSocket = epContext.UseWebSocket;
+                SecureWebSocket = epContext.SecureWebSocket;
+                _remoteDomain = epContext.Domain;
+                AutoReconnect = epContext.AutoReconnect;
+            }
+            else if (_remoteDomain == null)
                 _remoteDomain = address;
 
             return Connect(null, address, port, _remoteDomain);

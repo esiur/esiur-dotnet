@@ -2,6 +2,7 @@
 using Esiur.Data;
 using Esiur.Net.Packets;
 using Esiur.Resource;
+using Esiur.Security.Authority;
 using Esiur.Security.Membership;
 using Esiur.Security.Permissions;
 using System;
@@ -10,24 +11,24 @@ using System.Text;
 
 namespace Esiur.Protocol;
 
-public class EpConnectionContext : ResourceContext
+public class EpConnectionContext : IResourceContext
 {
-    public EpConnectionContext()
-        : base(0, new Map<string, object>(), null, null)
-    {
+    //public EpConnectionContext()
+    //    : base(0, new Map<string, object>(), null, null)
+    //{
 
-    }
+    //}
 
-    public override void Build()
-    {
-        Attributes["AutoConnect"] = AutoReconnect;
-        Attributes["ReconnectInterval"] = ReconnectInterval;
-        Attributes["UseWebSocket"] = UseWebSocket;
-        Attributes["SecureWebSocket"] = SecureWebSocket;
-        Attributes["Domain"] = SecureWebSocket;
-        Attributes["AuthenticationProtocol"] = SecureWebSocket;
-        Attributes["Identity"] = SecureWebSocket;
-    }
+    //public override void Build()
+    //{
+    //    Attributes["AutoConnect"] = AutoReconnect;
+    //    Attributes["ReconnectInterval"] = ReconnectInterval;
+    //    Attributes["UseWebSocket"] = UseWebSocket;
+    //    Attributes["SecureWebSocket"] = SecureWebSocket;
+    //    Attributes["Domain"] = SecureWebSocket;
+    //    Attributes["AuthenticationProtocol"] = SecureWebSocket;
+    //    Attributes["Identity"] = SecureWebSocket;
+    //}
 
     public ExceptionLevel ExceptionLevel { get; set; }
     = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
@@ -35,8 +36,9 @@ public class EpConnectionContext : ResourceContext
     //public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
     //public Func<AuthorizationRequest, AsyncReply<object>> Authenticator { get; set; }
 
+    public AuthenticationMode AuthenticationMode { get; set; } = AuthenticationMode.None;
     public string Identity { get; set; }
-    public string AuthenticationProtocol { get; set; }
+    public string AuthenticationProtocol { get; set; } = "hash";
 
     public bool AutoReconnect { get; set; } = false;
 
@@ -55,4 +57,10 @@ public class EpConnectionContext : ResourceContext
     //public ulong TokenIndex { get; set; }
 
     public string Domain { get; set; }
+
+    public Map<string, object> Attributes {  get; set; }
+
+    public Map<string, object> Properties { get; set; }
+
+    public ulong Age { get; }
 }

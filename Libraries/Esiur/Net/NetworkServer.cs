@@ -136,7 +136,7 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
     }
 
 
-    [Attribute]
+    //[Attribute]
     public uint Timeout
     {
         get;
@@ -144,7 +144,7 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
     }
 
 
-    [Attribute]
+    //[Attribute]
     public uint Clock
     {
         get;

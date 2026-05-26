@@ -218,7 +218,7 @@ class Program
         var auth = new ClientAuthenticationProvider();
         wh.RegisterAuthenticationProvider(auth);
 
-        var con = await new Warehouse().Get<EpConnection>("EP://localhost", new EpConnectionContext
+        var con = await wh.Get<EpConnection>("EP://localhost", new EpConnectionContext
         {
             AutoReconnect = true,
             Identity = "tester",

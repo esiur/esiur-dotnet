@@ -8,13 +8,13 @@ using System.Text;
 
 namespace Esiur.Resource
 {
-    public class ResourceContext
+    public class ResourceContext:IResourceContext
     {
         public ulong Age { get; }
         public Map<string, object> Attributes { get; }
         public Map<string, object> Properties { get; }
         public IPermissionsManager PermissionsManager { get; }
-     
+
         public ResourceContext(ulong age, Map<string, object> attributes, Map<string, object> properties, IPermissionsManager permissionsManager)
         {
             Age = age;
@@ -23,9 +23,9 @@ namespace Esiur.Resource
             PermissionsManager = permissionsManager;
         }
 
-        public virtual void Build()
-        {
-            // update the context based on the current state of the resource and its environment
-        }
+        //public virtual void Build()
+        //{
+        //    // update the context based on the current state of the resource and its environment
+        //}
     }
 }

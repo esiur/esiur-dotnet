@@ -218,10 +218,14 @@ public static class TypeDefGenerator
                 throw new Exception("Invalid EP URL");
 
             var path = urlRegex.Split(url);
-            var con = Warehouse.Default.Get<EpConnection>(path[1] + "://" + path[2], new ResourceContext(0, 
-                new Map<string, object> { ["username"] = username,  ["password"] = password }, null, null)
-                   // !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password) ? new { Username = username, Password = password } : null
-                ).Wait(20000);
+            var con = Warehouse.Default.Get<EpConnection>(path[1] + "://" + path[2], new EpConnectionContext()
+            {
+                Identity = username
+            }).Wait(10000);
+            
+            //ResourceContext(0, 
+            //    new Map<string, object> { ["username"] = username,  ["password"] = password }, null, null)
+            //    ).Wait(20000);
 
             if (con == null)
                 throw new Exception("Can't connect to server");

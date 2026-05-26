@@ -42,9 +42,9 @@ public abstract class PacketFilter : IResource
     }
 
     public event DestroyedEvent OnDestroy;
- 
 
-    public abstract AsyncReply<bool> Handle(ResourceOperation trigger);
+
+    public abstract AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null);
 
     public abstract bool Execute(Packet packet);
 

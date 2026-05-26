@@ -475,10 +475,10 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// </summary>
     /// <param name="trigger"></param>
     /// <returns></returns>
-    public AsyncReply<bool> Handle(ResourceOperation trigger)
+    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
 
-        if (trigger == ResourceOperation.Initialize)
+        if (operation == ResourceOperation.Initialize)
         {
             this.Instance.PropertyModified += (x) =>
                     this.PropertyChanged?.Invoke(this, new ResourcePropertyChangedEventArgs(x.Name));

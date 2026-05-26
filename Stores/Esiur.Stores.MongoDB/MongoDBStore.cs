@@ -110,7 +110,7 @@ public class MongoDBStore : IStore
     }
 
     [Export]
-    public  AsyncReply<bool> Remove(IResource resource)
+    public AsyncReply<bool> Remove(IResource resource)
     {
         var objectId = resource.Instance.Variables["objectId"].ToString();
         var filter = Builders<BsonDocument>.Filter.Eq("_id", new BsonObjectId(new ObjectId(objectId)));
@@ -515,16 +515,16 @@ public class MongoDBStore : IStore
         throw new NotImplementedException();
     }
 
-    [Attribute]
+    //[Attribute]
     public string Connection { get; set; }
-    [Attribute]
+    //[Attribute]
     public string Collection { get; set; }
-    [Attribute]
+    //[Attribute]
     public string Database { get; set; }
-    public AsyncReply<bool> Trigger(ResourceOperation trigger)
-    {
 
-        if (trigger == ResourceOperation.Initialize)
+    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
+    { 
+        if (operation == ResourceOperation.Initialize)
         {
 
             var collectionName = Collection ?? "resources";
@@ -574,7 +574,7 @@ public class MongoDBStore : IStore
 
             return new AsyncReply<bool>(true);
         }
-        else if (trigger == ResourceOperation.Terminate)
+        else if (operation == ResourceOperation.Terminate)
         {
             // save all resources
             foreach (var resource in resources.Values)
@@ -855,7 +855,7 @@ public class MongoDBStore : IStore
         }
     }
 
-  
+
 
     public AsyncReply<bool> AddChild(IResource resource, IResource child)
     {
@@ -887,9 +887,9 @@ public class MongoDBStore : IStore
         throw new NotImplementedException();
     }
 
- 
 
- 
+
+
     public AsyncReply<bool> Move(IResource resource, string newPath)
     {
         throw new NotImplementedException();

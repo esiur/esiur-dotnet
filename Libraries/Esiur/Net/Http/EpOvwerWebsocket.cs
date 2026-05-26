@@ -33,9 +33,10 @@ using Esiur.Core;
 using Esiur.Protocol;
 
 namespace Esiur.Net.Http;
+
 public class EpOvwerWebsocket : HttpFilter
 {
-    [Attribute]
+    //[Attribute]
     public EpServer Server
     {
         get;
@@ -72,7 +73,7 @@ public class EpOvwerWebsocket : HttpFilter
 
     }
 
-    public override AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public override AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
         return new AsyncReply<bool>(true);
     }

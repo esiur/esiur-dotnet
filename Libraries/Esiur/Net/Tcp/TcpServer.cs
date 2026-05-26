@@ -38,13 +38,13 @@ namespace Esiur.Net.Tcp;
 public class TcpServer : NetworkServer<TcpConnection>, IResource
 {
 
-    [Attribute]
+    //[Attribute]
     public string IP
     {
         get;
         set;
     }
-    [Attribute]
+    //[Attribute]
     public ushort Port
     {
         get;
@@ -66,9 +66,9 @@ public class TcpServer : NetworkServer<TcpConnection>, IResource
 
     TcpFilter[] filters = null;
 
-    public AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
-        if (trigger == ResourceOperation.Initialize)
+        if (operation == ResourceOperation.Initialize)
         {
             TcpSocket listener;
 
@@ -82,16 +82,16 @@ public class TcpServer : NetworkServer<TcpConnection>, IResource
 
 
         }
-        else if (trigger == ResourceOperation.Terminate)
+        else if (operation == ResourceOperation.Terminate)
         {
             Stop();
         }
-        else if (trigger == ResourceOperation.SystemReload)
+        else if (operation == ResourceOperation.SystemReloading)
         {
-            Trigger(ResourceOperation.Terminate);
-            Trigger(ResourceOperation.Initialize);
+            Handle(ResourceOperation.Terminate);
+            Handle(ResourceOperation.Initialize);
         }
-        else if (trigger == ResourceOperation.SystemInitialized)
+        else if (operation == ResourceOperation.SystemReady)
         {
             Instance.Children<TcpFilter>().Then(x => filters = x);
         }

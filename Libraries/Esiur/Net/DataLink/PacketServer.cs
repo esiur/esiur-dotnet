@@ -67,9 +67,9 @@ public class PacketServer : IResource
         OnDestroy?.Invoke(this);
     }
 
-    public AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
-        if (trigger == ResourceOperation.Initialize)
+        if (operation == ResourceOperation.Initialize)
         {
             foreach (var src in sources)
             {
@@ -77,12 +77,12 @@ public class PacketServer : IResource
                 src.Open();
             }
         }
-        else if (trigger == ResourceOperation.Terminate)
+        else if (operation == ResourceOperation.Terminate)
         {
             foreach (var src in sources)
                 src.Close();
         }
-        else if (trigger == ResourceOperation.SystemReload)
+        else if (operation == ResourceOperation.SystemReloading)
         {
             foreach (var src in sources)
             {

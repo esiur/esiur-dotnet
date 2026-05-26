@@ -43,9 +43,7 @@ public abstract class PacketSource : IResource
         set;
     }
 
-
-    public abstract AsyncReply<bool> Trigger(ResourceOperation trigger);
-
+    public abstract AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null);
 
     public abstract bool RawMode
     {

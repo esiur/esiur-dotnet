@@ -92,7 +92,7 @@ public class Warehouse
     public event StoreEvent StoreConnected;
     public event StoreEvent StoreDisconnected;
 
-    public delegate AsyncReply<IStore> ProtocolInstance(string name, ResourceContext resourceContext);
+    public delegate AsyncReply<IStore> ProtocolInstance(string name, IResourceContext resourceContext);
 
     public KeyList<string, ProtocolInstance> Protocols { get; } = new KeyList<string, ProtocolInstance>();
 
@@ -226,7 +226,7 @@ public class Warehouse
             //IResource r;
             //if (rk.Value.TryGetTarget(out r))
             //{
-            var rt = await r.Trigger(ResourceOperation.Initialize);
+            var rt = await r.Handle(ResourceOperation.Initialize);
             //if (!rt)
             //  return false;
 
@@ -239,7 +239,7 @@ public class Warehouse
 
         foreach (var r in resSnap)
         {
-            var rt = await r.Trigger(ResourceOperation.SystemInitialized);
+            var rt = await r.Handle(ResourceOperation.SystemReady);
             if (!rt)
             {
                 Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Definition.Name}]");
@@ -267,13 +267,13 @@ public class Warehouse
             if (resource.TryGetTarget(out r))
             {
                 if (!(r is IStore))
-                    bag.Add(r.Trigger(ResourceOperation.Terminate));
+                    bag.Add(r.Handle(ResourceOperation.Terminate));
 
             }
         }
 
         foreach (var store in _stores)
-            bag.Add(store.Key.Trigger(ResourceOperation.Terminate));
+            bag.Add(store.Key.Handle(ResourceOperation.Terminate));
 
 
         foreach (var resource in _resources.Values)
@@ -282,13 +282,13 @@ public class Warehouse
             if (resource.TryGetTarget(out r))
             {
                 if (!(r is IStore))
-                    bag.Add(r.Trigger(ResourceOperation.SystemTerminated));
+                    bag.Add(r.Handle(ResourceOperation.SystemTerminated));
             }
         }
 
 
         foreach (var store in _stores)
-            bag.Add(store.Key.Trigger(ResourceOperation.SystemTerminated));
+            bag.Add(store.Key.Handle(ResourceOperation.SystemTerminated));
 
         bag.Seal();
 
@@ -337,7 +337,7 @@ public class Warehouse
     /// </summary>
     /// <param name="path"></param>
     /// <returns>Resource instance.</returns>
-    public async AsyncReply<T> Get<T>(string path, ResourceContext resourceContext = null)
+    public async AsyncReply<T> Get<T>(string path, IResourceContext resourceContext = null)
         where T : IResource
     {
 
@@ -385,7 +385,7 @@ public class Warehouse
     /// <param name="resource">Resource instance.</param>
     /// <param name="store">IStore that manages the resource. Can be null if the resource is a store.</param>
     /// <param name="parent">Parent resource. if not presented the store becomes the parent for the resource.</param>
-    public async AsyncReply<T> Put<T>(string path, T resource, ResourceContext resourceContext = null) where T : IResource
+    public async AsyncReply<T> Put<T>(string path, T resource, IResourceContext resourceContext = null) where T : IResource
     {
         if (resource.Instance != null)
             throw new Exception("Resource already initialized.");
@@ -448,9 +448,9 @@ public class Warehouse
 
             if (_warehouseIsOpen)
             {
-                await resource.Handle(ResourceOperation.Initialize);
+                await resource.Handle(ResourceOperation.Initialize, resourceContext);
                 if (resource is IStore)
-                    await resource.Handle(ResourceOperation.Open);
+                    await resource.Handle(ResourceOperation.Open, resourceContext);
             }
 
             if (resource is IStore)
@@ -551,13 +551,13 @@ public class Warehouse
         return res;
     }
 
-    public async AsyncReply<IResource> New(Type type, string path, ResourceContext resourceContext)
+    public async AsyncReply<IResource> New(Type type, string path, IResourceContext resourceContext)
     {
         var res = Create(type, resourceContext?.Properties);
         return await Put(path, res, resourceContext);
     }
 
-    public async AsyncReply<T> New<T>(string path, ResourceContext resourceContext = null)
+    public async AsyncReply<T> New<T>(string path, IResourceContext resourceContext = null)
         where T : IResource
     {
         return (T)(await New(typeof(T), path, resourceContext));

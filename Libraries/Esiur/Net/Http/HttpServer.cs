@@ -139,14 +139,14 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     public virtual string IP
     {
         get;
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     public virtual ushort Port
     {
         get;
@@ -154,21 +154,21 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
     }
 
  
-    [Attribute]
+    //[Attribute]
     public virtual uint MaxPost
     {
         get;
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     public virtual bool SSL
     {
         get;
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     public virtual string Certificate
     {
         get;
@@ -291,10 +291,10 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
      */
 
 
-    public async AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public async AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
 
-        if (trigger == ResourceOperation.Initialize)
+        if (operation == ResourceOperation.Initialize)
         {
             //var ip = (IPAddress)Instance.Attributes["ip"];
             //var port = (int)Instance.Attributes["port"];
@@ -318,16 +318,16 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
 
             Start(listener);
         }
-        else if (trigger == ResourceOperation.Terminate)
+        else if (operation == ResourceOperation.Terminate)
         {
             Stop();
         }
-        else if (trigger == ResourceOperation.SystemReload)
+        else if (operation == ResourceOperation.SystemReloading)
         {
-            await Trigger(ResourceOperation.Terminate);
-            await Trigger(ResourceOperation.Initialize);
+            await Handle(ResourceOperation.Terminate);
+            await Handle(ResourceOperation.Initialize);
         }
-        else if (trigger == ResourceOperation.SystemInitialized)
+        else if (operation == ResourceOperation.SystemReady)
         {
             filters = await Instance.Children<HttpFilter>();
         }

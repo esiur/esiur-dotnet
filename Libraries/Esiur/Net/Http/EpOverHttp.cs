@@ -9,7 +9,7 @@ using System.Text;
 namespace Esiur.Net.Http;
 public class EpOverHttp : HttpFilter
 {
-    [Attribute]
+    //[Attribute]
     EntryPoint EntryPoint { get; set; }
 
     public override AsyncReply<bool> Execute(HttpConnection sender)
@@ -30,7 +30,7 @@ public class EpOverHttp : HttpFilter
         return new AsyncReply<bool>(true);
     }
 
-    public override AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public override AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
         return new AsyncReply<bool>(true);
     }

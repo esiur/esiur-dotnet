@@ -111,9 +111,9 @@ namespace Esiur.Proxy
                             code.AppendLine("public virtual event DestroyedEvent? OnDestroy;");
                             code.AppendLine("public virtual void Destroy() { OnDestroy?.Invoke(this); }");
 
-                            if (!ci.HasTrigger)
+                            if (!ci.HasHandle)
                             {
-                                code.AppendLine("public virtual AsyncReply<bool> Trigger(ResourceTrigger trigger) => new AsyncReply<bool>(true);");
+                                code.AppendLine("public virtual AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null) => new AsyncReply<bool>(true);");
                             }
                         }
 
@@ -181,11 +181,13 @@ namespace Esiur.Proxy
             ResourceClassInfo? classInfo = null;
             if (hasResource)
             {
-                bool hasTrigger = cds.Members
+                bool hasHandle = cds.Members
                     .OfType<MethodDeclarationSyntax>()
                     .Select(m => ctx.SemanticModel.GetDeclaredSymbol(m) as IMethodSymbol)
                     .Where(s => s is not null)
-                    .Any(s => s!.Name == "Trigger" && s.Parameters.Length == 1 && s.Parameters[0].Type.ToDisplayString() == "Esiur.Resource.ResourceTrigger");
+                    .Any(s => s!.Name == "Handle" && s.Parameters.Length == 2
+                    && s.Parameters[0].Type.ToDisplayString() == "Esiur.Resource.ResourceOperation" 
+                    && s.Parameters[1].Type.ToDisplayString() == "Esiur.Resource.IResourceContext");
 
                 var exportedFields = cds.Members
                     .OfType<FieldDeclarationSyntax>()
@@ -208,7 +210,7 @@ namespace Esiur.Proxy
                     cls,
                     exportedFields,
                     hasInterface,
-                    hasTrigger
+                    hasHandle
                 );
             }
 
@@ -228,7 +230,7 @@ namespace Esiur.Proxy
                     {
                         Fields = mergedFields,
                         HasInterface = existing.HasInterface || item.HasInterface,
-                        HasTrigger = existing.HasTrigger || item.HasTrigger
+                        HasHandle = existing.HasHandle || item.HasHandle
                     };
                 }
                 else
@@ -337,7 +339,7 @@ namespace Esiur.Proxy
 
             public ResourceClassInfo(string key, string name , 
                 ClassDeclarationSyntax classDeclaration, 
-                ITypeSymbol classSymbol, List<IFieldSymbol> fileds, bool hasInterface, bool hasTrigger)
+                ITypeSymbol classSymbol, List<IFieldSymbol> fileds, bool hasInterface, bool hasHandle)
             {
                 Key = key;
                 Name = name;
@@ -345,7 +347,7 @@ namespace Esiur.Proxy
                 ClassSymbol = classSymbol;
                 Fields = fileds;
                 HasInterface = hasInterface;
-                HasTrigger = hasTrigger;
+                HasHandle = hasHandle;
             }
 
             public string Key;
@@ -354,7 +356,7 @@ namespace Esiur.Proxy
             public ITypeSymbol ClassSymbol;
             public List<IFieldSymbol> Fields;
             public bool HasInterface;
-            public bool HasTrigger;
+            public bool HasHandle;
         }
     }
 }

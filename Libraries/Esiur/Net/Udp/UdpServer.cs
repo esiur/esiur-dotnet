@@ -55,14 +55,14 @@ public class UdpServer : IResource
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     string IP
     {
         get;
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     ushort Port
     {
         get;
@@ -177,9 +177,9 @@ public class UdpServer : IResource
         OnDestroy?.Invoke(this);
     }
 
-    async AsyncReply<bool> IResource.Trigger(ResourceOperation trigger)
+    public async AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
-        if (trigger == ResourceOperation.Initialize)
+        if (operation == ResourceOperation.Initialize)
         {
             var address = IP == null ? IPAddress.Any : IPAddress.Parse(IP);
 
@@ -188,12 +188,12 @@ public class UdpServer : IResource
             receiver = new Thread(Receiving);
             receiver.Start();
         }
-        else if (trigger == ResourceOperation.Terminate)
+        else if (operation == ResourceOperation.Terminate)
         {
             if (receiver != null)
                 receiver.Abort();
         }
-        else if (trigger == ResourceOperation.SystemInitialized)
+        else if (operation == ResourceOperation.SystemReady)
         {
             filters = await Instance.Children<UdpFilter>();
         }

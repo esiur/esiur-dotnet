@@ -46,17 +46,17 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 {
 
 
-    [Attribute]
+    //[Attribute]
     public string IP
     {
         get;
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     public string[] AllowedAuthenticationProviders { get; set; }
 
-    [Attribute]
+    //[Attribute]
     public bool AllowUnauthorizedAccess { get; set; }
 
     //IMembership membership;
@@ -88,14 +88,14 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     //                connection.ProcessAuthorization(indication.Results);
     //}
 
-    [Attribute]
+    //[Attribute]
     public EntryPoint EntryPoint
     {
         get;
         set;
     }
 
-    [Attribute]
+    //[Attribute]
     public ushort Port
     {
         get;
@@ -103,7 +103,7 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     } = 10518;
 
 
-    [Attribute]
+    //[Attribute]
     public ExceptionLevel ExceptionLevel { get; set; }
         = ExceptionLevel.Code
         | ExceptionLevel.Source
@@ -124,9 +124,10 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     }
 
 
-    public AsyncReply<bool> Trigger(ResourceOperation trigger)
+    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
+
     {
-        if (trigger == ResourceOperation.Initialize)
+        if (operation == ResourceOperation.Initialize)
         {
             TcpSocket listener;
 
@@ -137,14 +138,14 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
             Start(listener);
         }
-        else if (trigger == ResourceOperation.Terminate)
+        else if (operation == ResourceOperation.Terminate)
         {
             Stop();
         }
-        else if (trigger == ResourceOperation.SystemReload)
+        else if (operation == ResourceOperation.SystemReloading)
         {
-            Trigger(ResourceOperation.Terminate);
-            Trigger(ResourceOperation.Initialize);
+            Handle(ResourceOperation.Terminate);
+            Handle(ResourceOperation.Initialize);
         }
 
         return new AsyncReply<bool>(true);

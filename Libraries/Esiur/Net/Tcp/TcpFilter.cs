@@ -46,7 +46,7 @@ public abstract class TcpFilter : IResource
     public event DestroyedEvent OnDestroy;
     
 
-    public abstract AsyncReply<bool> Trigger(ResourceOperation trigger);
+    public abstract AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null);
 
     public virtual bool Connected(TcpConnection sender)
     {
