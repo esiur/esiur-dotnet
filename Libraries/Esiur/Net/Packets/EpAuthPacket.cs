@@ -145,6 +145,8 @@ public class EpAuthPacket : Packet
 
     public override long Parse(byte[] data, uint offset, uint ends)
     {
+        Tdu = null;
+
         var oOffset = offset;
 
         if (NotEnough(offset, ends, 1))
@@ -155,7 +157,7 @@ public class EpAuthPacket : Packet
 
         if (Command == EpAuthPacketCommand.Initialize)
         {
-            AuthMode = (AuthenticationMode)(data[offset] >> 2 & 0x4);
+            AuthMode = (AuthenticationMode)(data[offset] >> 2 & 0x3);
             EncryptionMode = (EncryptionMode)(data[offset++] & 0x7);
         }
         else if (Command == EpAuthPacketCommand.Acknowledge)
@@ -184,6 +186,8 @@ public class EpAuthPacket : Packet
                 return -dataLengthNeeded;
 
             Tdu = PlainTdu.Parse(data, offset, ends);//, _warehouse);
+
+            Console.WriteLine("Auth TDU " + Tdu.Value.PayloadLength);
 
             if (Tdu.Value.Class == TduClass.Invalid)
                 return -(int)Tdu.Value.TotalLength;

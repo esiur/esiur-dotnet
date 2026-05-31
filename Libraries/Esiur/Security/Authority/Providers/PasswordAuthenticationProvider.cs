@@ -22,14 +22,14 @@ namespace Esiur.Security.Authority.Providers
             return authHandler;
         }
 
-        public virtual (byte[], byte[]) GetHostedAccountCredential(string identity, string domain)
+        public virtual PasswordHash GetHostedAccountCredential(string identity, string domain)
         {
-            return (null, null);
+            return new PasswordHash();
         }
 
-        public virtual (string, byte[]) GetSelfIdentityAndCredential(string domain, string hostname)
+        public virtual IdentityPassword GetSelfIdentityAndCredential(string domain, string hostname)
         {
-            return (null, null);
+            return new IdentityPassword();
         }
 
         public virtual byte[] GetSelfCredential(string identity, string domain, string hostname)

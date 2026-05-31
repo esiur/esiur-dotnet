@@ -167,14 +167,18 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     public override void Add(EpConnection connection)
     {
-        connection.Server = this;
+        connection.Handle(ResourceOperation.Configure, 
+                        new EpServerConnectionContext() { 
+                                    Server = this,
+                                    Warehouse = Instance.Warehouse }
+                        );
+
         connection.ExceptionLevel = ExceptionLevel;
         base.Add(connection);
     }
 
     public override void Remove(EpConnection connection)
     {
-        connection.Server = null;
         base.Remove(connection);
     }
 

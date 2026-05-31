@@ -27,9 +27,10 @@ namespace Esiur.Net.Packets
         SessionEstablished = 0x47, // session established, session Id provided, switch to session mode, connection is still open
 
         // Events
-        ErrorTerminate = 0xC0,
-        ErrorMustEncrypt = 0xC1,
-        ErrorRetry = 0xC2,
+        Established = 0xC0,
+        ErrorTerminate = 0xC1,
+        ErrorMustEncrypt = 0xC2,
+        ErrorRetry = 0xC3,
 
         IndicationEstablished = 0xC8,
 

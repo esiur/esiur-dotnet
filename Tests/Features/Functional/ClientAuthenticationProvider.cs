@@ -10,7 +10,7 @@ namespace Esiur.Tests.Functional
 {
     internal class ClientAuthenticationProvider : PasswordAuthenticationProvider
     {
-        public override (byte[], byte[]) GetHostedAccountCredential(string identity, string domain)
+        public override PasswordHash GetHostedAccountCredential(string identity, string domain)
         {
             throw new NotImplementedException();
         }
@@ -23,12 +23,12 @@ namespace Esiur.Tests.Functional
                 return null;
         }
 
-        public override (string, byte[]) GetSelfIdentityAndCredential(string domain, string hostname)
+        public override IdentityPassword GetSelfIdentityAndCredential(string domain, string hostname)
         {
             if (domain == "test" && hostname == "localhost")
-                return ("tester", new byte[] { 1, 2, 3, 4, 5 });
+                return new IdentityPassword { Identity = "tester", Password = new byte[] { 1, 2, 3, 4, 5 } };
             else
-                return (null, null);
+                return new IdentityPassword { Identity = null, Password = null };
         }
 
         public override AsyncReply<bool> Login(Session session)

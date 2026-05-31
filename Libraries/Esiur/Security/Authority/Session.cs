@@ -61,4 +61,8 @@ public class Session
 
     public string LocalIdentity { get; set; }
     public string RemoteIdentity { get; set; }
+
+    public bool Authenticated { get; set; } = false;
+
+    public byte[] Key { get; set; }
 }

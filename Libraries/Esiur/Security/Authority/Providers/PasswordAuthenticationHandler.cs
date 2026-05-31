@@ -9,7 +9,7 @@ using Esiur.Data.Types;
 
 namespace Esiur.Security.Authority.Providers
 {
-    internal class PasswordAuthenticationHandler : IAuthenticationHandler
+    public class PasswordAuthenticationHandler : IAuthenticationHandler
     {
         public string Protocol => "hash";
 
@@ -33,7 +33,7 @@ namespace Esiur.Security.Authority.Providers
         public IAuthenticationProvider Provider => _provider;
 
 
-        public byte[] ComputeSha3(byte[] data, int bitLength = 256)
+        public static byte[] ComputeSha3(byte[] data, int bitLength = 256)
         {
             // 1. Initialize the digest (supports 224, 256, 384, 512)
             var digest = new Sha3Digest(bitLength);
@@ -50,6 +50,7 @@ namespace Esiur.Security.Authority.Providers
 
         public AuthenticationResult Process(object authData)
         {
+            Console.WriteLine($"PasswordAuthenticationHandler: {this.GetHashCode()} Step {_step}, Mode {_mode}, Direction {_direction}");
             var remoteAuthData = (object[])authData;
             var localAuthData = new List<object>();
 
@@ -66,7 +67,11 @@ namespace Esiur.Security.Authority.Providers
                     {
                         // step 0: send local nonce and initiator identity.
                         if (_initiatorIdentity == null)
-                            (_initiatorIdentity, _initiatorPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                        {
+                            var identityPassword = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                            _initiatorIdentity = identityPassword.Identity;
+                            _initiatorPassword = identityPassword.Password;
+                        }
                         else
                             _initiatorPassword = _provider.GetSelfCredential(_initiatorIdentity, _domain, _hostName);
 
@@ -77,6 +82,7 @@ namespace Esiur.Security.Authority.Providers
                         localAuthData.Add(_localNonce);
                         localAuthData.Add(_initiatorIdentity);
 
+                        _step = 1;
                         return new AuthenticationResult(AuthenticationRuling.InProgress, localAuthData);
 
                     }
@@ -155,7 +161,9 @@ namespace Esiur.Security.Authority.Providers
                         }
 
                         // check if responder identity is valid and get password.
-                        (_localSalt, _responderPassword) = _provider.GetHostedAccountCredential(_responderIdentity, _domain);
+                        var hostedAccountCredential = _provider.GetHostedAccountCredential(_responderIdentity, _domain);
+                        _localSalt = hostedAccountCredential.Salt;
+                        _responderPassword = hostedAccountCredential.Hash;
 
                         if (_responderPassword == null)
                         {
@@ -216,7 +224,11 @@ namespace Esiur.Security.Authority.Providers
                     {
                         // step 0: send local nonce and initiator identity.
                         if (_initiatorIdentity == null)
-                            (_initiatorIdentity, _initiatorPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                        {
+                            var identityPassword = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                            _initiatorIdentity = identityPassword.Identity;
+                            _initiatorPassword = identityPassword.Password;
+                        }
                         else
                             _initiatorPassword = _provider.GetSelfCredential(_initiatorIdentity, _domain, _hostName);
 
@@ -245,7 +257,9 @@ namespace Esiur.Security.Authority.Providers
                         }
 
                         // check if responder identity is valid and get password.
-                        (_localSalt, _responderPassword) = _provider.GetHostedAccountCredential(_responderIdentity, _domain);
+                        var hostedAccountCredential = _provider.GetHostedAccountCredential(_responderIdentity, _domain);
+                        _localSalt = hostedAccountCredential.Salt;
+                        _responderPassword = hostedAccountCredential.Hash;
 
                         if (_responderPassword == null)
                         {
@@ -339,7 +353,9 @@ namespace Esiur.Security.Authority.Providers
                         }
 
                         // get initiator password from provider.
-                        (_localSalt, _initiatorPassword) = _provider.GetHostedAccountCredential(_initiatorIdentity, _domain);
+                        var hostedAccountCredential = _provider.GetHostedAccountCredential(_initiatorIdentity, _domain);
+                        _localSalt = hostedAccountCredential.Salt;
+                        _initiatorPassword = hostedAccountCredential.Hash;
 
                         // account not found or no password for this account.
                         if (_initiatorPassword == null || _initiatorIdentity == null)
@@ -416,7 +432,11 @@ namespace Esiur.Security.Authority.Providers
 
                         // get responder identity from provider.
                         if (_responderIdentity == null)
-                            (_responderIdentity, _responderPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                        {
+                            var identityPassword = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                            _responderIdentity = identityPassword.Identity;
+                            _responderPassword = identityPassword.Password;
+                        }
                         else
                             _responderPassword = _provider.GetSelfCredential(_responderIdentity, _domain, _hostName);
 
@@ -500,7 +520,11 @@ namespace Esiur.Security.Authority.Providers
 
                         // get responder identity from provider.
                         if (_responderIdentity == null)
-                            (_responderIdentity, _responderPassword) = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                        {
+                            var identityPassword = _provider.GetSelfIdentityAndCredential(_domain, _hostName);
+                            _responderIdentity = identityPassword.Identity;
+                            _responderPassword = identityPassword.Password;
+                        }
                         else
                             _responderPassword = _provider.GetSelfCredential(_responderIdentity, _domain, _hostName);
 
@@ -510,7 +534,9 @@ namespace Esiur.Security.Authority.Providers
                         }
 
                         // get initiator password from provider.
-                        (_localSalt, _initiatorPassword) = _provider.GetHostedAccountCredential(_initiatorIdentity, _domain);
+                        var hostedAccountCredential = _provider.GetHostedAccountCredential(_initiatorIdentity, _domain);
+                        _localSalt = hostedAccountCredential.Salt;
+                        _initiatorPassword = hostedAccountCredential.Hash;
 
                         // account not found or no password for this account.
                         if (_initiatorPassword == null || _initiatorIdentity == null)

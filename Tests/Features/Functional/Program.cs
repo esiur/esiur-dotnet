@@ -50,6 +50,7 @@ using Esiur.Net.Packets;
 using System.Numerics;
 using Esiur.Protocol;
 using Esiur.Security.Authority.Providers;
+using Esiur.Security.Authority;
 
 namespace Esiur.Tests.Functional;
 
@@ -144,10 +145,11 @@ class Program
 
         var wh = new Warehouse();
         wh.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
-        
+
         // Create stores to keep objects.
         var system = await wh.Put("sys", new MemoryStore());
-        var server = await wh.Put("sys/server", new EpServer() {
+        var server = await wh.Put("sys/server", new EpServer()
+        {
             AllowedAuthenticationProviders = new string[] { "hash" },
         });
 
@@ -218,16 +220,18 @@ class Program
         var auth = new ClientAuthenticationProvider();
         wh.RegisterAuthenticationProvider(auth);
 
-        var con = await wh.Get<EpConnection>("EP://localhost", new EpConnectionContext
+        var con = await wh.Get<EpConnection>("ep://localhost", new EpConnectionContext
         {
+            AuthenticationMode = AuthenticationMode.InitializerIdentity,
             AutoReconnect = true,
             Identity = "tester",
-            AuthenticationProtocol = "hash"
+            AuthenticationProtocol = "hash",
+            Domain = "test",
         });
 
 
-        dynamic remote = await con.Get("sys/service");       
-        
+        dynamic remote = await con.Get("sys/service");
+
         TestObjectProps(local, remote);
 
         //return;

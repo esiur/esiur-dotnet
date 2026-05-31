@@ -118,18 +118,21 @@ public partial class EpConnection : NetworkConnection, IStore
     /// </summary>
     /// 
     EpServer _server;
-    public EpServer Server
-    {
-        get => _server;
-        internal set
-        {
-            _server = value;
-            if (_authPacket == null)
-                _authPacket = new EpAuthPacket(value.Instance.Warehouse);
-            if (_packet == null)
-                _packet = new EpPacket(value.Instance.Warehouse);
-        }
-    }
+    Warehouse _serverWarehouse;
+
+    public EpServer Server => _server;
+    //public EpServer Server
+    //{
+    //    get => _server;
+    //    internal set
+    //    {
+    //        _server = value;
+    //        if (_authPacket == null)
+    //            _authPacket = new EpAuthPacket(value.Instance.Warehouse);
+    //        if (_packet == null)
+    //            _packet = new EpPacket(value.Instance.Warehouse);
+    //    }
+    //}
 
 
     /// <summary>
@@ -152,7 +155,7 @@ public partial class EpConnection : NetworkConnection, IStore
     public ExceptionLevel ExceptionLevel { get; set; }
                 = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
- 
+
 
     //[Attribute]
     public bool AutoReconnect { get; set; } = false;
@@ -228,9 +231,9 @@ public partial class EpConnection : NetworkConnection, IStore
     /// <param name="data">Data to send.</param>
     public override void Send(byte[] data)
     {
-        #if VERBOSE
+#if VERBOSE
             Console.WriteLine("Client: {0}", Data.Length);
-        #endif
+#endif
 
         Global.Counters["Ep Sent Packets"]++;
         base.Send(data);
@@ -281,10 +284,12 @@ public partial class EpConnection : NetworkConnection, IStore
             if (_session.AuthenticationHandler == null)
                 throw new Exception("Authentication handler must be assigned for the session.");
 
-            var initAuthData = _session.AuthenticationHandler.Process(null);
+            var initAuthResult = _session.AuthenticationHandler.Process(null);
 
             headers.Add((byte)EpAuthPacketHeader.AuthenticationProtocol, _session.AuthenticationHandler.Protocol);
-            headers.Add((byte)EpAuthPacketHeader.AuthenticationData, initAuthData);
+            headers.Add((byte)EpAuthPacketHeader.AuthenticationData, initAuthResult.AuthenticationData);
+            headers.Add((byte)EpAuthPacketHeader.Domain, _remoteDomain);
+
         }
 
         if (_session.EncryptionMode != EncryptionMode.None)
@@ -720,9 +725,13 @@ public partial class EpConnection : NetworkConnection, IStore
                             return offset;
                         }
 
-                        //@TODO: check if allowed, pass for testing
                         SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
-                        AuthenticatonCompleted(null, "guest");
+
+                        _session.Authenticated = true;
+                        _session.LocalIdentity = null;
+                        _session.RemoteIdentity = null;
+                        AuthenticatonCompleted();
+
                         return offset;
                     }
 
@@ -734,7 +743,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         return offset;
                     }
 
-                    var provider = Instance.Warehouse.GetAuthenticationProvider(_session.RemoteHeaders[EpAuthPacketHeader.AuthenticationProtocol].ToString());
+                    var provider = _serverWarehouse.GetAuthenticationProvider(_session.RemoteHeaders[EpAuthPacketHeader.AuthenticationProtocol].ToString());
 
                     var handler = provider.CreateAuthenticationHandler(new AuthenticationContext()
                     {
@@ -760,7 +769,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     // send acknowledgements
 
-                    localHeaders.Add(EpAuthPacketHeader.AuthenticationData,
+                    localHeaders.Add((byte)EpAuthPacketHeader.AuthenticationData,
                         authResult.AuthenticationData);
 
                     if (authResult.Ruling == AuthenticationRuling.Failed)
@@ -776,7 +785,13 @@ public partial class EpConnection : NetworkConnection, IStore
                     else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                     {
                         SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
-                        AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
+
+                        _session.Authenticated = true;
+                        _session.LocalIdentity = authResult.LocalIdentity;
+                        _session.RemoteIdentity = authResult.RemoteIdentity;
+                        _session.Key = authResult.SessionKey;
+
+                        AuthenticatonCompleted();
                     }
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Acknowledge)
@@ -811,7 +826,11 @@ public partial class EpConnection : NetworkConnection, IStore
                     {
                         if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
                         {
-                            AuthenticatonCompleted("guest", null);
+                            _session.Authenticated = true;
+                            _session.LocalIdentity = null;
+                            _session.RemoteIdentity = null;
+                            _session.Key = null;
+                            AuthenticatonCompleted();
                         }
                         else
                         {
@@ -834,8 +853,10 @@ public partial class EpConnection : NetworkConnection, IStore
                     else if (authResult.Ruling == AuthenticationRuling.InProgress)
                     {
                         if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake)
+                        {
                             SendAuthData(EpAuthPacketMethod.Handshake,
-                                authResult.AuthenticationData);
+                                          authResult.AuthenticationData);
+                        }
                         else
                         {
                             throw new Exception("Bad protocol sequence.");
@@ -843,15 +864,27 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
                     else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                     {
+                        _session.Authenticated = true;
+                        _session.Key = authResult.SessionKey;
+                        _session.LocalIdentity = authResult.LocalIdentity;
+                        _session.RemoteIdentity = authResult.RemoteIdentity;
 
-                        if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
-                        {
-                            AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
-                        }
-                        else if (_authPacket.Method == EpAuthPacketMethod.ProceedToEstablishSession)
-                        {
-                            // @TODO: Send establish request
-                        }
+                        // send final handshake with data
+                        SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                                    authResult.AuthenticationData);
+
+                        //if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
+                        //{
+                        //    AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
+                        //}
+                        //else if (_authPacket.Method == EpAuthPacketMethod.ProceedToEstablishSession
+                        //        || _authPacket.Method == EpAuthPacketMethod.FinalHandshake)
+                        //{
+                        //    // Send establish request
+
+                        //    SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                        //                    authResult.AuthenticationData);
+                        //}
 
                     }
 
@@ -863,11 +896,12 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     if (_authPacket.Tdu != null)
                     {
-                        var parsed = Codec.ParseSync(_authPacket.Tdu.Value, Instance.Warehouse);
+                        var parsed = Codec.ParseSync(_authPacket.Tdu.Value, _serverWarehouse);
                         authData = parsed;
                     }
 
-                    if (_authPacket.Method == EpAuthPacketMethod.Handshake)
+                    if (_authPacket.Method == EpAuthPacketMethod.Handshake
+                        || _authPacket.Method == EpAuthPacketMethod.FinalHandshake)
                     {
                         var authResult = _session.AuthenticationHandler.Process(authData);
 
@@ -875,7 +909,8 @@ public partial class EpConnection : NetworkConnection, IStore
                         {
                             SendAuth(EpAuthPacketMethod.ErrorTerminate);
                             _invalidCredentials = true;
-                            Close();
+                            Task.Delay(100).ContinueWith(x => Close());
+                            //     Close();
                         }
                         else if (authResult.Ruling == AuthenticationRuling.InProgress)
                         {
@@ -883,15 +918,24 @@ public partial class EpConnection : NetworkConnection, IStore
                         }
                         else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                         {
+                            _session.Authenticated = true;
+                            _session.Key = authResult.SessionKey;
+                            _session.LocalIdentity = authResult.LocalIdentity;
+                            _session.RemoteIdentity = authResult.RemoteIdentity;
+
                             if (authResult.AuthenticationData != null)
                             {
                                 SendAuthData(EpAuthPacketMethod.FinalHandshake, authResult.AuthenticationData);
                             }
-                            else
+
+                            if (_authDirection == AuthenticationDirection.Responder
+                                && _authPacket.Method == EpAuthPacketMethod.FinalHandshake)
                             {
-                                SendAuth(EpAuthPacketMethod.SessionEstablished);
-                                AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
+                                // Send established event
+                                SendAuth(EpAuthPacketMethod.Established);
+                                AuthenticatonCompleted();
                             }
+
                         }
                     }
                 }
@@ -906,6 +950,20 @@ public partial class EpConnection : NetworkConnection, IStore
                         _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
 
                         Close();
+                    }
+                    else if (_authPacket.Method == EpAuthPacketMethod.Established)
+                    {
+                        if (_session.Authenticated)
+                        {
+                            AuthenticatonCompleted();
+                        }
+                        else
+                        {
+                            _invalidCredentials = true;
+                            OnError?.Invoke(this, _authPacket.ErrorCode, "Authentication error.");
+                            _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
+                            Close();
+                        }
                     }
                     else if (_authPacket.Method == EpAuthPacketMethod.IndicationEstablished)
                     {
@@ -922,7 +980,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
 
-    void AuthenticatonCompleted(string localIdentity, string remoteIdentity)
+    void AuthenticatonCompleted()
     {
 
         if (this.Instance == null)
@@ -931,8 +989,6 @@ public partial class EpConnection : NetworkConnection, IStore
                 Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
                 .Then(x =>
                 {
-                    _session.LocalIdentity = localIdentity;
-                    _session.RemoteIdentity = remoteIdentity;
 
                     _authenticated = true;
 
@@ -953,8 +1009,6 @@ public partial class EpConnection : NetworkConnection, IStore
         }
         else
         {
-            _session.LocalIdentity = localIdentity;
-            _session.RemoteIdentity = remoteIdentity;
             _authenticated = true;
             Status = EpConnectionStatus.Connected;
             _openReply?.Trigger(true);
@@ -1694,14 +1748,22 @@ public partial class EpConnection : NetworkConnection, IStore
     /// <returns></returns>
     public AsyncReply<bool> Handle(ResourceOperation trigger, IResourceContext context = null)
     {
-
-
-        if (trigger == ResourceOperation.Initialize)
+        if (trigger == ResourceOperation.Configure)
         {
-            _authPacket = new EpAuthPacket(Instance.Warehouse);
-            _packet = new EpPacket(Instance.Warehouse);
-
-
+            if (context is EpServerConnectionContext serverContext)
+            {
+                _server = serverContext.Server;
+                _serverWarehouse = serverContext.Warehouse;
+                _authPacket = new EpAuthPacket(_serverWarehouse);
+                _packet = new EpPacket(_serverWarehouse);
+            }
+        }
+        else if (trigger == ResourceOperation.Initialize)
+        {
+            if (_authPacket == null)
+                _authPacket = new EpAuthPacket(Instance.Warehouse);
+            if (_packet == null)
+                _packet = new EpPacket(Instance.Warehouse);
         }
         else if (trigger == ResourceOperation.Open)
         {
@@ -1716,29 +1778,34 @@ public partial class EpConnection : NetworkConnection, IStore
             var port = host.Length > 1 ? ushort.Parse(host[1]) : (ushort)10518;
 
             // assign domain from hostname if not provided
-
-
             if (context is EpConnectionContext epContext)
             {
                 var provider = Instance.Warehouse.GetAuthenticationProvider(epContext.AuthenticationProtocol);
 
                 _remoteDomain = epContext.Domain ?? address;
 
-                Session.AuthenticationHandler = provider.CreateAuthenticationHandler(new AuthenticationContext(){
+                _session.AuthenticationHandler = provider.CreateAuthenticationHandler(new AuthenticationContext()
+                {
                     Direction = AuthenticationDirection.Initiator,
                     Domain = _remoteDomain,
                     HostName = address,
                     InitiatorIdentity = epContext.Identity,
-                    Mode = epContext.AuthenticationMode,                    
+                    Mode = epContext.AuthenticationMode,
                 });
 
-                Session.LocalIdentity = epContext.Identity;
+                _session.AuthenticationMode = epContext.AuthenticationMode;
+                _session.LocalIdentity = epContext.Identity;
                 ReconnectInterval = epContext.ReconnectInterval;
                 ExceptionLevel = epContext.ExceptionLevel;
                 UseWebSocket = epContext.UseWebSocket;
                 SecureWebSocket = epContext.SecureWebSocket;
                 _remoteDomain = epContext.Domain;
                 AutoReconnect = epContext.AutoReconnect;
+                _hostname = address;
+                _port = port;
+
+                return Connect();
+
             }
             else if (_remoteDomain == null)
                 _remoteDomain = address;
@@ -1771,7 +1838,11 @@ public partial class EpConnection : NetworkConnection, IStore
             _invalidCredentials = false;
 
             _session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
+            _hostname = hostname;
         }
+
+        if (port > 0)
+            this._port = port;
 
         if (_session == null)
             throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
@@ -1785,10 +1856,6 @@ public partial class EpConnection : NetworkConnection, IStore
                 socket = new TcpSocket();
         }
 
-        if (port > 0)
-            this._port = port;
-        if (hostname != null)
-            this._hostname = hostname;
 
         connectSocket(socket);
 
