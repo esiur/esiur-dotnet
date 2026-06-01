@@ -945,8 +945,16 @@ public partial class EpConnection : NetworkConnection, IStore
                         || _authPacket.Method == EpAuthPacketMethod.ErrorMustEncrypt
                         || _authPacket.Method == EpAuthPacketMethod.ErrorRetry)
                     {
+                        var errorMessage = "Authentication error.";
+                        if (_authPacket.Tdu != null)
+                        {
+                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, _serverWarehouse);
+                            if (parsed is string parsedErrorMsg)
+                                errorMessage = parsedErrorMsg;
+                        }
+
                         _invalidCredentials = true;
-                        OnError?.Invoke(this, _authPacket.ErrorCode, "Authentication error.");
+                        OnError?.Invoke(this, _authPacket.ErrorCode, errorMessage);
                         _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
 
                         Close();
