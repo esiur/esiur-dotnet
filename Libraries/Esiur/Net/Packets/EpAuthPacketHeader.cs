@@ -22,5 +22,6 @@ namespace Esiur.Net.Packets
         Identity,
         AuthenticationProtocol,
         AuthenticationData,
+        ErrorMessage
     }
 }

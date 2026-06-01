@@ -719,7 +719,7 @@ public partial class EpConnection : NetworkConnection, IStore
                     {
                         if (!(Server?.AllowUnauthorizedAccess ?? false))
                         {
-                            SendAuth(EpAuthPacketMethod.ErrorTerminate);
+                            SendAuthMessage(EpAuthPacketMethod.ErrorTerminate, "Unauthorized access not allowed.");
                             _invalidCredentials = true;
                             //Close();
                             return offset;
@@ -776,7 +776,8 @@ public partial class EpConnection : NetworkConnection, IStore
                     {
                         SendAuthHeaders(EpAuthPacketMethod.Denied, localHeaders);
                         _invalidCredentials = true;
-                        Close();
+                        Task.Delay(100).ContinueWith(x => Close());
+
                     }
                     else if (authResult.Ruling == AuthenticationRuling.InProgress)
                     {
@@ -796,98 +797,116 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Acknowledge)
                 {
-                    var remoteHeaders
-                        = new Map<EpAuthPacketHeader, object>();
-                    object remoteAuthData = null;
-
-                    if (_authPacket.Tdu != null)
+                    if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake 
+                        || _authPacket.Method == EpAuthPacketMethod.ProceedToFinalHandshake)
                     {
-                        var parsed = Codec.ParseSync(_authPacket.Tdu.Value, Instance.Warehouse);
+                        var remoteHeaders
+                            = new Map<EpAuthPacketHeader, object>();
+                        object remoteAuthData = null;
 
-                        if (parsed is Map<byte, object> headers)
+                        if (_authPacket.Tdu != null)
                         {
-                            foreach (var header in headers)
+                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, Instance.Warehouse);
+
+                            if (parsed is Map<byte, object> headers)
                             {
-                                if (header.Key == (byte)EpAuthPacketHeader.AuthenticationData)
+                                foreach (var header in headers)
                                 {
-                                    remoteAuthData = header.Value;
+                                    if (header.Key == (byte)EpAuthPacketHeader.AuthenticationData)
+                                    {
+                                        remoteAuthData = header.Value;
+                                    }
+                                    else
+                                    {
+                                        remoteHeaders.Add((EpAuthPacketHeader)header.Key, header.Value);
+                                    }
                                 }
-                                else
-                                {
-                                    remoteHeaders.Add((EpAuthPacketHeader)header.Key, header.Value);
-                                }
+
+                                _session.RemoteHeaders = remoteHeaders;// headers.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
+                            }
+                        }
+
+                        if (_session.AuthenticationMode == AuthenticationMode.None)
+                        {
+                            if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
+                            {
+                                _session.Authenticated = true;
+                                _session.LocalIdentity = null;
+                                _session.RemoteIdentity = null;
+                                _session.Key = null;
+                                AuthenticatonCompleted();
+                            }
+                            else
+                            {
+                                _invalidCredentials = true;
+                                Task.Delay(100).ContinueWith(x => Close());
                             }
 
-                            _session.RemoteHeaders = remoteHeaders;// headers.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
+                            return offset;
                         }
-                    }
 
-                    if (_session.AuthenticationMode == AuthenticationMode.None)
-                    {
-                        if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
+                        var authResult = _session.AuthenticationHandler.Process(remoteAuthData);
+
+                        if (authResult.Ruling == AuthenticationRuling.Failed)
+                        {
+                            SendAuth(EpAuthPacketMethod.ErrorTerminate);
+                            _invalidCredentials = true;
+                            Task.Delay(100).ContinueWith(x => Close());
+                            return offset;
+                        }
+                        else if (authResult.Ruling == AuthenticationRuling.InProgress)
+                        {
+                            if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake)
+                            {
+                                SendAuthData(EpAuthPacketMethod.Handshake,
+                                              authResult.AuthenticationData);
+                            }
+                            else
+                            {
+                                throw new Exception("Bad protocol sequence.");
+                            }
+                        }
+                        else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                         {
                             _session.Authenticated = true;
-                            _session.LocalIdentity = null;
-                            _session.RemoteIdentity = null;
-                            _session.Key = null;
-                            AuthenticatonCompleted();
-                        }
-                        else
-                        {
-                            _invalidCredentials = true;
-                            Close();
-                        }
+                            _session.Key = authResult.SessionKey;
+                            _session.LocalIdentity = authResult.LocalIdentity;
+                            _session.RemoteIdentity = authResult.RemoteIdentity;
 
-                        return offset;
+                            // send final handshake with data
+                            SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                                        authResult.AuthenticationData);
+
+                            //if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
+                            //{
+                            //    AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
+                            //}
+                            //else if (_authPacket.Method == EpAuthPacketMethod.ProceedToEstablishSession
+                            //        || _authPacket.Method == EpAuthPacketMethod.FinalHandshake)
+                            //{
+                            //    // Send establish request
+
+                            //    SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                            //                    authResult.AuthenticationData);
+                            //}
+
+                        }
                     }
-
-                    var authResult = _session.AuthenticationHandler.Process(remoteAuthData);
-
-                    if (authResult.Ruling == AuthenticationRuling.Failed)
+                    else if (_authPacket.Method == EpAuthPacketMethod.Denied)
                     {
-                        SendAuth(EpAuthPacketMethod.ErrorTerminate);
+                        var errorMessage = "Authentication error.";
+                        if (_authPacket.Tdu != null)
+                        {
+                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, _serverWarehouse);
+                            if (parsed is string parsedErrorMsg)
+                                errorMessage = parsedErrorMsg;
+                        }
+
                         _invalidCredentials = true;
-                        Close();
-                        return offset;
-                    }
-                    else if (authResult.Ruling == AuthenticationRuling.InProgress)
-                    {
-                        if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake)
-                        {
-                            SendAuthData(EpAuthPacketMethod.Handshake,
-                                          authResult.AuthenticationData);
-                        }
-                        else
-                        {
-                            throw new Exception("Bad protocol sequence.");
-                        }
-                    }
-                    else if (authResult.Ruling == AuthenticationRuling.Succeeded)
-                    {
-                        _session.Authenticated = true;
-                        _session.Key = authResult.SessionKey;
-                        _session.LocalIdentity = authResult.LocalIdentity;
-                        _session.RemoteIdentity = authResult.RemoteIdentity;
-
-                        // send final handshake with data
-                        SendAuthData(EpAuthPacketMethod.FinalHandshake,
-                                    authResult.AuthenticationData);
-
-                        //if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
-                        //{
-                        //    AuthenticatonCompleted(authResult.LocalIdentity, authResult.RemoteIdentity);
-                        //}
-                        //else if (_authPacket.Method == EpAuthPacketMethod.ProceedToEstablishSession
-                        //        || _authPacket.Method == EpAuthPacketMethod.FinalHandshake)
-                        //{
-                        //    // Send establish request
-
-                        //    SendAuthData(EpAuthPacketMethod.FinalHandshake,
-                        //                    authResult.AuthenticationData);
-                        //}
+                        OnError?.Invoke(this, _authPacket.ErrorCode, errorMessage);
+                        _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
 
                     }
-
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Action)
                 {
@@ -910,7 +929,6 @@ public partial class EpConnection : NetworkConnection, IStore
                             SendAuth(EpAuthPacketMethod.ErrorTerminate);
                             _invalidCredentials = true;
                             Task.Delay(100).ContinueWith(x => Close());
-                            //     Close();
                         }
                         else if (authResult.Ruling == AuthenticationRuling.InProgress)
                         {
@@ -957,7 +975,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         OnError?.Invoke(this, _authPacket.ErrorCode, errorMessage);
                         _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
 
-                        Close();
+                        Task.Delay(100).ContinueWith(x => Close());
                     }
                     else if (_authPacket.Method == EpAuthPacketMethod.Established)
                     {
@@ -970,7 +988,7 @@ public partial class EpConnection : NetworkConnection, IStore
                             _invalidCredentials = true;
                             OnError?.Invoke(this, _authPacket.ErrorCode, "Authentication error.");
                             _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
-                            Close();
+                            Task.Delay(100).ContinueWith(x => Close());
                         }
                     }
                     else if (_authPacket.Method == EpAuthPacketMethod.IndicationEstablished)

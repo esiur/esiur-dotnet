@@ -161,6 +161,14 @@ partial class EpConnection
         Send(new byte[] { (byte)method });
     }
 
+    void SendAuthMessage(EpAuthPacketMethod method, string message)
+    {
+        var bl = new BinaryList();
+        bl.AddUInt8((byte)((byte)method | 0x20));
+        bl.AddUInt8Array(Codec.Compose(message, null, this));
+        Send(bl.ToArray());
+    }
+
     void SendAuthHeaders(EpAuthPacketMethod method,
         Map<byte, object> authHeaders)
     {
@@ -2239,7 +2247,7 @@ partial class EpConnection
                     }).Error(reply.TriggerError);
 
         return reply;
-        
+
     }
 
     /// <summary>

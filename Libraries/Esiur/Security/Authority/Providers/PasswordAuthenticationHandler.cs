@@ -88,6 +88,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 1)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 3)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect remote nonce, salt and challenge.
                         _remoteNonce = (byte[])remoteAuthData[0];
                         _remoteSalt = (byte[])remoteAuthData[1];
@@ -149,6 +152,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 1)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 2)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect responder identity and nonce.
                         _remoteNonce = (byte[])remoteAuthData[0];
                         _responderIdentity = (string)remoteAuthData[1];
@@ -185,6 +191,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 2)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 1)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect remote challenge.
                         var remoteChallenge = (byte[])remoteAuthData[0];
 
@@ -244,6 +253,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 1)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 3)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect responder identity, nonce and salt.
                         _remoteNonce = (byte[])remoteAuthData[0];
                         _responderIdentity = (string)remoteAuthData[1];
@@ -286,6 +298,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 2)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 1)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect remote challenge.
                         var remoteChallenge = (byte[])remoteAuthData[0];
 
@@ -337,7 +352,7 @@ namespace Esiur.Security.Authority.Providers
                 {
                     if (_step == 0)
                     {
-                        if (remoteAuthData.Length < 2)
+                        if (remoteAuthData == null || remoteAuthData.Length < 2)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // step 0: expect remote nonce and initiator identity.
@@ -378,6 +393,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 1)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 1)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect challenge response.
                         var remoteChallenge = (byte[])remoteAuthData[0];
 
@@ -416,7 +434,7 @@ namespace Esiur.Security.Authority.Providers
                 {
                     if (_step == 0)
                     {
-                        if (remoteAuthData.Length < 1)
+                        if (remoteAuthData == null || remoteAuthData.Length < 1)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // step 0: receive remote nonce.
@@ -456,6 +474,10 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 1)
                     {
+
+                        if (remoteAuthData == null || remoteAuthData.Length < 2)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect remote salt and challenge.
                         _remoteSalt = (byte[])remoteAuthData[0];
                         var remoteChallenge = (byte[])remoteAuthData[1];
@@ -503,7 +525,7 @@ namespace Esiur.Security.Authority.Providers
                 {
                     if (_step == 0)
                     {
-                        if (remoteAuthData.Length < 2)
+                        if (remoteAuthData == null || remoteAuthData.Length < 2)
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
 
                         // step 0: receive remote nonce and initiator identity.
@@ -558,6 +580,9 @@ namespace Esiur.Security.Authority.Providers
                     }
                     else if (_step == 1)
                     {
+                        if (remoteAuthData == null || remoteAuthData.Length < 2)
+                            return new AuthenticationResult(AuthenticationRuling.Failed, null);
+
                         // expect initiator salt and challenge.
                         var remoteSalt = (byte[])remoteAuthData[0];
                         var remoteChallenge = (byte[])remoteAuthData[1];
