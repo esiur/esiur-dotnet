@@ -16,6 +16,10 @@
 		<PackageId>Esiur</PackageId>
 		<Product>Esiur</Product>
 		<LangVersion>latest</LangVersion>
+		<!-- Enable the nullable *annotation* context project-wide so '?' reference-type
+		     annotations are legal everywhere, without turning on nullable flow warnings
+		     (files that opt in via '#nullable enable' still get full checking). -->
+		<Nullable>annotations</Nullable>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -67,7 +71,6 @@
 	  <Compile Remove="Net\Packets\EpAuthPacketAction.cs" />
 	  <Compile Remove="Net\Packets\EpAuthPacketAuthMode.cs" />
 	  <Compile Remove="Net\Packets\EpAuthPacketEvent.cs" />
-	  <Compile Remove="Net\Sockets\TcpSocket.cs" />
 	  <Compile Remove="Protocol\Authentication\HashAnonymousAuthenticator.cs" />
 	  <Compile Remove="Security\Authority\AuthenticationMethod.cs" />
 	  <Compile Remove="Security\Membership\IMembership.cs" />

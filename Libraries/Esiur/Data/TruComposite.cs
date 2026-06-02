@@ -11,11 +11,9 @@ namespace Esiur.Data
     {
         public Tru[] SubTypes;
 
-        Type _runtimeType;
-
         public override Type RuntimeType { get; protected set; }
 
-        public TruComposite(TruIdentifier identifier, bool nullable, Tru[] subTypes, Type type)
+        public TruComposite(TruIdentifier identifier, bool nullable, Tru[] subTypes, Type? type)
         {
             Identifier = identifier;
             Nullable = nullable;

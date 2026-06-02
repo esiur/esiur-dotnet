@@ -88,7 +88,7 @@ public class ArgumentDef
         }
         else
         {
-            var exp = Codec.Compose(Annotations, null, null);
+            var exp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
 
             return new BinaryList()
                     .AddUInt8((byte)(0x2 | (Optional ? 1 : 0)))

@@ -389,7 +389,7 @@ public class LocalTypeDef:TypeDef
             //foreach (var ann in Annotations)
             //    Annotations.Add(ann.Key, ann.Value);
 
-            var classAnnotationBytes = Codec.Compose(Annotations, null, null);
+            var classAnnotationBytes = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
 
             b.AddUInt8Array(classAnnotationBytes);
 

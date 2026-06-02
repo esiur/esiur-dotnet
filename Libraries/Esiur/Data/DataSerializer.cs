@@ -17,7 +17,7 @@ public static class DataSerializer
 {
     public delegate byte[] Serializer(object value);
 
-    public static unsafe Tdu Int32Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu Int32Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (int)value;
 
@@ -29,22 +29,19 @@ public static class DataSerializer
         {
             // Fits in 2 bytes
             var rt = new byte[2];
-            fixed (byte* ptr = rt)
-                *((short*)ptr) = (short)v;
-
+            BinaryPrimitives.WriteInt16LittleEndian(rt, (short)v);
             return new Tdu(TduIdentifier.Int16, rt, 2, null, null);
         }
         else
         {
             // Use full 4 bytes
             var rt = new byte[4];
-            fixed (byte* ptr = rt)
-                *((int*)ptr) = v;
+            BinaryPrimitives.WriteInt32LittleEndian(rt, v);
             return new Tdu(TduIdentifier.Int32, rt, 4, null, null);
         }
     }
 
-    public static unsafe Tdu UInt32Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu UInt32Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (uint)value;
 
@@ -57,23 +54,19 @@ public static class DataSerializer
         {
             // Fits in 2 bytes
             var rt = new byte[2];
-            fixed (byte* ptr = rt)
-                *((ushort*)ptr) = (ushort)v;
-
+            BinaryPrimitives.WriteUInt16LittleEndian(rt, (ushort)v);
             return new Tdu(TduIdentifier.UInt16, rt, 2, null, null);
         }
         else
         {
             // Use full 4 bytes
             var rt = new byte[4];
-            fixed (byte* ptr = rt)
-                *((uint*)ptr) = v;
-
+            BinaryPrimitives.WriteUInt32LittleEndian(rt, v);
             return new Tdu(TduIdentifier.UInt32, rt, 4, null, null);
         }
     }
 
-    public static unsafe Tdu Int16Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu Int16Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (short)value;
 
@@ -86,14 +79,12 @@ public static class DataSerializer
         {
             // Use full 2 bytes
             var rt = new byte[2];
-            fixed (byte* ptr = rt)
-                *((short*)ptr) = v;
-
+            BinaryPrimitives.WriteInt16LittleEndian(rt, v);
             return new Tdu(TduIdentifier.Int16, rt, 2, null, null);
         }
     }
 
-    public static unsafe Tdu UInt16Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu UInt16Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (ushort)value;
 
@@ -106,9 +97,7 @@ public static class DataSerializer
         {
             // Use full 2 bytes
             var rt = new byte[2];
-            fixed (byte* ptr = rt)
-                *((ushort*)ptr) = v;
-
+            BinaryPrimitives.WriteUInt16LittleEndian(rt, v);
             return new Tdu(TduIdentifier.UInt16, rt, 2, null, null);
         }
     }
@@ -211,7 +200,7 @@ public static class DataSerializer
             return new Tdu(TduIdentifier.Float64, rt, 8, null, null);
         }
     }
-    public static unsafe Tdu Int64Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu Int64Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (long)value;
 
@@ -224,32 +213,26 @@ public static class DataSerializer
         {
             // Fits in 2 bytes
             var rt = new byte[2];
-            fixed (byte* ptr = rt)
-                *((short*)ptr) = (short)v;
-
+            BinaryPrimitives.WriteInt16LittleEndian(rt, (short)v);
             return new Tdu(TduIdentifier.Int16, rt, 2, null, null);
         }
         else if (v >= int.MinValue && v <= int.MaxValue)
         {
             // Fits in 4 bytes
             var rt = new byte[4];
-            fixed (byte* ptr = rt)
-                *((int*)ptr) = (int)v;
-
+            BinaryPrimitives.WriteInt32LittleEndian(rt, (int)v);
             return new Tdu(TduIdentifier.Int32, rt, 4, null, null);
         }
         else
         {
             // Use full 8 bytes
             var rt = new byte[8];
-            fixed (byte* ptr = rt)
-                *((long*)ptr) = v;
-
+            BinaryPrimitives.WriteInt64LittleEndian(rt, v);
             return new Tdu(TduIdentifier.Int64, rt, 8, null, null);
         }
     }
 
-    public static unsafe Tdu UInt64Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu UInt64Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (ulong)value;
 
@@ -262,39 +245,31 @@ public static class DataSerializer
         {
             // Fits in 2 bytes
             var rt = new byte[2];
-            fixed (byte* ptr = rt)
-                *((ushort*)ptr) = (ushort)v;
-
+            BinaryPrimitives.WriteUInt16LittleEndian(rt, (ushort)v);
             return new Tdu(TduIdentifier.UInt16, rt, 2, null, null);
         }
         else if (v <= uint.MaxValue)
         {
             // Fits in 4 bytes
             var rt = new byte[4];
-            fixed (byte* ptr = rt)
-                *((uint*)ptr) = (uint)v;
-
+            BinaryPrimitives.WriteUInt32LittleEndian(rt, (uint)v);
             return new Tdu(TduIdentifier.UInt32, rt, 4, null, null);
         }
         else
         {
             // Use full 8 bytes
             var rt = new byte[8];
-            fixed (byte* ptr = rt)
-                *((ulong*)ptr) = v;
-
+            BinaryPrimitives.WriteUInt64LittleEndian(rt, v);
             return new Tdu(TduIdentifier.UInt64, rt, 8, null, null);
         }
     }
 
 
-    public static unsafe Tdu DateTimeComposer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu DateTimeComposer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = ((DateTime)value).ToUniversalTime().Ticks;
         var rt = new byte[8];
-        fixed (byte* ptr = rt)
-            *((long*)ptr) = v;
-
+        BinaryPrimitives.WriteInt64LittleEndian(rt, v);
         return new Tdu(TduIdentifier.DateTime, rt, 8, null, null);
     }
 
@@ -362,7 +337,7 @@ public static class DataSerializer
         double d = (double)v;
         if ((decimal)d == v)
         {
-            var rt = new byte[4];
+            var rt = new byte[8];
 
             fixed (byte* ptr = rt)
                 *((double*)ptr) = d;
@@ -436,15 +411,12 @@ public static class DataSerializer
             new byte[] { (byte)(char)value }, 1, null, null);
     }
 
-    public static unsafe Tdu Char16Composer(object value, Warehouse warehouse, EpConnection connection)
+    public static Tdu Char16Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (char)value;
         var rt = new byte[2];
-        fixed (byte* ptr = rt)
-            *((char*)ptr) = v;
-
+        BinaryPrimitives.WriteUInt16LittleEndian(rt, v);
         return new Tdu(TduIdentifier.Char16, rt, 2, null, null);
-
     }
 
     public static Tdu BoolComposer(object value, Warehouse warehouse, EpConnection connection)
@@ -733,7 +705,9 @@ public static class DataSerializer
         if (value == null)
             return null;
 
-        var rt = new List<byte>();
+        // Pre-size the buffer from the element count (when known) to avoid repeated
+        // List<byte> reallocations as items are appended. 4 bytes/element is a rough hint.
+        var rt = new List<byte>(value is ICollection collection ? collection.Count * 4 : 16);
 
         Tdu? previous = null;
 
@@ -934,7 +908,7 @@ public static class DataSerializer
         var trus = fields.Select(x => Tru.FromType(x.FieldType, warehouse)).ToArray();
 
 
-        var rt = new List<byte>();
+        var rt = new List<byte>(fields.Length * 4);
 
         for (var i = 0; i < fields.Length; i++)
         {

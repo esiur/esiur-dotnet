@@ -1,5 +1,5 @@
-﻿/*
- 
+/*
+
 Copyright (c) 2017 Ahmed Kh. Zamil
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23,229 +23,109 @@ SOFTWARE.
 */
 
 using System;
-using System.IO;
-using System.Net.Sockets;
+using System.Net;
 using System.Text;
 using System.Threading;
-using System.Net;
-using System.Collections;
-using System.Collections.Generic;
 using Esiur.Misc;
 using Esiur.Core;
-using Esiur.Data;
 using Esiur.Net.Sockets;
-using Esiur.Resource;
 
 namespace Esiur.Net;
-public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocket>// <TS>: IResource where TS : NetworkSession
-{
-    private Sockets.ISocket sock;
-    //        private bool connected;
 
+/// <summary>
+/// Base class for a logical connection layered on top of an <see cref="ISocket"/>.
+/// It owns the socket, forwards inbound buffers to <see cref="DataReceived"/>, and
+/// exposes send helpers. Derived classes implement the protocol-specific framing.
+/// </summary>
+public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocket>
+{
+    private ISocket sock;
     private DateTime lastAction;
 
-    //public delegate void DataReceivedEvent(NetworkConnection sender, NetworkBuffer data);
-    //public delegate void ConnectionClosedEvent(NetworkConnection sender);
+    // Re-entrancy guard for NetworkReceive. 0 = idle, 1 = a thread is draining the buffer.
+    // Interlocked is used instead of a plain bool so concurrent receive callbacks cannot
+    // both enter the drain loop (which is not safe to run from two threads at once).
+    private int receiving;
+
     public delegate void NetworkConnectionEvent(NetworkConnection connection);
 
     public event NetworkConnectionEvent OnConnect;
-    //public event DataReceivedEvent OnDataReceived;
     public event NetworkConnectionEvent OnClose;
-
-
     public event DestroyedEvent OnDestroy;
-    //object receivingLock = new object();
-
-    //object sendLock = new object();
-
-    bool processing = false;
-
-    // public INetworkReceiver<NetworkConnection> Receiver { get; set; }
 
     public virtual void Destroy()
     {
-        // remove references
-        //sock.OnClose -= Socket_OnClose;
-        //sock.OnConnect -= Socket_OnConnect;
-        //sock.OnReceive -= Socket_OnReceive;
         sock?.Destroy();
-        //Receiver = null;
         Close();
         sock = null;
 
         OnClose = null;
         OnConnect = null;
-        //OnDataReceived = null;
         OnDestroy?.Invoke(this);
         OnDestroy = null;
     }
 
-    public ISocket Socket
-    {
-        get
-        {
-            return sock;
-        }
-    }
+    public ISocket Socket => sock;
 
     public virtual void Assign(ISocket socket)
     {
         lastAction = DateTime.Now;
         sock = socket;
         sock.Receiver = this;
-
-        //socket.OnReceive += Socket_OnReceive;
-        //socket.OnClose += Socket_OnClose;
-        //socket.OnConnect += Socket_OnConnect;
     }
 
-    //private void Socket_OnConnect()
-    //{
-    //    OnConnect?.Invoke(this);
-    //}
-
-    //private void Socket_OnClose()
-    //{
-    //    ConnectionClosed();
-    //    OnClose?.Invoke(this);
-    //}
-
-    //protected virtual void ConnectionClosed()
-    //{
-
-    //}
-
-    //private void Socket_OnReceive(NetworkBuffer buffer)
-    //{
-    //}
-
+    /// <summary>
+    /// Detaches the socket from this connection without closing it and returns it,
+    /// so ownership can be handed to another connection (e.g. a protocol upgrade).
+    /// </summary>
     public ISocket Unassign()
     {
-        if (sock != null)
-        {
-            // connected = false;
-            //sock.OnClose -= Socket_OnClose;
-            //sock.OnConnect -= Socket_OnConnect;
-            //sock.OnReceive -= Socket_OnReceive;
-            sock.Receiver = null;
-
-            var rt = sock;
-            sock = null;
-
-            return rt;
-        }
-        else
+        if (sock == null)
             return null;
-    }
 
-    //protected virtual void DataReceived(NetworkBuffer data)
-    //{
-    //    if (OnDataReceived != null)
-    //    {
-    //        try
-    //        {
-    //            OnDataReceived?.Invoke(this, data);
-    //        }
-    //        catch (Exception ex)
-    //        {
-    //            Global.Log("NetworkConenction:DataReceived", LogType.Error, ex.ToString());
-    //        }
-    //    }
-    //}
+        sock.Receiver = null;
+
+        var detached = sock;
+        sock = null;
+        return detached;
+    }
 
     public void Close()
     {
-        //if (!connected)
-        //  return;
-
-
         try
         {
-            if (sock != null)
-                sock.Close();
+            sock?.Close();
         }
         catch (Exception ex)
         {
-            Global.Log("NetworkConenction:Close", LogType.Error, ex.ToString());
-
-        }
-
-        //finally
-        //{
-        //connected = false;
-        //}
-
-    }
-
-    public DateTime LastAction
-    {
-        get { return lastAction; }
-    }
-
-    public IPEndPoint RemoteEndPoint
-    {
-        get
-        {
-            if (sock != null)
-                return (IPEndPoint)sock.RemoteEndPoint;
-            else
-                return null;
+            Global.Log("NetworkConnection:Close", LogType.Error, ex.ToString());
         }
     }
 
-    public IPEndPoint LocalEndPoint
-    {
-        get
-        {
-            if (sock != null)
-                return (IPEndPoint)sock.LocalEndPoint;
-            else
-                return null;
-        }
-    }
+    public DateTime LastAction => lastAction;
 
+    public IPEndPoint RemoteEndPoint => sock != null ? (IPEndPoint)sock.RemoteEndPoint : null;
 
-    public bool IsConnected
-    {
-        get
-        {
-            return sock == null ? false : sock.State == SocketState.Established;
-        }
-    }
+    public IPEndPoint LocalEndPoint => sock != null ? (IPEndPoint)sock.LocalEndPoint : null;
 
-
-    /*
-    public void CloseAndWait()
-    {
-        try
-        {
-            if (!connected)
-                return;
-
-                if (sock != null)
-                    sock.Close();
-
-                while (connected)
-                {
-                    Thread.Sleep(100);
-                }
-        }
-        finally
-        {
-
-        }
-    }
-    */
+    public bool IsConnected => sock != null && sock.State == SocketState.Established;
 
     public virtual AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
     {
+        var socket = sock;
+        if (socket == null)
+            return new AsyncReply<bool>(false);
+
         try
         {
             lastAction = DateTime.Now;
-            return sock.SendAsync(message, offset, length);
+            return socket.SendAsync(message, offset, length);
         }
-        catch
+        catch (Exception ex)
         {
+            // Sends fail routinely when the peer drops, so this is logged at debug level
+            // rather than thrown, but it is no longer swallowed silently.
+            Global.Log("NetworkConnection:SendAsync", LogType.Debug, ex.Message);
             return new AsyncReply<bool>(false);
         }
     }
@@ -257,9 +137,9 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
             sock?.Send(msg);
             lastAction = DateTime.Now;
         }
-        catch
+        catch (Exception ex)
         {
-
+            Global.Log("NetworkConnection:Send", LogType.Debug, ex.Message);
         }
     }
 
@@ -267,12 +147,12 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
     {
         try
         {
-            sock.Send(msg, offset, length);
+            sock?.Send(msg, offset, length);
             lastAction = DateTime.Now;
         }
-        catch
+        catch (Exception ex)
         {
-
+            Global.Log("NetworkConnection:Send", LogType.Debug, ex.Message);
         }
     }
 
@@ -293,18 +173,6 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
         OnConnect?.Invoke(this);
     }
 
-    //{
-    //ConnectionClosed();
-    //OnClose?.Invoke(this);
-
-    //Receiver?.NetworkClose(this);
-    //}
-
-    //public void NetworkConenct(ISocket sender)
-    //{
-    //    OnConnect?.Invoke(this);
-    //}
-
     protected abstract void DataReceived(NetworkBuffer buffer);
     protected abstract void Connected();
     protected abstract void Disconnected();
@@ -313,53 +181,30 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
     {
         try
         {
-            // Unassigned ?
-            if (sock == null)
-                return;
-
-            // Closed ?
-            if (sock.State == SocketState.Closed)// || sock.State == SocketState.Terminated) // || !connected)
+            // Ignore callbacks once the socket is unassigned or closed.
+            if (sock == null || sock.State == SocketState.Closed)
                 return;
 
             lastAction = DateTime.Now;
 
-            if (!processing)
+            // Only one thread drains the buffer at a time; others return immediately and
+            // rely on the active drainer to pick up the newly appended data.
+            if (Interlocked.CompareExchange(ref receiving, 1, 0) != 0)
+                return;
+
+            try
             {
-                processing = true;
-
-                try
-                {
-                    //lock(buffer.SyncLock)
-                    while (buffer.Available > 0 && !buffer.Protected)
-                    {
-                        //Receiver?.NetworkReceive(this, buffer);
-                        DataReceived(buffer);
-                    }
-                }
-                catch
-                {
-
-                }
-
-                processing = false;
+                while (buffer.Available > 0 && !buffer.Protected)
+                    DataReceived(buffer);
             }
-
+            finally
+            {
+                Interlocked.Exchange(ref receiving, 0);
+            }
         }
         catch (Exception ex)
         {
-            Global.Log("NetworkConnection", LogType.Warning, ex.ToString());
+            Global.Log("NetworkConnection:NetworkReceive", LogType.Warning, ex.ToString());
         }
     }
-
-
-    //{
-    //  Receiver?.NetworkError(this);
-    //throw new NotImplementedException();
-    //}
-
-    //public void NetworkConnect(ISocket sender)
-    //{
-    //  Receiver?.NetworkConnect(this);
-    //throw new NotImplementedException();
-    //}
 }

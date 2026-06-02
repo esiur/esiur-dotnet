@@ -34,7 +34,7 @@ using Esiur.Protocol;
 
 namespace Esiur.Net.Http;
 
-public class EpOvwerWebsocket : HttpFilter
+public class EpOverWebsocket : HttpFilter
 {
     //[Attribute]
     public EpServer Server

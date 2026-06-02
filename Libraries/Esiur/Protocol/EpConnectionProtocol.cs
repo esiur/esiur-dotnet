@@ -108,7 +108,7 @@ partial class EpConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x60 | (byte)action))
               .AddUInt32(c)
-              .AddUInt8Array(Codec.Compose(args[0], this.Instance.Warehouse, this));
+              .AddUInt8Array(Codec.Compose(args[0], this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
         else
@@ -116,7 +116,7 @@ partial class EpConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x60 | (byte)action))
               .AddUInt32(c)
-              .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this));
+              .AddUInt8Array(Codec.Compose(args, this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
 
@@ -147,7 +147,7 @@ partial class EpConnection
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)((byte)method | 0x20));
-            bl.AddUInt8Array(Codec.Compose(data, null, this));
+            bl.AddUInt8Array(Codec.Compose(data, this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
         else
@@ -165,7 +165,7 @@ partial class EpConnection
     {
         var bl = new BinaryList();
         bl.AddUInt8((byte)((byte)method | 0x20));
-        bl.AddUInt8Array(Codec.Compose(message, null, this));
+        bl.AddUInt8Array(Codec.Compose(message, this.Instance?.Warehouse ?? _serverWarehouse, this));
         Send(bl.ToArray());
     }
 
@@ -183,7 +183,9 @@ partial class EpConnection
 
             var bl = new BinaryList();
             bl.AddUInt8((byte)((byte)method | 0x20));
-            bl.AddUInt8Array(Codec.Compose(authHeaders, null, this));
+            bl.AddUInt8Array(Codec.Compose(authHeaders, 
+                                            this.Instance?.Warehouse ?? _serverWarehouse, 
+                                            this));
             Send(bl.ToArray());
         }
         else
@@ -212,14 +214,14 @@ partial class EpConnection
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x20 | (byte)action))
-              .AddUInt8Array(Codec.Compose(args[0], this.Instance.Warehouse, this));
+              .AddUInt8Array(Codec.Compose(args[0], this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
         else
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x20 | (byte)action))
-              .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this));
+              .AddUInt8Array(Codec.Compose(args, this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
 
@@ -243,7 +245,7 @@ partial class EpConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0xA0 | (byte)action))
               .AddUInt32(callbackId)
-              .AddUInt8Array(Codec.Compose(args[0], this.Instance.Warehouse, this));
+              .AddUInt8Array(Codec.Compose(args[0], this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
         else
@@ -251,7 +253,7 @@ partial class EpConnection
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0xA0 | (byte)action))
               .AddUInt32(callbackId)
-              .AddUInt8Array(Codec.Compose(args, this.Instance.Warehouse, this));
+              .AddUInt8Array(Codec.Compose(args, this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
     }
@@ -2033,7 +2035,10 @@ partial class EpConnection
         _attachedResources[id]?.TryGetTarget(out resource);
 
         if (resource != null)
+        {
+            Global.Counters["EpResourceAttachedCacheHit"]++;
             return new AsyncReply<EpResource>(resource);
+        }
 
         resource = _neededResources[id];
 
@@ -2043,16 +2048,19 @@ partial class EpConnection
         {
             if (resource != null && (requestSequence?.Contains(id) ?? false))
             {
+                Global.Counters["EpResourceDeadLockSameChain"]++;
                 // dead lock avoidance for loop reference.
                 return new AsyncReply<EpResource>(resource);
             }
             else if (resource != null && requestInfo.RequestSequence.Contains(id))
             {
+                Global.Counters["EpResourceDeadLockCrossChain"]++;
                 // dead lock avoidance for dependent reference.
                 return new AsyncReply<EpResource>(resource);
             }
             else
             {
+                Global.Counters["EpResourcePendingCacheHit"]++;
                 return requestInfo.Reply;
             }
         }

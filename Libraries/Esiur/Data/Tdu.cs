@@ -65,7 +65,7 @@ public struct Tdu
     }
 
     public Tdu(TduIdentifier identifier,
-                                byte[] data, ulong length, Tru metadata, EpConnection connection)
+                                byte[]? data, ulong length, Tru? metadata, EpConnection? connection)
     {
         Identifier = identifier;
         //Index = (byte)identifier & 0x7;

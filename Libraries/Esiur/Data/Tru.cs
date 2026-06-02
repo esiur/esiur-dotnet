@@ -138,6 +138,14 @@ namespace Esiur.Data
             return false;
         }
 
+        public override int GetHashCode()
+        {
+            // Equality is defined by Match, which always requires a matching Identifier
+            // (composites additionally compare sub-types). Hashing on Identifier therefore
+            // keeps equal Trus in the same bucket and honours the Equals/GetHashCode contract.
+            return (int)Identifier;
+        }
+
         public abstract void SetNotNull(List<byte> flags);
 
         public abstract void SetNotNull(byte flag);
@@ -299,7 +307,32 @@ namespace Esiur.Data
         //private static Dictionary<Type, Tru> cache = new Dictionary<Type, Tru>();
         //private static object cacheLook = new object();
 
+        /// <summary>
+        /// Builds the type-representation unit (Tru) describing how a CLR type maps onto the
+        /// wire, recursing into element/key/value/field types for collections, maps and tuples.
+        /// Results are memoized per warehouse since this is reflection-heavy and hot during
+        /// serialization; returned Tru instances are immutable and safe to share.
+        /// </summary>
         public static Tru? FromType(Type type, Warehouse warehouse)
+        {
+            // null maps to Void and cannot be a dictionary key, so compute it directly.
+            if (type == null)
+                return FromTypeCore(null, warehouse);
+
+            if (warehouse.TypeRepresentationCache.TryGetValue(type, out var cached))
+                return cached;
+
+            var tru = FromTypeCore(type, warehouse);
+
+            // Cache only fully-built results. Unrecognized types return null (or throw),
+            // which we leave uncached so a later type registration can still resolve them.
+            if (tru != null)
+                warehouse.TypeRepresentationCache[type] = tru;
+
+            return tru;
+        }
+
+        static Tru? FromTypeCore(Type? type, Warehouse warehouse)
         {
             if (type == null)
                 return new TruPrimitive(TruIdentifier.Void, true, typeof(void));
@@ -714,7 +747,7 @@ namespace Esiur.Data
                         offset += pr.Size;
                     }
 
-                    Type runtimeType = null;
+                    Type? runtimeType = null;
 
                     if (identifier == TruIdentifier.TypedList)
                     {
@@ -852,7 +885,7 @@ namespace Esiur.Data
                         offset += pr.Size;
                     }
 
-                    Type runtimeType = null;
+                    Type? runtimeType = null;
 
                     if (identifier == TruIdentifier.TypedList)
                     {

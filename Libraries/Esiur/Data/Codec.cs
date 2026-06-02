@@ -51,6 +51,7 @@ public static class Codec
             DataDeserializer.BooleanFalseParserAsync,
             DataDeserializer.BooleanTrueParserAsync,
             DataDeserializer.NotModifiedParserAsync,
+            DataDeserializer.InfinityParserAsync,
         },
         new AsyncParser[]{
             DataDeserializer.UInt8ParserAsync,
@@ -115,6 +116,7 @@ public static class Codec
             DataDeserializer.BooleanFalseParser,
             DataDeserializer.BooleanTrueParser,
             DataDeserializer.NotModifiedParser,
+            DataDeserializer.InfinityParser,
         },
         new SyncParser[]{
             DataDeserializer.UInt8Parser,
@@ -376,6 +378,13 @@ public static class Codec
     }
 
 
+    /// <summary>
+    /// Synchronously parses a single value from its IIP wire representation.
+    /// </summary>
+    /// <param name="data">Buffer containing the encoded value.</param>
+    /// <param name="offset">Zero-based offset of the value within <paramref name="data"/>.</param>
+    /// <param name="warehouse">Warehouse used to resolve typed structures (records, enums, ...).</param>
+    /// <returns>A tuple of (number of bytes consumed, decoded value).</returns>
     public static (uint, object) ParseSync(byte[] data, uint offset, Warehouse warehouse)
     {
         var tdu = ParsedTdu.ParseSync(data, offset, (uint)data.Length, warehouse);
@@ -612,7 +621,14 @@ public static class Codec
     /// <param name="connection">EpConnection is required to check locality.</param>
     /// <param name="prependType">If True, prepend the DataType at the beginning of the output.</param>
     /// <returns>Array of bytes in the network byte order.</returns>
-    public static byte[] Compose(object valueOrSource, Warehouse warehouse, EpConnection connection)//, bool prependType = true)
+    /// <summary>
+    /// Encodes a value to its self-describing IIP wire representation (a type-prefixed TDU).
+    /// </summary>
+    /// <param name="valueOrSource">The value to encode (may be null, which encodes as the Null TDU).</param>
+    /// <param name="warehouse">Warehouse used to resolve type definitions for typed structures.</param>
+    /// <param name="connection">Connection context, required when the value references remote resources; may be null for plain data.</param>
+    /// <returns>The encoded bytes, including the leading type identifier.</returns>
+    public static byte[] Compose(object valueOrSource, Warehouse warehouse, EpConnection connection)
     {
         var tdu = ComposeInternal(valueOrSource, warehouse, connection);
         return tdu.Composed;

@@ -458,6 +458,14 @@ public class SSLSocket : ISocket
     public void Destroy()
     {
         Close();
+
+        // Release the TLS stream and the underlying socket handle. NetworkStream(sock) does
+        // not own the socket, so disposing the stream alone would leak the socket — dispose
+        // both explicitly. Guarded because teardown may race with in-flight I/O callbacks.
+        try { ssl?.Dispose(); } catch { }
+        try { sock?.Close(); } catch { }
+        try { sock?.Dispose(); } catch { }
+
         Receiver = null;
         receiveNetworkBuffer = null;
         OnDestroy?.Invoke(this);

@@ -176,7 +176,7 @@ public class PropertyDef : MemberDef
         //}
         if (Annotations != null)
         {
-            var rexp = Codec.Compose(Annotations, null, null);
+            var rexp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
             return new BinaryList()
                 .AddUInt8((byte)(0x28 | pv))
                 .AddUInt8((byte)name.Length)

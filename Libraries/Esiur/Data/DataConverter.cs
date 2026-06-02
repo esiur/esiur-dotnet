@@ -108,11 +108,10 @@ public static class DC // Data Converter
                     }
 
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-
-                    throw ex;
-                    return null;
+                    // Preserve the original stack trace with a bare rethrow.
+                    throw;
                 }
             }
         }

@@ -57,6 +57,12 @@ public class Warehouse
     ConcurrentDictionary<uint, WeakReference<IResource>> _resources = new ConcurrentDictionary<uint, WeakReference<IResource>>();
     ConcurrentDictionary<IStore, List<WeakReference<IResource>>> _stores = new ConcurrentDictionary<IStore, List<WeakReference<IResource>>>();
 
+    // Memoizes Tru.FromType results, which are reflection-heavy and recomputed for every
+    // array element, record property and tuple field during serialization. Tru instances
+    // are immutable once constructed, so caching and sharing them per warehouse is safe.
+    internal ConcurrentDictionary<Type, Esiur.Data.Tru> TypeRepresentationCache
+        = new ConcurrentDictionary<Type, Esiur.Data.Tru>();
+
     volatile int _resourceCounter = 0;
     volatile int _typeDefsCounter = 0;
 
@@ -681,14 +687,10 @@ public class Warehouse
             || baseType == typeof(IRecord))
             return null;
 
-        TypeDefKind typeDefKind;
-        if (Codec.ImplementsInterface(type, typeof(IResource)))
-            typeDefKind = TypeDefKind.Resource;
-        else if (Codec.ImplementsInterface(type, typeof(IRecord)))
-            typeDefKind = TypeDefKind.Record;
-        else if (type.IsEnum)
-            typeDefKind = TypeDefKind.Enum;
-        else
+        // Only resources, records and enums have type definitions; bail out for anything else.
+        if (!Codec.ImplementsInterface(type, typeof(IResource))
+            && !Codec.ImplementsInterface(type, typeof(IRecord))
+            && !type.IsEnum)
             return null;
 
         lock (_typeDefsLock)

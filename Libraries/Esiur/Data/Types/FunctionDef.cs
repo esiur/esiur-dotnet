@@ -110,7 +110,7 @@ public class FunctionDef : MemberDef
 
         if (Annotations != null)
         {
-            var exp = Codec.Compose(Annotations, null, null);// DC.ToBytes(Annotation);
+            var exp = Codec.Compose(Annotations, connection.Instance.Warehouse , connection);// DC.ToBytes(Annotation);
             bl.AddUInt8Array(exp);
             bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x90 : (byte)0x10) | (IsStatic ? 0x4 : 0)));
         }

@@ -59,6 +59,19 @@ public static class DataDeserializer
         return NotModified.Default;
     }
 
+    // The Infinity token carries no payload: the serializer collapses every NaN and
+    // +/- Infinity onto it (see DataSerializer.Float32/Float64Composer). Decoding it to
+    // a single canonical double keeps the (lossy) round trip from throwing.
+    public static object InfinityParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
+    {
+        return double.PositiveInfinity;
+    }
+
+    public static object InfinityParser(ParsedTdu tdu, Warehouse warehouse)
+    {
+        return double.PositiveInfinity;
+    }
+
     public static object UInt8ParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return tdu.Data[tdu.PayloadOffset];
@@ -1345,7 +1358,6 @@ public static class DataDeserializer
         var subTypes = subTrus.Select(x => x.RuntimeType).ToArray();
 
         ParsedTdu current;
-        ParsedTdu? previous = null;
 
         var offset = tdu.PayloadOffset;
         var length = tdu.PayloadLength;
@@ -1477,7 +1489,6 @@ public static class DataDeserializer
         var types = subTrus.Select(x => x.RuntimeType).ToArray();
 
         ParsedTdu current;
-        ParsedTdu? previous = null;
 
         var offset = tdu.PayloadOffset;
         var length = tdu.PayloadLength;

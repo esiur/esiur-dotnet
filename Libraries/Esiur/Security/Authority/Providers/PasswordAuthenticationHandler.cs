@@ -9,10 +9,20 @@ using Esiur.Data.Types;
 
 namespace Esiur.Security.Authority.Providers
 {
+    /// <summary>
+    /// Implements the "hash" authentication protocol: a SHA3 nonce/challenge-response
+    /// handshake that mutually proves knowledge of a salted password hash without sending
+    /// the password, and derives a 512-bit session key. Supports initiator-only, responder-only
+    /// and dual identity modes. All challenge comparisons are constant-time and remote material
+    /// is validated, so malformed peer input fails the handshake closed rather than throwing.
+    /// </summary>
     public class PasswordAuthenticationHandler : IAuthenticationHandler
     {
         public string Protocol => "hash";
 
+        // Length, in bytes, of the random nonces exchanged during the handshake.
+        // Remote nonces are validated against this to reject malformed or weak input.
+        const int NonceLength = 20;
 
         byte[] _localNonce, _remoteNonce;
         byte[] _localSalt, _remoteSalt;
@@ -33,6 +43,18 @@ namespace Esiur.Security.Authority.Providers
         public IAuthenticationProvider Provider => _provider;
 
 
+        // Constant-time comparison of two byte arrays. Used for all challenge/MAC
+        // checks so that, unlike SequenceEqual, the time taken does not depend on how
+        // many leading bytes matched — closing a timing side channel on the secret.
+        // Returns false for null or length-mismatched inputs (challenges are fixed size).
+        static bool FixedTimeEquals(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length)
+                return false;
+
+            return Org.BouncyCastle.Utilities.Arrays.FixedTimeEquals(a, b);
+        }
+
         public static byte[] ComputeSha3(byte[] data, int bitLength = 256)
         {
             // 1. Initialize the digest (supports 224, 256, 384, 512)
@@ -50,7 +72,22 @@ namespace Esiur.Security.Authority.Providers
 
         public AuthenticationResult Process(object authData)
         {
-            Console.WriteLine($"PasswordAuthenticationHandler: {this.GetHashCode()} Step {_step}, Mode {_mode}, Direction {_direction}");
+            // Process runs at the trust boundary on data supplied by a remote peer.
+            // Any malformed input (wrong types, null or short fields) must fail the
+            // handshake instead of throwing, so the exchange is wrapped to fail closed.
+            try
+            {
+                return ProcessInternal(authData);
+            }
+            catch
+            {
+                _step = -1;
+                return new AuthenticationResult(AuthenticationRuling.Failed, null);
+            }
+        }
+
+        private AuthenticationResult ProcessInternal(object authData)
+        {
             var remoteAuthData = (object[])authData;
             var localAuthData = new List<object>();
 
@@ -97,7 +134,7 @@ namespace Esiur.Security.Authority.Providers
                         var remoteChallenge = (byte[])remoteAuthData[2];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
-                        if (_remoteNonce.SequenceEqual(_localNonce))
+                        if (_remoteNonce == null || _remoteNonce.Length != NonceLength || FixedTimeEquals(_remoteNonce, _localNonce))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -112,7 +149,7 @@ namespace Esiur.Security.Authority.Providers
                                                            .ToArray());
 
                         // compare remote challenge
-                        if (!remoteChallenge.SequenceEqual(expectedRemoteChallenge))
+                        if (!FixedTimeEquals(remoteChallenge, expectedRemoteChallenge))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -160,7 +197,7 @@ namespace Esiur.Security.Authority.Providers
                         _responderIdentity = (string)remoteAuthData[1];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
-                        if (_remoteNonce.SequenceEqual(_localNonce))
+                        if (_remoteNonce == null || _remoteNonce.Length != NonceLength || FixedTimeEquals(_remoteNonce, _localNonce))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -203,7 +240,7 @@ namespace Esiur.Security.Authority.Providers
                                                    .Concat(_localNonce)
                                                    .ToArray());
 
-                        if (!remoteChallenge.SequenceEqual(expectedRemoteChallenge))
+                        if (!FixedTimeEquals(remoteChallenge, expectedRemoteChallenge))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -262,7 +299,7 @@ namespace Esiur.Security.Authority.Providers
                         _remoteSalt = (byte[])remoteAuthData[2];
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
-                        if (_remoteNonce.SequenceEqual(_localNonce))
+                        if (_remoteNonce == null || _remoteNonce.Length != NonceLength || FixedTimeEquals(_remoteNonce, _localNonce))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -313,7 +350,7 @@ namespace Esiur.Security.Authority.Providers
                                                            .Concat(_localNonce)
                                                            .ToArray());
 
-                        if (!remoteChallenge.SequenceEqual(expectedRemoteChallenge))
+                        if (!FixedTimeEquals(remoteChallenge, expectedRemoteChallenge))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -361,7 +398,7 @@ namespace Esiur.Security.Authority.Providers
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
                         // @TODO: We can change our localNonce then send it
-                        if (_remoteNonce.SequenceEqual(_localNonce))
+                        if (_remoteNonce == null || _remoteNonce.Length != NonceLength || FixedTimeEquals(_remoteNonce, _localNonce))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -403,7 +440,7 @@ namespace Esiur.Security.Authority.Providers
                                                                              .Concat(_localNonce)
                                                                              .ToArray());
                         // compare remote challenge
-                        if (!expectedRemoteChallenge.SequenceEqual(remoteChallenge))
+                        if (!FixedTimeEquals(expectedRemoteChallenge, remoteChallenge))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -442,7 +479,7 @@ namespace Esiur.Security.Authority.Providers
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
                         // @TODO: We can change our localNonce then send it
-                        if (_remoteNonce.SequenceEqual(_localNonce))
+                        if (_remoteNonce == null || _remoteNonce.Length != NonceLength || FixedTimeEquals(_remoteNonce, _localNonce))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -490,7 +527,7 @@ namespace Esiur.Security.Authority.Providers
                                                    .ToArray());
 
                         // compare remote challenge
-                        if (!expectedRemoteChallenge.SequenceEqual(remoteChallenge))
+                        if (!FixedTimeEquals(expectedRemoteChallenge, remoteChallenge))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -534,7 +571,7 @@ namespace Esiur.Security.Authority.Providers
 
                         // prevent reply attack by checking if remote nonce is same as local nonce.
                         // @TODO: We can change our localNonce then send it
-                        if (_remoteNonce.SequenceEqual(_localNonce))
+                        if (_remoteNonce == null || _remoteNonce.Length != NonceLength || FixedTimeEquals(_remoteNonce, _localNonce))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -597,7 +634,7 @@ namespace Esiur.Security.Authority.Providers
                                                            .ToArray());
 
                         // compare remote challenge
-                        if (!expectedRemoteChallenge.SequenceEqual(remoteChallenge))
+                        if (!FixedTimeEquals(expectedRemoteChallenge, remoteChallenge))
                         {
                             _step = -1;
                             return new AuthenticationResult(AuthenticationRuling.Failed, null);
@@ -646,7 +683,7 @@ namespace Esiur.Security.Authority.Providers
             string domain,
             PasswordAuthenticationProvider provider)
         {
-            _localNonce = Global.GenerateBytes(20);
+            _localNonce = Global.GenerateBytes(NonceLength);
 
             this._provider = provider;
             this._initiatorIdentity = initiatorIdentity;

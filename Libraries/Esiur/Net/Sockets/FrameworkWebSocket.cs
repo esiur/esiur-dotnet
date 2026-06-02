@@ -156,12 +156,18 @@ namespace Esiur.Net.Sockets
 
         public void Destroy()
         {
-            Close();
+            var ws = sock;
+
+            Close(); // best-effort graceful close handshake (fire-and-forget)
 
             receiveNetworkBuffer = null;
             Receiver = null;
-
             sock = null;
+
+            // Dispose the WebSocket so its buffers and handle are released; Close() only
+            // starts the async close handshake and never disposes.
+            try { ws?.Dispose(); } catch { }
+
             OnDestroy?.Invoke(this);
             OnDestroy = null;
         }

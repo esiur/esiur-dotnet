@@ -47,7 +47,10 @@ public static class Global
 {
     private static KeyList<string, object> variables = new KeyList<string, object>();
 
-    private static Random rand = new Random();// System.Environment.TickCount);
+    // Cryptographically secure RNG. Used for security-sensitive values such as
+    // authentication nonces and session identifiers, so it must never be a
+    // predictable PRNG (e.g. System.Random). The instance is thread-safe for GetBytes.
+    private static readonly RandomNumberGenerator secureRng = RandomNumberGenerator.Create();
 
 
 
@@ -340,23 +343,41 @@ public static class Global
     public static byte[] GenerateBytes(int length)
     {
         var b = new byte[length];
-        rand.NextBytes(b);
+        secureRng.GetBytes(b);
         return b;
     }
 
     public static string GenerateCode(int length)
     {
-        return GenerateCode(length, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"); 
+        return GenerateCode(length, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
     }
 
     public static string GenerateCode(int length, string chars)
     {
-        var result = new string(
-            Enumerable.Repeat(chars, length)
-                      .Select(s => s[rand.Next(s.Length)])
-                      .ToArray());
-         return result;
-     }
+        // Draw each character from a CSPRNG using unbiased rejection sampling, so
+        // codes used as session identifiers are not predictable. The largest
+        // multiple of chars.Length that fits in a byte is the acceptance bound;
+        // bytes at or above it are discarded to avoid modulo bias.
+        var result = new char[length];
+        var max = chars.Length;
+        var limit = byte.MaxValue - (256 % max);
+        var buffer = new byte[1];
+
+        for (var i = 0; i < length; i++)
+        {
+            byte value;
+            do
+            {
+                secureRng.GetBytes(buffer);
+                value = buffer[0];
+            }
+            while (value > limit);
+
+            result[i] = chars[value % max];
+        }
+
+        return new string(result);
+    }
      
 
     public static Regex GetRouteRegex(string url)

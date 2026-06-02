@@ -187,8 +187,6 @@ public class EpAuthPacket : Packet
 
             Tdu = PlainTdu.Parse(data, offset, ends);//, _warehouse);
 
-            Console.WriteLine("Auth TDU " + Tdu.Value.PayloadLength);
-
             if (Tdu.Value.Class == TduClass.Invalid)
                 return -(int)Tdu.Value.TotalLength;
 

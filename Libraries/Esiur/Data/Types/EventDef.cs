@@ -82,7 +82,7 @@ public class EventDef : MemberDef
 
         if (Annotations != null)
         {
-            var exp = Codec.Compose(Annotations, null, null); //(  DC.ToBytes(Annotation);
+            var exp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection); //(  DC.ToBytes(Annotation);
             hdr |= 0x50;
             return new BinaryList()
                     .AddUInt8(hdr)

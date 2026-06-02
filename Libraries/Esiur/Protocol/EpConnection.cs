@@ -99,7 +99,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
     AsyncReply<bool> _openReply;
 
-    bool _authenticated, _readyToEstablish;
+    bool _authenticated;
 
     string _hostname;
     ushort _port;
@@ -2025,7 +2025,6 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         // clean up
         _authenticated = false;
-        _readyToEstablish = false;
         Status = EpConnectionStatus.Closed;
 
         _keepAliveTimer.Stop();
