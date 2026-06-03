@@ -489,7 +489,9 @@ public static class Codec
         [typeof(Map<object?, object>)] = DataSerializer.MapComposer,
         [typeof(Map<object, object?>)] = DataSerializer.MapComposer,
         [typeof(Map<object?, object?>)] = DataSerializer.MapComposer,
-        [typeof(PropertyValue[])] = DataSerializer.PropertyValueArrayComposer
+        [typeof(PropertyValue[])] = DataSerializer.PropertyValueArrayComposer,
+        // Sparse property delta for the reattach reply (index -> value/age/date).
+        [typeof(Map<byte, PropertyValue>)] = DataSerializer.PropertyValueMapComposer
         // Typed
         // [typeof(bool[])] = (value, con) => DataSerializer.TypedListComposer((IEnumerable)value, typeof(bool), con),
         // [typeof(bool?[])] = (value, con) => (TransmissionDataUnitIdentifier.TypedList, new byte[] { (byte)value }),

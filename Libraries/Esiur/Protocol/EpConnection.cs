@@ -797,7 +797,22 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Acknowledge)
                 {
-                    if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake 
+                    // Anonymous (None-mode) success: the responder establishes the session directly
+                    // via SessionEstablished, without a handshake exchange. Complete the connection so
+                    // the pending open request resolves. (Previously this was only handled inside the
+                    // ProceedToHandshake branch, so a direct SessionEstablished left the initiator hung.)
+                    if (_session.AuthenticationMode == AuthenticationMode.None
+                        && _authPacket.Method == EpAuthPacketMethod.SessionEstablished)
+                    {
+                        _session.Authenticated = true;
+                        _session.LocalIdentity = null;
+                        _session.RemoteIdentity = null;
+                        _session.Key = null;
+                        AuthenticatonCompleted();
+                        return offset;
+                    }
+
+                    if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake
                         || _authPacket.Method == EpAuthPacketMethod.ProceedToFinalHandshake)
                     {
                         var remoteHeaders
@@ -1948,7 +1963,9 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         _neededResources[id] = r;
 
-                        await FetchResource(id, null);
+                        // Reattach using the last-known age so only properties modified while
+                        // disconnected are transferred and merged, instead of re-fetching all.
+                        await Reattach(id, r.Instance.Age, r);
 
                         Global.Log("EpConnection", LogType.Debug, "Restored " + id);
 

@@ -158,19 +158,18 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
 
         try
         {
-            if (listener != null)
+            var currentListener = listener;
+            if (currentListener != null)
             {
-                port = listener.LocalEndPoint.Port;
-                listener.Close();
+                // Reading the endpoint can throw if the socket is already disposed (e.g. a second
+                // Stop or the finalizer after Destroy), so it is best-effort and only used for logging.
+                try { port = currentListener.LocalEndPoint.Port; } catch { }
+                try { currentListener.Close(); } catch { }
+                listener = null; // make Stop idempotent
             }
-            var cons = Connections.ToArray();
 
-            //lock (connections.SyncRoot)
-            //{
-            foreach (TConnection con in cons)
-                con.Close();
-            //}
-
+            foreach (TConnection con in Connections.ToArray())
+                try { con.Close(); } catch { }
         }
         finally
         {
@@ -206,6 +205,7 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
     {
         Stop();
         OnDestroy?.Invoke(this);
+        GC.SuppressFinalize(this); // explicit teardown done; no need for the finalizer to run Stop again
     }
 
     private void ClientDisconnectedEventReceiver(NetworkConnection connection)
@@ -228,7 +228,8 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
 
     ~NetworkServer()
     {
-        Stop();
+        // Finalizers must never throw; Stop() is already guarded but wrap defensively.
+        try { Stop(); } catch { }
         listener = null;
     }
 }

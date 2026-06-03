@@ -37,6 +37,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Allow the unit test project to exercise internal helpers (e.g. wait-for cycle detection). -->
+		<InternalsVisibleTo Include="Esiur.Tests.Unit" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<Compile Remove="obj\**" />
 		<EmbeddedResource Remove="obj\**" />
 		<None Remove="obj\**" />

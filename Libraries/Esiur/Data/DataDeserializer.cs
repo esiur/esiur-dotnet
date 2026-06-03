@@ -1898,6 +1898,31 @@ public static class DataDeserializer
 
     }
 
+    /// <summary>
+    /// Parses a sparse property delta produced by <c>PropertyValueMapComposer</c> (the reattach
+    /// reply): a flat sequence of (index, age, date, value) TDUs, returned as a map keyed by the
+    /// property index. Mirrors <see cref="PropertyValueArrayParserAsync"/> but in groups of four.
+    /// </summary>
+    public static AsyncReply<Map<byte, PropertyValue>> PropertyValueMapParserAsync(byte[] data, uint offset, uint length, EpConnection connection, uint[] requestSequence)
+    {
+        var rt = new AsyncReply<Map<byte, PropertyValue>>();
+
+        ListParserAsync(new ParsedTdu() { Data = data, PayloadOffset = offset, PayloadLength = length }
+                        , connection, requestSequence).Then(x =>
+        {
+            var ar = (object[])x;
+            var map = new Map<byte, PropertyValue>();
+
+            for (var i = 0; i + 3 < ar.Length; i += 4)
+                map[Convert.ToByte(ar[i])] =
+                    new PropertyValue(ar[i + 3], Convert.ToUInt64(ar[i + 1]), (DateTime?)ar[i + 2]);
+
+            rt.Trigger(map);
+        });
+
+        return rt;
+    }
+
 
     public static async AsyncReply<ParseResult<PropertyValue>> PropertyValueParserAsync(byte[] data, uint offset, EpConnection connection, uint[] requestSequence)//, bool ageIncluded = true)
     {

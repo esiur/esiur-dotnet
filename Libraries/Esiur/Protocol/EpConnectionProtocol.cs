@@ -57,6 +57,27 @@ partial class EpConnection
     KeyList<uint, WeakReference<EpResource>> _attachedResources = new KeyList<uint, WeakReference<EpResource>>();
     KeyList<uint, WeakReference<EpResource>> _suspendedResources = new KeyList<uint, WeakReference<EpResource>>();
     KeyList<uint, FetchRequestInfo<EpResource, uint>> _resourceRequests = new KeyList<uint, FetchRequestInfo<EpResource, uint>>();
+
+    // Wait-for graph for in-flight resource fetches: maps a resource id to the set of in-flight
+    // child resource ids its attachment is currently blocked on. Used to detect genuine cycles
+    // (e.g. two concurrent fetches A<->B) so a placeholder can break the deadlock, while
+    // independent/app-facing fetches of an in-flight resource simply wait for full attachment.
+    readonly Dictionary<uint, HashSet<uint>> _fetchBlockedOn = new Dictionary<uint, HashSet<uint>>();
+
+    /// <summary>
+    /// Strategy FetchResource uses for an in-flight resource. Defaults to the new wait + cycle
+    /// detection. Selectable for experimental evaluation (see <see cref="DeadlockResolutionMode"/>).
+    /// </summary>
+    public DeadlockResolutionMode DeadlockResolution { get; set; } = DeadlockResolutionMode.WaitWithCycleDetection;
+
+    // Per-connection diagnostics (free of the cross-connection contamination that the shared
+    // Global.Counters suffer from). Used by the deadlock experiments.
+    /// <summary>Number of resources fully attached on this connection (a monotonic progress signal).</summary>
+    public long AttachedResourceCount { get; private set; }
+    /// <summary>Number of wait-for-cycle breaks (placeholders returned to break a cycle) on this connection.</summary>
+    public long CycleBreakCount { get; private set; }
+    /// <summary>Number of placeholders returned where no genuine cycle existed (legacy resolver only).</summary>
+    public long UnnecessaryPlaceholderCount { get; private set; }
     //KeyList<ulong, AsyncReply<RemoteTypeDef>> _typeDefsByIdRequests = new KeyList<ulong, AsyncReply<RemoteTypeDef>>();
 
     //KeyList<string, AsyncReply<RemoteTypeDef>> _typeDefsByNameRequests = new KeyList<string, AsyncReply<RemoteTypeDef>>();
@@ -1969,6 +1990,11 @@ partial class EpConnection
 
         req.Then(result =>
             {
+                // The resource is being handed to the application: publish its fully-attached
+                // graph so that, if any dependency is only partially attached, it stays unpublished.
+                if (result is EpResource resource)
+                    PublishGraph(resource);
+
                 rt.Trigger(result);
             }).Error(ex => rt.TriggerError(ex));
 
@@ -2026,6 +2052,103 @@ partial class EpConnection
     /// <returns>DistributedResource</returns>
     /// 
     //object fetchResourceLock = new object();
+    // Records that the attachment of `parent` is now blocked waiting on in-flight child `child`.
+    void AddFetchBlock(uint parent, uint child)
+    {
+        if (!_fetchBlockedOn.TryGetValue(parent, out var set))
+            _fetchBlockedOn[parent] = set = new HashSet<uint>();
+        set.Add(child);
+    }
+
+    // Removes a resource from the wait-for graph once it is attached or its fetch failed: it is
+    // no longer blocked on anything and no longer a pending child of anyone.
+    void ClearFetchNode(uint id)
+    {
+        _fetchBlockedOn.Remove(id);
+        foreach (var set in _fetchBlockedOn.Values)
+            set.Remove(id);
+    }
+
+    /// <summary>
+    /// Returns true if completing the fetch of <paramref name="id"/> by waiting for its in-flight
+    /// request would deadlock, i.e. the resource is (transitively) blocked on a resource that the
+    /// current request chain is itself building. In that case the caller should hand back the
+    /// placeholder to break the cycle instead of waiting.
+    /// </summary>
+    internal static bool HasWaitForCycle(uint id, uint[] requestSequence, IReadOnlyDictionary<uint, HashSet<uint>> blockedOn)
+    {
+        if (requestSequence == null || requestSequence.Length == 0)
+            return false;
+
+        var chain = new HashSet<uint>(requestSequence);
+        var visited = new HashSet<uint>();
+        var stack = new Stack<uint>();
+        stack.Push(id);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!visited.Add(current))
+                continue;
+
+            if (!blockedOn.TryGetValue(current, out var children))
+                continue;
+
+            foreach (var child in children)
+            {
+                // Reaching a node that the current chain is attaching closes the cycle.
+                if (chain.Contains(child))
+                    return true;
+                stack.Push(child);
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Publishes a fully-attached object graph to the application: every resource reachable from
+    /// <paramref name="root"/> is marked <see cref="ResourceStatus.Published"/>, but only if the
+    /// entire reachable graph is already attached. If any reachable resource is still being
+    /// attached (e.g. a placeholder handed out to break a cycle), the graph is left unpublished —
+    /// exactly the partially-attached delivery that the wait-by-default resolver prevents and the
+    /// legacy resolver does not.
+    /// </summary>
+    internal void PublishGraph(EpResource root)
+    {
+        if (root == null)
+            return;
+
+        var seen = new HashSet<uint>();
+        var reachable = new List<EpResource>();
+        var queue = new Queue<EpResource>();
+        queue.Enqueue(root);
+
+        var fullyAttached = true;
+
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            if (node == null || !seen.Add(node.ResourceInstanceId))
+                continue;
+
+            reachable.Add(node);
+
+            if (node.Status != ResourceStatus.Attached)
+            {
+                fullyAttached = false;
+                continue; // do not traverse into a not-yet-attached node
+            }
+
+            foreach (var child in node.GetReferencedResources())
+                queue.Enqueue(child);
+        }
+
+        if (fullyAttached)
+            foreach (var node in reachable)
+                node.Publish();
+    }
+
     public AsyncReply<EpResource> FetchResource(uint id, uint[] requestSequence)
     {
         //lock (fetchLock)
@@ -2044,27 +2167,64 @@ partial class EpConnection
 
         var requestInfo = _resourceRequests[id];
 
+        // The resource that triggered this fetch (the tail of the chain), if any. Used to record
+        // wait-for edges and to tell graph-internal references from app-facing fetches (no chain).
+        uint? parent = requestSequence != null && requestSequence.Length > 0
+            ? requestSequence[requestSequence.Length - 1]
+            : (uint?)null;
+
         if (requestInfo != null)
         {
-            if (resource != null && (requestSequence?.Contains(id) ?? false))
+            // Same dependency chain (A->B->A): the placeholder is an internal node of the graph
+            // currently being attached. The application only observes the chain's top-level reply,
+            // which fires after full attachment, so returning the not-yet-attached placeholder here
+            // is safe and breaks the reference cycle. NaiveWait skips this so that even same-chain
+            // cycles deadlock (used to demonstrate the protection is necessary).
+            if (DeadlockResolution != DeadlockResolutionMode.NaiveWait
+                && resource != null && (requestSequence?.Contains(id) ?? false))
             {
                 Global.Counters["EpResourceDeadLockSameChain"]++;
-                // dead lock avoidance for loop reference.
+                CycleBreakCount++;
                 return new AsyncReply<EpResource>(resource);
             }
-            else if (resource != null && requestInfo.RequestSequence.Contains(id))
+
+            // Decide whether to break the wait by returning the placeholder:
+            //  - Legacy: hand it to ANY cross-chain requester (over-eager; the bug under study).
+            //  - WaitWithCycleDetection: only on a genuine wait-for cycle.
+            //  - NaiveWait: never — always wait below (deadlocks on cycles).
+            var breakCycle = resource != null && DeadlockResolution switch
+            {
+                DeadlockResolutionMode.LegacyCrossChainPlaceholder => requestInfo.RequestSequence.Contains(id),
+                DeadlockResolutionMode.WaitWithCycleDetection => HasWaitForCycle(id, requestSequence, _fetchBlockedOn),
+                _ => false,
+            };
+
+            if (breakCycle)
             {
                 Global.Counters["EpResourceDeadLockCrossChain"]++;
-                // dead lock avoidance for dependent reference.
+                CycleBreakCount++;
+
+                // Instrumentation: a placeholder handed out where there is no genuine wait-for cycle
+                // is an unnecessary, partial delivery — the new resolver would have waited for full
+                // attachment instead. This counts the legacy resolver's over-eager placeholders.
+                if (DeadlockResolution == DeadlockResolutionMode.LegacyCrossChainPlaceholder
+                    && !HasWaitForCycle(id, requestSequence, _fetchBlockedOn))
+                {
+                    Global.Counters["EpResourceUnnecessaryPlaceholder"]++;
+                    UnnecessaryPlaceholderCount++;
+                }
+
                 return new AsyncReply<EpResource>(resource);
             }
-            else
-            {
-                Global.Counters["EpResourcePendingCacheHit"]++;
-                return requestInfo.Reply;
-            }
+
+            // Otherwise an independent or application-facing requester: wait for the in-flight
+            // attachment to complete fully rather than exposing a partially attached resource.
+            Global.Counters["EpResourcePendingCacheHit"]++;
+            if (parent != null)
+                AddFetchBlock(parent.Value, id);
+            return requestInfo.Reply;
         }
-        else if (resource != null && !resource.ResourceSuspended)
+        else if (resource != null && resource.Status != ResourceStatus.Suspended)
         {
             // @REVIEW: this should never happen
             Global.Log("DCON", LogType.Error, "Resource not moved to attached.");
@@ -2076,6 +2236,10 @@ partial class EpConnection
 
         var reply = new AsyncReply<EpResource>();
         _resourceRequests.Add(id, new FetchRequestInfo<EpResource, uint>(reply, newSequence));
+
+        // This fetch's parent now waits on `id` until it attaches.
+        if (parent != null)
+            AddFetchBlock(parent.Value, id);
 
         SendRequest(EpPacketRequest.AttachResource, id)
                     .Then((result) =>
@@ -2113,12 +2277,19 @@ partial class EpConnection
                                 var pvs = results as PropertyValue[];
 
                                 dr._Attach(pvs);
+                                // Progress signal: a resource has fully attached. Used by tests to
+                                // distinguish a true deadlock (no progress while requests pend) from
+                                // merely slow processing (these counters keep advancing).
+                                Global.Counters["EpResourceAttached"]++;
+                                AttachedResourceCount++;
                                 _resourceRequests.Remove(id);
                                 // move from needed to attached.
                                 _neededResources.Remove(id);
                                 _attachedResources[id] = new WeakReference<EpResource>(dr);
+                                // attached: no longer part of the in-flight wait-for graph.
+                                ClearFetchNode(id);
                                 reply.Trigger(dr);
-                            }).Error(ex => reply.TriggerError(ex));
+                            }).Error(ex => { _resourceRequests.Remove(id); ClearFetchNode(id); reply.TriggerError(ex); });
                         };
 
                         if (typeDef == null)
@@ -2135,6 +2306,9 @@ partial class EpConnection
 
                                     resource.ResourceDefinition = td;
                                     typeDef = td;
+                                    // Register the placeholder before parsing properties so cyclic
+                                    // references in the graph can resolve back to this instance.
+                                    _neededResources[id] = resource;
                                     Instance.Warehouse.Put(Instance.Link + "/" + id.ToString(), resource)
                                         .Then(initResource)
                                         .Error(ex => reply.TriggerError(ex));
@@ -2160,6 +2334,9 @@ partial class EpConnection
 
                                 resource.ResourceDefinition = typeDef;
 
+                                // Register the placeholder before parsing properties so cyclic
+                                // references in the graph can resolve back to this instance.
+                                _neededResources[id] = resource;
                                 Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), resource)
                                     .Then(initResource).Error((ex) => reply.TriggerError(ex));
                             }
@@ -2171,6 +2348,10 @@ partial class EpConnection
 
                     }).Error((ex) =>
                     {
+                        // Failed to attach: drop the in-flight request and wait-for edges so a
+                        // later retry is not blocked by a stale entry.
+                        _resourceRequests.Remove(id);
+                        ClearFetchNode(id);
                         reply.TriggerError(ex);
                     });
 
@@ -2187,6 +2368,69 @@ partial class EpConnection
     /// <param name="id">Resource Id</param>
     /// <returns>DistributedResource</returns>
     /// 
+    /// <summary>
+    /// Re-attaches an already-known resource after reconnection using its last-known age. The peer
+    /// returns only the properties modified after <paramref name="age"/> (the delta), which are
+    /// merged into the existing instance instead of re-fetching everything. Falls back to a full
+    /// <see cref="FetchResource"/> if there is no prior state to merge into.
+    /// </summary>
+    public AsyncReply<EpResource> Reattach(uint id, ulong age, EpResource resource)
+    {
+        EpResource attachedResource = null;
+        _attachedResources[id]?.TryGetTarget(out attachedResource);
+        if (attachedResource != null)
+            return new AsyncReply<EpResource>(attachedResource);
+
+        var existing = _resourceRequests[id];
+        if (existing != null)
+            return existing.Reply;
+
+        var reply = new AsyncReply<EpResource>();
+        var sequence = new uint[] { id };
+        _resourceRequests.Add(id, new FetchRequestInfo<EpResource, uint>(reply, sequence));
+
+        SendRequest(EpPacketRequest.ReattachResource, id, age).Then(result =>
+        {
+            if (result == null)
+            {
+                _resourceRequests.Remove(id);
+                reply.TriggerError(new AsyncException(ErrorType.Management,
+                        (ushort)ExceptionCode.ResourceNotFound, "Null response"));
+                return;
+            }
+
+            // typeId, age, link, hops, delta(index -> PropertyValue)
+            var args = (object[])result;
+            var deltaData = (byte[])args[4];
+
+            DataDeserializer.PropertyValueMapParserAsync(deltaData, 0, (uint)deltaData.Length, this, sequence)
+                .Then(delta =>
+                {
+                    if (!resource._Reattach(delta))
+                    {
+                        // No prior state to merge into — perform a full attach instead.
+                        _resourceRequests.Remove(id);
+                        FetchResource(id, null).Then(r => reply.Trigger(r)).Error(ex => reply.TriggerError(ex));
+                        return;
+                    }
+
+                    _resourceRequests.Remove(id);
+                    _neededResources.Remove(id);
+                    _attachedResources[id] = new WeakReference<EpResource>(resource);
+                    ClearFetchNode(id);
+                    reply.Trigger(resource);
+                })
+                .Error(ex => { _resourceRequests.Remove(id); ClearFetchNode(id); reply.TriggerError(ex); });
+        }).Error(ex =>
+        {
+            _resourceRequests.Remove(id);
+            ClearFetchNode(id);
+            reply.TriggerError(ex);
+        });
+
+        return reply;
+    }
+
     //object fetchResourceLock = new object();
     public AsyncReply<RemoteTypeDef> FetchTypeDef(ulong id, ulong[] requestSequence)
     {

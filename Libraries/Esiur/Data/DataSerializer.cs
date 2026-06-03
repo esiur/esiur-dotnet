@@ -630,6 +630,31 @@ public static class DataSerializer
             (uint)rt.Count, null, null);
     }
 
+    /// <summary>
+    /// Composes a sparse property delta (index -> value/age/date) used by the reattach reply, as
+    /// a flat sequence of (index, age, date, value) TDUs per modified property. PropertyValue is
+    /// not a self-describing type, so this dedicated composer is used instead of the generic map
+    /// path. Mirrors <see cref="PropertyValueArrayComposer"/> with a leading property index.
+    /// </summary>
+    public static Tdu PropertyValueMapComposer(object value, Warehouse warehouse, EpConnection connection)
+    {
+        if (value == null)
+            return new Tdu(TduIdentifier.Null, new byte[0], 0, null, null);
+
+        var rt = new List<byte>();
+        var map = (Map<byte, PropertyValue>)value;
+
+        foreach (var kv in map)
+        {
+            rt.AddRange(Codec.Compose(kv.Key, warehouse, connection));          // property index (u8)
+            rt.AddRange(Codec.Compose(kv.Value.Age, warehouse, connection));    // age
+            rt.AddRange(Codec.Compose(kv.Value.Date, warehouse, connection));   // modification date
+            rt.AddRange(Codec.Compose(kv.Value.Value, warehouse, connection));  // value
+        }
+
+        return new Tdu(TduIdentifier.RawData, rt.ToArray(), (uint)rt.Count, null, null);
+    }
+
     public static Tdu TypedMapComposer(object value, Type keyType, Type valueType, Warehouse warehouse, EpConnection connection)
     {
         if (value == null)
