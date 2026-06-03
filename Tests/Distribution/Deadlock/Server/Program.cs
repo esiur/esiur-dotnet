@@ -25,11 +25,45 @@ var res2Count = int.Parse(GetArg(args, "--res2", "100"));
 var seed     = int.Parse(GetArg(args, "--seed", "20260603"));
 var edgeProb = double.Parse(GetArg(args, "--edge-prob", "0.22"));
 
-var edges = BuildTopology(topology, ref nodeCount, seed, edgeProb);
-var (hasCycle, backEdges) = CycleCensus(nodeCount, edges);
+var nodeEdges = BuildTopology(topology, ref nodeCount, seed, edgeProb);
 
-Console.WriteLine($"[Server] topology={topology} nodes={nodeCount} edges={edges.Count} " +
-                  $"cyclic={hasCycle} backEdges={backEdges} port={port}");
+// One RNG, seeded once, for all random assignment. (Previously a new Random(seed) was created
+// inside each loop, so every node/resource pointed at the same target and the cycle structure
+// collapsed; one RNG yields a genuinely random, densely cyclic resource graph.)
+var rng = new Random(seed);
+
+// Plan the resource cross-references as indices first, so the FULL graph (nodes + Resource1 +
+// Resource2 + every reference) can be censused for circular dependencies before it is wired.
+var nodeRes1 = new int[nodeCount][];
+var nodeRes2 = new int[nodeCount][];
+for (var i = 0; i < nodeCount; i++)
+{
+    nodeRes1[i] = Sample(rng, res1Count, res1Count / 2);
+    nodeRes2[i] = Sample(rng, res2Count, res2Count / 2);
+}
+
+var res1Ref1 = new int[res1Count];
+var res1Ref2 = new int[res1Count];
+for (var i = 0; i < res1Count; i++)
+{
+    res1Ref1[i] = res1Count > 0 ? rng.Next(res1Count) : -1;
+    res1Ref2[i] = res2Count > 0 ? rng.Next(res2Count) : -1;
+}
+
+var res2Ref1 = new int[res2Count];
+var res2Ref2 = new int[res2Count];
+for (var i = 0; i < res2Count; i++)
+{
+    res2Ref1[i] = res1Count > 0 ? rng.Next(res1Count) : -1;
+    res2Ref2[i] = res2Count > 0 ? rng.Next(res2Count) : -1;
+}
+
+var totalResources = nodeCount + res1Count + res2Count;
+var (hasCycle, backEdges, totalEdges) = FullCensus(
+    nodeCount, res1Count, res2Count, nodeEdges, nodeRes1, nodeRes2, res1Ref1, res1Ref2, res2Ref1, res2Ref2);
+
+Console.WriteLine($"[Server] topology={topology} nodes={nodeCount} res1={res1Count} res2={res2Count} " +
+                  $"totalResources={totalResources} edges={totalEdges} cyclic={hasCycle} backEdges={backEdges} port={port}");
 
 var wh = new Warehouse();
 await wh.Put("sys", new MemoryStore());
@@ -41,52 +75,28 @@ var nodes = new Node[nodeCount];
 var resources1 = new Resource1[res1Count];
 var resources2 = new Resource2[res2Count];
 
-for (var i = 0; i < nodeCount; i++) {
-    nodes[i] = new Node { Id = i }; 
-    await wh.Put($"sys/n{i}", nodes[i]); 
-}
+for (var i = 0; i < nodeCount; i++) { nodes[i] = new Node { Id = i }; await wh.Put($"sys/n{i}", nodes[i]); }
+for (var i = 0; i < res1Count; i++) { resources1[i] = new Resource1(); await wh.Put($"sys/r1_{i}", resources1[i]); }
+for (var i = 0; i < res2Count; i++) { resources2[i] = new Resource2(); await wh.Put($"sys/r2_{i}", resources2[i]); }
 
+// Wire the planned references: each Node also pulls in a random subset of Resource1/Resource2, and
+// the resources cross-reference one another, creating dense cycles for the fetch to resolve.
+for (var i = 0; i < nodeCount; i++)
+{
+    nodes[i].Resources1 = nodeRes1[i].Select(k => resources1[k]).ToArray();
+    nodes[i].Resources2 = nodeRes2[i].Select(k => resources2[k]).ToArray();
+}
 for (var i = 0; i < res1Count; i++)
 {
-    resources1[i] = new Resource1();
-    await wh.Put($"sys/r1_{i}", resources1[i]);
+    if (res1Ref1[i] >= 0) resources1[i].res1 = resources1[res1Ref1[i]];
+    if (res1Ref2[i] >= 0) resources1[i].res2 = resources2[res1Ref2[i]];
 }
-
 for (var i = 0; i < res2Count; i++)
 {
-    resources2[i] = new Resource2();
-    await wh.Put($"sys/r2_{i}", resources2[i]);
+    if (res2Ref1[i] >= 0) resources2[i].res1 = resources1[res2Ref1[i]];
+    if (res2Ref2[i] >= 0) resources2[i].res2 = resources2[res2Ref2[i]];
 }
-
-// randomly assign some resources to each node so the fetches do some work beyond just traversing the links; this also
-for(var i = 0; i < nodeCount; i++)
-{
-    var rng = new Random(seed);
-    
-
-    nodes[i].Resources1 = rng.GetItems(resources1, res1Count / 2);
-    nodes[i].Resources2 = rng.GetItems(resources2, res2Count / 2);
-}
-
-for(var i  =0; i < res1Count; i++)
-{
-    var rng = new Random(seed);
-    var res1Index = rng.Next(res1Count);
-    var res2Index = rng.Next(res2Count);
-    resources1[i].res1 = resources1[res1Index];
-    resources1[i].res2 = resources2[res2Index];
-}
-
-for (var i = 0; i < res2Count; i++)
-{
-    var rng = new Random(seed);
-    var res1Index = rng.Next(res1Count);
-    var res2Index = rng.Next(res2Count);
-    resources2[i].res1 = resources1[res1Index];
-    resources2[i].res2 = resources2[res2Index];
-}
-
-foreach (var grp in edges.GroupBy(e => e.from))
+foreach (var grp in nodeEdges.GroupBy(e => e.from))
     nodes[grp.Key].Links = grp.Select(e => nodes[e.to]).ToArray();
 
 await wh.Open();
@@ -152,16 +162,54 @@ static List<(int from, int to)> BuildTopology(string topo, ref int n, int seed, 
     return edges;
 }
 
-// DFS three-colouring; counts back edges (cycle-closing edges, including self loops).
-static (bool hasCycle, int backEdges) CycleCensus(int n, IReadOnlyList<(int from, int to)> edges)
+// k indices drawn (with replacement) from [0, count); empty if count or k is 0.
+static int[] Sample(Random rng, int count, int k)
 {
-    var adj = new List<int>[n];
-    for (var i = 0; i < n; i++) adj[i] = new List<int>();
-    var back = 0;
-    foreach (var (a, b) in edges) { if (a == b) back++; else adj[a].Add(b); }
+    if (count <= 0 || k <= 0) return Array.Empty<int>();
+    var result = new int[k];
+    for (var i = 0; i < k; i++) result[i] = rng.Next(count);
+    return result;
+}
 
-    var color = new byte[n]; // 0 unvisited, 1 on-stack, 2 done
-    for (var s = 0; s < n; s++)
+// Censuses the FULL request graph — Node Links + Node->Resource1/2 + Resource1/2 cross-references —
+// for circular dependencies via DFS three-colouring. Vertices: [0..nodes) nodes, then res1, then
+// res2. Returns whether the graph is cyclic, the number of cycle-closing (back) edges, and the
+// total edge count.
+static (bool hasCycle, int backEdges, int totalEdges) FullCensus(
+    int nodes, int r1, int r2,
+    IReadOnlyList<(int from, int to)> nodeEdges,
+    int[][] nodeRes1, int[][] nodeRes2,
+    int[] res1Ref1, int[] res1Ref2, int[] res2Ref1, int[] res2Ref2)
+{
+    var v = nodes + r1 + r2;
+    int R1(int i) => nodes + i;
+    int R2(int i) => nodes + r1 + i;
+
+    var adj = new List<int>[v];
+    for (var i = 0; i < v; i++) adj[i] = new List<int>();
+    var total = 0;
+    void Add(int a, int b) { adj[a].Add(b); total++; }
+
+    foreach (var (a, b) in nodeEdges) Add(a, b);
+    for (var i = 0; i < nodes; i++)
+    {
+        foreach (var k in nodeRes1[i]) Add(i, R1(k));
+        foreach (var k in nodeRes2[i]) Add(i, R2(k));
+    }
+    for (var i = 0; i < r1; i++)
+    {
+        if (res1Ref1[i] >= 0) Add(R1(i), R1(res1Ref1[i]));
+        if (res1Ref2[i] >= 0) Add(R1(i), R2(res1Ref2[i]));
+    }
+    for (var i = 0; i < r2; i++)
+    {
+        if (res2Ref1[i] >= 0) Add(R2(i), R1(res2Ref1[i]));
+        if (res2Ref2[i] >= 0) Add(R2(i), R2(res2Ref2[i]));
+    }
+
+    var back = 0;
+    var color = new byte[v]; // 0 unvisited, 1 on-stack, 2 done
+    for (var s = 0; s < v; s++)
     {
         if (color[s] != 0) continue;
         var stack = new Stack<(int node, int idx)>();
@@ -172,14 +220,15 @@ static (bool hasCycle, int backEdges) CycleCensus(int n, IReadOnlyList<(int from
             if (idx < adj[u].Count)
             {
                 stack.Push((u, idx + 1));
-                var v = adj[u][idx];
-                if (color[v] == 1) back++;
-                else if (color[v] == 0) { color[v] = 1; stack.Push((v, 0)); }
+                var w = adj[u][idx];
+                if (w == u) back++;                  // self-loop
+                else if (color[w] == 1) back++;      // back edge -> cycle
+                else if (color[w] == 0) { color[w] = 1; stack.Push((w, 0)); }
             }
             else color[u] = 2;
         }
     }
-    return (back > 0, back);
+    return (back > 0, back, total);
 }
 
 static string GetArg(string[] args, string key, string def)

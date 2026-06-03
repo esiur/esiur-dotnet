@@ -40,9 +40,9 @@ var roots = rootsArg.Equals("all", StringComparison.OrdinalIgnoreCase)
 
 Console.WriteLine($"[Client] {host}:{port} nodes={nodeCount} mode={mode} roots={roots.Length} " +
                   $"iterations={iterations} stallMs={stallMs} hardMs={hardMs}");
-Console.WriteLine($"[Client] {"iter",-5}{"outcome",-14}{"ms",10}{"breaks",10}{"unnec",8}{"unpublished",13}");
+Console.WriteLine($"[Client] {"iter",-5}{"outcome",-13}{"ms",10}{"attached",10}{"breaks",9}{"unnec",8}{"unpub",8}");
 
-var rows = new List<(int iter, string outcome, double ms, long breaks, long unnec, int unpublished)>();
+var rows = new List<(int iter, string outcome, double ms, long attached, long breaks, long unnec, int unpublished)>();
 
 for (var it = 0; it < iterations; it++)
 {
@@ -58,8 +58,8 @@ for (var it = 0; it < iterations; it++)
     var (outcome, ms, results) = await Classify(con, roots, stallMs, hardMs);
     var unpublished = results == null ? -1 : CountUnpublished(results);
 
-    rows.Add((it + 1, outcome, ms, con.CycleBreakCount, con.UnnecessaryPlaceholderCount, unpublished));
-    Console.WriteLine($"[Client] {it + 1,-5}{outcome,-14}{ms,10:F1}{con.CycleBreakCount,10}{con.UnnecessaryPlaceholderCount,8}{unpublished,13}");
+    rows.Add((it + 1, outcome, ms, con.AttachedResourceCount, con.CycleBreakCount, con.UnnecessaryPlaceholderCount, unpublished));
+    Console.WriteLine($"[Client] {it + 1,-5}{outcome,-13}{ms,10:F1}{con.AttachedResourceCount,10}{con.CycleBreakCount,9}{con.UnnecessaryPlaceholderCount,8}{unpublished,8}");
 
     try { con.Destroy(); } catch { }
 }
@@ -73,17 +73,20 @@ Console.WriteLine();
 Console.WriteLine($"[Client] === summary ({mode}) ===");
 Console.WriteLine($"  completed={completed.Count}  deadlocked={rows.Count(r => r.outcome == "Deadlocked")}  " +
                   $"slow={rows.Count(r => r.outcome == "SlowTimeout")}  faulted={rows.Count(r => r.outcome == "Faulted")}");
+Console.WriteLine($"  resources attached per run (max)={rows.Max(r => r.attached)}");
 Console.WriteLine($"  completion ms: median={Pct(0.5):F1}  p99={Pct(0.99):F1}  max={(times.Count > 0 ? times[^1] : 0):F1}");
 Console.WriteLine($"  cycle-breaks total={rows.Sum(r => r.breaks)}  unnecessary-placeholders total={rows.Sum(r => r.unnec)}");
 Console.WriteLine($"  partial deliveries (unpublished>0) in {rows.Count(r => r.unpublished > 0)}/{rows.Count} runs");
 
-var csv = "iteration,outcome,ms,cycle_breaks,unnecessary_placeholders,unpublished\n" +
-          string.Join("\n", rows.Select(r => $"{r.iter},{r.outcome},{r.ms:F1},{r.breaks},{r.unnec},{r.unpublished}"));
+var csv = "iteration,outcome,ms,attached,cycle_breaks,unnecessary_placeholders,unpublished\n" +
+          string.Join("\n", rows.Select(r => $"{r.iter},{r.outcome},{r.ms:F1},{r.attached},{r.breaks},{r.unnec},{r.unpublished}"));
 var outFile = $"deadlock_{mode}_{host}_{port}.csv";
 await File.WriteAllTextAsync(outFile, csv);
 Console.WriteLine($"[Client] results written to {outFile}");
 
-Console.ReadLine();
+// Keep the window open only when run interactively; scripted/redirected runs exit immediately.
+if (!Console.IsInputRedirected)
+    Console.ReadLine();
 
 // ---- stall-based classification ---------------------------------------------------------------
 
@@ -131,7 +134,9 @@ static async Task<(string outcome, double ms, EpResource[]? results)> Classify(
 }
 
 // Counts resources reachable from the delivered roots that are not Published — i.e. handed to the
-// application while their dependency graph was not fully attached. Links is property index 1.
+// application while their dependency graph was not fully attached. Traverses every reference-typed
+// property (Node.Links/Resources1/Resources2 and the Resource1/Resource2 cross-references) so the
+// whole delivered graph is checked, not just the node links.
 static int CountUnpublished(EpResource[] roots)
 {
     var seen = new HashSet<uint>();
@@ -145,12 +150,24 @@ static int CountUnpublished(EpResource[] roots)
 
         if (node.Status != ResourceStatus.Published) unpublished++;
 
-        if (node.Status == ResourceStatus.Attached && node.TryGetPropertyValue((byte)1, out var linksObj) && linksObj is IEnumerable links)
-            foreach (var child in links)
-                if (child is EpResource childResource)
-                    queue.Enqueue(childResource);
+        // Only attached/published resources can be safely read for further references.
+        if (node.Status != ResourceStatus.Attached && node.Status != ResourceStatus.Published) continue;
+
+        var properties = node.Instance.Definition.Properties.Length;
+        for (byte p = 0; p < properties; p++)
+            if (node.TryGetPropertyValue(p, out var value))
+                Flatten(value, queue);
     }
     return unpublished;
+}
+
+static void Flatten(object? value, Queue<EpResource> queue)
+{
+    if (value is EpResource resource)
+        queue.Enqueue(resource);
+    else if (value is IEnumerable sequence && value is not string)
+        foreach (var item in sequence)
+            Flatten(item, queue);
 }
 
 static string GetArg(string[] args, string key, string def)

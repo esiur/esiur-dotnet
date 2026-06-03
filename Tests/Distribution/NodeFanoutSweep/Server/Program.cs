@@ -67,11 +67,17 @@ Console.WriteLine($"[Orchestrator] N values: {string.Join(",", nValues)}");
 // Attach to the server's control resource once.
 // ----------------------------------------------------------------
 var controlWh = new Warehouse();
-dynamic? control = null;
+EpResource? control = null;
+byte cpuIdx = 255, clientsIdx = 255;
 try
 {
     var controlConn = await controlWh.Get<EpConnection>($"ep://{host}:{port}");
-    control = await controlConn.Get("sys/control");
+    control = (EpResource)await controlConn.Get("sys/control");
+    // Resolve property indices by name (EpResource exposes values by index, not dynamic member).
+    var props = control.Instance.Definition.Properties;
+    cpuIdx = (byte)Array.FindIndex(props, p => p.Name == "CpuPercent");
+    clientsIdx = (byte)Array.FindIndex(props, p => p.Name == "ConnectedClients");
+    Console.WriteLine($"[Orchestrator] sys/control attached (CpuPercent=idx {cpuIdx}, ConnectedClients=idx {clientsIdx}).");
 }
 catch (Exception ex)
 {
@@ -141,19 +147,38 @@ foreach (int n in nValues)
         Console.WriteLine($"[Orchestrator] Measurement window {windowSec}s...");
         var cpuSamples = new List<double>();
         var connSamples = new List<int>();
+        var clientCpuSamples = new List<double>();
+        var clientProc = Process.GetCurrentProcess();
+        var prevClientCpu = clientProc.TotalProcessorTime;
+        var prevClientWall = DateTime.UtcNow;
         var winSw = Stopwatch.StartNew();
         while (winSw.Elapsed.TotalSeconds < windowSec)
         {
             await Task.Delay(1000);
-            if (control != null)
+
+            // Server CPU + subscriber count via the control resource (read by property index;
+            // values arrive as variable-width numerics, hence Convert.*).
+            if (control != null && cpuIdx != 255)
             {
                 try
                 {
-                    cpuSamples.Add((double)control.CpuPercent);
-                    connSamples.Add((int)control.ConnectedClients);
+                    if (control.TryGetPropertyValue(cpuIdx, out var cpuVal) && cpuVal != null)
+                        cpuSamples.Add(Convert.ToDouble(cpuVal));
+                    if (control.TryGetPropertyValue(clientsIdx, out var cliVal) && cliVal != null)
+                        connSamples.Add(Convert.ToInt32(cliVal));
                 }
-                catch { /* control resource may not have current value yet */ }
+                catch { /* control resource may not have a current value yet */ }
             }
+
+            // This harness's own CPU (% across all cores). Recorded so saturation can be attributed
+            // to the server rather than to the single subscriber process driving N connections.
+            clientProc.Refresh();
+            var nowClientCpu = clientProc.TotalProcessorTime;
+            var nowClientWall = DateTime.UtcNow;
+            var wallMs = (nowClientWall - prevClientWall).TotalMilliseconds;
+            if (wallMs > 0) clientCpuSamples.Add((nowClientCpu - prevClientCpu).TotalMilliseconds / wallMs * 100.0);
+            prevClientCpu = nowClientCpu;
+            prevClientWall = nowClientWall;
         }
 
         double elapsedSec = winSw.Elapsed.TotalSeconds;
@@ -176,12 +201,15 @@ foreach (int n in nValues)
         double aggregate = perSubRates.Sum();
         double avgServerCpu = cpuSamples.Count > 0 ? cpuSamples.Average() : double.NaN;
         double peakServerCpu = cpuSamples.Count > 0 ? cpuSamples.Max() : double.NaN;
+        double avgClientCpu = clientCpuSamples.Count > 0 ? clientCpuSamples.Average() : double.NaN;
+        double peakClientCpu = clientCpuSamples.Count > 0 ? clientCpuSamples.Max() : double.NaN;
 
         Console.WriteLine($"[Orchestrator] N={n} rep={rep + 1}: "
                         + $"mean_per_sub={meanPerSub:F1}/s "
                         + $"aggregate={aggregate:F0}/s "
                         + $"late={totalLate} "
-                        + $"server_cpu_avg={avgServerCpu:F1}% peak={peakServerCpu:F1}%");
+                        + $"server_cpu_avg={avgServerCpu:F1}%/peak={peakServerCpu:F1}% "
+                        + $"client_cpu_avg={avgClientCpu:F1}%/peak={peakClientCpu:F1}%");
 
         perRepResults.Add(new RepResult
         {
@@ -195,6 +223,8 @@ foreach (int n in nValues)
             LateDeliveries = totalLate,
             ServerCpuAvg = avgServerCpu,
             ServerCpuPeak = peakServerCpu,
+            ClientCpuAvg = avgClientCpu,
+            ClientCpuPeak = peakClientCpu,
         });
 
         // ---------- teardown ----------
@@ -237,6 +267,8 @@ foreach (int n in nValues)
             TotalLate = perRepResults.Sum(r => r.LateDeliveries),
             MeanServerCpuAvg = perRepResults.Average(r => r.ServerCpuAvg),
             MeanServerCpuPeak = perRepResults.Average(r => r.ServerCpuPeak),
+            MeanClientCpuAvg = perRepResults.Average(r => r.ClientCpuAvg),
+            MeanClientCpuPeak = perRepResults.Average(r => r.ClientCpuPeak),
         });
     }
 }
@@ -246,12 +278,13 @@ foreach (int n in nValues)
 // ----------------------------------------------------------------
 var sb = new System.Text.StringBuilder();
 sb.AppendLine("n,replications,mean_per_sub_rate,ci95_halfwidth,mean_aggregate," +
-              "total_late,mean_server_cpu_avg,mean_server_cpu_peak");
+              "total_late,mean_server_cpu_avg,mean_server_cpu_peak,mean_client_cpu_avg,mean_client_cpu_peak");
 foreach (var r in allResults)
 {
     sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
         $"{r.N},{r.Replications},{r.MeanPerSubRate:F2},{r.Ci95HalfWidth:F2}," +
-        $"{r.MeanAggregate:F1},{r.TotalLate},{r.MeanServerCpuAvg:F2},{r.MeanServerCpuPeak:F2}"));
+        $"{r.MeanAggregate:F1},{r.TotalLate},{r.MeanServerCpuAvg:F2},{r.MeanServerCpuPeak:F2}," +
+        $"{r.MeanClientCpuAvg:F2},{r.MeanClientCpuPeak:F2}"));
 }
 await File.WriteAllTextAsync(outputCsv, sb.ToString());
 Console.WriteLine($"\n[Orchestrator] Results written to {outputCsv}");
@@ -375,6 +408,8 @@ record RepResult
     public long LateDeliveries;
     public double ServerCpuAvg;
     public double ServerCpuPeak;
+    public double ClientCpuAvg;
+    public double ClientCpuPeak;
 }
 
 record SweepResult
@@ -387,4 +422,6 @@ record SweepResult
     public long TotalLate;
     public double MeanServerCpuAvg;
     public double MeanServerCpuPeak;
+    public double MeanClientCpuAvg;
+    public double MeanClientCpuPeak;
 }
