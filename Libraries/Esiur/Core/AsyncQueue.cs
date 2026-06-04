@@ -50,7 +50,8 @@ public class AsyncQueue<T> : AsyncReply<T>
     int currentId = 0;
     int currentFlushId;
 
-    public List<AsyncQueueItem<T>> Processed = new();
+    bool captureProcessedItems;
+    List<AsyncQueueItem<T>> processed = new();
 
     List<AsyncQueueItem<T>> list = new List<AsyncQueueItem<T>>();
     //Action<T> callback;
@@ -62,6 +63,34 @@ public class AsyncQueue<T> : AsyncReply<T>
 
     //return this;
     //}
+
+    /// <summary>
+    /// Enables or disables retaining delivered queue items for diagnostics.
+    /// Capture is disabled by default, and disabling it discards retained items.
+    /// </summary>
+    public void SetProcessedCapture(bool enabled)
+    {
+        lock (queueLock)
+        {
+            captureProcessedItems = enabled;
+
+            if (!enabled)
+                processed = new();
+        }
+    }
+
+    /// <summary>
+    /// Atomically returns and removes the delivered queue items retained since the previous drain.
+    /// </summary>
+    public List<AsyncQueueItem<T>> DrainProcessed()
+    {
+        lock (queueLock)
+        {
+            var result = processed;
+            processed = new();
+            return result;
+        }
+    }
 
     public void Add(AsyncReply<T> reply)
     {
@@ -121,13 +150,16 @@ public class AsyncQueue<T> : AsyncReply<T>
                     Trigger(list[i].Reply.Result);
                     resultReady = false;
 
-                    var p = list[i];
-                    p.Delivered = DateTime.Now;
-                    p.Ready = p.Reply.ReadyTime;
-                    p.BatchSize = batchSize;
-                    p.FlushId = flushId;
-                    //p.HasResource = p.Reply. (p.Ready - p.Arrival).TotalMilliseconds > 5;
-                    Processed.Add(p);
+                    if (captureProcessedItems)
+                    {
+                        var p = list[i];
+                        p.Delivered = DateTime.Now;
+                        p.Ready = p.Reply.ReadyTime;
+                        p.BatchSize = batchSize;
+                        p.FlushId = flushId;
+                        //p.HasResource = p.Reply. (p.Ready - p.Arrival).TotalMilliseconds > 5;
+                        processed.Add(p);
+                    }
 
                     list.RemoveAt(i);
 

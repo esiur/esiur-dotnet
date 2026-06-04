@@ -378,11 +378,21 @@ public partial class EpConnection : NetworkConnection, IStore
     }
 
 
+    /// <summary>
+    /// Enables or disables retaining delivered resource queue items for diagnostics.
+    /// Capture is disabled by default.
+    /// </summary>
+    public void SetFinishedQueueCapture(bool enabled)
+    {
+        _queue.SetProcessedCapture(enabled);
+    }
+
+    /// <summary>
+    /// Atomically returns and removes the retained delivered resource queue items.
+    /// </summary>
     public List<AsyncQueueItem<EpResourceQueueItem>> GetFinishedQueue()
     {
-        var l = _queue.Processed.ToArray().ToList();
-        _queue.Processed.Clear();
-        return l;
+        return _queue.DrainProcessed();
     }
 
     void init()

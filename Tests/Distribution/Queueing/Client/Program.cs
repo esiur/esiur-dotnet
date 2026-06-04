@@ -7,9 +7,9 @@
 // Table III (λ, μ, R̄, δ̄, D̄, P99(D), queue length, batch B).
 //
 // Each replication uses an identical configuration; the server
-// runs StartUpdatesLocal back-to-back, and the client snapshots
-// the cumulative finished-queue length between replications so
-// that each replication's evaluation sees only its own items.
+// runs StartUpdatesLocal back-to-back, and the client drains the
+// captured finished queue between replications so that each
+// replication's evaluation sees only its own items.
 //
 // Usage:
 //   dotnet run -- --host 127.0.0.1 --port 10901 \
@@ -52,20 +52,20 @@ Console.WriteLine($"[Client-T4-R] {delays.Length * alphas.Length} configurations
 var wh = new Warehouse();
 var serviceResource = await wh.Get<EpResource>($"ep://{host}:{port}/sys/queueing");
 var service = (dynamic)serviceResource;
+serviceResource.ResourceConnection.SetFinishedQueueCapture(true);
 
 // ---------- replication coordinator state ----------
 //
 // The server's StartUpdatesLocal fires `trials` PropertyChanged events
 // across a single call. We count incoming events; when `trials` arrive,
-// the current replication is complete. We then slice off this rep's
-// portion of the cumulative finished-queue and hand it to QueueEval.
+// the current replication is complete. We then drain this rep's
+// finished-queue items and hand them to QueueEval.
 //
 // `repDone` is signaled once per replication so the orchestrator coroutine
 // can drive the next call.
 
 int eventsThisRep = 0;
 TaskCompletionSource<bool> repDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
-int finishedQueueBaseline = 0; // cumulative length BEFORE current rep started
 
 serviceResource.PropertyChanged += (object? sender, PropertyChangedEventArgs e) =>
 {
@@ -100,10 +100,8 @@ foreach (var delay in delays)
             repDone = new TaskCompletionSource<bool>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
 
-            // Snapshot the cumulative finished-queue length right before this rep
-            // so we can slice off only this rep's portion afterwards.
-            var preQueue = service.ResourceConnection.GetFinishedQueue();
-            finishedQueueBaseline = preQueue.Count;
+            // Discard any straggler notifications from the previous replication.
+            serviceResource.ResourceConnection.GetFinishedQueue();
 
             // Kick off the server-driven trial sequence (fire-and-forget;
             // completion is signalled via PropertyChanged → repDone).
@@ -112,15 +110,10 @@ foreach (var delay in delays)
             // Wait until `trials` PropertyChanged events have been received.
             await repDone.Task;
 
-            // The server completed `trials` events; slice off this rep's
-            // portion of the cumulative finished-queue. GetFinishedQueue()
-            // returns IReadOnlyList<AsyncQueueItem<T>>; we forward the
-            // typed sliced subset directly to Evaluate which is generic
-            // on T (the property's runtime payload type).
-            var fullQueue = service.ResourceConnection.GetFinishedQueue();
-            var typedQueue = SliceQueue(fullQueue, finishedQueueBaseline);
-
-            var repResult = EsiurQueueEval.Evaluate(typedQueue);
+            // The server completed `trials` events; drain this replication's
+            // captured queue items and evaluate them directly.
+            var repQueue = serviceResource.ResourceConnection.GetFinishedQueue();
+            var repResult = EsiurQueueEval.Evaluate(repQueue);
             reps.Add(repResult);
 
             Console.WriteLine($"  rep {rep + 1}/{replications}: " +
@@ -157,20 +150,4 @@ static string GetArg(string[] args, string key, string def)
 {
     int i = Array.IndexOf(args, key);
     return (i >= 0 && i + 1 < args.Length) ? args[i + 1] : def;
-}
-
-// ----------------------------------------------------------------
-// Slice the cumulative finished-queue down to only the items added
-// during the current replication.
-//
-// The queue is dynamically typed (returned from a dynamic-dispatched
-// member) and its element type is AsyncQueueItem<T> where T is the
-// runtime payload type of the observed property. We rely on the DLR
-// to bind the LINQ Skip<T>/ToList<T> generic methods at runtime, just
-// as the original code does with the Evaluate<T> call below it.
-// ----------------------------------------------------------------
-static dynamic SliceQueue(dynamic fullQueue, int skipCount)
-{
-    return System.Linq.Enumerable.ToList(
-        System.Linq.Enumerable.Skip(fullQueue, skipCount));
 }
