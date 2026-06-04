@@ -124,8 +124,10 @@ foreach (int n in nValues)
         bool spawnFailed = false;
         for (int i = 0; i < n; i++)
         {
-            if (spawnTasks[i].Result == null) { spawnFailed = true; break; }
-            subscribers[i] = spawnTasks[i].Result!;
+            if (spawnTasks[i].Result == null)
+                spawnFailed = true;
+            else
+                subscribers[i] = spawnTasks[i].Result!;
         }
         spawnSw.Stop();
 
@@ -133,7 +135,7 @@ foreach (int n in nValues)
         {
             Console.WriteLine($"[Orchestrator] N={n}: spawn failed; treating as saturation.");
             saturatedDetected = true;
-            await TeardownAll(subscriberWhs);
+            await TeardownAll(subscribers, subscriberWhs);
             break;
         }
         Console.WriteLine($"[Orchestrator] All {n} subscribers attached in {spawnSw.Elapsed.TotalSeconds:F2}s");
@@ -229,7 +231,7 @@ foreach (int n in nValues)
 
         // ---------- teardown ----------
         Console.WriteLine($"[Orchestrator] Tearing down {n} subscribers...");
-        await TeardownAll(subscriberWhs);
+        await TeardownAll(subscribers, subscriberWhs);
         await Task.Delay(settleSec * 1000);
     }
 
@@ -298,7 +300,7 @@ static async Task<SubscriberTask?> SpawnSubscriber(
     try
     {
         var conn = await wh.Get<EpConnection>($"ep://{host}:{port}");
-        var sub = new SubscriberTask { SubscriberId = subId };
+        var sub = new SubscriberTask { SubscriberId = subId, Connection = conn };
 
         for (int i = 0; i < resources; i++)
         {
@@ -326,8 +328,20 @@ static async Task<SubscriberTask?> SpawnSubscriber(
     }
 }
 
-static async Task TeardownAll(Warehouse[] whs)
+static async Task TeardownAll(SubscriberTask[] subscribers, Warehouse[] whs)
 {
+    foreach (var subscriber in subscribers)
+    {
+        if (subscriber == null)
+            continue;
+
+        try { subscriber.Connection?.Close(); }
+        catch { /* ignore */ }
+
+        subscriber.Connection = null;
+        subscriber.Resources.Clear();
+    }
+
     foreach (var wh in whs)
     {
         try { await wh.Close(); }
@@ -386,6 +400,7 @@ static string GetArg(string[] args, string key, string def)
 class SubscriberTask
 {
     public int SubscriberId;
+    public EpConnection? Connection;
     public readonly List<IResource> Resources = new();
     internal long _received;
     internal long _lateDeliveries;
