@@ -37,7 +37,7 @@ var serverWh = new Warehouse();
 if (mode == "server" || mode == "both")
 {
     await serverWh.Put("sys", new MemoryStore());
-    await serverWh.Put("sys/server", new EpServer() { Port = (ushort)port });
+    await serverWh.Put("sys/server", new EpServer() { Port = (ushort)port, AllowUnauthorizedAccess = true });
 
     for (int i = 0; i < resources; i++)
     {

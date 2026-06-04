@@ -21,7 +21,7 @@ Console.WriteLine($"[Server] resources={resourceCount}  interval={intervalMs}ms 
 var wh = new Warehouse();
 // --- Warehouse setup -------------------------------------------------
 await wh.Put("sys", new MemoryStore());
-var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
+var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port, AllowUnauthorizedAccess = true });
 
 // Create and register all sensor resources
 var sensors = new SensorResource[resourceCount];

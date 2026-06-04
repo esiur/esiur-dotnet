@@ -357,7 +357,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             throw new Exception("Trying to access a suspended object.");
 
 
-        if (_status != ResourceStatus.Attached)
+        if (_status != ResourceStatus.Published)
         {
             result = null;
             return false;
@@ -440,7 +440,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
 
         result = null;
 
-        if (_status != ResourceStatus.Attached)
+        if (_status != ResourceStatus.Published)
             return false;
 
         var pt = Instance.Definition.GetPropertyDefByName(binder.Name);
@@ -498,7 +498,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         if (_status == ResourceStatus.Suspended)
             throw new Exception("Trying to access a suspended object.");
 
-        if (_status != ResourceStatus.Attached)
+        if (_status != ResourceStatus.Published)
             return false;
 
         var pt = Instance.Definition.GetPropertyDefByName(binder.Name);
@@ -619,8 +619,8 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         if (_status == ResourceStatus.Suspended)
             throw new Exception("Trying to access a suspended object.");
 
-        if (_status != ResourceStatus.Attached)
-            throw new Exception("Resource is not attached.");
+        if (_status != ResourceStatus.Published)
+            throw new Exception("Resource is not published.");
 
         if (index >= _properties.Length)
             throw new Exception("Property index not found."); ;

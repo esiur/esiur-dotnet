@@ -16,8 +16,9 @@ Console.WriteLine($"[Server] Listening on port {port}...");
 var wh = Warehouse.Default;
 var mem = await wh.Put("sys", new MemoryStore());
 var service = await wh.Put("sys/queueing", new QueueingService());
-var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port, 
-                                                EntryPoint = service });
+var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port,
+                                                EntryPoint = service,
+                                                AllowUnauthorizedAccess = true });
 
 
 long memBefore = GC.GetTotalMemory(forceFullCollection: true);
