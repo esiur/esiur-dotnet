@@ -303,6 +303,7 @@ static async Task<SubscriberTask?> SpawnSubscriber(
         for (int i = 0; i < resources; i++)
         {
             var proxy = await conn.Get($"sys/sensor_{i}");
+            sub.Resources.Add(proxy);
             long lastTick = Stopwatch.GetTimestamp();
 
             proxy.Instance.PropertyModified += (PropertyModificationInfo data) =>
@@ -385,6 +386,7 @@ static string GetArg(string[] args, string key, string def)
 class SubscriberTask
 {
     public int SubscriberId;
+    public readonly List<IResource> Resources = new();
     internal long _received;
     internal long _lateDeliveries;
     public long Received => Interlocked.Read(ref _received);
