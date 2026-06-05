@@ -139,7 +139,7 @@ public class DeadlockIntegrationTests
             if (node == null || !seen.Add(node.ResourceInstanceId))
                 continue;
 
-            if (node.Status != Resource.ResourceStatus.Attached)
+            if (node.Status != Resource.ResourceStatus.Attached && node.Status != Resource.ResourceStatus.Published)
             {
                 allAttached = false;
                 continue; // do not traverse into a partially attached node
@@ -293,7 +293,8 @@ public class DeadlockIntegrationTests
             if (node.Status != ResourceStatus.Published)
                 unpublished++;
 
-            if ((node.Status == ResourceStatus.Attached) && node.TryGetPropertyValue((byte)1, out var linksObj) && linksObj is IEnumerable links)
+            if ((node.Status == ResourceStatus.Attached || node.Status == ResourceStatus.Published)
+                && node.TryGetPropertyValue((byte)1, out var linksObj) && linksObj is IEnumerable links)
                 foreach (var child in links)
                     if (child is EpResource childResource)
                         queue.Enqueue(childResource);

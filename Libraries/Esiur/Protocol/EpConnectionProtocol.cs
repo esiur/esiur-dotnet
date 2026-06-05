@@ -63,6 +63,8 @@ partial class EpConnection
     // (e.g. two concurrent fetches A<->B) so a placeholder can break the deadlock, while
     // independent/app-facing fetches of an in-flight resource simply wait for full attachment.
     readonly Dictionary<uint, HashSet<uint>> _fetchBlockedOn = new Dictionary<uint, HashSet<uint>>();
+    readonly object _deliveredRootsLock = new object();
+    readonly Dictionary<uint, WeakReference<EpResource>> _deliveredRoots = new Dictionary<uint, WeakReference<EpResource>>();
 
     /// <summary>
     /// Strategy FetchResource uses for an in-flight resource. Defaults to the new wait + cycle
@@ -1990,10 +1992,10 @@ partial class EpConnection
 
         req.Then(result =>
             {
-                // The resource is being handed to the application: publish its fully-attached
-                // graph so that, if any dependency is only partially attached, it stays unpublished.
+                // The resource is being handed to the application: remember it and publish its graph
+                // once all reachable dependencies have attached.
                 if (result is EpResource resource)
-                    PublishGraph(resource);
+                    TrackDeliveredRoot(resource);
 
                 rt.Trigger(result);
             }).Error(ex => rt.TriggerError(ex));
@@ -2134,7 +2136,7 @@ partial class EpConnection
 
             reachable.Add(node);
 
-            if (node.Status != ResourceStatus.Attached)
+            if (node.Status != ResourceStatus.Attached && node.Status != ResourceStatus.Published)
             {
                 fullyAttached = false;
                 continue; // do not traverse into a not-yet-attached node
@@ -2147,6 +2149,32 @@ partial class EpConnection
         if (fullyAttached)
             foreach (var node in reachable)
                 node.Publish();
+    }
+
+    void TrackDeliveredRoot(EpResource root)
+    {
+        lock (_deliveredRootsLock)
+            _deliveredRoots[root.ResourceInstanceId] = new WeakReference<EpResource>(root);
+
+        TryPublishDeliveredRoots();
+    }
+
+    void TryPublishDeliveredRoots()
+    {
+        lock (_deliveredRootsLock)
+        {
+            var stale = new List<uint>();
+            foreach (var pair in _deliveredRoots)
+            {
+                if (pair.Value.TryGetTarget(out var root))
+                    PublishGraph(root);
+                else
+                    stale.Add(pair.Key);
+            }
+
+            foreach (var key in stale)
+                _deliveredRoots.Remove(key);
+        }
     }
 
     public AsyncReply<EpResource> FetchResource(uint id, uint[] requestSequence)
@@ -2288,6 +2316,7 @@ partial class EpConnection
                                 _attachedResources[id] = new WeakReference<EpResource>(dr);
                                 // attached: no longer part of the in-flight wait-for graph.
                                 ClearFetchNode(id);
+                                TryPublishDeliveredRoots();
                                 reply.Trigger(dr);
                             }).Error(ex => { _resourceRequests.Remove(id); ClearFetchNode(id); reply.TriggerError(ex); });
                         };
@@ -2418,6 +2447,7 @@ partial class EpConnection
                     _neededResources.Remove(id);
                     _attachedResources[id] = new WeakReference<EpResource>(resource);
                     ClearFetchNode(id);
+                    TryPublishDeliveredRoots();
                     reply.Trigger(resource);
                 })
                 .Error(ex => { _resourceRequests.Remove(id); ClearFetchNode(id); reply.TriggerError(ex); });
