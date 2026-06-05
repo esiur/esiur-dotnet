@@ -93,6 +93,9 @@ public class AsyncQueue<T> : AsyncReply<T>
     }
 
     public void Add(AsyncReply<T> reply)
+        => Add(reply, !reply.Ready);
+
+    public void Add(AsyncReply<T> reply, bool hasResource)
     {
         lock (queueLock)
         {
@@ -103,7 +106,7 @@ public class AsyncQueue<T> : AsyncReply<T>
                 NotificationsCountWaitingInTheQueueAtEnqueueing = list.Count,
                 Reply = reply,
                 Arrival = DateTime.Now,
-                HasResource = !reply.Ready
+                HasResource = hasResource
             });
         }
 

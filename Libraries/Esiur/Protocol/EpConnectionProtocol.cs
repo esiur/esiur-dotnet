@@ -606,12 +606,13 @@ partial class EpConnection
             if (pt == null)
                 return;
 
-            Codec.ParseAsync(tdu.Data, valueOffset, this, null).Then(pr =>
+            void EnqueueParsedProperty(ParsedTdu parsed)
             {
-                if (pr.Value is AsyncReply asyncReply)
+                var value = Codec.ParseAsync(parsed, this, null);
+                if (value is AsyncReply asyncReply)
                 {
                     var item = new AsyncReply<EpResourceQueueItem>();
-                    _queue.Add(item);
+                    _queue.Add(item, hasResource: true);
 
                     asyncReply.Then((result) =>
                     {
@@ -624,14 +625,27 @@ partial class EpConnection
                 {
                     _queue.Add(new AsyncReply<EpResourceQueueItem>(new EpResourceQueueItem((EpResource)r,
                                                     EpResourceQueueItem.DistributedResourceQueueItemType.Propery,
-                                                    pr.Value, index)));
+                                                    value, index)), hasResource: false);
                 }
+            }
 
-            }).Error((ex) =>
+            var parsed = ParsedTdu.Parse(tdu.Data, valueOffset, (uint)tdu.Data.Length, this);
+            if (parsed is ParsedTdu parsedTdu)
             {
-                //.Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError));
-                throw ex;
-            });
+                EnqueueParsedProperty(parsedTdu);
+            }
+            else if (parsed is AsyncReply<ParsedTdu> parsedReply)
+            {
+                parsedReply.Then(EnqueueParsedProperty).Error((ex) =>
+                {
+                    //.Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError));
+                    throw ex;
+                });
+            }
+            else
+            {
+                throw new NullReferenceException("DataType can't be parsed.");
+            }
 
         });
     }

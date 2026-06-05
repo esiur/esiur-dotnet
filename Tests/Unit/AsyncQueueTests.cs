@@ -36,6 +36,26 @@ public class AsyncQueueTests
     }
 
     [Fact]
+    public void DrainProcessed_PreservesExplicitResourceWorkFlag()
+    {
+        var queue = new AsyncQueue<int>();
+        queue.SetProcessedCapture(true);
+
+        queue.Add(new AsyncReply<int>(1), hasResource: false);
+
+        var pending = new AsyncReply<int>();
+        queue.Add(pending, hasResource: true);
+        pending.Trigger(2);
+
+        var processed = queue.DrainProcessed();
+
+        Assert.Collection(
+            processed,
+            x => Assert.False(x.HasResource),
+            x => Assert.True(x.HasResource));
+    }
+
+    [Fact]
     public void DisablingCapture_DiscardsHistoryAndStopsCapturing()
     {
         var queue = new AsyncQueue<int>();

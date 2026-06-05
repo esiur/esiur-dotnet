@@ -29,8 +29,10 @@ await wh.Open();
 long memAfter = GC.GetTotalMemory(forceFullCollection: true);
 double memMB = (memAfter - memBefore) / (1024.0 * 1024.0);
 
-Console.WriteLine("Press ENTER to stop.");
-Console.ReadLine();
+Console.WriteLine("Ready. Press Ctrl+C to stop.");
+var stop = new TaskCompletionSource();
+Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(); };
+await stop.Task;
 await wh.Close();
 
 
