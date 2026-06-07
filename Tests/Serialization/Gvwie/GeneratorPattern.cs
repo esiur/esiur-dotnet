@@ -11,6 +11,7 @@ namespace Esiur.Tests.Gvwie
         Negative,
         Alternating,
         Small,
+        Medium,
         Ascending,
         Clustering,
     }

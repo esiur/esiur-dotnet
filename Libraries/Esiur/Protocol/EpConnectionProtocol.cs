@@ -755,7 +755,7 @@ partial class EpConnection
 
         var resourceId = Convert.ToUInt32(args[0]);
 
-        var age = (ulong)args[1];
+        var age = Convert.ToUInt64(args[1]);
 
         Instance.Warehouse.GetById(resourceId).Then((res) =>
         {

@@ -23,6 +23,6 @@ MessagePack.MessagePackSerializer.DefaultOptions = MessagePackSerializerOptions.
 var ints = new IntArrayRunner();
 IntArrayGenerator.InitRng();
 ints.Run();
-IntArrayGenerator.InitRng();
-ints.RunChart();
+//IntArrayGenerator.InitRng();
+//ints.RunChart();
 

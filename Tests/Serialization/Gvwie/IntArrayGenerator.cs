@@ -24,7 +24,7 @@ public static class IntArrayGenerator
     ///  - minGap / maxGap: approximate gap between runs (large gaps produce the jump examples)
     /// </summary>
     /// 
-    public static void InitRng(int seed= 24241564) => rng = new Random(seed);
+    public static void InitRng(int seed = 24241564) => rng = new Random(seed);
 
     public static long[] GenerateRuns(int length,
         int minRunSize = 3,
@@ -140,6 +140,17 @@ public static class IntArrayGenerator
                     data[i] = rng.Next(0, int.MaxValue);
                 break;
 
+            case GeneratorPattern.Medium:
+                for (int i = 0; i < length; i++)
+                    data[i] = rng.Next(0, short.MaxValue);
+                break;
+
+            //case GeneratorPattern.Large:
+            //    for (int i = 0; i < length; i++)
+            //        data[i] = rng.Next(0, int.MaxValue);
+            //    break;
+
+
             case GeneratorPattern.Negative:
                 for (int i = 0; i < length; i++)
                     data[i] = -rng.Next(int.MinValue, 0);
@@ -156,7 +167,8 @@ public static class IntArrayGenerator
             case GeneratorPattern.Small:
                 // Focused on small magnitudes to test ZigZag fast path
                 for (int i = 0; i < length; i++)
-                    data[i] = rng.Next(-64, 65);
+                    //data[i] = rng.Next(-64, 65);
+                    data[i] = rng.Next(sbyte.MinValue, sbyte.MaxValue);
                 break;
 
 

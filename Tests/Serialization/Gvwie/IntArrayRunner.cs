@@ -29,7 +29,7 @@ namespace Esiur.Tests.Gvwie
         public void Run()
         {
 
-            const int TEST_ITERATIONS = 100;
+            const int TEST_ITERATIONS = 10;
             const int SAMPLE_SIZE = 100;
 
             Console.WriteLine(",Esiur,Aligned,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
@@ -41,21 +41,30 @@ namespace Esiur.Tests.Gvwie
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Clustering)), TEST_ITERATIONS)
             );
 
-            Console.Write("Positive (Int32);");
+            Console.Write("Large (Int32);");
 
             PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Uniform)), TEST_ITERATIONS)
             );
 
-            Console.Write("Negative (Int32);");
+            Console.Write("Medium (Int32);");
             PrintAverage(
-                Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Negative)), TEST_ITERATIONS)
+                Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Medium)), TEST_ITERATIONS)
             );
 
             Console.Write("Small (Int32);");
             PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Small)), TEST_ITERATIONS)
             );
+
+
+            Console.Write("Negative (Int32);");
+            PrintAverage(
+                Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Negative)), TEST_ITERATIONS)
+            );
+
+
+
 
             Console.Write("Alternating (Int32);");
             PrintAverage(
@@ -67,6 +76,10 @@ namespace Esiur.Tests.Gvwie
             PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Ascending)), TEST_ITERATIONS)
             );
+
+
+
+
 
             Console.Write("Int64;");
 
@@ -450,7 +463,7 @@ namespace Esiur.Tests.Gvwie
 
         public static byte[] SerializeFlatBuffers<T>(ArrayRoot<T> array)
         {
-            var buffer = new byte[1000000000];
+            var buffer = new byte[1000000];
             var len = FlatBufferSerializer.Default.Serialize(array, buffer);
             return buffer.Take(len).ToArray();
         }
