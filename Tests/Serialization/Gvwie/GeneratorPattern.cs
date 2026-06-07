@@ -12,7 +12,9 @@ namespace Esiur.Tests.Gvwie
         Alternating,
         Small,
         Medium,
+        Large,
         Ascending,
         Clustering,
+        MixedClustering,
     }
 }

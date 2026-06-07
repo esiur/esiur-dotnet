@@ -122,6 +122,79 @@ public static class IntArrayGenerator
     }
 
 
+    public static int[] GenerateMixedClusteredInt32(int length,
+        int minRunSize = 3,
+        int maxRunSize = 10)
+    {
+        if (length <= 0)
+            return Array.Empty<int>();
+
+        if (minRunSize < 1) minRunSize = 1;
+        if (maxRunSize < minRunSize) maxRunSize = minRunSize;
+
+        var data = new int[length];
+
+        var remaining = new[]
+        {
+            length / 3 + (length % 3 > 0 ? 1 : 0), // int8-compatible values
+            length / 3 + (length % 3 > 1 ? 1 : 0), // int16-compatible values
+            length / 3,                             // int32-compatible values
+        };
+
+        int index = 0;
+        int bucket = 0;
+
+        while (index < length)
+        {
+            var selected = -1;
+            for (int offset = 0; offset < remaining.Length; offset++)
+            {
+                var candidate = (bucket + offset) % remaining.Length;
+                if (remaining[candidate] > 0)
+                {
+                    selected = candidate;
+                    break;
+                }
+            }
+
+            if (selected < 0)
+                break;
+
+            var runSize = Math.Min(remaining[selected], rng.Next(minRunSize, maxRunSize + 1));
+            FillMixedClusterRun(data, index, runSize, selected);
+
+            index += runSize;
+            remaining[selected] -= runSize;
+            bucket = (selected + 1) % remaining.Length;
+        }
+
+        return data;
+    }
+
+    private static void FillMixedClusterRun(int[] data, int startIndex, int runSize, int bucket)
+    {
+        var start = bucket switch
+        {
+            0 => NextRunStart(64, sbyte.MaxValue, runSize),
+            1 => NextRunStart(128, short.MaxValue, runSize),
+            2 => NextRunStart(8_388_608, int.MaxValue, runSize),
+            _ => throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Unknown mixed cluster bucket.")
+        };
+
+        for (int i = 0; i < runSize; i++)
+            data[startIndex + i] = start + i;
+    }
+
+    private static int NextRunStart(int minValue, int maxValue, int runSize)
+    {
+        var maxStart = (long)maxValue - runSize + 1;
+        if (maxStart < minValue)
+            throw new ArgumentOutOfRangeException(nameof(runSize), runSize, "Run size is larger than the available value range.");
+
+        return (int)rng.NextInt64(minValue, maxStart + 1);
+    }
+
+
     // Generate random int array of given length and distribution
     public static int[] GenerateInt32(int length, GeneratorPattern pattern = GeneratorPattern.Uniform)
     {
@@ -130,20 +203,30 @@ public static class IntArrayGenerator
         switch (pattern)
         {
             case GeneratorPattern.Uniform:
+            case GeneratorPattern.Large:
                 // Random values in [-range, range]
                 for (int i = 0; i < length; i++)
                     data[i] = rng.Next(int.MinValue, int.MaxValue);
                 break;
+
+            case GeneratorPattern.Medium:
+                for (int i = 0; i < length; i++)
+                    data[i] = rng.Next(short.MinValue, short.MaxValue);
+                break;
+
+            case GeneratorPattern.Small:
+                // Focused on small magnitudes to test ZigZag fast path
+                for (int i = 0; i < length; i++)
+                    //data[i] = rng.Next(-64, 65);
+                    data[i] = rng.Next(sbyte.MinValue, sbyte.MaxValue);
+                break;
+
 
             case GeneratorPattern.Positive:
                 for (int i = 0; i < length; i++)
                     data[i] = rng.Next(0, int.MaxValue);
                 break;
 
-            case GeneratorPattern.Medium:
-                for (int i = 0; i < length; i++)
-                    data[i] = rng.Next(0, short.MaxValue);
-                break;
 
             //case GeneratorPattern.Large:
             //    for (int i = 0; i < length; i++)
@@ -164,13 +247,6 @@ public static class IntArrayGenerator
                 }
                 break;
 
-            case GeneratorPattern.Small:
-                // Focused on small magnitudes to test ZigZag fast path
-                for (int i = 0; i < length; i++)
-                    //data[i] = rng.Next(-64, 65);
-                    data[i] = rng.Next(sbyte.MinValue, sbyte.MaxValue);
-                break;
-
 
             case GeneratorPattern.Ascending:
                 {
@@ -183,7 +259,7 @@ public static class IntArrayGenerator
             case GeneratorPattern.Clustering:
                 {
                     // Build ascending runs and cast to int, clamping to int bounds
-                    var runs = GenerateRuns(length, 3, 50, ((long)int.MinValue), (long)int.MaxValue, true);
+                    var runs = GenerateRuns(length, 3, 10, ((long)int.MinValue), (long)int.MaxValue, true, 10, 15);
                     for (int i = 0; i < length; i++)
                     {
                         long v = runs[i];
@@ -193,6 +269,9 @@ public static class IntArrayGenerator
                     }
                 }
                 break;
+
+            case GeneratorPattern.MixedClustering:
+                return GenerateMixedClusteredInt32(length);
 
 
             default:

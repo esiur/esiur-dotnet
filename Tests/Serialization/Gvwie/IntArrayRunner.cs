@@ -29,93 +29,111 @@ namespace Esiur.Tests.Gvwie
         public void Run()
         {
 
-            const int TEST_ITERATIONS = 10;
+            const int TEST_ITERATIONS = 100;
             const int SAMPLE_SIZE = 100;
 
-            Console.WriteLine(",Esiur,Aligned,FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
+
+            var st = new StringBuilder();
+
+            st.AppendLine(",Esiur,Esiur(Aligned),FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
+            Console.WriteLine(",Esiur,Esiur(Aligned),FlatBuffer,ProtoBuffer,MessagePack,BSON,CBOR,Avro,Optimal");
 
 
-            Console.Write("Cluster (Int32);");
+            st.Append("Cluster (Int32),");
+            Console.Write("Cluster (Int32),");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Clustering)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("Large (Int32);");
+            st.Append("Mixed Cluster (Int32),");
+            Console.Write("Mixed Cluster (Int32),");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
+                Average(() => CompareMixedClusteredInt32(SAMPLE_SIZE), TEST_ITERATIONS)
+            ));
+
+            st.Append("Large (Int32),");
+           Console.Write("Large (Int32),");
+
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Uniform)), TEST_ITERATIONS)
-            );
-
-            Console.Write("Medium (Int32);");
-            PrintAverage(
+            ));
+            
+            st.Append("Medium (Int32),");
+            Console.Write("Medium (Int32),");
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Medium)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("Small (Int32);");
-            PrintAverage(
+            st.Append("Small (Int32),");
+            Console.Write("Small (Int32),");
+            st.AppendLine(  PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Small)), TEST_ITERATIONS)
-            );
+            ));
 
-
-            Console.Write("Negative (Int32);");
-            PrintAverage(
+            st.Append("Negative (Int32),");
+            Console.Write("Negative (Int32),");
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Negative)), TEST_ITERATIONS)
-            );
+            ));
 
-
-
-
-            Console.Write("Alternating (Int32);");
-            PrintAverage(
+            st.Append("Alternating (Int32),");
+            Console.Write("Alternating (Int32),");
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Alternating)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("Ascending (Int32);");
+            st.Append("Ascending (Int32),");
+            Console.Write("Ascending (Int32),");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE, GeneratorPattern.Ascending)), TEST_ITERATIONS)
-            );
+            ));
 
+            st.Append("Int64,");
+            Console.Write("Int64,");
 
-
-
-
-            Console.Write("Int64;");
-
-            PrintAverage( 
+            st.AppendLine(PrintAverage( 
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt64(SAMPLE_SIZE)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("Int32;");
+            st.Append("Int32,");
+            Console.Write("Int32,");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt32(SAMPLE_SIZE)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("Int16;");
+            st.Append("Int16,");
+            Console.Write("Int16,");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateInt16(SAMPLE_SIZE)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("UInt64;");
+            st.Append("UInt64,");
+            Console.Write("UInt64,");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateUInt64(SAMPLE_SIZE)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("UInt32;");
+            st.Append("UInt32,");
+            Console.Write("UInt32,");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateUInt32(SAMPLE_SIZE)), TEST_ITERATIONS)
-            );
+            ));
 
-            Console.Write("UInt16;");
+            st.Append("UInt16,");
+            Console.Write("UInt16,");
 
-            PrintAverage(
+            st.AppendLine(PrintAverage(
                 Average(() => CompareInt(IntArrayGenerator.GenerateUInt16(SAMPLE_SIZE)), TEST_ITERATIONS)
-            );
+            ));
+
+            File.WriteAllLines("int_array_comparison.csv", st.ToString().Split(Environment.NewLine));
         }
 
         // Generate CSV suitable for Office Word chart where the sample size varies.
@@ -132,6 +150,7 @@ namespace Esiur.Tests.Gvwie
             var generators = new List<(string name, Func<int, int, double[]> fn)>()
             {                             
                 ("Int32_Clustering", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Clustering)), iterations)),
+                ("Int32_MixedClustering", (size, iterations) => Average(() => CompareMixedClusteredInt32(size), iterations)),
                 ("Int32_Positive", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Positive)), iterations)),
                 ("Int32_Negative", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Negative)), iterations)),
                 ("Int32_Small", (size, iterations) => Average(() => CompareInt(IntArrayGenerator.GenerateInt32(size, GeneratorPattern.Small)), iterations)),
@@ -190,6 +209,19 @@ namespace Esiur.Tests.Gvwie
 
                 Console.WriteLine($"Chart CSV written to: {file} {file2}");
             }
+        }
+
+        private static (int, int, int, int, int, int, int, int, int) CompareMixedClusteredInt32(int sampleSize)
+        {
+            var sample = IntArrayGenerator.GenerateInt32(sampleSize, GeneratorPattern.MixedClustering);
+            var result = CompareInt(sample);
+            var requiredCapacity = sampleSize * sizeof(int);
+
+            if (result.Item1 >= requiredCapacity || result.Item2 >= requiredCapacity)
+                throw new InvalidOperationException(
+                    $"Mixed clustered Int32 encoding produced {result.Item1} bytes ({result.Item2} aligned) for {sampleSize} elements; expected less than {requiredCapacity} bytes.");
+
+            return result;
         }
 
         public static (int, int, int, int, int, int, int, int, int) CompareInt(long[] sample)
@@ -432,7 +464,6 @@ namespace Esiur.Tests.Gvwie
                     sum.Average(x => x.Item9)
             };
 
-            Console.WriteLine($"{rt[0]},{rt[1]},{rt[2]},{rt[3]},{rt[4]},{rt[5]},{rt[6]},{rt[7]},{rt[8]}");
 
 
             return rt;
@@ -440,6 +471,11 @@ namespace Esiur.Tests.Gvwie
 
         static string PrintAverage(double[] values)
         {
+
+            var rt = $"{values[0]},{values[1]},{values[2]},{values[3]},{values[4]},{values[5]},{values[6]},{values[7]},{values[8]}";
+
+            Console.WriteLine(rt);
+
             // Determine winner (lowest average size)
             var names = new string[] { "Esiur", "Aligned", "FlatBuffer", "ProtoBuffer", "MessagePack", "BSON", "CBOR", "Avro", "Optimal" };
             var min = values.SkipLast(1).Min();
@@ -458,7 +494,7 @@ namespace Esiur.Tests.Gvwie
 
             Console.ForegroundColor = ConsoleColor.White;
 
-            return "Unknown";
+            return rt;
         }
 
         public static byte[] SerializeFlatBuffers<T>(ArrayRoot<T> array)

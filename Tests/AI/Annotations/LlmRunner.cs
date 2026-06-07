@@ -13,19 +13,7 @@ using System.Text.Json;
 
 namespace Esiur.Tests.Annotations;
 
-//public sealed class TickState
-//{
-//    public int Load { get; set; }
-//    public int ErrorCount { get; set; }
-//    public bool Enabled { get; set; }
-//}
-
-//public sealed class LlmDecision
-//{
-//    public string? Function { get; set; }
-//    public string? Reason { get; set; }
-//}
-
+ 
 
 
 public sealed class LlmRunner
@@ -215,25 +203,7 @@ Input:
 {typeDefJson}";
     }
 
-    //private static LlmDecision? ParseDecision(string text)
-    //{
-    //    try
-    //    {
-    //        var json = ExtractJson(text);
-
-    //        return JsonSerializer.Deserialize<LlmDecision>(
-    //            json,
-    //            new JsonSerializerOptions
-    //            {
-    //                PropertyNameCaseInsensitive = true
-    //            });
-    //    }
-    //    catch
-    //    {
-    //        return null;
-    //    }
-    //}
-
+ 
     private static (LlmDecision? First, LlmDecision? Final, bool Repaired, int Count) ParseDecisionWithRepair(string text)
     {
         var objects = ExtractJsonObjects(text);
