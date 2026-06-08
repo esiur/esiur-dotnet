@@ -16,7 +16,7 @@ namespace Esiur.Tests.RPC.Client
             var rt = new TestResults();
 
             using var mon = new PerProcessNetMonitor(Process.GetCurrentProcess().Id);
-            mon.Start();
+            //mon.Start();
 
             Console.WriteLine($"\n== Esiur @ {address} ==");
 
@@ -105,25 +105,7 @@ namespace Esiur.Tests.RPC.Client
             return rt;
         }
 
-        //public static async Task Do(string address)
-        //{
-        //    Console.WriteLine($"\n== Esiur @ {address} ==");
-
-        //    var service = await Warehouse.Default.Get<RPC.Esiur.Service>(address);
-
-        //    var workloads = DocGenerator.BuildWorkloads();
-
-        //    foreach (var w in workloads)
-        //    {
-        //        Console.WriteLine("Workload: " + w.Item1);
-        //        var rx = await service.EchoDocuments(w.Item2);
-
-        //        for (var i = 0; i < rx.Length; i++)
-        //            if (!rx[i].Equals(w.Item2[i]))
-        //                throw new Exception("No match");
-        //    }
-        //}
-
+  
 
     }
 }

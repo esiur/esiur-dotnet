@@ -24,7 +24,7 @@ for (var i = 0; i < 10; i++)
     var intWorkloads = Shared.BuildIntWorkloads(seed);
 
     results["esiur"].Add(
-        await EsiurTest.DoTest("iip://localhost:5005/sys/service", docsWorkloads, dataWorkLoads, intWorkloads)
+        await EsiurTest.DoTest("ep://localhost:5005/sys/service", docsWorkloads, dataWorkLoads, intWorkloads)
         );
 
     results["thrift"].Add(
