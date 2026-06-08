@@ -532,8 +532,8 @@ public partial class EpConnection : NetworkConnection, IStore
                             EpRequestUnsubscribe(_packet.CallbackId, dt);
                             break;
                         // Inquire
-                        case EpPacketRequest.TypeDefByName:
-                            EpRequestTypeDefByName(_packet.CallbackId, dt);
+                        case EpPacketRequest.TypeDefIdsByNames:
+                            EpRequestTypeDefIdsByNames(_packet.CallbackId, dt);
                             break;
                         case EpPacketRequest.TypeDefById:
                             EpRequestTypeDefById(_packet.CallbackId, dt);
@@ -736,7 +736,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         }
 
                         SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
-                        
+
                         _session.Authenticated = true;
                         _session.LocalIdentity = null;
                         _session.RemoteIdentity = null;
@@ -1031,7 +1031,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
 
-    void AuthenticatonCompleted()
+    async Task AuthenticatonCompleted()
     {
 
         if (this.Instance == null)
@@ -1062,12 +1062,50 @@ public partial class EpConnection : NetworkConnection, IStore
         {
             _authenticated = true;
             Status = EpConnectionStatus.Connected;
-            _openReply?.Trigger(true);
-            _openReply = null;
-            OnReady?.Invoke(this);
 
             _session.AuthenticationHandler?.Provider?.Login(_session);
-            //Server?.Membership?.Login(_session);
+
+
+            OnReady?.Invoke(this);
+
+            var proxyTypes = Instance.Warehouse.GetProxyTypesByDomain(_remoteDomain);
+
+            var typeDefNames = new List<string>();
+
+            foreach (var kk in proxyTypes)
+            {
+                foreach (var kv in kk.Value)
+                {
+                    typeDefNames.Add(kv.Key);
+                }
+            }
+            if (typeDefNames.Count > 0)
+            {
+                GetTypeDefIds(typeDefNames.ToArray()).Then(ids =>
+                {
+                    var bag = new AsyncBag<object>();
+                    foreach (var id in ids)
+                        bag.Add(FetchTypeDef(id, null));
+
+                    bag.Seal();
+
+                    bag.Then((o) =>
+                    {
+                        _openReply?.Trigger(true);
+                        _openReply = null;
+                    });
+                }).Error(ex =>
+                {
+                    _openReply.TriggerError(ex);
+                    // do nothing, proxies won't work but connection is established
+                });
+            }
+            else
+            {
+                _openReply?.Trigger(true);
+                _openReply = null;
+            }
+
         }
     }
     //private void ProcessClientAuth(byte[] data)

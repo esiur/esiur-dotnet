@@ -11,8 +11,9 @@ using System.Text;
 
 ushort port = 5005;
 
-if (args.Count() > 0)
-    port = ushort.Parse(args[0]);
+var portArg = args.FirstOrDefault(x => ushort.TryParse(x, out _));
+if (portArg != null)
+    port = ushort.Parse(portArg);
 
 Console.WriteLine($"Esiur server listening on port {port}...");
 
@@ -27,7 +28,12 @@ await wh.Open();
 
 Console.WriteLine("Open");
 
-if (!Directory.Exists("template"))
-    Directory.CreateDirectory("template");
+if (args.Contains("--generate-client"))
+{
+    if (!Directory.Exists("template"))
+        Directory.CreateDirectory("template");
 
-TypeDefGenerator.GetTypes("ep://localhost:5005/sys/service", "template");
+    TypeDefGenerator.GetTypes($"ep://localhost:{port}/sys/service", "template");
+}
+
+await Task.Delay(Timeout.Infinite);

@@ -12,6 +12,8 @@ namespace Esiur.Tests.RPC.Client;
 
 public static class DocGenerator
 {
+    private static readonly DateTime BaseUtc = new(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     public sealed class GenOptions
     {
         public int Lines { get; init; } = 20;         // items count
@@ -35,12 +37,12 @@ public static class DocGenerator
         var seller = MakeParty(rng, opt.IncludeV2Fields, isSeller: true, opt.IncludeUnicode);
         var buyer = MakeParty(rng, opt.IncludeV2Fields, isSeller: false, opt.IncludeUnicode);
 
-        var createdAt = DateTime.UtcNow.AddMinutes(-rng.Next(0, 60 * 24));
+        var createdAt = BaseUtc.AddMinutes(rng.Next(0, 60 * 24 * 365));
         var doc = new BusinessDocument
         {
             Header = new DocumentHeader
             {
-                DocId = Guid.NewGuid().ToByteArray(),
+                DocId = RandomBytes(rng, 16),
                 Type = (DocType)rng.Next(0, 4),
                 Version = 1,
                 CreatedAt = createdAt,
@@ -102,7 +104,7 @@ public static class DocGenerator
         var rng = new Random(seed);
         var v2 = DeepClone(v1);
 
-        v2.Header.UpdatedAt = DateTime.UtcNow;
+        v2.Header.UpdatedAt = BaseUtc.AddMinutes(seed);
         var toChange = Math.Max(1, (int)Math.Round(v2.Items.Length * changeRatio));
 
         // change random lines
@@ -113,7 +115,7 @@ public static class DocGenerator
             li.Qty = RoundQty(li.Qty + (double)(rng.NextDouble() * 2.0 - 1.0)); // ±1
             li.UnitPrice = RoundMoney(li.UnitPrice * (double)(0.95 + rng.NextDouble() * 0.1)); // ±5%
             if (li.Ext == null) li.Ext = new Map<string, Variant>();
-            li.Ext["lastEdit"] = VDate(DateTime.UtcNow);
+            li.Ext["lastEdit"] = VDate(BaseUtc.AddMinutes(seed + i));
         }
 
 
@@ -201,7 +203,7 @@ public static class DocGenerator
             {
                 0 => VStr(rng.Next(0, 3) switch { 0 => "red", 1 => "blue", _ => "green" }),
                 1 => VStr(rng.Next(0, 3) switch { 0 => "S", 1 => "M", _ => "L" }),
-                2 => VGuid(Guid.NewGuid()),
+                2 => VGuid(RandomGuid(rng)),
                 _ => VInt(rng.Next(0, 1000))
             });
         }
@@ -216,7 +218,7 @@ public static class DocGenerator
             Method = (PaymentMethod)rng.Next(0, 5),
             Amount = RoundMoney(amount),
             Reference = "REF-" + rng.Next(100_000, 999_999),
-            Timestamp = DateTime.UtcNow.AddMinutes(-rng.Next(0, 60 * 24)),
+            Timestamp = BaseUtc.AddMinutes(rng.Next(0, 60 * 24 * 365)),
             Fee = includeV2 && rng.Next(0, 2) == 0 ? RoundMoney((double)rng.NextDouble() * 2.0) : null,
             //CurrencyOverride = includeV2 && rng.Next(0, 2) == 0 ? Currency.IQD : Currency.USD
         };
@@ -254,6 +256,14 @@ public static class DocGenerator
     // -------------------------- Utils --------------------------
     private static double RoundMoney(double v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
     private static double RoundQty(double v) => Math.Round(v, 3, MidpointRounding.AwayFromZero);
+    private static byte[] RandomBytes(Random rng, int bytes)
+    {
+        var data = new byte[bytes];
+        rng.NextBytes(data);
+        return data;
+    }
+
+    private static Guid RandomGuid(Random rng) => new(RandomBytes(rng, 16));
 
     /// <summary>
     /// Simple deep clone via manual copy to stay serializer-agnostic.
@@ -371,7 +381,7 @@ public static class DocGenerator
                     IncludeV2Fields = (i % 2 == 0),
                     IncludeUnicode = true,
                     RiskScores = 100,
-                    Seed = 1000 + i
+                    Seed = seed + i
                 });
 
                 items.Add(doc);
@@ -394,7 +404,7 @@ public static class DocGenerator
                     IncludeV2Fields = (i % 3 == 0),
                     IncludeUnicode = true,
                     RiskScores = 1000,
-                    Seed = 2000 + i
+                    Seed = seed + 10_000 + i
                 });
 
                 items.Add(doc);
@@ -418,7 +428,7 @@ public static class DocGenerator
                     IncludeV2Fields = (i % 2 == 1),
                     IncludeUnicode = true,
                     RiskScores = 3000,
-                    Seed = 3000 + i
+                    Seed = seed + 20_000 + i
                 });
 
                 items.Add(doc);

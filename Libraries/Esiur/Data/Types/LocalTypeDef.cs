@@ -264,7 +264,8 @@ public class LocalTypeDef:TypeDef
         else
             throw new Exception("Type must implement IResource, IRecord or inherit from DistributedResource.");
 
-        //IsWrapper = Codec.InheritsClass(type, typeof(EpResource));
+        if (type.GetCustomAttribute<RemoteAttribute>() != null)
+            throw new Exception("Remote types are not supported as local type definitions.");
 
         type = ResourceProxy.GetBaseType(type);
 

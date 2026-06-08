@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Dynamic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 #nullable enable
@@ -368,13 +369,21 @@ namespace Esiur.Data
                 || type.IsEnum)
             {
 
-                var typeDef = warehouse.GetLocalTypeDefByType(type);
+                var remoteAttr = type.GetCustomAttribute<RemoteAttribute>();
 
-                if (typeDef == null)
-                    throw new Exception("Unregistered type: " + type.FullName + ".");
+                if (remoteAttr != null)
+                {
+                    var typeDef = warehouse.GetRemoteTypeDefByName(remoteAttr.Domains, remoteAttr.FullName);
+                }
+                else
+                {
+                    var typeDef = warehouse.GetLocalTypeDefByType(type);
 
-                return new TruTypeDef(nullable, typeDef);
+                    if (typeDef == null)
+                        throw new Exception("Unregistered type: " + type.FullName + ".");
 
+                    return new TruTypeDef(nullable, typeDef);
+                }
             }
             else if (type.IsGenericType)
             {
@@ -392,10 +401,10 @@ namespace Esiur.Data
                     else
                     {
                         var subType = FromType(args[0], warehouse);
-                        
+
                         if (subType == null) // unrecongnized type
                             throw new Exception("Unrecognized type: " + args[0].FullName);
-                        
+
                         return new TruComposite(TruIdentifier.TypedList, nullable,
                             new Tru[] { subType }, type);
 
@@ -867,9 +876,9 @@ namespace Esiur.Data
                     {
                         var td = connection.Instance.Warehouse.GetLocalTypeDefById(typeDefId);
 
-                        if ( td == null)
+                        if (td == null)
                             throw new Exception("TypeDef not found.");
-                        
+
                         return new ParseResult<TruTypeDef>(
                                                 new TruTypeDef(nullable, td),
                                                 offset - oOffset);
@@ -900,7 +909,7 @@ namespace Esiur.Data
 
                     if (runtimeType != null && runtimeType.IsValueType && nullable)
                     {
-                       //if (runtimeType.IsValueType)// && Nullable.GetUnderlyingType(runtimeType) == null)
+                        //if (runtimeType.IsValueType)// && Nullable.GetUnderlyingType(runtimeType) == null)
                         runtimeType = typeof(Nullable<>).MakeGenericType(runtimeType);
                     }
 
@@ -911,7 +920,7 @@ namespace Esiur.Data
             }
             else
             {
-                var runtimeType = nullable ? Tru.NullableTypesMapping[identifier] 
+                var runtimeType = nullable ? Tru.NullableTypesMapping[identifier]
                                            : Tru.TypesMapping[identifier];
                 return new ParseResult<TruPrimitive>(
                             new TruPrimitive(identifier, nullable, runtimeType),

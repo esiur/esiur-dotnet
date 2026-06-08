@@ -1011,17 +1011,25 @@ partial class EpConnection
             Instance.Warehouse.Query(resourceLink).Then(queryCallback);
     }
 
-    void EpRequestTypeDefByName(uint callback, PlainTdu tdu)
+    void EpRequestTypeDefIdsByNames(uint callback, PlainTdu tdu)
     {
         var value = Codec.ParseSync(tdu, Instance.Warehouse);
 
-        var className = (string)value;
+        var classNames = (string[])value;
 
-        var typeDef = Instance.Warehouse.GetRemoteTypeDefByName(_remoteDomain, className);
+        var typeDefs = new List<ulong>();
 
-        if (typeDef != null)
+        foreach (var className in classNames)
         {
-            SendReply(EpPacketReply.Completed, callback, typeDef.Compose(this));
+            //@TODO: need to search in remoteTypeDefs as well  
+            var typeDef = Instance.Warehouse.GetLocalTypeDefByName(className);
+            if (typeDef != null)
+                typeDefs.Add(typeDef.Id);
+        }
+
+        if (typeDefs.Count > 0)
+        {
+            SendReply(EpPacketReply.Completed, callback, typeDefs.ToArray());
         }
         else
         {
@@ -2567,6 +2575,18 @@ partial class EpConnection
         return reply;
     }
 
+    public AsyncReply<ulong[]> GetTypeDefIds(string[] fullNames)
+    {
+        var reply = new AsyncReply<ulong[]>();
+
+        SendRequest(EpPacketRequest.TypeDefIdsByNames, fullNames)
+                    .Then(result =>
+                    {
+                        reply.Trigger((ulong[])result);
+                    }).Error(ex => reply.TriggerError(ex));
+
+        return reply;
+    }
 
     /// <summary>
     /// Create a new resource.

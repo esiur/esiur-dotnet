@@ -13,7 +13,7 @@ namespace Esiur.Net.Packets
         Unsubscribe = 0x3,
 
         // Request Inquire
-        TypeDefByName = 0x8,
+        TypeDefIdsByNames = 0x8,
         TypeDefById = 0x9,
         TypeDefByResourceId = 0xA,
         Query = 0xB,

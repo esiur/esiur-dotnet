@@ -713,6 +713,11 @@ public class Warehouse
         }
     }
 
+    internal KeyList<TypeDefKind, KeyList<string , Type>> GetProxyTypesByDomain(string domain)
+    {
+        return _proxyTypeDefs[domain];
+    }
+
     public bool TryRegisterRemoteTypeDef(string domain, RemoteTypeDef typeDef)
     {
         lock (_typeDefsLock)
@@ -840,6 +845,14 @@ public class Warehouse
         if (!string.IsNullOrEmpty(domain) || !_remoteTypeDefs.ContainsKey(domain))
             return null;
 
+        return _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
+    }
+
+    public TypeDef GetProxyTypeDef(string domain, string typeName, TypeDefKind? typeDefKind = null)
+    {
+        if (!string.IsNullOrEmpty(domain) || !_remoteTypeDefs.ContainsKey(domain))
+            return null;
+        sdcsdc
         return _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
     }
 

@@ -35,6 +35,7 @@ namespace Esiur.Tests.RPC.EsiurServer
             .Chunk(x => rt.TriggerChunk(x));
             return rt;
         }
+
         [Annotation("", "([BusinessDocument[]] payload) -> BusinessDocument[]")]
         [Export]
         public AsyncReply<Esiur.Tests.RPC.EsiurServer.BusinessDocument[]> EchoDocuments(Esiur.Tests.RPC.EsiurServer.BusinessDocument[] payload)
@@ -47,6 +48,7 @@ namespace Esiur.Tests.RPC.EsiurServer
             .Chunk(x => rt.TriggerChunk(x));
             return rt;
         }
+
         [Annotation("", "([DocType[]] payload) -> DocType[]")]
         [Export]
         public AsyncReply<Esiur.Tests.RPC.EsiurServer.DocType[]> EchoEnumArray(Esiur.Tests.RPC.EsiurServer.DocType[] payload)

@@ -20,7 +20,10 @@ namespace Esiur.Tests.RPC.Client
         public static async Task<TestResults> DoTest(string address,
             Dictionary<string, SharedModel.BusinessDocument[]> docsWorkloads,
             Dictionary<string, byte[]> dataWorkloads,
-            Dictionary<string, int[]> intWorkloads)
+            Dictionary<string, int[]> intWorkloads,
+            int warmupDelayMs = 3000,
+            int postHandshakeDelayMs = 2000,
+            int sampleDelayMs = 3000)
         {
 
             var rt = new TestResults();
@@ -39,13 +42,13 @@ namespace Esiur.Tests.RPC.Client
             await service.StartAsync();
 
 
-            Thread.Sleep(3000);
+            Thread.Sleep(warmupDelayMs);
 
             var (tx, rx, ctx, crx) = mon.GetDiff(0, 0);
 
             Console.WriteLine($"Handshake {ctx}/{crx}");
 
-            await Task.Delay(2000);
+            await Task.Delay(postHandshakeDelayMs);
 
             foreach (var w in docsWorkloads)
             {
@@ -58,7 +61,7 @@ namespace Esiur.Tests.RPC.Client
                 //        throw new Exception("No match");
 
 
-                await Task.Delay(3000);
+                await Task.Delay(sampleDelayMs);
                 (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
                 Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
                 //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
@@ -79,7 +82,7 @@ namespace Esiur.Tests.RPC.Client
                 //    throw new Exception("No match");
 
 
-                await Task.Delay(3000);
+                await Task.Delay(sampleDelayMs);
                 (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
                 Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
                 //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
@@ -99,7 +102,7 @@ namespace Esiur.Tests.RPC.Client
                 //    throw new Exception("No match");
 
 
-                await Task.Delay(3000);
+                await Task.Delay(sampleDelayMs);
                 (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
                 Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
                 //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
@@ -108,7 +111,7 @@ namespace Esiur.Tests.RPC.Client
 
             }
 
-            await Task.Delay(3000);
+            await Task.Delay(sampleDelayMs);
 
             (tx, rx) = mon.GetTotals();
             Console.WriteLine($"Transfer {tx}/{rx}");

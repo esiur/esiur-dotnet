@@ -17,6 +17,7 @@ public class PerProcessNetMonitor : IDisposable
     private long _txBytes;
     private long _rxBytes;
     private volatile bool _running;
+    private static int _warningWritten;
 
     public PerProcessNetMonitor(int pid)
     {
@@ -25,12 +26,25 @@ public class PerProcessNetMonitor : IDisposable
 
     public void Start()
     {
-        // Use a unique session name
-        string sessionName = "NetMon_" + Guid.NewGuid();
-        _session = new TraceEventSession(sessionName);
+        try
+        {
+            // Use a unique session name
+            string sessionName = "NetMon_" + Guid.NewGuid();
+            _session = new TraceEventSession(sessionName);
 
-        // Enable kernel network provider
-        _session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
+            // Enable kernel network provider
+            _session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _session?.Dispose();
+            _session = null;
+
+            if (Interlocked.Exchange(ref _warningWritten, 1) == 0)
+                Console.WriteLine($"Network monitor disabled: {ex.Message}");
+
+            return;
+        }
 
         _running = true;
         _listenTask = Task.Run(() =>
