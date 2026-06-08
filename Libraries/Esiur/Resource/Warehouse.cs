@@ -128,6 +128,15 @@ public class Warehouse
         throw new Exception("Authentication provider not found.");
     }
 
+    public IAuthenticationProvider? TryGetAuthenticationProvider(string name)
+    {
+        if (_authenticationProviders.ContainsKey(name))
+            return _authenticationProviders[name];
+
+        return null;
+    }
+
+
     public Warehouse()
     {
         Protocols.Add("EP",

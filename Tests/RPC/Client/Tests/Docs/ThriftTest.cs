@@ -1,0 +1,111 @@
+﻿using Echo.ThriftModel;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
+
+namespace RPC.Client.Tests.Docs;
+
+public class ThriftTest
+{
+
+    public static async Task<TestResults> DoTest(string host, int port,
+    Dictionary<string, BusinessDocument[]> docsWorkloads,
+    Dictionary<string, byte[]> dataWorkloads,
+    Dictionary<string, int[]> intWorkloads)
+    {
+        var rt = new TestResults();
+
+        using var mon = new PerProcessNetMonitor(Process.GetCurrentProcess().Id);
+        mon.Start();
+
+        Console.WriteLine($"\n== Thrift @ {host} ==");
+
+
+        using var socket = new Thrift.Transport.Client.TSocketTransport(host, port, new Thrift.TConfiguration());
+        //await socket.OpenAsync(new CancellationToken());
+        var proto = new Thrift.Protocol.TBinaryProtocol(socket);
+        var service = new Echo.ThriftModel.EchoService.Client(proto);
+
+
+        Thread.Sleep(3000);
+
+        var (tx, rx, ctx, crx) = mon.GetDiff(0, 0);
+
+        Console.WriteLine($"Handshake {ctx}/{crx}");
+
+
+        await Task.Delay(2000);
+
+        foreach (var w in docsWorkloads)
+        {
+            Console.Write("Workload: " + w.Key);
+            var docs = await service.EchoDocuments(w.Value.ToList());
+
+
+            //for (var i = 0; i < docs.Length; i++)
+            //    if (!docs[i].Equals(w.Value[i]))
+            //        throw new Exception("No match");
+
+
+            await Task.Delay(3000);
+            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+
+            rt.Docs.Add(w.Key, (ctx, crx));
+        }
+
+
+
+        foreach (var w in dataWorkloads)
+        {
+            Console.Write("Bytes Workload: " + w.Key);
+
+            var res = await service.EchoBytes(w.Value);
+
+
+            if (!w.Value.SequenceEqual(res))
+                throw new Exception("No match");
+
+
+            await Task.Delay(3000);
+            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+            //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+
+            rt.Bytes.Add(w.Key, (ctx, crx));
+
+        }
+
+
+        foreach (var w in intWorkloads)
+        {
+            Console.Write("Ints Workload: " + w.Key);
+
+            var res = await service.EchoIntArray(w.Value.ToList());
+
+
+            if (!w.Value.SequenceEqual(res))
+                throw new Exception("No match");
+
+
+            await Task.Delay(3000);
+            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+            //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+
+            rt.Ints.Add(w.Key, (ctx, crx));
+
+        }
+
+        await Task.Delay(3000);
+
+        (tx, rx) = mon.GetTotals();
+        Console.WriteLine($"Transfer {tx}/{rx}");
+        //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+
+        mon.Stop();
+
+        return rt;
+    }
+}

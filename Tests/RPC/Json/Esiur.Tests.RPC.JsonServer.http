@@ -1,0 +1,6 @@
+@RPC.JSON_HostAddress = http://localhost:5100
+
+GET {{RPC.JSON_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

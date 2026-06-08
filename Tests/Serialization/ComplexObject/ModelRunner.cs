@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -377,12 +378,16 @@ public sealed class ModelRunner
             var jsonMean = Stats.Mean(jsonSizes);
             var jsonMed = Stats.Median(jsonSizes);
 
+            var st = new StringBuilder();
+
             Console.WriteLine($"JSON mean: {jsonMean:F1} B, median: {jsonMed:F1} B");
             Console.WriteLine();
 
             Console.WriteLine("{0,-14} {1,12} {2,12} {3,10} {4,26} {5,18} {6,18}",
                 "Codec", "Mean(B)", "Median(B)", "Ratio", "Reduction", "Enc CPU (µs)", "Dec CPU (µs)");
             Console.WriteLine(new string('-', 118));
+
+            st.AppendLine("Codec,Mean(B),Median(B),Ratio,Reduction");
 
             foreach (var c in _codecs)
             {
@@ -406,11 +411,13 @@ public sealed class ModelRunner
 
                 Console.WriteLine("{0,-14} {1,12} {2,12} {3,10} {4,26} {5,18} {6,18}",
                     c.Name, meanS, medS, ratioS, reduction, encCpuS, decCpuS);
+
+                st.AppendLine($"{c.Name},{meanS},{medS},{ratioS},{reduction}");
             }
 
             Console.WriteLine();
 
-            //Console.ReadLine();
+            File.AppendAllLines("complex_model_results.csv", st.ToString().Split(Environment.NewLine));
         }
     }
 

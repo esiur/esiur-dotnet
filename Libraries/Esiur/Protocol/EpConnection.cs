@@ -1831,18 +1831,21 @@ public partial class EpConnection : NetworkConnection, IStore
             // assign domain from hostname if not provided
             if (context is EpConnectionContext epContext)
             {
-                var provider = Instance.Warehouse.GetAuthenticationProvider(epContext.AuthenticationProtocol);
+                var provider = Instance.Warehouse.TryGetAuthenticationProvider(epContext.AuthenticationProtocol);
 
                 _remoteDomain = epContext.Domain ?? address;
 
-                _session.AuthenticationHandler = provider.CreateAuthenticationHandler(new AuthenticationContext()
+                if (provider != null)
                 {
-                    Direction = AuthenticationDirection.Initiator,
-                    Domain = _remoteDomain,
-                    HostName = address,
-                    InitiatorIdentity = epContext.Identity,
-                    Mode = epContext.AuthenticationMode,
-                });
+                    _session.AuthenticationHandler = provider.CreateAuthenticationHandler(new AuthenticationContext()
+                    {
+                        Direction = AuthenticationDirection.Initiator,
+                        Domain = _remoteDomain,
+                        HostName = address,
+                        InitiatorIdentity = epContext.Identity,
+                        Mode = epContext.AuthenticationMode,
+                    });
+                }
 
                 _session.AuthenticationMode = epContext.AuthenticationMode;
                 _session.LocalIdentity = epContext.Identity;

@@ -1,0 +1,244 @@
+﻿syntax = "proto3";
+
+package gpmodel;
+
+option csharp_namespace = "Echo.Model.Grpc";
+
+// ========================= Enums =========================
+
+enum Currency {
+  CURRENCY_IQD = 0;
+  CURRENCY_CNH = 1;
+  CURRENCY_USD = 2;
+  CURRENCY_EUR = 3;
+  CURRENCY_JPY = 4;
+  CURRENCY_GBP = 5;
+}
+
+enum DocType {
+  DOC_TYPE_QUOTE       = 0;
+  DOC_TYPE_ORDER       = 1;
+  DOC_TYPE_INVOICE     = 2;
+  DOC_TYPE_CREDIT_NOTE = 3;
+}
+
+enum PaymentMethod {
+  PAYMENT_METHOD_CASH   = 0;
+  PAYMENT_METHOD_CARD   = 1;
+  PAYMENT_METHOD_WIRE   = 2;
+  PAYMENT_METHOD_CRYPTO = 3;
+  PAYMENT_METHOD_OTHER  = 4;
+}
+
+enum LineType {
+  LINE_TYPE_PRODUCT  = 0;
+  LINE_TYPE_SERVICE  = 1;
+  LINE_TYPE_DISCOUNT = 2;
+  LINE_TYPE_SHIPPING = 3;
+}
+
+// Variant.Kind
+enum Kind {
+  KIND_NULL     = 0;
+  KIND_BOOL     = 1;
+  KIND_INT64    = 2;
+  KIND_UINT64   = 3;
+  KIND_DOUBLE   = 4;
+  KIND_DECIMAL  = 5;
+  KIND_STRING   = 6;
+  KIND_BYTES    = 7;
+  KIND_DATETIME = 8;
+  KIND_GUID     = 9;
+}
+
+// ========================= Variant =========================
+//
+// C# Variant:
+//   Tag:   Kind
+//   Bool:  bool?
+//   I64:   long?
+//   U64:   ulong?
+//   F64:   double?
+//   Str:   string?
+//   Bytes: byte[]?
+//   Dt:    DateTime?  -> int64 (ticks or epoch millis)
+//   Guid:  byte[]?
+
+message Variant {
+  Kind   tag       = 1;
+  bool   bool_val  = 2;  // optional in C#
+  int64  i64_val   = 3;  // optional in C#
+  uint64 u64_val   = 4;  // optional in C#
+  double f64_val   = 5;  // optional in C#
+  string str_val   = 6;  // optional in C#
+  bytes  bytes_val = 7;  // optional in C#
+  int64  dt_val    = 8;  // optional in C# (DateTime)
+  bytes  guid_val  = 9;  // optional in C# (Guid as 16-byte array)
+}
+
+// Optional helpers mirroring MetaEntry / ExtEntry (not required for RPC)
+message MetaEntry {
+  string  key   = 1;
+  Variant value = 2;
+}
+
+message ExtEntry {
+  string  key   = 1;
+  Variant value = 2;
+}
+
+// ========================= Address & Party =========================
+
+message Address {
+  string line1       = 1;
+  string line2       = 2;  // optional in C#
+  string city        = 3;
+  string region      = 4;
+  string country     = 5;
+  string postal_code = 6;  // optional in C#
+}
+
+message Party {
+  uint64 id                 = 1;
+  string name               = 2;
+  string tax_id             = 3; // optional in C#
+  string email              = 4; // optional in C#
+  string phone              = 5; // optional in C#
+  Address address           = 6; // optional in C#
+  string preferred_language = 7; // optional in C#
+}
+
+// ========================= DocumentHeader =========================
+//
+// DateTime/DateTime? -> int64 (ticks or epoch millis, your choice)
+
+message DocumentHeader {
+  bytes     doc_id      = 1;
+  DocType   type        = 2;
+  int32     version     = 3;
+  int64     created_at  = 4; // DateTime
+  int64     updated_at  = 5; // optional in C#
+  Currency  currency    = 6;
+  string    notes       = 7; // optional in C#
+  map<string, Variant> meta = 8;
+}
+
+// ========================= LineItem, Payment, Attachment =========================
+
+message LineItem {
+  int32      line_no      = 1;
+  LineType   type         = 2;
+  string     sku          = 3;
+  string     description  = 4;
+  double     qty          = 5;
+  string     qty_unit     = 6;
+  double     unit_price   = 7;
+  double     vat_rate     = 8;  // optional in C#
+  double     discount     = 9;  // optional in C#
+  map<string, Variant> ext = 10;
+}
+
+message Payment {
+  PaymentMethod method    = 1;
+  double        amount    = 2;
+  string        reference = 3;  // optional in C#
+  int64         timestamp = 4;  // DateTime
+  double        fee       = 5;  // optional in C#
+  Currency      currency  = 6;
+}
+
+message Attachment {
+  string name      = 1;
+  string mime_type = 2;
+  bytes  data      = 3;
+}
+
+// ========================= Top-level BusinessDocument =========================
+
+message BusinessDocument {
+  DocumentHeader      header       = 1;
+  Party               seller       = 2;
+  Party               buyer        = 3;
+  repeated LineItem   items        = 4;
+  repeated Payment    payments     = 5;
+  repeated Attachment attachments  = 6;
+  repeated int32      risk_scores  = 7;
+}
+
+// ========================= Echo Service Messages =========================
+//
+// C# signatures:
+//
+//   byte[] EchoBytes(byte[])
+//   BusinessDocument[] EchoDocuments(BusinessDocument[] docs)
+//   int[] EchoIntArray(int[] array)
+//   string[] EchoStringArray(string[] array)
+//   Map<string, BusinessDocument> EchoMap(Map<string, BusinessDocument> map)
+//   DocType EchoEnumArray(DocType[] docTypes);
+
+// --- Bytes ---
+message BytesRequest {
+  bytes data = 1;
+}
+
+// --- Bytes ---
+message BytesResponse {
+  bytes data = 1;
+}
+
+
+// --- Documents ---
+message DocumentsRequest {
+  repeated BusinessDocument docs = 1;
+}
+
+message DocumentsResponse {
+  repeated BusinessDocument docs = 1;
+}
+
+// --- Int array ---
+message IntArrayRequest {
+  repeated int32 array = 1;
+}
+
+message IntArrayResponse {
+  repeated int32 array = 1;
+}
+
+// --- String array ---
+message StringArrayRequest {
+  repeated string array = 1;
+}
+
+message StringArrayResponse {
+  repeated string array = 1;
+}
+
+// --- Map<string, BusinessDocument> ---
+message DocMapRequest {
+  map<string, BusinessDocument> map = 1;
+}
+
+message DocMapResponse {
+  map<string, BusinessDocument> map = 1;
+}
+
+// --- Enum array (returns a single DocType, e.g. last element) ---
+message EnumArrayRequest {
+  repeated DocType doc_types = 1;
+}
+
+message EnumResponse {
+  repeated DocType doc_types = 1;
+}
+
+// ========================= Echo Service =========================
+
+service EchoService {
+  rpc EchoBytes       (BytesRequest)       returns (BytesResponse);
+  rpc EchoDocuments   (DocumentsRequest)   returns (DocumentsResponse);
+  rpc EchoIntArray    (IntArrayRequest)    returns (IntArrayResponse);
+  rpc EchoStringArray (StringArrayRequest) returns (StringArrayResponse);
+  rpc EchoMap         (DocMapRequest)      returns (DocMapResponse);
+  rpc EchoEnumArray   (EnumArrayRequest)   returns (EnumResponse);
+}

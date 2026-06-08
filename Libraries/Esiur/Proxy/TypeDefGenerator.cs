@@ -220,6 +220,7 @@ public static class TypeDefGenerator
             var path = urlRegex.Split(url);
             var con = Warehouse.Default.Get<EpConnection>(path[1] + "://" + path[2], new EpConnectionContext()
             {
+                AuthenticationMode = Security.Authority.AuthenticationMode.None,
                 Identity = username
             }).Wait(10000);
             

@@ -2035,30 +2035,32 @@ partial class EpConnection
 
     public AsyncReply<RemoteTypeDef[]> GetLinkDefinitions(string link)
     {
-        throw new NotImplementedException();
+        //throw new NotImplementedException();
 
-        //var reply = new AsyncReply<RemoteTypeDef[]>();
+        var reply = new AsyncReply<RemoteTypeDef[]>();
 
 
-        //SendRequest(EpPacketRequest.LinkTypeDefs, link)
-        //.Then((result) =>
-        //{
+        SendRequest(EpPacketRequest.LinkTypeDefs, link)
+        .Then(async (result) =>
+        {
 
-        //    var defs = new List<RemoteTypeDef>();
+            var defs = new List<RemoteTypeDef>();
 
-        //    foreach (var def in (byte[][])result)
-        //    {
-        //        defs.Add(RemoteTypeDef.Parse(_remoteDomain, def));
-        //    }
+            foreach (var def in (byte[][])result)
+            {
+                var od = new RemoteTypeDef();
+                await RemoteTypeDef.Parse(od, _remoteDomain, def, this, null);
+                defs.Add(od);
+            }
 
-        //    reply.Trigger(defs.ToArray());
+            reply.Trigger(defs.ToArray());
 
-        //}).Error((ex) =>
-        //{
-        //    reply.TriggerError(ex);
-        //});
+        }).Error((ex) =>
+        {
+            reply.TriggerError(ex);
+        });
 
-        //return reply;
+        return reply;
     }
 
     /// <summary>

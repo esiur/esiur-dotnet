@@ -1,5 +1,6 @@
 ﻿using Esiur.Data.Types;
 using Esiur.Protocol;
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -28,9 +29,10 @@ namespace Esiur.Data
             TypeDef = typeDef;
 
             if (typeDef is LocalTypeDef localTypeDef)
-                RuntimeType = localTypeDef.DefinedType;
+                RuntimeType = localTypeDef.DefinedType ?? typeof(EpResource);
             else if (typeDef is RemoteTypeDef remoteTypeDef)
-                RuntimeType = remoteTypeDef.ProxyType;
+                RuntimeType = remoteTypeDef.ProxyType ?? typeof(IResource);
+
         }
 
         public override void SetNull(byte flag)
