@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Kind", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Kind", "localhost")]
     [Export]
     public enum Kind
     {

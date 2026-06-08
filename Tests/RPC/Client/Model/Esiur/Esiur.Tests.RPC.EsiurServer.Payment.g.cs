@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Payment", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Payment", "localhost")]
     [Export]
     public class Payment : IRecord
     {

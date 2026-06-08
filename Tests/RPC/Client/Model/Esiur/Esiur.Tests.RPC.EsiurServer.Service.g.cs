@@ -6,7 +6,7 @@ using Esiur.Protocol;
 #nullable enable
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Service", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Service", "localhost")]
     public class Service : EpResource
     {
         public Service(EpConnection connection, uint instanceId, ulong age, string link) : base(connection, instanceId, age, link) { }

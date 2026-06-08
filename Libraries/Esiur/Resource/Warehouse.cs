@@ -82,8 +82,8 @@ public class Warehouse
     KeyList<string, KeyList<ulong, RemoteTypeDef>> _remoteTypeDefs
         = new KeyList<string, KeyList<ulong, RemoteTypeDef>>();
 
-    //KeyList<string, KeyList<TypeDefKind, KeyList<uint, RemoteTypeDef>>> _remoteTypeDefs 
-    //    = new KeyList<string, KeyList<TypeDefKind, KeyList<uint, RemoteTypeDef>>>();
+    // Domain -> Kind -> Type Name -> Proxy Type
+    KeyList<string, KeyList<TypeDefKind, KeyList<string, Type>>> _proxyTypeDefs = new();
 
 
     Map<string, IAuthenticationProvider> _authenticationProviders = new Map<string, IAuthenticationProvider>();
@@ -579,14 +579,98 @@ public class Warehouse
     }
 
 
-    public void IsProxyType(Type type)
+    public Type TryGetProxyType(TypeDefKind kind, string domain, string name)
     {
+        if (!_proxyTypeDefs.ContainsKey(domain))
+            return null;
 
+        if (!_proxyTypeDefs[domain].ContainsKey(kind))
+            return null;
+
+        if (!_proxyTypeDefs[domain][kind].ContainsKey(name))
+            return null;
+
+        return _proxyTypeDefs[domain][kind][name];
     }
+
+    public Type GetProxyType(TypeDefKind kind, string domain, string name)
+    {
+        if (!_proxyTypeDefs.ContainsKey(domain))
+            throw new Exception($"No proxy types registered for domain {domain}.");
+
+
+        if (!_proxyTypeDefs[domain].ContainsKey(kind))
+            throw new Exception($"No proxy types registered for kind {kind} in domain {domain}.");
+
+        if (!_proxyTypeDefs[domain][kind].ContainsKey(name))
+           throw new Exception($"No proxy type registered with name {name} for kind {kind} in domain {domain}.");
+
+
+        return _proxyTypeDefs[domain][kind][name];
+    }
+
 
     public void RegisterProxyType(Type type)
     {
+        // make sure the type has remote attribute
+        var remoteAttr = type.GetCustomAttribute<RemoteAttribute>();
 
+        if (remoteAttr == null)
+            throw new Exception("Proxy type must have Remote attribute.");
+
+        //@TODO should add this check t the RemoteAttribute class and use it here, but for now, we will just check the domain and full name format here.
+        if (!remoteAttr.AreValidDomains())
+            throw new Exception("Invalid domain in Remote attribute.");
+
+        if (!remoteAttr.IsValidFullName())
+            throw new Exception("Invalid full name in Remote attribute.");
+
+
+        // make sure the type implements IResource or IRecord
+        if (Codec.ImplementsInterface(type, typeof(IRecord)))
+        {
+            foreach (var domain in remoteAttr.Domains)
+            {
+                if (!_proxyTypeDefs.ContainsKey(domain))
+                    _proxyTypeDefs.Add(domain, new KeyList<TypeDefKind, KeyList<string, Type>>());
+
+                if (!_proxyTypeDefs[domain].ContainsKey(TypeDefKind.Record))
+                    _proxyTypeDefs[domain][TypeDefKind.Record] = new KeyList<string, Type>();
+
+                _proxyTypeDefs[domain][TypeDefKind.Record][remoteAttr.FullName] = type;
+            }
+        }
+        else if (Codec.InheritsClass(type, typeof(EpResource)))
+        {
+            foreach (var domain in remoteAttr.Domains)
+            {
+
+                if (!_proxyTypeDefs.ContainsKey(domain))
+                    _proxyTypeDefs.Add(domain, new KeyList<TypeDefKind, KeyList<string, Type>>());
+
+                if (!_proxyTypeDefs[domain].ContainsKey(TypeDefKind.Resource))
+                    _proxyTypeDefs[domain][TypeDefKind.Resource] = new KeyList<string, Type>();
+
+                _proxyTypeDefs[domain][TypeDefKind.Resource][remoteAttr.FullName] = type;
+            }
+        }
+        else if (type.IsEnum)
+        {
+            foreach (var domain in remoteAttr.Domains)
+            {
+                if (!_proxyTypeDefs.ContainsKey(domain))
+                    _proxyTypeDefs.Add(domain, new KeyList<TypeDefKind, KeyList<string, Type>>());
+
+                if (!_proxyTypeDefs[domain].ContainsKey(TypeDefKind.Enum))
+                    _proxyTypeDefs[domain][TypeDefKind.Enum] = new KeyList<string, Type>();
+
+                _proxyTypeDefs[domain][TypeDefKind.Enum][remoteAttr.FullName] = type;
+            }
+        }
+        else
+        {
+            throw new Exception("Proxy type must implement IResource or IRecord or be an enum.");
+        }
     }
 
     /// <summary>
@@ -759,14 +843,14 @@ public class Warehouse
         return _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
     }
 
-    public TypeDef GetRemoteTypeDefByType(Type type)
-    {
-        var remoteAttr = type.GetCustomAttribute<RemoteAttribute>();
+    //public TypeDef GetRemoteTypeDefByType(Type type)
+    //{
+    //    var remoteAttr = type.GetCustomAttribute<RemoteAttribute>();
 
-        if (remoteAttr == null) return null;
+    //    if (remoteAttr == null) return null;
 
-        return GetRemoteTypeDefByName(remoteAttr.Domain, remoteAttr.FullName);
-    }
+    //    return GetRemoteTypeDefByName(remoteAttr.Domain, remoteAttr.FullName);
+    //}
 
     /// <summary>
     /// Get a TypeDef by type name . If not in the warehouse, a new TypeDef is created and added to the warehouse.

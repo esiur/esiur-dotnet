@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.BusinessDocument", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.BusinessDocument", "localhost")]
     [Export]
     public class BusinessDocument : IRecord
     {

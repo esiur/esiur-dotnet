@@ -6,7 +6,7 @@ using Google.Protobuf;
 using System;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Attachment", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Attachment", "localhost")]
     [Export]
     public class Attachment : IRecord
     {

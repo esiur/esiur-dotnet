@@ -736,7 +736,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         }
 
                         SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
-
+                        
                         _session.Authenticated = true;
                         _session.LocalIdentity = null;
                         _session.RemoteIdentity = null;

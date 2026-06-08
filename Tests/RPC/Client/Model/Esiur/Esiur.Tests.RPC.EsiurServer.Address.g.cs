@@ -6,7 +6,7 @@ using Esiur.Protocol;
 
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Address", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Address", "localhost")]
     [Export]
     public class Address : IRecord
     {

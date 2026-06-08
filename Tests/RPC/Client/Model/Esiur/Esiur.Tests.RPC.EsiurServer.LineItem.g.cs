@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.LineItem", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.LineItem", "localhost")]
     [Export]
     public class LineItem : IRecord
     {

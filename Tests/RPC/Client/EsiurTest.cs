@@ -16,9 +16,12 @@ namespace Esiur.Tests.RPC.Client
             var rt = new TestResults();
 
             using var mon = new PerProcessNetMonitor(Process.GetCurrentProcess().Id);
-            //mon.Start();
+            mon.Start();
 
             Console.WriteLine($"\n== Esiur @ {address} ==");
+
+            // register proxy types
+            Initialization.RegisterTypes(Warehouse.Default);
 
             var service = await Warehouse.Default.Get<Service>(address);
 

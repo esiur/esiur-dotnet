@@ -124,6 +124,9 @@ public class RemoteTypeDef:TypeDef
             }
         }
 
+        // try to get proxy type
+        od._proxyType = connection.Instance?.Warehouse?.TryGetProxyType(od.Kind, od.Domain, od.Name);
+
         return od;
     }
 }

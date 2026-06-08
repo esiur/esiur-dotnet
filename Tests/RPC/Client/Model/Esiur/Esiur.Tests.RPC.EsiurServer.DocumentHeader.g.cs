@@ -6,7 +6,7 @@ using Google.Protobuf;
 using System;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.DocumentHeader", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.DocumentHeader", "localhost")]
     [Export]
     public class DocumentHeader : IRecord
     {

@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.LineType", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.LineType", "localhost")]
     [Export]
     public enum LineType
     {

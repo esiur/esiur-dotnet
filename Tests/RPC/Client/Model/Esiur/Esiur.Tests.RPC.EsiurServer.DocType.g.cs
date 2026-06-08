@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.DocType", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.DocType", "localhost")]
     [Export]
     public enum DocType
     {

@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Currency", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Currency", "localhost")]
     [Export]
     public enum Currency
     {

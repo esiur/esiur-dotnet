@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Party", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Party", "localhost")]
     [Export]
     public class Party : IRecord
     {

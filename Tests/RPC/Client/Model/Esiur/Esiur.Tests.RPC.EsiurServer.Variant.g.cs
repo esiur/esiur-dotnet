@@ -6,7 +6,7 @@ using Google.Protobuf;
 using System;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.Variant", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Variant", "localhost")]
     [Export]
     public class Variant : IRecord
     {

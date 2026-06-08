@@ -5,7 +5,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 namespace Esiur.Tests.RPC.EsiurServer
 {
-    [Remote("Esiur.Tests.RPC.EsiurServer.PaymentMethod", "")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.PaymentMethod", "localhost")]
     [Export]
     public enum PaymentMethod
     {

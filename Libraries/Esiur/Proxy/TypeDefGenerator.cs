@@ -271,9 +271,13 @@ public static class TypeDefGenerator
 
             // generate info class
 
+            var mainClassName = typeDefs.FirstOrDefault().Name?.Split('.');
+
+            var mainNamespace = mainClassName != null ? string.Join(".", mainClassName.Take(mainClassName.Length - 1)) : "Esiur";
+
             var typesFile = @"using System;
-    namespace Esiur { 
-        public static class Generated { 
+    namespace " + mainNamespace + @" { 
+        public static class Initialization { 
             public static Type[] Resources {get;} = new Type[] { " +
                     string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Resource).Select(x => $"typeof({x.Name})"))
                 + @" };
@@ -282,11 +286,22 @@ public static class TypeDefGenerator
                 + @" };
             public static Type[] Enums { get; } = new Type[] { " +
                     string.Join(",", typeDefs.Where(x => x.Kind == TypeDefKind.Enum).Select(x => $"typeof({x.Name})"))
-                + @" };" +
-                "\r\n } \r\n}";
+                + @" };
+                    public static void RegisterTypes(Warehouse warehouse)
+                    {
+                        foreach(var type in Resources)
+                            warehouse.RegisterProxyType(type);
+
+                        foreach(var type in Records)
+                            warehouse.RegisterProxyType(type);
+
+                        foreach(var type in Enums)
+                            warehouse.RegisterProxyType(type);
+                    }
+                \r\n } \r\n}";
 
 
-            File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + "Esiur.g.cs", typesFile);
+            File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + "Initialization.g.cs", typesFile);
 
 
             return dstDir.FullName;
