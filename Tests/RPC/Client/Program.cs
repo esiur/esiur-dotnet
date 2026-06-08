@@ -1,13 +1,10 @@
 ﻿using MQTTnet;
-using RPC.Client.Tests;
-using RPC.Client.Tests.Docs;
-using RPC.Client.Tests.Events;
+using Esiur.Tests.RPC.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static RPC.Client.Tests.Events.Websockets;
 
 
 var results = new Dictionary<string, List<TestResults>>();
@@ -22,7 +19,7 @@ for (var i = 0; i < 10; i++)
 {
     var seed = 1000 + (i * 1000);
 
-    var docsWorkloads = new Dictionary<string, RPC.EsiurTest.BusinessDocument[]>();// RPC.Client.Tests.DocGenerator.BuildWorkloads(seed);
+    var docsWorkloads = new Dictionary<string, Esiur.Tests.RPC.EsiurServer.BusinessDocument[]>();// RPC.Client.Tests.DocGenerator.BuildWorkloads(seed);
     var dataWorkLoads = Shared.BuildBytesWorkLoads(seed);
     var intWorkloads = Shared.BuildIntWorkloads(seed);
 

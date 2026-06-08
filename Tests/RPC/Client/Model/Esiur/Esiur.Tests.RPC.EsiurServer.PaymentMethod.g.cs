@@ -3,9 +3,9 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("fadfe3764f808d7e839fef5275490dd7")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.PaymentMethod", "")]
     [Export]
     public enum PaymentMethod
     {
@@ -14,6 +14,5 @@ namespace RPC.EsiurTest
         Crypto = 3,
         Other = 4,
         Wire = 2
-
     }
 }

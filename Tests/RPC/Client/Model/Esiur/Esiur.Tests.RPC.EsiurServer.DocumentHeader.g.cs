@@ -4,49 +4,49 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using Google.Protobuf;
 using System;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("4631164f62d489e68ffab70e20b421f2")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.DocumentHeader", "")]
     [Export]
     public class DocumentHeader : IRecord
     {
-        [Annotation("DateTime")]
+        [Annotation("", "DateTime")]
         public DateTime CreatedAt { get; set; }
 
-        [Annotation("Currency")]
-        public RPC.EsiurTest.Currency Currency { get; set; }
+        [Annotation("", "Currency")]
+        public Esiur.Tests.RPC.EsiurServer.Currency Currency { get; set; }
 
-        [Annotation("Byte[]")]
+        [Annotation("", "Byte[]")]
         public byte[] DocId { get; set; }
 
-        [Annotation("Dictionary`2")]
-        public Map<string, RPC.EsiurTest.Variant> Meta { get; set; }
+        [Annotation("", "Dictionary`2")]
+        public Map<string, Esiur.Tests.RPC.EsiurServer.Variant> Meta { get; set; }
 
-        [Annotation("String")]
-        public string? Notes { get; set; }
+        [Annotation("", "String")]
+        public string Notes { get; set; }
 
-        [Annotation("DocType")]
-        public RPC.EsiurTest.DocType Type { get; set; }
+        [Annotation("", "DocType")]
+        public Esiur.Tests.RPC.EsiurServer.DocType Type { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public DateTime? UpdatedAt { get; set; }
 
-        [Annotation("Int32")]
+        [Annotation("", "Int32")]
         public int Version { get; set; }
 
 
-        public SharedModel.DocumentHeader ToShared()
+        public Client.SharedModel.DocumentHeader ToShared()
         {
-            return new SharedModel.DocumentHeader()
+            return new Client.SharedModel.DocumentHeader()
             {
                 CreatedAt = CreatedAt,
                 DocId = DocId,
-                Meta = Meta.ToDictionary(x=>x.Key, v=>v.Value.ToShared()),
+                Meta = Meta.ToDictionary(x => x.Key, v => v.Value.ToShared()),
                 Notes = Notes,
-                Currency = Enum.Parse<SharedModel.Currency>(Currency.ToString(), true),
+                Currency = Enum.Parse<Client.SharedModel.Currency>(Currency.ToString(), true),
                 UpdatedAt = UpdatedAt,
                 Version = Version,
-                Type = Enum.Parse<SharedModel.DocType>(Type.ToString(), true)
+                Type = Enum.Parse<Client.SharedModel.DocType>(Type.ToString(), true)
             };
         }
 
@@ -55,11 +55,11 @@ namespace RPC.EsiurTest
             var rt = new Echo.ThriftModel.DocumentHeader()
             {
                 DocId = DocId,
-                CreatedAt   = CreatedAt.Ticks,
-                Currency = Enum.Parse< Echo.ThriftModel.Currency>(Currency.ToString(), true),
-                Type = Enum.Parse< Echo.ThriftModel.DocType>(Type.ToString(), true),
+                CreatedAt = CreatedAt.Ticks,
+                Currency = Enum.Parse<Echo.ThriftModel.Currency>(Currency.ToString(), true),
+                Type = Enum.Parse<Echo.ThriftModel.DocType>(Type.ToString(), true),
                 Version = Version,
-                Meta = Meta.ToDictionary(x=>x.Key, x=>x.Value.ToThrift())
+                Meta = Meta.ToDictionary(x => x.Key, x => x.Value.ToThrift())
             };
 
             if (UpdatedAt != null)
@@ -71,13 +71,13 @@ namespace RPC.EsiurTest
             return rt;
         }
 
-        public Echo.Model.Grpc.DocumentHeader ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.DocumentHeader ToGrpc()
         {
-            var hdr = new Echo.Model.Grpc.DocumentHeader();
+            var hdr = new Esiur.Tests.RPC.Client.Grpc.DocumentHeader();
 
             hdr.DocId = ByteString.CopyFrom(DocId);
             hdr.CreatedAt = CreatedAt.Ticks;
-            hdr.Currency = Enum.Parse<Echo.Model.Grpc.Currency>(Currency.ToString(), true);
+            hdr.Currency = Enum.Parse<Esiur.Tests.RPC.Client.Grpc.Currency>(Currency.ToString(), true);
             hdr.Version = Version;
             hdr.Notes = Notes;
 

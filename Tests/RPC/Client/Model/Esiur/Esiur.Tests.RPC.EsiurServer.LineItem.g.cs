@@ -3,46 +3,46 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("142f42b0e1a78c098f35fa935cde22c1")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.LineItem", "")]
     [Export]
     public class LineItem : IRecord
     {
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Description { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public double? Discount { get; set; }
 
-        [Annotation("Map`2")]
-        public Map<string, RPC.EsiurTest.Variant> Ext { get; set; }
+        [Annotation("", "Map`2")]
+        public Map<string, Esiur.Tests.RPC.EsiurServer.Variant> Ext { get; set; }
 
-        [Annotation("Int32")]
+        [Annotation("", "Int32")]
         public int LineNo { get; set; }
 
-        [Annotation("Double")]
+        [Annotation("", "Double")]
         public double Qty { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string QtyUnit { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string SKU { get; set; }
 
-        [Annotation("LineType")]
-        public RPC.EsiurTest.LineType Type { get; set; }
+        [Annotation("", "LineType")]
+        public Esiur.Tests.RPC.EsiurServer.LineType Type { get; set; }
 
-        [Annotation("Double")]
+        [Annotation("", "Double")]
         public double UnitPrice { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public double? VatRate { get; set; }
 
 
-        public SharedModel.LineItem ToShared()
+        public Client.SharedModel.LineItem ToShared()
         {
-            return new SharedModel.LineItem()
+            return new Client.SharedModel.LineItem()
             {
                 Description = Description,
                 Discount = Discount,
@@ -51,7 +51,7 @@ namespace RPC.EsiurTest
                 Qty = Qty,
                 QtyUnit = QtyUnit,
                 SKU = SKU,
-                Type = Enum.Parse<SharedModel.LineType>(Type.ToString(), true),
+                Type = Enum.Parse<Client.SharedModel.LineType>(Type.ToString(), true),
                 UnitPrice = UnitPrice,
                 VatRate = VatRate
             };
@@ -80,9 +80,9 @@ namespace RPC.EsiurTest
             return rt;
         }
 
-        public Echo.Model.Grpc.LineItem ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.LineItem ToGrpc()
         {
-            var rt = new Echo.Model.Grpc.LineItem()
+            var rt = new Esiur.Tests.RPC.Client.Grpc.LineItem()
             {
                 Description = Description,
                 Discount = Discount ?? 0,
@@ -91,7 +91,7 @@ namespace RPC.EsiurTest
                 UnitPrice = UnitPrice,
                 QtyUnit = QtyUnit,
                 Sku = SKU,
-                Type = Enum.Parse<Echo.Model.Grpc.LineType>(Type.ToString(), true),
+                Type = Enum.Parse<Esiur.Tests.RPC.Client.Grpc.LineType>(Type.ToString(), true),
                 VatRate = VatRate ?? 0,
             };
 

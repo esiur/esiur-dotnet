@@ -3,38 +3,38 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("f172196340298b8586fed434c72bc158")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Payment", "")]
     [Export]
     public class Payment : IRecord
     {
-        [Annotation("Double")]
+        [Annotation("", "Double")]
         public double Amount { get; set; }
 
-        [Annotation("Currency")]
-        public RPC.EsiurTest.Currency Currency { get; set; }
+        [Annotation("", "Currency")]
+        public Esiur.Tests.RPC.EsiurServer.Currency Currency { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public double? Fee { get; set; }
 
-        [Annotation("PaymentMethod")]
-        public RPC.EsiurTest.PaymentMethod Method { get; set; }
+        [Annotation("", "PaymentMethod")]
+        public Esiur.Tests.RPC.EsiurServer.PaymentMethod Method { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Reference { get; set; }
 
-        [Annotation("DateTime")]
+        [Annotation("", "DateTime")]
         public DateTime Timestamp { get; set; }
 
 
-        public SharedModel.Payment ToShared()
+        public Client.SharedModel.Payment ToShared()
         {
-            return new SharedModel.Payment()
+            return new Client.SharedModel.Payment()
             {
                 Amount = Amount,
-                Currency = Enum.Parse<SharedModel.Currency>(Currency.ToString(), true),
-                Method = Enum.Parse<SharedModel.PaymentMethod>(Method.ToString(), true),
+                Currency = Enum.Parse<Client.SharedModel.Currency>(Currency.ToString(), true),
+                Method = Enum.Parse<Client.SharedModel.PaymentMethod>(Method.ToString(), true),
                 Reference = Reference,
                 Timestamp = Timestamp,
                 Fee = Fee,
@@ -43,7 +43,7 @@ namespace RPC.EsiurTest
 
         public Echo.ThriftModel.Payment ToThrift()
         {
-            var rt=  new Echo.ThriftModel.Payment()
+            var rt = new Echo.ThriftModel.Payment()
             {
                 Amount = Amount,
                 Currency = Enum.Parse<Echo.ThriftModel.Currency>(Currency.ToString(), true),
@@ -58,14 +58,14 @@ namespace RPC.EsiurTest
             return rt;
         }
 
-        public Echo.Model.Grpc.Payment ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.Payment ToGrpc()
         {
-            return new Echo.Model.Grpc.Payment()
+            return new Esiur.Tests.RPC.Client.Grpc.Payment()
             {
                 Amount = Amount,
-                Currency = Enum.Parse<Echo.Model.Grpc.Currency>(Currency.ToString(), true),
+                Currency = Enum.Parse<Esiur.Tests.RPC.Client.Grpc.Currency>(Currency.ToString(), true),
                 Fee = Fee ?? 0,
-                Method = Enum.Parse<Echo.Model.Grpc.PaymentMethod>(Method.ToString(), true),
+                Method = Enum.Parse<Esiur.Tests.RPC.Client.Grpc.PaymentMethod>(Method.ToString(), true),
                 Reference = Reference,
                 Timestamp = Timestamp.Ticks,
             };

@@ -3,9 +3,9 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("6ded4eca74c8886a85a74e082770be4b")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.DocType", "")]
     [Export]
     public enum DocType
     {

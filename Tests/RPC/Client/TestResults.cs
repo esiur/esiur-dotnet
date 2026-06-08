@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace RPC.Client.Tests
+namespace Esiur.Tests.RPC.Client
 {
     public class TestResults
     {

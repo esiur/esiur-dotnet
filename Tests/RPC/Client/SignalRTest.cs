@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RPC.Client.Tests.Docs
+namespace Esiur.Tests.RPC.Client
 {
     public static class SignalRTest
     {

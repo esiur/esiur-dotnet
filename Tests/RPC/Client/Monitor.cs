@@ -7,7 +7,7 @@ using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Session;
 
-namespace RPC.Client.Tests;
+namespace Esiur.Tests.RPC.Client;
 
 public class PerProcessNetMonitor : IDisposable
 {

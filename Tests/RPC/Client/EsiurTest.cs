@@ -1,19 +1,9 @@
 ﻿using Esiur.Net.Sockets;
 using Esiur.Resource;
-using RPC.EsiurTest;
-using System;
-using System.Collections.Generic;
+using Esiur.Tests.RPC.EsiurServer;
 using System.Diagnostics;
-using System.Diagnostics;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using Esiur.Misc;
-using Esiur.Data;
 
-namespace RPC.Client.Tests.Docs
+namespace Esiur.Tests.RPC.Client
 {
     public static class EsiurTest
     {

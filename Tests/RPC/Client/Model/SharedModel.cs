@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RPC.SharedModel
+namespace Esiur.Tests.RPC.Client.SharedModel
 {
     // ====================== Enums ======================
 

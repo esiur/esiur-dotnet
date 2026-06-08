@@ -3,9 +3,9 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("7e474e8826e288f28bddddf69782c580")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.LineType", "")]
     [Export]
     public enum LineType
     {

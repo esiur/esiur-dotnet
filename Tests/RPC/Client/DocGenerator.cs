@@ -1,5 +1,5 @@
 ﻿using Esiur.Data;
-using RPC.EsiurTest;
+using Esiur.Tests.RPC.EsiurServer;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Linq;
 
 
 #nullable enable
-namespace RPC.Client.Tests;
+namespace Esiur.Tests.RPC.Client;
 
 public static class DocGenerator
 {

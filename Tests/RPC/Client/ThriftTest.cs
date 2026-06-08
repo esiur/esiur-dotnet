@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 
-namespace RPC.Client.Tests.Docs;
+namespace Esiur.Tests.RPC.Client;
 
 public class ThriftTest
 {
@@ -25,7 +25,7 @@ public class ThriftTest
         using var socket = new Thrift.Transport.Client.TSocketTransport(host, port, new Thrift.TConfiguration());
         //await socket.OpenAsync(new CancellationToken());
         var proto = new Thrift.Protocol.TBinaryProtocol(socket);
-        var service = new Echo.ThriftModel.EchoService.Client(proto);
+        var service = new EchoService.Client(proto);
 
 
         Thread.Sleep(3000);

@@ -2,7 +2,7 @@
 
 package gpmodel;
 
-option csharp_namespace = "Echo.Model.Grpc";
+option csharp_namespace = "Esiur.Tests.RPC.Client.Grpc";
 
 // ========================= Enums =========================
 

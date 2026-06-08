@@ -3,9 +3,9 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("c44e42333dfd8d3485bb2a79fd7a9f6f")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Currency", "")]
     [Export]
     public enum Currency
     {

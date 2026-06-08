@@ -3,36 +3,36 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("44fff9c7bd9b86f580bf479a64cb84af")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Party", "")]
     [Export]
     public class Party : IRecord
     {
-        [Annotation("Address")]
-        public RPC.EsiurTest.Address Address { get; set; }
+        [Annotation("", "Address")]
+        public Esiur.Tests.RPC.EsiurServer.Address Address { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Email { get; set; }
 
-        [Annotation("UInt64")]
+        [Annotation("", "UInt64")]
         public ulong Id { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Name { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Phone { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string PreferredLanguage { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string TaxId { get; set; }
 
-        public SharedModel.Party ToShared()
+        public Client.SharedModel.Party ToShared()
         {
-            return new SharedModel.Party()
+            return new Client.SharedModel.Party()
             {
                 Address = Address.ToShared(),
                 Email = Email,
@@ -58,9 +58,9 @@ namespace RPC.EsiurTest
             };
         }
 
-        public Echo.Model.Grpc.Party ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.Party ToGrpc()
         {
-            return new Echo.Model.Grpc.Party()
+            return new Esiur.Tests.RPC.Client.Grpc.Party()
             {
                 Address = Address.ToGrpc(),
                 Email = Email,

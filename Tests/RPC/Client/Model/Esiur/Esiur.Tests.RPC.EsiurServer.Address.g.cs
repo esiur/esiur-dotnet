@@ -3,28 +3,29 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("0f8f447ee993847189b2c1ad6f83931a")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Address", "")]
     [Export]
     public class Address : IRecord
     {
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string City { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Country { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Line1 { get; set; }
 
-        [Annotation("String")]
-        public string? Line2 { get; set; }
+        [Annotation("", "String")]
+        public string Line2 { get; set; }
 
-        [Annotation("String")]
-        public string? PostalCode { get; set; }
+        [Annotation("", "String")]
+        public string PostalCode { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Region { get; set; }
 
         public override bool Equals(object? obj)
@@ -41,9 +42,9 @@ namespace RPC.EsiurTest
             return true;
         }
 
-        public SharedModel.Address ToShared()
+        public Client.SharedModel.Address ToShared()
         {
-            return new SharedModel.Address()
+            return new Client.SharedModel.Address()
             {
                 City = City,
                 Country = Country,
@@ -55,9 +56,9 @@ namespace RPC.EsiurTest
             };
         }
 
-        public Echo.Model.Grpc.Address ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.Address ToGrpc()
         {
-            return new Echo.Model.Grpc.Address()
+            return new Esiur.Tests.RPC.Client.Grpc.Address()
             {
                 City = City,
                 Country = Country,
@@ -80,5 +81,6 @@ namespace RPC.EsiurTest
                 Region = Region,
             };
         }
+
     }
 }

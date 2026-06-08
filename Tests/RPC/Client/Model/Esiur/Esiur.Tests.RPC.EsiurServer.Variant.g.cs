@@ -1,46 +1,47 @@
-using System;
-using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
+using Esiur.Resource;
 using Google.Protobuf;
-
-namespace RPC.EsiurTest
+using System;
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("91ed22c5c53e846181f799dc76ddd93c")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Variant", "")]
     [Export]
     public class Variant : IRecord
     {
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public bool? Bool { get; set; }
 
-        [Annotation("Byte[]")]
+        [Annotation("", "Byte[]")]
         public byte[] Bytes { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public DateTime? Dt { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public double? F64 { get; set; }
 
-        [Annotation("Byte[]")]
+        [Annotation("", "Byte[]")]
         public byte[] Guid { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public long? I64 { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Str { get; set; }
 
-        [Annotation("Kind")]
-        public RPC.EsiurTest.Kind Tag { get; set; }
+        [Annotation("", "Kind")]
+        public Esiur.Tests.RPC.EsiurServer.Kind Tag { get; set; }
 
-        [Annotation("Nullable`1?")]
+        [Annotation("", "Nullable`1?")]
         public ulong? U64 { get; set; }
 
-        public RPC.SharedModel.Variant ToShared()
+
+
+        public Client.SharedModel.Variant ToShared()
         {
-            return new SharedModel.Variant()
+            return new Client.SharedModel.Variant()
             {
 
                 Bool = Bool,
@@ -50,14 +51,14 @@ namespace RPC.EsiurTest
                 Guid = Guid,
                 I64 = I64,
                 Str = Str,
-                Tag = Enum.Parse<SharedModel.Kind>(Tag.ToString(), true),
+                Tag = Enum.Parse<Client.SharedModel.Kind>(Tag.ToString(), true),
                 U64 = U64
             };
         }
 
-        public Echo.Model.Grpc.Variant ToGrpc()
+        public Client.Grpc.Variant ToGrpc()
         {
-            return new Echo.Model.Grpc.Variant()
+            return new Client.Grpc.Variant()
             {
                 BoolVal = Bool ?? false,
                 BytesVal = ByteString.CopyFrom(Bytes ?? new byte[0]),
@@ -66,7 +67,7 @@ namespace RPC.EsiurTest
                 GuidVal = ByteString.CopyFrom(Guid ?? new byte[0]),
                 I64Val = I64 ?? 0,
                 StrVal = Str,
-                Tag = Enum.Parse<Echo.Model.Grpc.Kind>(Tag.ToString(), true),
+                Tag = Enum.Parse<Client.Grpc.Kind>(Tag.ToString(), true),
                 U64Val = U64 ?? 0,
             };
         }

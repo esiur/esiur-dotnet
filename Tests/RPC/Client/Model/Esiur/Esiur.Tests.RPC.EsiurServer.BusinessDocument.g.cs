@@ -3,34 +3,32 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-using Google.Protobuf;
-using Google.Protobuf.Collections;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("9a34d22890e787b48133a2a61ac84ad8")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.BusinessDocument", "")]
     [Export]
     public class BusinessDocument : IRecord
     {
-        [Annotation("Attachment[]")]
-        public RPC.EsiurTest.Attachment[] Attachments { get; set; }
+        [Annotation("", "Attachment[]")]
+        public Esiur.Tests.RPC.EsiurServer.Attachment[] Attachments { get; set; }
 
-        [Annotation("Party")]
-        public RPC.EsiurTest.Party Buyer { get; set; }
+        [Annotation("", "Party")]
+        public Esiur.Tests.RPC.EsiurServer.Party Buyer { get; set; }
 
-        [Annotation("DocumentHeader")]
-        public RPC.EsiurTest.DocumentHeader Header { get; set; }
+        [Annotation("", "DocumentHeader")]
+        public Esiur.Tests.RPC.EsiurServer.DocumentHeader Header { get; set; }
 
-        [Annotation("LineItem[]")]
-        public RPC.EsiurTest.LineItem[] Items { get; set; }
+        [Annotation("", "LineItem[]")]
+        public Esiur.Tests.RPC.EsiurServer.LineItem[] Items { get; set; }
 
-        [Annotation("Payment[]")]
-        public RPC.EsiurTest.Payment[] Payments { get; set; }
+        [Annotation("", "Payment[]")]
+        public Esiur.Tests.RPC.EsiurServer.Payment[] Payments { get; set; }
 
-        [Annotation("Int32[]")]
+        [Annotation("", "Int32[]")]
         public int[] RiskScores { get; set; }
 
-        [Annotation("Party")]
-        public RPC.EsiurTest.Party Seller { get; set; }
+        [Annotation("", "Party")]
+        public Esiur.Tests.RPC.EsiurServer.Party Seller { get; set; }
 
         public override bool Equals(object? obj)
         {
@@ -68,15 +66,15 @@ namespace RPC.EsiurTest
         }
 
 
-        public SharedModel.BusinessDocument ToShared()
+        public Client.SharedModel.BusinessDocument ToShared()
         {
-            return new SharedModel.BusinessDocument()
+            return new Client.SharedModel.BusinessDocument()
             {
-                Attachments = Attachments?.Select(x=>x.ToShared()).ToArray() ?? null,
+                Attachments = Attachments?.Select(x => x.ToShared()).ToArray() ?? null,
                 Buyer = Buyer.ToShared(),
                 Header = Header.ToShared(),
-                Items = Items.Select(x=>x.ToShared()).ToArray(),
-                Payments = Payments.Select(x=>x.ToShared()).ToArray(),
+                Items = Items.Select(x => x.ToShared()).ToArray(),
+                Payments = Payments.Select(x => x.ToShared()).ToArray(),
                 RiskScores = RiskScores,
                 Seller = Seller.ToShared(),
             };
@@ -87,7 +85,7 @@ namespace RPC.EsiurTest
             var rt = new Echo.ThriftModel.BusinessDocument();
 
             if (Header != null)
-                rt.Header = Header.ToThrift();  
+                rt.Header = Header.ToThrift();
 
             if (Buyer != null)
                 rt.Buyer = Buyer.ToThrift();
@@ -96,7 +94,7 @@ namespace RPC.EsiurTest
                 rt.Seller = Seller.ToThrift();
 
             if (Attachments != null)
-                rt.Attachments = Attachments.Select(x=>x.ToThrift()).ToList();
+                rt.Attachments = Attachments.Select(x => x.ToThrift()).ToList();
 
             if (RiskScores != null)
                 rt.RiskScores = RiskScores.ToList();
@@ -110,10 +108,10 @@ namespace RPC.EsiurTest
             return rt;
         }
 
-        public Echo.Model.Grpc.BusinessDocument ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.BusinessDocument ToGrpc()
         {
 
-            var rt = new Echo.Model.Grpc.BusinessDocument()
+            var rt = new Esiur.Tests.RPC.Client.Grpc.BusinessDocument()
             {
                 Header = Header.ToGrpc(),
                 Buyer = Buyer.ToGrpc(),
@@ -140,6 +138,5 @@ namespace RPC.EsiurTest
             return rt;
         }
 
-       
     }
 }

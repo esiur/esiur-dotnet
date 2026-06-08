@@ -3,9 +3,9 @@ using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
-namespace RPC.EsiurTest
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("32ae8265068382608399b7e427be37db")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Kind", "")]
     [Export]
     public enum Kind
     {

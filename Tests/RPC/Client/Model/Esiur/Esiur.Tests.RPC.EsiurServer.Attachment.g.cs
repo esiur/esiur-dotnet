@@ -1,23 +1,24 @@
-using System;
-using Esiur.Resource;
 using Esiur.Core;
 using Esiur.Data;
 using Esiur.Protocol;
+using Esiur.Resource;
 using Google.Protobuf;
-namespace RPC.EsiurTest
+using System;
+namespace Esiur.Tests.RPC.EsiurServer
 {
-    [TypeId("4befaa686f038a2885268fca4cbf3c2c")]
+    [Remote("Esiur.Tests.RPC.EsiurServer.Attachment", "")]
     [Export]
     public class Attachment : IRecord
     {
-        [Annotation("Byte[]")]
+        [Annotation("", "Byte[]")]
         public byte[] Data { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string MimeType { get; set; }
 
-        [Annotation("String")]
+        [Annotation("", "String")]
         public string Name { get; set; }
+
 
         public override bool Equals(object? obj)
         {
@@ -29,9 +30,9 @@ namespace RPC.EsiurTest
             return true;
         }
 
-        public SharedModel.Attachment ToShared()
+        public Client.SharedModel.Attachment ToShared()
         {
-            return new SharedModel.Attachment()
+            return new Client.SharedModel.Attachment()
             {
                 Data = Data,
                 MimeType = MimeType,
@@ -39,9 +40,9 @@ namespace RPC.EsiurTest
             };
         }
 
-        public Echo.Model.Grpc.Attachment ToGrpc()
+        public Esiur.Tests.RPC.Client.Grpc.Attachment ToGrpc()
         {
-            return new Echo.Model.Grpc.Attachment()
+            return new Esiur.Tests.RPC.Client.Grpc.Attachment()
             {
                 Data = ByteString.CopyFrom(Data),
                 MimeType = MimeType,
