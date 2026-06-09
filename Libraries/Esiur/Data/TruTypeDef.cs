@@ -20,10 +20,10 @@ namespace Esiur.Data
         private Type UpdateRuntimeType()
         {
             if (TypeDef is LocalTypeDef localTypeDef)
-                _runtimeType = localTypeDef.DefinedType ?? typeof(EpResource);
+                _runtimeType = localTypeDef.DefinedType;
             else if (TypeDef is RemoteTypeDef remoteTypeDef)
             {
-                _runtimeType = remoteTypeDef.ProxyType ?? typeof(object);
+                _runtimeType = remoteTypeDef.ProxyType;
             }
 
             return _runtimeType ?? typeof(object);
