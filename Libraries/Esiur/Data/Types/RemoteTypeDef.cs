@@ -127,6 +127,35 @@ public class RemoteTypeDef:TypeDef
         // try to get proxy type
         od._proxyType = connection.Instance?.Warehouse?.TryGetProxyType(od.Kind, od.Domain, od.Name);
 
+        if (od._proxyType == null)
+            Console.WriteLine("Proxy type not found " + od.Name);
+
+        if (od._proxyType != null)
+        {
+            Console.WriteLine("Updating : " + od.Name);
+
+            // update PropertyInfo, MethodInfo, EventInfo, FieldInfo
+            // @TODO Check signature match as well, not only name, to avoid conflicts
+
+            foreach (var prop in od.Properties)            
+                prop.PropertyInfo = od._proxyType.GetProperty(prop.Name);
+
+            foreach (var func in od.Functions)
+                func.MethodInfo = od._proxyType.GetMethod(func.Name);
+
+            foreach (var evnt in od.Events)
+                evnt.EventInfo = od._proxyType.GetEvent(evnt.Name);
+
+            foreach(var cons in od.Constants)
+                cons.FieldInfo = od._proxyType.GetField(cons.Name);
+
+           
+        }
+
+        // register in warehouse
+        // @TOOD check who is the initiator
+        connection.Instance?.Warehouse?.TryRegisterRemoteTypeDef(connection.RemoteDomain, od);
+
         return od;
     }
 }

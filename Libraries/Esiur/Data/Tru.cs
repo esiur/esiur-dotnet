@@ -151,7 +151,7 @@ namespace Esiur.Data
 
         public abstract void SetNotNull(byte flag);
 
-        public abstract Type RuntimeType { get; protected set; }
+        public abstract Type RuntimeType { get; }
 
         //public Type? GetRuntimeType(Warehouse warehouse, string domain)
         //{
@@ -373,7 +373,9 @@ namespace Esiur.Data
 
                 if (remoteAttr != null)
                 {
-                    var typeDef = warehouse.GetRemoteTypeDefByName(remoteAttr.Domains, remoteAttr.FullName);
+                    var typeDef = warehouse.FindProxyTypeDef(remoteAttr.FullName, remoteAttr.Domains);
+
+                    return new TruTypeDef(nullable, typeDef);
                 }
                 else
                 {

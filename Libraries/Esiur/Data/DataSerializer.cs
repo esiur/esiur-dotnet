@@ -380,9 +380,11 @@ public static class DataSerializer
 
         var typeDef = warehouse.GetLocalTypeDefByType(valueType);
 
-        var intVal = Convert.ChangeType(value, (value as Enum).GetTypeCode());
+        //var intVal = Convert.ChangeType(value, (value as Enum).GetTypeCode());
+        var intVal = Convert.ToInt32((Enum)value);//, (value as Enum).GetTypeCode());
 
-        var ct = typeDef.Constants.FirstOrDefault(x => x.Value.Equals(intVal));
+        //var ct = typeDef.Constants.FirstOrDefault(x => x.Value.Equals(intVal));
+        var ct = typeDef.Constants.FirstOrDefault(x => Convert.ToInt32(x.Value) == intVal);
 
         if (ct == null)
             return new Tdu(TduIdentifier.Null, null, 0, null, null);
@@ -718,8 +720,8 @@ public static class DataSerializer
         var all = DC.Combine(keysTdu, 0, (uint)keysTdu.Length, valuesTdu, 0, (uint)valuesTdu.Length);
 
         return new Tdu(TduIdentifier.Typed, all, (uint)all.Length,
-                             new TruComposite(TruIdentifier.TypedMap, false, new Tru[] { kt, vt }, 
-                                              value.GetType()), 
+                             new TruComposite(TruIdentifier.TypedMap, false, new Tru[] { kt, vt },
+                                              value.GetType()),
                       connection);
 
 
@@ -864,7 +866,7 @@ public static class DataSerializer
         var rt = new List<byte>();
         var record = (IRecord)value;
 
-        var recordTru = Tru.FromType(value.GetType(), warehouse) ;
+        var recordTru = Tru.FromType(value.GetType(), warehouse);
 
         TypeDef typeDef = null;
 
@@ -881,6 +883,7 @@ public static class DataSerializer
         {
             throw new Exception("Unsupported.");
         }
+
 
         foreach (var pt in typeDef.Properties)
         {

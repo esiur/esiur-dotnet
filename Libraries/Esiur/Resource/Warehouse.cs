@@ -848,12 +848,20 @@ public class Warehouse
         return _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
     }
 
-    public TypeDef GetProxyTypeDef(string domain, string typeName, TypeDefKind? typeDefKind = null)
+    public TypeDef FindProxyTypeDef(string typeName, string[] domains)
     {
-        if (!string.IsNullOrEmpty(domain) || !_remoteTypeDefs.ContainsKey(domain))
-            return null;
-        sdcsdc
-        return _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
+        // @TODO: this might cause problems if there are multiple remote type defs with the same name in different domains, we should find a way to handle this case, maybe by adding the domain to the type name or by adding a namespace to the proxy types.
+        foreach (var domain in domains)
+        {
+            if (!_remoteTypeDefs.ContainsKey(domain))
+                continue;
+
+            var typeDef = _remoteTypeDefs[domain].Values.FirstOrDefault(x => x.Name == typeName);
+            if (typeDef != null)
+                return typeDef;
+        }
+
+        return null;
     }
 
     //public TypeDef GetRemoteTypeDefByType(Type type)

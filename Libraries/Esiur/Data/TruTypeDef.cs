@@ -3,6 +3,7 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 
 namespace Esiur.Data
@@ -11,7 +12,22 @@ namespace Esiur.Data
     {
         public TypeDef? TypeDef;
 
-        public override Type RuntimeType { get; protected set; }
+        Type _runtimeType = null;
+
+        public override Type RuntimeType => _runtimeType ?? UpdateRuntimeType();
+
+
+        private Type UpdateRuntimeType()
+        {
+            if (TypeDef is LocalTypeDef localTypeDef)
+                _runtimeType = localTypeDef.DefinedType ?? typeof(EpResource);
+            else if (TypeDef is RemoteTypeDef remoteTypeDef)
+            {
+                _runtimeType = remoteTypeDef.ProxyType ?? typeof(object);
+            }
+
+            return _runtimeType ?? typeof(object);
+        }
 
         public override void SetNull(List<byte> flags)
         {
@@ -28,11 +44,7 @@ namespace Esiur.Data
             Nullable = nullable;
             TypeDef = typeDef;
 
-            if (typeDef is LocalTypeDef localTypeDef)
-                RuntimeType = localTypeDef.DefinedType ?? typeof(EpResource);
-            else if (typeDef is RemoteTypeDef remoteTypeDef)
-                RuntimeType = remoteTypeDef.ProxyType ?? typeof(IResource);
-
+            UpdateRuntimeType();
         }
 
         public override void SetNull(byte flag)

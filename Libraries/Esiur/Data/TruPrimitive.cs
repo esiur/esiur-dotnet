@@ -8,7 +8,9 @@ namespace Esiur.Data
 {
     public class TruPrimitive:Tru
     {
-        public override Type RuntimeType { get; protected set; }
+        Type _runtimeType;
+
+        public override Type RuntimeType => _runtimeType;
 
         public override string ToString()
         {
@@ -19,7 +21,7 @@ namespace Esiur.Data
         {
             Identifier = identifier;
             Nullable = nullable;
-            RuntimeType = type;
+            _runtimeType = type;
         }
 
         public override void SetNull(List<byte> flags)

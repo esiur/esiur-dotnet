@@ -11,14 +11,16 @@ namespace Esiur.Data
     {
         public Tru[] SubTypes;
 
-        public override Type RuntimeType { get; protected set; }
+        Type _runtimeType;
+
+        public override Type RuntimeType => _runtimeType;
 
         public TruComposite(TruIdentifier identifier, bool nullable, Tru[] subTypes, Type? type)
         {
             Identifier = identifier;
             Nullable = nullable;
             SubTypes = subTypes;
-            RuntimeType = type;
+            _runtimeType = type;
             //_runtimeType = typeof(Tuple).MakeGenericType(subTypes.Select(x => x.RuntimeType).ToArray());
         }
 
