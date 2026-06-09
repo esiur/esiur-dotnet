@@ -36,34 +36,22 @@ for (var i = 0; i < rounds; i++)
 
     Console.WriteLine($"\n# Round {round}/{rounds}, seed {seed}");
 
-    var docsWorkloads = DocGenerator.BuildWorkloads(seed);
-    var dataWorkLoads = Shared.BuildBytesWorkLoads(seed);
-    var intWorkloads = Shared.BuildIntWorkloads(seed);
-
-    if (runSerialization)
-    {
-        Console.WriteLine("Collecting local serialization samples...");
-        serializationSamples.AddRange(SerializationExperiment.RunRound(
-            round,
-            seed,
-            docsWorkloads,
-            dataWorkLoads,
-            intWorkloads,
-            serializationIterations));
-    }
+    //var docsWorkloads = DocGenerator.BuildWorkloads(seed);
+    var docsWorkloads = ModelGenerator.BuildWorkloads();
 
     if (!runRpc)
         continue;
 
-    var thriftDocs = docsWorkloads.ToDictionary(x => x.Key, v => v.Value.Select(x => x.ToThrift()).ToArray());
-    var signalRDocs = docsWorkloads.ToDictionary(x => x.Key, v => v.Value.Select(x => x.ToShared()).ToArray());
-    var grpcDocs = docsWorkloads.ToDictionary(x => x.Key, v => v.Value.Select(x => x.ToGrpc()).ToArray());
+    var esiurWorkload = docsWorkloads.ToDictionary(x => x.Item1, v => v.Item2.Select(x => x.Payload).ToArray());
+    var thriftDocs = docsWorkloads.ToDictionary(x => x.Item1, v => v.Item2.Select(x => x.Payload.ToThrift()).ToArray());
+    var signalRDocs = docsWorkloads.ToDictionary(x => x.Item1, v => v.Item2.Select(x => x.Payload.ToShared()).ToArray());
+    var grpcDocs = docsWorkloads.ToDictionary(x => x.Item1, v => v.Item2.Select(x => x.Payload.ToGrpc()).ToArray());
 
     if (await RunProtocol("esiur", () => EsiurTest.DoTest(
         "ep://localhost:5005/sys/service",
-        docsWorkloads,
-        dataWorkLoads,
-        intWorkloads,
+        esiurWorkload,
+        //dataWorkLoads,
+        //intWorkloads,
         warmupDelayMs,
         postHandshakeDelayMs,
         sampleDelayMs),
@@ -76,8 +64,8 @@ for (var i = 0; i < rounds; i++)
         "127.0.0.1",
         5400,
         thriftDocs,
-        dataWorkLoads,
-        intWorkloads,
+        //dataWorkLoads,
+        //intWorkloads,
         warmupDelayMs,
         postHandshakeDelayMs,
         sampleDelayMs),
@@ -89,8 +77,8 @@ for (var i = 0; i < rounds; i++)
     if (await RunProtocol("signalr", () => SignalRTest.DoTest(
         "http://127.0.0.1:5200/hub/echo",
         signalRDocs,
-        dataWorkLoads,
-        intWorkloads,
+        //dataWorkLoads,
+        //intWorkloads,
         warmupDelayMs,
         postHandshakeDelayMs,
         sampleDelayMs),
@@ -101,9 +89,9 @@ for (var i = 0; i < rounds; i++)
 
     if (await RunProtocol("json", () => JsonTest.DoTest(
         "http://127.0.0.1:5100",
-        docsWorkloads,
-        dataWorkLoads,
-        intWorkloads,
+        esiurWorkload,
+        //dataWorkLoads,
+        //intWorkloads,
         warmupDelayMs,
         postHandshakeDelayMs,
         sampleDelayMs),
@@ -115,8 +103,8 @@ for (var i = 0; i < rounds; i++)
     if (await RunProtocol("grpc", () => GrpcTest.DoTest(
         "http://127.0.0.1:5300",
         grpcDocs,
-        dataWorkLoads,
-        intWorkloads,
+        //dataWorkLoads,
+        //intWorkloads,
         warmupDelayMs,
         postHandshakeDelayMs,
         sampleDelayMs),

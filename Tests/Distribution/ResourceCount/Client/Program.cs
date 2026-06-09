@@ -44,10 +44,10 @@ for (int batch = 0; batch < resourceCount; batch += batchSize)
         {
             var sw = Stopwatch.StartNew();
 
-            Console.WriteLine(capturedI);
+            //Console.WriteLine(capturedI);
             proxies[capturedI] = await connnection.Get($"sys/sensor_{capturedI}");
 
-            Console.WriteLine(proxies[capturedI].Instance.Link);
+            //Console.WriteLine(proxies[capturedI].Instance.Link);
 
             sw.Stop();
 

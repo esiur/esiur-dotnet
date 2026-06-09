@@ -1031,7 +1031,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
 
-    async Task AuthenticatonCompleted()
+    void AuthenticatonCompleted()
     {
 
         if (this.Instance == null)
@@ -1070,35 +1070,45 @@ public partial class EpConnection : NetworkConnection, IStore
 
             var proxyTypes = Instance.Warehouse.GetProxyTypesByDomain(_remoteDomain);
 
-            var typeDefNames = new List<string>();
-
-            foreach (var kk in proxyTypes)
+            if (proxyTypes != null)
             {
-                foreach (var kv in kk.Value)
-                {
-                    typeDefNames.Add(kv.Key);
-                }
-            }
-            if (typeDefNames.Count > 0)
-            {
-                GetTypeDefIds(typeDefNames.ToArray()).Then(ids =>
-                {
-                    var bag = new AsyncBag<object>();
-                    foreach (var id in ids)
-                        bag.Add(FetchTypeDef(id, null));
+                var typeDefNames = new List<string>();
 
-                    bag.Seal();
 
-                    bag.Then((o) =>
+                foreach (var kk in proxyTypes)
+                {
+                    foreach (var kv in kk.Value)
                     {
-                        _openReply?.Trigger(true);
-                        _openReply = null;
-                    });
-                }).Error(ex =>
+                        typeDefNames.Add(kv.Key);
+                    }
+                }
+
+                if (typeDefNames.Count > 0)
                 {
-                    _openReply.TriggerError(ex);
-                    // do nothing, proxies won't work but connection is established
-                });
+                    GetTypeDefIds(typeDefNames.ToArray()).Then(ids =>
+                    {
+                        var bag = new AsyncBag<object>();
+                        foreach (var id in ids)
+                            bag.Add(FetchTypeDef(id, null));
+
+                        bag.Seal();
+
+                        bag.Then((o) =>
+                        {
+                            _openReply?.Trigger(true);
+                            _openReply = null;
+                        });
+                    }).Error(ex =>
+                    {
+                        _openReply.TriggerError(ex);
+                        // do nothing, proxies won't work but connection is established
+                    });
+                }
+                else
+                {
+                    _openReply?.Trigger(true);
+                    _openReply = null;
+                }
             }
             else
             {

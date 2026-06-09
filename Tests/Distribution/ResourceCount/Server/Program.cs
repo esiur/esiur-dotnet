@@ -18,7 +18,8 @@ Console.WriteLine($"[Server-T2] Creating {resourceCount} resources on port {port
 var wh = new Warehouse();
 
 await wh.Put("sys", new MemoryStore());
-var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port });
+var server = await wh.Put("sys/server", new EpServer() { Port = (ushort)port, 
+                                                        AllowUnauthorizedAccess = true});
 
 long memBefore = GC.GetTotalMemory(forceFullCollection: true);
 

@@ -11,8 +11,8 @@ public class ThriftTest
 
     public static async Task<TestResults> DoTest(string host, int port,
     Dictionary<string, BusinessDocument[]> docsWorkloads,
-    Dictionary<string, byte[]> dataWorkloads,
-    Dictionary<string, int[]> intWorkloads,
+    //Dictionary<string, byte[]> dataWorkloads,
+    //Dictionary<string, int[]> intWorkloads,
     int warmupDelayMs = 3000,
     int postHandshakeDelayMs = 2000,
     int sampleDelayMs = 3000)
@@ -60,46 +60,46 @@ public class ThriftTest
 
 
 
-        foreach (var w in dataWorkloads)
-        {
-            Console.Write("Bytes Workload: " + w.Key);
+        //foreach (var w in dataWorkloads)
+        //{
+        //    Console.Write("Bytes Workload: " + w.Key);
 
-            var res = await service.EchoBytes(w.Value);
-
-
-            if (!w.Value.SequenceEqual(res))
-                throw new Exception("No match");
+        //    var res = await service.EchoBytes(w.Value);
 
 
-            await Task.Delay(sampleDelayMs);
-            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
-            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
-            //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
-
-            rt.Bytes.Add(w.Key, (ctx, crx));
-
-        }
+        //    if (!w.Value.SequenceEqual(res))
+        //        throw new Exception("No match");
 
 
-        foreach (var w in intWorkloads)
-        {
-            Console.Write("Ints Workload: " + w.Key);
+        //    await Task.Delay(sampleDelayMs);
+        //    (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+        //    Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+        //    //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
 
-            var res = await service.EchoIntArray(w.Value.ToList());
+        //    rt.Bytes.Add(w.Key, (ctx, crx));
+
+        //}
 
 
-            if (!w.Value.SequenceEqual(res))
-                throw new Exception("No match");
+        //foreach (var w in intWorkloads)
+        //{
+        //    Console.Write("Ints Workload: " + w.Key);
+
+        //    var res = await service.EchoIntArray(w.Value.ToList());
 
 
-            await Task.Delay(sampleDelayMs);
-            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
-            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
-            //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+        //    if (!w.Value.SequenceEqual(res))
+        //        throw new Exception("No match");
 
-            rt.Ints.Add(w.Key, (ctx, crx));
 
-        }
+        //    await Task.Delay(sampleDelayMs);
+        //    (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+        //    Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+        //    //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+
+        //    rt.Ints.Add(w.Key, (ctx, crx));
+
+        //}
 
         await Task.Delay(sampleDelayMs);
 

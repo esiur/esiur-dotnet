@@ -122,13 +122,13 @@ public static class ExperimentResultWriter
         IReadOnlyList<(string Protocol, string Category, string Workload, int Count, NumberStats Tx, NumberStats Rx)> rows)
     {
         var csv = new StringBuilder();
-        csv.AppendLine("protocol,category,workload,samples,tx_avg_bytes,tx_min_bytes,tx_max_bytes,tx_median_bytes,rx_avg_bytes,rx_min_bytes,rx_max_bytes,rx_median_bytes");
+        csv.AppendLine("protocol,category,workload,samples,tx_avg_bytes,tx_stddev_bytes,tx_min_bytes,tx_max_bytes,tx_median_bytes,rx_avg_bytes,rx_stddev_bytes,rx_min_bytes,rx_max_bytes,rx_median_bytes");
         foreach (var x in rows)
         {
             csv.AppendLine(string.Join(",",
                 Csv(x.Protocol), Csv(x.Category), Csv(x.Workload), x.Count,
-                D(x.Tx.Average), D(x.Tx.Minimum), D(x.Tx.Maximum), D(x.Tx.Median),
-                D(x.Rx.Average), D(x.Rx.Minimum), D(x.Rx.Maximum), D(x.Rx.Median)));
+                D(x.Tx.Average), D(x.Tx.StandardDeviation), D(x.Tx.Minimum), D(x.Tx.Maximum), D(x.Tx.Median),
+                D(x.Rx.Average), D(x.Rx.StandardDeviation), D(x.Rx.Minimum), D(x.Rx.Maximum), D(x.Rx.Median)));
         }
         File.WriteAllText(path, csv.ToString());
     }
@@ -151,14 +151,14 @@ public static class ExperimentResultWriter
         IReadOnlyList<(string Protocol, string Category, string Workload, int Count, NumberStats Payload, NumberStats Serialize, NumberStats Deserialize)> rows)
     {
         var csv = new StringBuilder();
-        csv.AppendLine("protocol,category,workload,samples,payload_avg_bytes,payload_min_bytes,payload_max_bytes,payload_median_bytes,serialize_avg_ms,serialize_min_ms,serialize_max_ms,serialize_median_ms,deserialize_avg_ms,deserialize_min_ms,deserialize_max_ms,deserialize_median_ms");
+        csv.AppendLine("protocol,category,workload,samples,payload_avg_bytes,payload_stddev_bytes,payload_min_bytes,payload_max_bytes,payload_median_bytes,serialize_avg_ms,serialize_stddev_ms,serialize_min_ms,serialize_max_ms,serialize_median_ms,deserialize_avg_ms,deserialize_stddev_ms,deserialize_min_ms,deserialize_max_ms,deserialize_median_ms");
         foreach (var x in rows)
         {
             csv.AppendLine(string.Join(",",
                 Csv(x.Protocol), Csv(x.Category), Csv(x.Workload), x.Count,
-                D(x.Payload.Average), D(x.Payload.Minimum), D(x.Payload.Maximum), D(x.Payload.Median),
-                D(x.Serialize.Average), D(x.Serialize.Minimum), D(x.Serialize.Maximum), D(x.Serialize.Median),
-                D(x.Deserialize.Average), D(x.Deserialize.Minimum), D(x.Deserialize.Maximum), D(x.Deserialize.Median)));
+                D(x.Payload.Average), D(x.Payload.StandardDeviation), D(x.Payload.Minimum), D(x.Payload.Maximum), D(x.Payload.Median),
+                D(x.Serialize.Average), D(x.Serialize.StandardDeviation), D(x.Serialize.Minimum), D(x.Serialize.Maximum), D(x.Serialize.Median),
+                D(x.Deserialize.Average), D(x.Deserialize.StandardDeviation), D(x.Deserialize.Minimum), D(x.Deserialize.Maximum), D(x.Deserialize.Median)));
         }
         File.WriteAllText(path, csv.ToString());
     }
@@ -232,19 +232,24 @@ public static class ExperimentResultWriter
     private static string D(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    public readonly record struct NumberStats(double Average, double Minimum, double Maximum, double Median)
+    public readonly record struct NumberStats(double Average, double Minimum, double Maximum, double Median, double StandardDeviation)
     {
         public static NumberStats From(IEnumerable<double> values)
         {
             var sorted = values.OrderBy(x => x).ToArray();
             if (sorted.Length == 0)
-                return new NumberStats(double.NaN, double.NaN, double.NaN, double.NaN);
+                return new NumberStats(double.NaN, double.NaN, double.NaN, double.NaN, double.NaN);
 
+            var avg = sorted.Average();
             var median = sorted.Length % 2 == 1
                 ? sorted[sorted.Length / 2]
                 : (sorted[sorted.Length / 2 - 1] + sorted[sorted.Length / 2]) / 2.0;
 
-            return new NumberStats(sorted.Average(), sorted[0], sorted[^1], median);
+            // Calculate standard deviation
+            var variance = sorted.Aggregate(0.0, (sum, x) => sum + Math.Pow(x - avg, 2)) / sorted.Length;
+            var stdDev = Math.Sqrt(variance);
+
+            return new NumberStats(avg, sorted[0], sorted[^1], median, stdDev);
         }
     }
 }

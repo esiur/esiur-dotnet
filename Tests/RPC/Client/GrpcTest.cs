@@ -15,8 +15,8 @@ public class GrpcTest
 
     public static async Task<TestResults> DoTest(string address,
     Dictionary<string, BusinessDocument[]> docsWorkloads,
-    Dictionary<string, byte[]> dataWorkloads,
-    Dictionary<string, int[]> intWorkloads,
+    //Dictionary<string, byte[]> dataWorkloads,
+    //Dictionary<string, int[]> intWorkloads,
     int warmupDelayMs = 3000,
     int postHandshakeDelayMs = 2000,
     int sampleDelayMs = 3000)
@@ -63,50 +63,50 @@ public class GrpcTest
 
 
 
-        foreach (var w in dataWorkloads)
-        {
-            Console.Write("Bytes Workload: " + w.Key);
+        //foreach (var w in dataWorkloads)
+        //{
+        //    Console.Write("Bytes Workload: " + w.Key);
 
-            var br = new BytesRequest() { Data = ByteString.CopyFrom(w.Value) };
-            var res = await service.EchoBytesAsync(br);
-
-
-            //if (!w.Value.SequenceEqual(rt))
-            //    throw new Exception("No match");
+        //    var br = new BytesRequest() { Data = ByteString.CopyFrom(w.Value) };
+        //    var res = await service.EchoBytesAsync(br);
 
 
-            await Task.Delay(sampleDelayMs);
-            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
-            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
-            //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
-
-            rt.Bytes.Add(w.Key, (ctx, crx));
-
-        }
+        //    //if (!w.Value.SequenceEqual(rt))
+        //    //    throw new Exception("No match");
 
 
-        foreach (var w in intWorkloads)
-        {
-            Console.Write("Ints Workload: " + w.Key);
+        //    await Task.Delay(sampleDelayMs);
+        //    (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+        //    Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+        //    //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
 
-            var ir = new IntArrayRequest();
-            ir.Array.AddRange(w.Value);
+        //    rt.Bytes.Add(w.Key, (ctx, crx));
 
-            var res = await service.EchoIntArrayAsync(ir);
-
-
-            //if (!w.Value.SequenceEqual(rt))
-            //    throw new Exception("No match");
+        //}
 
 
-            await Task.Delay(sampleDelayMs);
-            (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
-            Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
-            //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+        //foreach (var w in intWorkloads)
+        //{
+        //    Console.Write("Ints Workload: " + w.Key);
 
-            rt.Ints.Add(w.Key, (ctx, crx));
+        //    var ir = new IntArrayRequest();
+        //    ir.Array.AddRange(w.Value);
 
-        }
+        //    var res = await service.EchoIntArrayAsync(ir);
+
+
+        //    //if (!w.Value.SequenceEqual(rt))
+        //    //    throw new Exception("No match");
+
+
+        //    await Task.Delay(sampleDelayMs);
+        //    (tx, rx, ctx, crx) = mon.GetDiff(tx, rx);
+        //    Console.WriteLine($", {tx}/{rx}, {ctx}/{crx}");
+        //    //Console.WriteLine($"Socket {sock.BytesSent}/{sock.BytesReceived}");
+
+        //    rt.Ints.Add(w.Key, (ctx, crx));
+
+        //}
 
         await Task.Delay(sampleDelayMs);
 
