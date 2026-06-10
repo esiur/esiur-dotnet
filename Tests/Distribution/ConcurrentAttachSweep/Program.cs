@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 // Extends Tests/Distribution/ConcurrentAttach with:
 //   - Sweep over a wider range of concurrent request counts A.
-//   - More rounds per A for confidence-interval reporting.
+//   - More rounds per A for sample-standard-deviation reporting.
 //   - Auto-stop when timeouts or failures appear (the
 //     saturation signal for concurrent attach is different
 //     from fan-out: it's *correctness* failure, not slowdown).
@@ -35,10 +35,10 @@ var timeoutMs = int.Parse(GetArg(args, "--timeout", "10000"));
 var rounds = int.Parse(GetArg(args, "--rounds", "10"));
 var aValStr = GetArg(args, "--a-values", "10,25,50,100,250,500,1000,2000");
 var outCsv = GetArg(args, "--output", "concurrent_attach_sweep.csv");
+var roundsCsv = GetArg(args, "--round-output", Path.ChangeExtension(outCsv, ".rounds.csv"));
 var aValues = aValStr.Split(',').Select(int.Parse).ToArray();
 
 var serverWh = new Warehouse();
-var clientWh = new Warehouse();
 
 // ----------------------------------------------------------------
 // SERVER SIDE
@@ -72,8 +72,11 @@ if (mode == "server" || mode == "both")
 // ----------------------------------------------------------------
 Console.WriteLine($"[Client-T3+] resources={resources} timeout={timeoutMs}ms rounds={rounds}");
 Console.WriteLine($"[Client-T3+] A values: {string.Join(",", aValues)}");
+Console.WriteLine($"[Client-T3+] output={outCsv}");
+Console.WriteLine($"[Client-T3+] round-output={roundsCsv}");
 
 var summary = new List<ASummary>();
+var allRoundResults = new List<RoundResult>();
 bool failureDetected = false;
 
 foreach (int A in aValues)
@@ -98,7 +101,9 @@ foreach (int A in aValues)
         var latencies = new double[A];
         var roundSw = Stopwatch.StartNew();
 
-        // One shared connection per round, matching the existing test methodology
+        // A fresh client warehouse per round keeps the ten samples independent:
+        // previous attaches cannot turn later rounds into local cache hits.
+        var clientWh = new Warehouse();
         var connection = await clientWh.Get<EpConnection>($"ep://{host}:{port}");
 
         var tasks = targets.Select((resourceIdx, taskIdx) => Task.Run(async () =>
@@ -141,28 +146,31 @@ foreach (int A in aValues)
             Failed = failed,
             TimedOut = timedOut,
             WallMs = roundSw.Elapsed.TotalMilliseconds,
-            P50 = sorted[Math.Min(n - 1, (int)(n * 0.50))],
-            P95 = sorted[Math.Min(n - 1, (int)(n * 0.95))],
-            P99 = sorted[Math.Min(n - 1, (int)(n * 0.99))],
+            P50 = Quantile(sorted, 0.50),
+            P90 = Quantile(sorted, 0.90),
+            P95 = Quantile(sorted, 0.95),
+            P99 = Quantile(sorted, 0.99),
             Max = sorted[n - 1],
+            Mean = sorted.Average(),
         };
         roundResults.Add(rr);
+        allRoundResults.Add(rr);
 
         Console.WriteLine($"  round {round + 1}/{rounds}: ok={succeeded}/{A} fail={failed} "
-                        + $"timeout={timedOut} wall={rr.WallMs:F0}ms p50={rr.P50:F0} p99={rr.P99:F0}");
+                        + $"timeout={timedOut} wall={rr.WallMs:F0}ms p50={rr.P50:F0} p90={rr.P90:F0} p99={rr.P99:F0}");
 
-        // Round 1 of each A is conventionally excluded from latency
-        // aggregation due to connection-establishment overhead (matches
-        // the existing test methodology).
-
+        await clientWh.Close();
         GC.Collect();
         await Task.Delay(500);
     }
 
-    var steady = roundResults.Skip(1).ToList(); // exclude round 1
-    if (steady.Count == 0) steady = roundResults;
-
     var anyFailure = roundResults.Any(r => r.Failed > 0 || r.TimedOut > 0);
+
+    var p50 = MeanStdDev(roundResults.Select(r => r.P50));
+    var p90 = MeanStdDev(roundResults.Select(r => r.P90));
+    var p99 = MeanStdDev(roundResults.Select(r => r.P99));
+    var mean = MeanStdDev(roundResults.Select(r => r.Mean));
+    var wall = MeanStdDev(roundResults.Select(r => r.WallMs));
 
     var s = new ASummary
     {
@@ -172,19 +180,25 @@ foreach (int A in aValues)
         TotalSucceeded = roundResults.Sum(r => r.Succeeded),
         TotalFailed = roundResults.Sum(r => r.Failed),
         TotalTimedOut = roundResults.Sum(r => r.TimedOut),
-        MeanP50 = steady.Average(r => r.P50),
-        Ci95P50 = ConfidenceIntervalHalfWidth95(steady.Select(r => r.P50).ToArray()),
-        MeanP99 = steady.Average(r => r.P99),
-        Ci95P99 = ConfidenceIntervalHalfWidth95(steady.Select(r => r.P99).ToArray()),
-        MeanWall = steady.Average(r => r.WallMs),
-        Ci95Wall = ConfidenceIntervalHalfWidth95(steady.Select(r => r.WallMs).ToArray()),
+        MeanP50 = p50.Mean,
+        SdP50 = p50.SampleStdDev,
+        MeanP90 = p90.Mean,
+        SdP90 = p90.SampleStdDev,
+        MeanP99 = p99.Mean,
+        SdP99 = p99.SampleStdDev,
+        MeanLatency = mean.Mean,
+        SdLatency = mean.SampleStdDev,
+        MeanWall = wall.Mean,
+        SdWall = wall.SampleStdDev,
     };
     summary.Add(s);
 
     Console.WriteLine($"  [A={A}] SUMMARY: "
-                    + $"p50={s.MeanP50:F1}±{s.Ci95P50:F1} "
-                    + $"p99={s.MeanP99:F1}±{s.Ci95P99:F1} "
-                    + $"wall={s.MeanWall:F0}±{s.Ci95Wall:F0}ms "
+                    + $"p50={s.MeanP50:F1}±{s.SdP50:F1} "
+                    + $"p90={s.MeanP90:F1}±{s.SdP90:F1} "
+                    + $"p99={s.MeanP99:F1}±{s.SdP99:F1} "
+                    + $"mean={s.MeanLatency:F1}±{s.SdLatency:F1} "
+                    + $"wall={s.MeanWall:F0}±{s.SdWall:F0}ms "
                     + $"failures={s.TotalFailed + s.TotalTimedOut}/{s.TotalSucceeded + s.TotalFailed + s.TotalTimedOut}");
 
     if (anyFailure)
@@ -199,46 +213,56 @@ foreach (int A in aValues)
 // ----------------------------------------------------------------
 var sb = new System.Text.StringBuilder();
 sb.AppendLine("a,rounds,any_failures,total_succeeded,total_failed,total_timed_out," +
-              "mean_p50_ms,ci95_p50,mean_p99_ms,ci95_p99,mean_wall_ms,ci95_wall");
+              "mean_p50_ms,sd_p50_ms,mean_p90_ms,sd_p90_ms,mean_p99_ms,sd_p99_ms," +
+              "mean_latency_ms,sd_latency_ms,mean_wall_ms,sd_wall_ms");
 foreach (var r in summary)
 {
     sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
         $"{r.A},{r.Rounds},{r.AnyFailures},{r.TotalSucceeded},{r.TotalFailed},{r.TotalTimedOut}," +
-        $"{r.MeanP50:F2},{r.Ci95P50:F2},{r.MeanP99:F2},{r.Ci95P99:F2}," +
-        $"{r.MeanWall:F2},{r.Ci95Wall:F2}"));
+        $"{r.MeanP50:F2},{r.SdP50:F2},{r.MeanP90:F2},{r.SdP90:F2}," +
+        $"{r.MeanP99:F2},{r.SdP99:F2},{r.MeanLatency:F2},{r.SdLatency:F2}," +
+        $"{r.MeanWall:F2},{r.SdWall:F2}"));
 }
 await File.WriteAllTextAsync(outCsv, sb.ToString());
 Console.WriteLine($"\n[Client-T3+] Results written to {outCsv}");
 
+var rsb = new System.Text.StringBuilder();
+rsb.AppendLine("a,round,succeeded,failed,timed_out,wall_ms,p50_ms,p90_ms,p95_ms,p99_ms,max_ms,mean_ms");
+foreach (var r in allRoundResults)
+{
+    rsb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+        $"{r.A},{r.Round},{r.Succeeded},{r.Failed},{r.TimedOut}," +
+        $"{r.WallMs:F2},{r.P50:F2},{r.P90:F2},{r.P95:F2},{r.P99:F2},{r.Max:F2},{r.Mean:F2}"));
+}
+await File.WriteAllTextAsync(roundsCsv, rsb.ToString());
+Console.WriteLine($"[Client-T3+] Round results written to {roundsCsv}");
+
 if (mode == "server" || mode == "both") await serverWh.Close();
-if (mode == "client" || mode == "both") await clientWh.Close();
 
 
 // ----------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------
-static double ConfidenceIntervalHalfWidth95(double[] xs)
+static double Quantile(double[] sorted, double p)
 {
-    int n = xs.Length;
-    if (n < 2) return 0;
-    double mean = xs.Average();
-    double sumSq = xs.Sum(x => (x - mean) * (x - mean));
-    double std = Math.Sqrt(sumSq / (n - 1));
-    double sem = std / Math.Sqrt(n);
-    double t = (n - 1) switch
+    return sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * p))];
+}
+
+static (double Mean, double SampleStdDev) MeanStdDev(IEnumerable<double> values)
+{
+    var xs = values.ToArray();
+    var mean = xs.Average();
+
+    if (xs.Length < 2)
+        return (mean, 0);
+
+    var sumSq = xs.Sum(x =>
     {
-        1 => 12.706,
-        2 => 4.303,
-        3 => 3.182,
-        4 => 2.776,
-        5 => 2.571,
-        6 => 2.447,
-        7 => 2.365,
-        8 => 2.306,
-        9 => 2.262,
-        _ => 1.960
-    };
-    return t * sem;
+        var d = x - mean;
+        return d * d;
+    });
+
+    return (mean, Math.Sqrt(sumSq / (xs.Length - 1)));
 }
 
 static string GetArg(string[] args, string key, string def)
@@ -256,9 +280,11 @@ record RoundResult
     public long TimedOut;
     public double WallMs;
     public double P50;
+    public double P90;
     public double P95;
     public double P99;
     public double Max;
+    public double Mean;
 }
 
 record ASummary
@@ -270,9 +296,13 @@ record ASummary
     public long TotalFailed;
     public long TotalTimedOut;
     public double MeanP50;
-    public double Ci95P50;
+    public double SdP50;
+    public double MeanP90;
+    public double SdP90;
     public double MeanP99;
-    public double Ci95P99;
+    public double SdP99;
+    public double MeanLatency;
+    public double SdLatency;
     public double MeanWall;
-    public double Ci95Wall;
+    public double SdWall;
 }

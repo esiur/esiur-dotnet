@@ -52,6 +52,7 @@ var settleSec = int.Parse(GetArg(args, "--settle-sec", "5"));
 var replications = int.Parse(GetArg(args, "--replications", "3"));
 var nValuesStr = GetArg(args, "--n-values", "2,5,10,20,50,100,200,500");
 var outputCsv = GetArg(args, "--output", "fanout_sweep_results.csv");
+var repOutputCsv = GetArg(args, "--rep-output", "");
 
 var nValues = nValuesStr.Split(',').Select(int.Parse).ToArray();
 double theoreticalMaxRate = 1000.0 / emitIntervalMs * resources;
@@ -89,6 +90,7 @@ catch (Exception ex)
 // All sweep points x replications, with per-N early-stop logic.
 // ----------------------------------------------------------------
 var allResults = new List<SweepResult>();
+var allRepResults = new List<RepResult>();
 bool saturatedDetected = false;
 
 foreach (int n in nValues)
@@ -208,6 +210,7 @@ foreach (int n in nValues)
 
         Console.WriteLine($"[Orchestrator] N={n} rep={rep + 1}: "
                         + $"mean_per_sub={meanPerSub:F1}/s "
+                        + $"std_per_sub={stdPerSub:F1}/s "
                         + $"aggregate={aggregate:F0}/s "
                         + $"late={totalLate} "
                         + $"server_cpu_avg={avgServerCpu:F1}%/peak={peakServerCpu:F1}% "
@@ -238,6 +241,8 @@ foreach (int n in nValues)
     // ---------- per-N aggregation ----------
     if (perRepResults.Count > 0)
     {
+        allRepResults.AddRange(perRepResults);
+
         double meanOfMeans = perRepResults.Average(r => r.MeanPerSub);
         double ciHalfWidth = ConfidenceIntervalHalfWidth95(
             perRepResults.Select(r => r.MeanPerSub).ToArray());
@@ -290,6 +295,24 @@ foreach (var r in allResults)
 }
 await File.WriteAllTextAsync(outputCsv, sb.ToString());
 Console.WriteLine($"\n[Orchestrator] Results written to {outputCsv}");
+
+if (!string.IsNullOrWhiteSpace(repOutputCsv))
+{
+    var repSb = new System.Text.StringBuilder();
+    repSb.AppendLine("n,rep,mean_per_sub_rate,std_per_sub_rate,min_per_sub_rate,max_per_sub_rate," +
+                     "aggregate,late_deliveries,server_cpu_avg,server_cpu_peak,client_cpu_avg,client_cpu_peak");
+
+    foreach (var r in allRepResults)
+    {
+        repSb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+            $"{r.N},{r.Rep},{r.MeanPerSub:F2},{r.StdPerSub:F2},{r.MinPerSub:F2},{r.MaxPerSub:F2}," +
+            $"{r.Aggregate:F1},{r.LateDeliveries},{r.ServerCpuAvg:F2},{r.ServerCpuPeak:F2}," +
+            $"{r.ClientCpuAvg:F2},{r.ClientCpuPeak:F2}"));
+    }
+
+    await File.WriteAllTextAsync(repOutputCsv, repSb.ToString());
+    Console.WriteLine($"[Orchestrator] Replication rows written to {repOutputCsv}");
+}
 
 // ----------------------------------------------------------------
 // Subscriber spawn / teardown

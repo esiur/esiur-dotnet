@@ -2140,10 +2140,10 @@ partial class EpConnection
     /// exactly the partially-attached delivery that the wait-by-default resolver prevents and the
     /// legacy resolver does not.
     /// </summary>
-    internal void PublishGraph(EpResource root)
+    internal bool PublishGraph(EpResource root)
     {
         if (root == null)
-            return;
+            return true;
 
         var seen = new HashSet<uint>();
         var reachable = new List<EpResource>();
@@ -2173,10 +2173,15 @@ partial class EpConnection
         if (fullyAttached)
             foreach (var node in reachable)
                 node.Publish();
+
+        return fullyAttached;
     }
 
     void TrackDeliveredRoot(EpResource root)
     {
+        if (PublishGraph(root))
+            return;
+
         lock (_deliveredRootsLock)
             _deliveredRoots[root.ResourceInstanceId] = new WeakReference<EpResource>(root);
 
@@ -2190,9 +2195,7 @@ partial class EpConnection
             var stale = new List<uint>();
             foreach (var pair in _deliveredRoots)
             {
-                if (pair.Value.TryGetTarget(out var root))
-                    PublishGraph(root);
-                else
+                if (!pair.Value.TryGetTarget(out var root) || PublishGraph(root))
                     stale.Add(pair.Key);
             }
 
