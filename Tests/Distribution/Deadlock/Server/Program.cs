@@ -12,6 +12,7 @@
 // Topologies: ring | cycle | chain | diamond | complete | staggered | random
 // ============================================================
 
+using System.Text;
 using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
@@ -24,6 +25,10 @@ var res1Count = int.Parse(GetArg(args, "--res1", "100"));
 var res2Count = int.Parse(GetArg(args, "--res2", "100"));
 var seed     = int.Parse(GetArg(args, "--seed", "20260603"));
 var edgeProb = double.Parse(GetArg(args, "--edge-prob", "0.22"));
+// Optional: dump the generated request graph (resource list + edges + census) to a JSON file so the
+// seed sweep can archive a per-seed, reviewer-inspectable copy of every graph it runs against.
+// Off by default, so the existing single-seed cases produce byte-identical output.
+var dumpPath = GetArg(args, "--dump-graph", "");
 
 var nodeEdges = BuildTopology(topology, ref nodeCount, seed, edgeProb);
 
@@ -64,6 +69,14 @@ var (hasCycle, backEdges, totalEdges) = FullCensus(
 
 Console.WriteLine($"[Server] topology={topology} nodes={nodeCount} res1={res1Count} res2={res2Count} " +
                   $"totalResources={totalResources} edges={totalEdges} cyclic={hasCycle} backEdges={backEdges} port={port}");
+
+// Archive the exact generated graph (the same indices that were censused above and wired below).
+if (!string.IsNullOrEmpty(dumpPath))
+{
+    WriteGraphDump(dumpPath, seed, topology, edgeProb, nodeCount, res1Count, res2Count, totalResources,
+        hasCycle, backEdges, totalEdges, nodeEdges, nodeRes1, nodeRes2, res1Ref1, res1Ref2, res2Ref1, res2Ref2);
+    Console.WriteLine($"[Server] Graph dumped to {dumpPath}");
+}
 
 var wh = new Warehouse();
 await wh.Put("sys", new MemoryStore());
@@ -229,6 +242,64 @@ static (bool hasCycle, int backEdges, int totalEdges) FullCensus(
         }
     }
     return (back > 0, back, total);
+}
+
+// Writes the generated request graph to a JSON file: the full resource list and every reference
+// (adjacency) edge — node links, node->Resource1/2, and the Resource1/2 cross-references — built from
+// the same planned indices the census in FullCensus walked. Lets the seed sweep archive a per-seed,
+// reviewer-inspectable, reproducible copy of each graph it runs against.
+static void WriteGraphDump(
+    string path, int seed, string topology, double edgeProb,
+    int nodes, int r1, int r2, int totalResources,
+    bool cyclic, int backEdges, int totalEdges,
+    IReadOnlyList<(int from, int to)> nodeEdges,
+    int[][] nodeRes1, int[][] nodeRes2,
+    int[] res1Ref1, int[] res1Ref2, int[] res2Ref1, int[] res2Ref2)
+{
+    string N(int i) => $"n{i}";
+    string R1(int i) => $"r1_{i}";
+    string R2(int i) => $"r2_{i}";
+
+    var resources = new List<string>();
+    for (var i = 0; i < nodes; i++) resources.Add(N(i));
+    for (var i = 0; i < r1; i++) resources.Add(R1(i));
+    for (var i = 0; i < r2; i++) resources.Add(R2(i));
+
+    var edges = new List<(string from, string to)>();
+    foreach (var (a, b) in nodeEdges) edges.Add((N(a), N(b)));
+    for (var i = 0; i < nodes; i++)
+    {
+        foreach (var k in nodeRes1[i]) edges.Add((N(i), R1(k)));
+        foreach (var k in nodeRes2[i]) edges.Add((N(i), R2(k)));
+    }
+    for (var i = 0; i < r1; i++)
+    {
+        if (res1Ref1[i] >= 0) edges.Add((R1(i), R1(res1Ref1[i])));
+        if (res1Ref2[i] >= 0) edges.Add((R1(i), R2(res1Ref2[i])));
+    }
+    for (var i = 0; i < r2; i++)
+    {
+        if (res2Ref1[i] >= 0) edges.Add((R2(i), R1(res2Ref1[i])));
+        if (res2Ref2[i] >= 0) edges.Add((R2(i), R2(res2Ref2[i])));
+    }
+
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var sb = new StringBuilder();
+    sb.Append('{');
+    sb.Append($"\"seed\":{seed},");
+    sb.Append($"\"topology\":\"{topology}\",");
+    sb.Append($"\"edgeProb\":{edgeProb.ToString(inv)},");
+    sb.Append($"\"nodes\":{nodes},\"res1\":{r1},\"res2\":{r2},\"totalResources\":{totalResources},");
+    sb.Append($"\"cyclic\":{(cyclic ? "true" : "false")},\"backEdges\":{backEdges},\"totalEdges\":{totalEdges},");
+    sb.Append("\"resources\":[");
+    sb.Append(string.Join(",", resources.Select(r => $"\"{r}\"")));
+    sb.Append("],\"edges\":[");
+    sb.Append(string.Join(",", edges.Select(e => $"{{\"from\":\"{e.from}\",\"to\":\"{e.to}\"}}")));
+    sb.Append("]}");
+
+    var dir = Path.GetDirectoryName(Path.GetFullPath(path));
+    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+    File.WriteAllText(path, sb.ToString());
 }
 
 static string GetArg(string[] args, string key, string def)
