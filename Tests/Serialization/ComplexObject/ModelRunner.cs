@@ -286,8 +286,8 @@ public sealed class ModelRunner
             new ProtobufCodec(),
             new FlatBuffersCodec(),
             new CborCodec(),
-            new BsonCodec(),
             new AvroCodec(),
+            new BsonCodec(),
         };
     }
 
@@ -410,8 +410,8 @@ public sealed class ModelRunner
                 string cls = Stats.ClassifyVsJson(ratio);
                 string meanS = double.IsNaN(mean) ? "N/A" : mean.ToString("F1");
                 string medS = double.IsNaN(med) ? "N/A" : med.ToString("F1");
-                string ratioS = double.IsNaN(ratio) ? "N/A" : ratio.ToString("F3");
-                string reduction = double.IsNaN(ratio) ? "N/A" : ((1 - ratio) * 100).ToString("F3");
+                string ratioS = double.IsNaN(ratio) ? "N/A" : ratio.ToString("F1");
+                string reduction = double.IsNaN(ratio) ? "N/A" : ((1 - ratio) * 100).ToString("F1");
 
                 // average CPU µs/op across samples where serialization succeeded
                 string encCpuS = (r.Samples == 0) ? "N/A" : (r.EncodeCpuUsSum / r.Samples).ToString("F1");
