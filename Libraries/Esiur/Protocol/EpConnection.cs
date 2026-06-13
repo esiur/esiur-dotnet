@@ -232,7 +232,7 @@ public partial class EpConnection : NetworkConnection, IStore
     public override void Send(byte[] data)
     {
 #if VERBOSE
-            Console.WriteLine("Client: {0}", Data.Length);
+            Console.WriteLine("Client: {0}", data.Length);
 #endif
 
         Global.Counters["Ep Sent Packets"]++;

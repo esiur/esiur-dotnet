@@ -114,6 +114,9 @@ partial class EpConnection
 
     AsyncReply SendRequest(EpPacketRequest action, params object[] args)
     {
+#if VERBOSE
+        Console.WriteLine($"Send request {action}");
+#endif
         var reply = new AsyncReply();
         var c = (uint)Interlocked.Increment(ref _callbackCounter);
         //callbackCounter++; // avoid thread racing
@@ -2491,7 +2494,7 @@ partial class EpConnection
     //object fetchResourceLock = new object();
     public AsyncReply<RemoteTypeDef> FetchTypeDef(ulong id, ulong[] requestSequence)
     {
-        //Console.WriteLine($"Fetching typedef {id}");
+        //Console.WriteLine($"Fetching typedef {id} {Instance.Warehouse.GetHashCode()}");
 
         RemoteTypeDef typeDef = _cachedTypeDefs[id];
 
@@ -2519,6 +2522,8 @@ partial class EpConnection
                 return requestInfo.Reply;
             }
         }
+
+        //Console.WriteLine($"Sent typedef {id} {Instance.Warehouse.GetHashCode()}");
 
         var newSequence = requestSequence != null ? requestSequence.Concat(new ulong[] { id }).ToArray() : new ulong[] { id };
 

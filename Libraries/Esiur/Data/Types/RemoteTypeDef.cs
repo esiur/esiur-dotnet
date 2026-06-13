@@ -127,13 +127,16 @@ public class RemoteTypeDef:TypeDef
         // try to get proxy type
         od._proxyType = connection.Instance?.Warehouse?.TryGetProxyType(od.Kind, od.Domain, od.Name);
 
+#if VERBOSE
         if (od._proxyType == null)
             Console.WriteLine("Proxy type not found " + od.Name);
+#endif
 
         if (od._proxyType != null)
         {
-            Console.WriteLine("Updating : " + od.Name);
-
+#if VERBOSE
+            Console.WriteLine("Updating TypeDef Proxy: " + od.Name);
+#endif
             // update PropertyInfo, MethodInfo, EventInfo, FieldInfo
             // @TODO Check signature match as well, not only name, to avoid conflicts
 
