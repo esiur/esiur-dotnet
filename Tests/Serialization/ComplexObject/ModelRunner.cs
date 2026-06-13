@@ -304,6 +304,14 @@ public sealed class ModelRunner
     private static volatile byte[]? _sinkBytes;
     private static volatile BusinessDocument? _sinkDoc;
 
+    // DateTime is fixed to guarantee consistent serialization across runs (otherwise, DateTime.UtcNow will vary)
+    public static DateTime FixedDateTime = DateTime.Parse("2026-06-08T13:56:00+03:00");
+    //public static DateTime FixedDateTime = new DateTime(2026, 6, 8, 13, 56, 0, DateTimeKind.);
+
+
+
+
+
     public void Run()
     {
         const int Rounds = 100;
@@ -417,7 +425,7 @@ public sealed class ModelRunner
 
             Console.WriteLine();
 
-            File.AppendAllLines("complex_model_results.csv", st.ToString().Split(Environment.NewLine));
+            File.WriteAllLines($"complex_model_results_{wName.ToLower()}.csv", st.ToString().Split(Environment.NewLine));
         }
     }
 
@@ -489,5 +497,21 @@ public sealed class ModelRunner
         }
 
         return result;
+    }
+
+
+    public static bool DatesEqual(DateTime dt1, DateTime dt2)
+    {
+        // Quick fix to handle DateTimeKind differences (local vs UTC) in roundtrip equality checks
+        if (dt1 == dt2)
+            return true;
+        if (dt1.ToUniversalTime() == dt2.ToUniversalTime())
+            return true;
+        if (dt1.ToUniversalTime() == dt2)
+            return true;
+        if (dt2.ToUniversalTime() == dt1)
+            return true;
+
+        return false;
     }
 }

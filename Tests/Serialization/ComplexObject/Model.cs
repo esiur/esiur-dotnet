@@ -96,9 +96,9 @@ public class Variant : IRecord
         if (Bytes != null)
             if (!other.Bytes.SequenceEqual(Bytes)) return false;
 
-        if (other.DtAsLong != DtAsLong) 
+        if (other.DtAsLong != DtAsLong)
             return false;
-        if (other.Dt != Dt) 
+        if (other.Dt != Dt)
             return false;
 
         return true;
@@ -366,8 +366,16 @@ public class Payment : IRecord
         if (Method != other.Method) return false;
         if (Amount != other.Amount) return false;
         if (Reference != other.Reference) return false;
-        //if (Timestamp != other.Timestamp) return false;
-        //if (TimestampAsLong != other.TimestampAsLong) return false;
+
+        if (Timestamp == DateTime.MinValue || other.Timestamp == DateTime.MinValue)
+        {
+            if (TimestampAsLong != other.TimestampAsLong)
+                return false;
+        }
+        else
+            if (!ModelRunner.DatesEqual(Timestamp, other.Timestamp))
+                return false;
+
         if (Fee != other.Fee) return false;
         //if (CurrencyOverride != other.CurrencyOverride) return false;
 
@@ -475,6 +483,7 @@ public class DocumentHeader : IRecord
     [FlatBufferItem(8), Ignore, IgnoreMember]
     public Variant[] MetaValues { get; set; }
 
+
     public override bool Equals(object? obj)
     {
         var other = obj as DocumentHeader;
@@ -485,8 +494,10 @@ public class DocumentHeader : IRecord
         if (Version != other.Version) return false;
         //if (CreatedAtAsLong != other.CreatedAtAsLong) return false;
         //if (UpdatedAtAsLong != other.UpdatedAtAsLong) return false;
-        if (CreatedAt != other.CreatedAt) return false;
-        if (UpdatedAt != other.UpdatedAt) return false;
+        if (!ModelRunner.DatesEqual(CreatedAt, other.CreatedAt))
+            return false;
+        if (UpdatedAt != other.UpdatedAt)
+            return false;
 
         if (Currency != other.Currency) return false;
         if (Notes != other.Notes) return false;
@@ -552,33 +563,33 @@ public class BusinessDocument : IRecord
     public override bool Equals(object? obj)
     {
         var other = obj as BusinessDocument;
-        if (other == null) 
+        if (other == null)
             return false;
 
 
-        if (!Header.Equals(other.Header)) 
+        if (!Header.Equals(other.Header))
             return false;
-        if (!Seller.Equals(other.Seller)) 
+        if (!Seller.Equals(other.Seller))
             return false;
-        if (!Buyer.Equals(other.Buyer)) 
+        if (!Buyer.Equals(other.Buyer))
             return false;
 
         if (Items != null)
             for (var i = 0; i < Items.Length; i++)
-                if (!Items[i].Equals(other.Items[i])) 
+                if (!Items[i].Equals(other.Items[i]))
                     return false;
 
         if (Payments != null)
             for (var i = 0; i < Payments.Length; i++)
-                if (!Payments[i].Equals(other.Payments[i])) 
+                if (!Payments[i].Equals(other.Payments[i]))
                     return false;
 
         if (Attachments != null)
             for (var i = 0; i < Attachments.Length; i++)
-                if (!Attachments[i].Equals(other.Attachments[i])) 
+                if (!Attachments[i].Equals(other.Attachments[i]))
                     return false;
 
-        if (!RiskScores.SequenceEqual(other.RiskScores)) 
+        if (!RiskScores.SequenceEqual(other.RiskScores))
             return false;
 
         return true;

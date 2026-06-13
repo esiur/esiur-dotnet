@@ -32,7 +32,7 @@ public static class ModelGenerator
         var seller = MakeParty(rng, opt.IncludeV2Fields, isSeller: true, opt.IncludeUnicode);
         var buyer = MakeParty(rng, opt.IncludeV2Fields, isSeller: false, opt.IncludeUnicode);
 
-        var createdAt = DateTime.UtcNow.AddMinutes(-rng.Next(0, 60 * 24));
+        var createdAt = ModelRunner.FixedDateTime.AddMinutes(-rng.Next(0, 60 * 24));
         var doc = new BusinessDocument
         {
             Header = new DocumentHeader
@@ -101,7 +101,7 @@ public static class ModelGenerator
         var rng = new Random(seed);
         var v2 = DeepClone(v1);
 
-        v2.Header.UpdatedAt = DateTime.UtcNow;
+        v2.Header.UpdatedAt = ModelRunner.FixedDateTime;
         var toChange = Math.Max(1, (int)Math.Round(v2.Items.Length * changeRatio));
 
         // change random lines
@@ -112,7 +112,7 @@ public static class ModelGenerator
             li.Qty = RoundQty(li.Qty + (double)(rng.NextDouble() * 2.0 - 1.0)); // ±1
             li.UnitPrice = RoundMoney(li.UnitPrice * (double)(0.95 + rng.NextDouble() * 0.1)); // ±5%
             if (li.Ext == null) li.Ext = new Dictionary<string, Variant>();
-            li.Ext["lastEdit"] = VDate(DateTime.UtcNow);
+            li.Ext["lastEdit"] = VDate(ModelRunner.FixedDateTime);
             li.ExtKeys = li.Ext.Keys.ToArray();
             li.ExtValues = li.Ext.Values.ToArray();
         }
@@ -226,7 +226,7 @@ public static class ModelGenerator
             Method = (PaymentMethod)rng.Next(0, 5),
             Amount = RoundMoney(amount),
             Reference = "REF-" + rng.Next(100_000, 999_999),
-            Timestamp = DateTime.UtcNow.AddMinutes(-rng.Next(0, 60 * 24)),
+            Timestamp = ModelRunner.FixedDateTime.AddMinutes(-rng.Next(0, 60 * 24)),
             Fee = includeV2 && rng.Next(0, 2) == 0 ? RoundMoney((double)rng.NextDouble() * 2.0) : null,
             //CurrencyOverride = includeV2 && rng.Next(0, 2) == 0 ? Currency.IQD : Currency.USD
         };
