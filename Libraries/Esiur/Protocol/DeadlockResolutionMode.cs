@@ -1,8 +1,8 @@
 namespace Esiur.Protocol;
 
 /// <summary>
-/// Strategy used by <c>EpConnection.FetchResource</c> when it is asked for a resource whose
-/// attachment is already in flight. Selectable mainly for experimental A/B/C evaluation of the
+/// Strategy used by <c>EpConnection.FetchResource</c> and <c>EpConnection.FetchTypeDef</c> when
+/// asked for an object whose fetch is already in flight. Selectable mainly for experimental A/B/C evaluation of the
 /// deadlock-prevention algorithm.
 /// </summary>
 public enum DeadlockResolutionMode : byte

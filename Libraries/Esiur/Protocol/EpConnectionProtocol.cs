@@ -63,11 +63,14 @@ partial class EpConnection
     // (e.g. two concurrent fetches A<->B) so a placeholder can break the deadlock, while
     // independent/app-facing fetches of an in-flight resource simply wait for full attachment.
     readonly Dictionary<uint, HashSet<uint>> _fetchBlockedOn = new Dictionary<uint, HashSet<uint>>();
+
+    // Same wait-for graph as above, but for in-flight remote type definition parsing.
+    readonly Dictionary<ulong, HashSet<ulong>> _typeDefFetchBlockedOn = new Dictionary<ulong, HashSet<ulong>>();
     readonly object _deliveredRootsLock = new object();
     readonly Dictionary<uint, WeakReference<EpResource>> _deliveredRoots = new Dictionary<uint, WeakReference<EpResource>>();
 
     /// <summary>
-    /// Strategy FetchResource uses for an in-flight resource. Defaults to the new wait + cycle
+    /// Strategy fetches use for in-flight resources and type definitions. Defaults to the new wait + cycle
     /// detection. Selectable for experimental evaluation (see <see cref="DeadlockResolutionMode"/>).
     /// </summary>
     public DeadlockResolutionMode DeadlockResolution { get; set; } = DeadlockResolutionMode.WaitWithCycleDetection;
@@ -2081,22 +2084,30 @@ partial class EpConnection
     /// <returns>DistributedResource</returns>
     /// 
     //object fetchResourceLock = new object();
-    // Records that the attachment of `parent` is now blocked waiting on in-flight child `child`.
-    void AddFetchBlock(uint parent, uint child)
+    // Records that the fetch of `parent` is now blocked waiting on in-flight child `child`.
+    static void AddFetchBlock<TId>(Dictionary<TId, HashSet<TId>> blockedOn, TId parent, TId child)
     {
-        if (!_fetchBlockedOn.TryGetValue(parent, out var set))
-            _fetchBlockedOn[parent] = set = new HashSet<uint>();
+        if (!blockedOn.TryGetValue(parent, out var set))
+            blockedOn[parent] = set = new HashSet<TId>();
         set.Add(child);
     }
 
+    void AddFetchBlock(uint parent, uint child) => AddFetchBlock(_fetchBlockedOn, parent, child);
+
+    void AddTypeDefFetchBlock(ulong parent, ulong child) => AddFetchBlock(_typeDefFetchBlockedOn, parent, child);
+
     // Removes a resource from the wait-for graph once it is attached or its fetch failed: it is
     // no longer blocked on anything and no longer a pending child of anyone.
-    void ClearFetchNode(uint id)
+    static void ClearFetchNode<TId>(Dictionary<TId, HashSet<TId>> blockedOn, TId id)
     {
-        _fetchBlockedOn.Remove(id);
-        foreach (var set in _fetchBlockedOn.Values)
+        blockedOn.Remove(id);
+        foreach (var set in blockedOn.Values)
             set.Remove(id);
     }
+
+    void ClearFetchNode(uint id) => ClearFetchNode(_fetchBlockedOn, id);
+
+    void ClearTypeDefFetchNode(ulong id) => ClearFetchNode(_typeDefFetchBlockedOn, id);
 
     /// <summary>
     /// Returns true if completing the fetch of <paramref name="id"/> by waiting for its in-flight
@@ -2105,13 +2116,19 @@ partial class EpConnection
     /// placeholder to break the cycle instead of waiting.
     /// </summary>
     internal static bool HasWaitForCycle(uint id, uint[] requestSequence, IReadOnlyDictionary<uint, HashSet<uint>> blockedOn)
+        => HasWaitForCycleCore(id, requestSequence, blockedOn);
+
+    internal static bool HasWaitForCycle(ulong id, ulong[] requestSequence, IReadOnlyDictionary<ulong, HashSet<ulong>> blockedOn)
+        => HasWaitForCycleCore(id, requestSequence, blockedOn);
+
+    static bool HasWaitForCycleCore<TId>(TId id, TId[] requestSequence, IReadOnlyDictionary<TId, HashSet<TId>> blockedOn)
     {
         if (requestSequence == null || requestSequence.Length == 0)
             return false;
 
-        var chain = new HashSet<uint>(requestSequence);
-        var visited = new HashSet<uint>();
-        var stack = new Stack<uint>();
+        var chain = new HashSet<TId>(requestSequence);
+        var visited = new HashSet<TId>();
+        var stack = new Stack<TId>();
         stack.Push(id);
 
         while (stack.Count > 0)
@@ -2505,22 +2522,38 @@ partial class EpConnection
 
         var requestInfo = _typeDefRequests[id];
 
+        // The type definition that triggered this fetch (the tail of the chain), if any. Used to
+        // record wait-for edges and to distinguish graph-internal typedef parsing from
+        // application-facing fetches.
+        ulong? parent = requestSequence != null && requestSequence.Length > 0
+            ? requestSequence[requestSequence.Length - 1]
+            : (ulong?)null;
+
         if (requestInfo != null)
         {
-            if (typeDef != null && (requestSequence?.Contains(id) ?? false))
+            if (DeadlockResolution != DeadlockResolutionMode.NaiveWait
+                && typeDef != null && (requestSequence?.Contains(id) ?? false))
             {
-                // dead lock avoidance for loop reference.
+                // Same dependency chain (A->B->A): return the in-progress placeholder to break
+                // the reference cycle. NaiveWait skips this for deadlock detection experiments.
                 return new AsyncReply<RemoteTypeDef>(typeDef);
             }
-            else if (typeDef != null && requestInfo.RequestSequence.Contains(id))
+
+            var breakCycle = typeDef != null && DeadlockResolution switch
             {
-                // dead lock avoidance for dependent reference.
+                DeadlockResolutionMode.LegacyCrossChainPlaceholder => requestInfo.RequestSequence.Contains(id),
+                DeadlockResolutionMode.WaitWithCycleDetection => HasWaitForCycle(id, requestSequence, _typeDefFetchBlockedOn),
+                _ => false,
+            };
+
+            if (breakCycle)
+            {
                 return new AsyncReply<RemoteTypeDef>(typeDef);
             }
-            else
-            {
-                return requestInfo.Reply;
-            }
+
+            if (parent != null)
+                AddTypeDefFetchBlock(parent.Value, id);
+            return requestInfo.Reply;
         }
 
         //Console.WriteLine($"Sent typedef {id} {Instance.Warehouse.GetHashCode()}");
@@ -2530,11 +2563,16 @@ partial class EpConnection
         var reply = new AsyncReply<RemoteTypeDef>();
         _typeDefRequests.Add(id, new FetchRequestInfo<RemoteTypeDef, ulong>(reply, newSequence));
 
+        if (parent != null)
+            AddTypeDefFetchBlock(parent.Value, id);
+
         SendRequest(EpPacketRequest.TypeDefById, id)
                     .Then((result) =>
                     {
                         if (result == null)
                         {
+                            _typeDefRequests.Remove(id);
+                            ClearTypeDefFetchNode(id);
                             reply.TriggerError(new AsyncException(ErrorType.Management,
                                     (ushort)ExceptionCode.ResourceNotFound, "Null response"));
                             return;
@@ -2553,12 +2591,24 @@ partial class EpConnection
                             // move from needed to attached.
                             _neededTypeDefs.Remove(id);
                             _cachedTypeDefs[id] = td;
+                            ClearTypeDefFetchNode(id);
 
                             reply.Trigger(td);
 
-                        }).Error(reply.TriggerError);
+                        }).Error(ex =>
+                        {
+                            _typeDefRequests.Remove(id);
+                            _neededTypeDefs.Remove(id);
+                            ClearTypeDefFetchNode(id);
+                            reply.TriggerError(ex);
+                        });
 
-                    }).Error(reply.TriggerError);
+                    }).Error(ex =>
+                    {
+                        _typeDefRequests.Remove(id);
+                        ClearTypeDefFetchNode(id);
+                        reply.TriggerError(ex);
+                    });
 
         return reply;
 

@@ -2162,6 +2162,8 @@ public partial class EpConnection : NetworkConnection, IStore
         _requests.Clear();
         _resourceRequests.Clear();
         _typeDefRequests.Clear();
+        _fetchBlockedOn.Clear();
+        _typeDefFetchBlockedOn.Clear();
 
         //_typeDefsByIdRequests.Clear();
         //_typeDefsByNameRequests.Clear();

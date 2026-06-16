@@ -49,6 +49,17 @@ public class DeadlockDetectionTests
             foreach (var grp in edgeList.GroupBy(e => e.from))
                 ns[grp.Key].Links = grp.Select(e => ns[e.to]).ToArray();
         });
+
+        if (mode == DeadlockResolutionMode.NaiveWait)
+        {
+            // Node.Links is self-referential at the typedef level. Warm it with the default
+            // resolver so this test isolates NaiveWait behavior to the resource graph.
+            var nodeTypeDef = cluster.ServerWarehouse.GetLocalTypeDefByName(typeof(Node).FullName ?? nameof(Node));
+            if (nodeTypeDef == null)
+                throw new InvalidOperationException("Node typedef was not registered.");
+            await cluster.Connection.FetchTypeDef(nodeTypeDef.Id, null);
+        }
+
         cluster.Connection.DeadlockResolution = mode;
         return cluster;
     }

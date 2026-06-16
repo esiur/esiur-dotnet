@@ -18,6 +18,14 @@ public class FetchCycleDetectionTests
         return g;
     }
 
+    static Dictionary<ulong, HashSet<ulong>> Graph64(params (ulong parent, ulong[] children)[] edges)
+    {
+        var g = new Dictionary<ulong, HashSet<ulong>>();
+        foreach (var (parent, children) in edges)
+            g[parent] = new HashSet<ulong>(children);
+        return g;
+    }
+
     [Fact]
     public void AppFacingFetch_NoChain_NeverCycles()
     {
@@ -82,5 +90,12 @@ public class FetchCycleDetectionTests
         // Defensive: a self-loop / disjoint cycle that never reaches the chain must terminate.
         var g = Graph((2u, new uint[] { 3 }), (3u, new uint[] { 2 }));
         Assert.False(EpConnection.HasWaitForCycle(2, new uint[] { 1 }, g));
+    }
+
+    [Fact]
+    public void TypeDefIds_UseSameCycleDetection()
+    {
+        var g = Graph64((2ul, new ulong[] { 3 }), (3ul, new ulong[] { 1 }));
+        Assert.True(EpConnection.HasWaitForCycle(2ul, new ulong[] { 1 }, g));
     }
 }
