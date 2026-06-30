@@ -62,10 +62,10 @@ partial class EpConnection
     // child resource ids its attachment is currently blocked on. Used to detect genuine cycles
     // (e.g. two concurrent fetches A<->B) so a placeholder can break the deadlock, while
     // independent/app-facing fetches of an in-flight resource simply wait for full attachment.
-    readonly Dictionary<uint, HashSet<uint>> _fetchBlockedOn = new Dictionary<uint, HashSet<uint>>();
-
+    readonly Dictionary<uint, HashSet<uint>> _resourcesFetchBlockedOn = new Dictionary<uint, HashSet<uint>>();
     // Same wait-for graph as above, but for in-flight remote type definition parsing.
-    readonly Dictionary<ulong, HashSet<ulong>> _typeDefFetchBlockedOn = new Dictionary<ulong, HashSet<ulong>>();
+    readonly Dictionary<ulong, HashSet<ulong>> _typeDefsFetchBlockedOn = new Dictionary<ulong, HashSet<ulong>>();
+
     readonly object _deliveredRootsLock = new object();
     readonly Dictionary<uint, WeakReference<EpResource>> _deliveredRoots = new Dictionary<uint, WeakReference<EpResource>>();
 
@@ -2092,9 +2092,9 @@ partial class EpConnection
         set.Add(child);
     }
 
-    void AddFetchBlock(uint parent, uint child) => AddFetchBlock(_fetchBlockedOn, parent, child);
+    void AddResourceFetchBlock(uint parent, uint child) => AddFetchBlock(_resourcesFetchBlockedOn, parent, child);
 
-    void AddTypeDefFetchBlock(ulong parent, ulong child) => AddFetchBlock(_typeDefFetchBlockedOn, parent, child);
+    void AddTypeDefFetchBlock(ulong parent, ulong child) => AddFetchBlock(_typeDefsFetchBlockedOn, parent, child);
 
     // Removes a resource from the wait-for graph once it is attached or its fetch failed: it is
     // no longer blocked on anything and no longer a pending child of anyone.
@@ -2105,9 +2105,9 @@ partial class EpConnection
             set.Remove(id);
     }
 
-    void ClearFetchNode(uint id) => ClearFetchNode(_fetchBlockedOn, id);
+    void ClearResourceFetchNode(uint id) => ClearFetchNode(_resourcesFetchBlockedOn, id);
 
-    void ClearTypeDefFetchNode(ulong id) => ClearFetchNode(_typeDefFetchBlockedOn, id);
+    void ClearTypeDefFetchNode(ulong id) => ClearFetchNode(_typeDefsFetchBlockedOn, id);
 
     /// <summary>
     /// Returns true if completing the fetch of <paramref name="id"/> by waiting for its in-flight
@@ -2270,7 +2270,7 @@ partial class EpConnection
             var breakCycle = resource != null && DeadlockResolution switch
             {
                 DeadlockResolutionMode.LegacyCrossChainPlaceholder => requestInfo.RequestSequence.Contains(id),
-                DeadlockResolutionMode.WaitWithCycleDetection => HasWaitForCycle(id, requestSequence, _fetchBlockedOn),
+                DeadlockResolutionMode.WaitWithCycleDetection => HasWaitForCycle(id, requestSequence, _resourcesFetchBlockedOn),
                 _ => false,
             };
 
@@ -2283,7 +2283,7 @@ partial class EpConnection
                 // is an unnecessary, partial delivery — the new resolver would have waited for full
                 // attachment instead. This counts the legacy resolver's over-eager placeholders.
                 if (DeadlockResolution == DeadlockResolutionMode.LegacyCrossChainPlaceholder
-                    && !HasWaitForCycle(id, requestSequence, _fetchBlockedOn))
+                    && !HasWaitForCycle(id, requestSequence, _resourcesFetchBlockedOn))
                 {
                     Global.Counters["EpResourceUnnecessaryPlaceholder"]++;
                     UnnecessaryPlaceholderCount++;
@@ -2296,7 +2296,7 @@ partial class EpConnection
             // attachment to complete fully rather than exposing a partially attached resource.
             Global.Counters["EpResourcePendingCacheHit"]++;
             if (parent != null)
-                AddFetchBlock(parent.Value, id);
+                AddResourceFetchBlock(parent.Value, id);
             return requestInfo.Reply;
         }
         else if (resource != null && resource.Status != ResourceStatus.Suspended)
@@ -2314,7 +2314,7 @@ partial class EpConnection
 
         // This fetch's parent now waits on `id` until it attaches.
         if (parent != null)
-            AddFetchBlock(parent.Value, id);
+            AddResourceFetchBlock(parent.Value, id);
 
         SendRequest(EpPacketRequest.AttachResource, id)
                     .Then((result) =>
@@ -2362,10 +2362,14 @@ partial class EpConnection
                                 _neededResources.Remove(id);
                                 _attachedResources[id] = new WeakReference<EpResource>(dr);
                                 // attached: no longer part of the in-flight wait-for graph.
-                                ClearFetchNode(id);
+                                ClearResourceFetchNode(id);
                                 TryPublishDeliveredRoots();
                                 reply.Trigger(dr);
-                            }).Error(ex => { _resourceRequests.Remove(id); ClearFetchNode(id); reply.TriggerError(ex); });
+                            }).Error(ex => { 
+                                _resourceRequests.Remove(id); 
+                                ClearResourceFetchNode(id); 
+                                reply.TriggerError(ex); 
+                            });
                         };
 
                         if (typeDef == null)
@@ -2427,7 +2431,7 @@ partial class EpConnection
                         // Failed to attach: drop the in-flight request and wait-for edges so a
                         // later retry is not blocked by a stale entry.
                         _resourceRequests.Remove(id);
-                        ClearFetchNode(id);
+                        ClearResourceFetchNode(id);
                         reply.TriggerError(ex);
                     });
 
@@ -2493,15 +2497,15 @@ partial class EpConnection
                     _resourceRequests.Remove(id);
                     _neededResources.Remove(id);
                     _attachedResources[id] = new WeakReference<EpResource>(resource);
-                    ClearFetchNode(id);
+                    ClearResourceFetchNode(id);
                     TryPublishDeliveredRoots();
                     reply.Trigger(resource);
                 })
-                .Error(ex => { _resourceRequests.Remove(id); ClearFetchNode(id); reply.TriggerError(ex); });
+                .Error(ex => { _resourceRequests.Remove(id); ClearResourceFetchNode(id); reply.TriggerError(ex); });
         }).Error(ex =>
         {
             _resourceRequests.Remove(id);
-            ClearFetchNode(id);
+            ClearResourceFetchNode(id);
             reply.TriggerError(ex);
         });
 
@@ -2542,7 +2546,7 @@ partial class EpConnection
             var breakCycle = typeDef != null && DeadlockResolution switch
             {
                 DeadlockResolutionMode.LegacyCrossChainPlaceholder => requestInfo.RequestSequence.Contains(id),
-                DeadlockResolutionMode.WaitWithCycleDetection => HasWaitForCycle(id, requestSequence, _typeDefFetchBlockedOn),
+                DeadlockResolutionMode.WaitWithCycleDetection => HasWaitForCycle(id, requestSequence, _typeDefsFetchBlockedOn),
                 _ => false,
             };
 

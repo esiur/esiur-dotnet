@@ -2146,28 +2146,12 @@ public partial class EpConnection : NetworkConnection, IStore
             }
         }
 
-        //foreach (var x in _typeDefsByNameRequests.Values)
-        //{
-        //    try
-        //    {
-        //        x.TriggerError(new AsyncException(ErrorType.Management, 0, "Connection closed"));
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Global.Log(ex);
-        //    }
-        //}
-
 
         _requests.Clear();
         _resourceRequests.Clear();
         _typeDefRequests.Clear();
-        _fetchBlockedOn.Clear();
-        _typeDefFetchBlockedOn.Clear();
-
-        //_typeDefsByIdRequests.Clear();
-        //_typeDefsByNameRequests.Clear();
-
+        _resourcesFetchBlockedOn.Clear();
+        _typeDefsFetchBlockedOn.Clear();
 
         foreach (var x in _attachedResources.Values)
         {
