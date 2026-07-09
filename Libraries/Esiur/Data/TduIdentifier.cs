@@ -61,6 +61,6 @@ namespace Esiur.Data
 
         TypeContinuation = 0xC0,
         TypeOfTarget = 0xC1,
-
+        TypeDef = 0xC2,
     }
 }

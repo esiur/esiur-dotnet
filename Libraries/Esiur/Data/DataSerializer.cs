@@ -41,6 +41,8 @@ public static class DataSerializer
         }
     }
 
+
+
     public static Tdu UInt32Composer(object value, Warehouse warehouse, EpConnection connection)
     {
         var v = (uint)value;
@@ -975,6 +977,11 @@ public static class DataSerializer
 
         return new Tdu(TduIdentifier.Typed, rt.ToArray(),
             (uint)rt.Count, new TruComposite(truIdentifier, false, trus, value.GetType()), connection);
+
+    }
+
+    public static Tdu TypeDefComposer(object value, Warehouse warehouse, EpConnection connection)
+    {
 
     }
 }
