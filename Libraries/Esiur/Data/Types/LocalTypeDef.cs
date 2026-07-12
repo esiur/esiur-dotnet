@@ -361,56 +361,58 @@ public class LocalTypeDef:TypeDef
 
     }
 
-    public override byte[] Compose(EpConnection connection)
-    {
-        // bake it binarily
-        var b = new BinaryList();
+    //public override byte[] Compose(EpConnection connection)
+    //{
+    //    // bake it binarily
+    //    var b = new BinaryList();
 
-        // find the first parent type that implements IResource
+    //    // find the first parent type that implements IResource
 
 
-        var hasParent = ParentTypeDef != null;
-        var hasClassAnnotation = Annotations != null && Annotations.Count() > 0;
+    //    var hasParent = ParentTypeDef != null;
+    //    var hasClassAnnotation = Annotations != null && Annotations.Count() > 0;
 
-        var typeNameBytes = DC.ToBytes(_typeName);
+    //    var typeNameBytes = DC.ToBytes(_typeName);
 
-        b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasClassAnnotation ? 0x40 : 0x0) | (byte)_typeDefKind))
-         .AddUInt64(_typeId)
-         .AddUInt8((byte)typeNameBytes.Length)
-         .AddUInt8Array(typeNameBytes);
+    //    b.AddUInt8((byte)((hasParent ? 0x80 : 0) | (hasClassAnnotation ? 0x40 : 0x0) | (byte)_typeDefKind))
+    //     .AddUInt64(_typeId)
+    //     .AddUInt8((byte)typeNameBytes.Length)
+    //     .AddUInt8Array(typeNameBytes);
 
-        if (hasParent)
-        {
-            b.AddUInt64(ParentTypeDef.Id);
-        }
+    //    if (hasParent)
+    //    {
+    //        b.AddUInt64(ParentTypeDef.Id);
+    //    }
 
-        if (hasClassAnnotation)
-        {
+    //    if (hasClassAnnotation)
+    //    {
 
-            //foreach (var ann in Annotations)
-            //    Annotations.Add(ann.Key, ann.Value);
+    //        //foreach (var ann in Annotations)
+    //        //    Annotations.Add(ann.Key, ann.Value);
 
-            var classAnnotationBytes = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
+    //        var classAnnotationBytes = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
 
-            b.AddUInt8Array(classAnnotationBytes);
+    //        b.AddUInt8Array(classAnnotationBytes);
 
-        }
+    //    }
 
-        b.AddInt32(_version)
-         .AddUInt16((ushort)(_functions.Count + _properties.Count + _events.Count + _constants.Count));
+    //    b.AddInt32(_version)
+    //     .AddUInt16((ushort)(_functions.Count + _properties.Count + _events.Count + _constants.Count));
 
-        foreach (var ft in _functions)
-            b.AddUInt8Array(ft.Compose(connection   ));
-        foreach (var pt in _properties)
-            b.AddUInt8Array(pt.Compose(connection));
-        foreach (var et in _events)
-            b.AddUInt8Array(et.Compose(connection));
-        foreach (var ct in _constants)
-            b.AddUInt8Array(ct.Compose(connection));
+    //    foreach (var ft in _functions)
+    //        b.AddUInt8Array(ft.Compose(connection   ));
+    //    foreach (var pt in _properties)
+    //        b.AddUInt8Array(pt.Compose(connection));
+    //    foreach (var et in _events)
+    //        b.AddUInt8Array(et.Compose(connection));
+    //    foreach (var ct in _constants)
+    //        b.AddUInt8Array(ct.Compose(connection));
 
-        return b.ToArray();
+    //    return b.ToArray();
 
-    }
+    //}
+
+
 
     public static bool HasParent(Type type)
     {

@@ -29,12 +29,15 @@ using System.Threading.Tasks;
 
 namespace Esiur.Resource;
 
-[AttributeUsage(AttributeTargets.Event)]
-public class SubscribableAttribute : System.Attribute
+/// <summary>
+/// Indicates that an event is delivered to attached clients without
+/// requiring an explicit subscription.
+/// </summary>
+[AttributeUsage(
+    AttributeTargets.Event |
+    AttributeTargets.Field,
+    AllowMultiple = false,
+    Inherited = true)]
+public sealed class AutoDeliveredAttribute : Attribute
 {
-
-    public SubscribableAttribute()
-    {
-
-    }
 }

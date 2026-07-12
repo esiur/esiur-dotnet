@@ -1,6 +1,7 @@
 ﻿using Esiur.Core;
 using Esiur.Data.Gvwie;
 using Esiur.Data.Types;
+using Esiur.Net.Packets;
 using Esiur.Protocol;
 using Esiur.Resource;
 using Microsoft.CodeAnalysis;
@@ -9,6 +10,7 @@ using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 
 namespace Esiur.Data;
@@ -980,10 +982,7 @@ public static class DataSerializer
 
     }
 
-    public static Tdu TypeDefComposer(object value, Warehouse warehouse, EpConnection connection)
-    {
 
-    }
 }
 
 

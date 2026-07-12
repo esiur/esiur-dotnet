@@ -32,16 +32,7 @@ public class TypeDef
     protected int _version;
     protected TypeDefKind _typeDefKind;
 
-    //Type _definedType { get; set; }
-    //Type _proxyType { get; set; }
-    //Type _parentDefinedType { get; set; }
 
-    //bool _isLocal;
-
-    //public Type DefinedType => _definedType;
-    //public Type ParentDefinedType => _parentDefinedType;
-
-    //public Type ProxyType => _proxyType;
 
     public override string ToString()
     {
@@ -53,12 +44,7 @@ public class TypeDef
 
     public ulong? ParentTypeId => _parentTypeId;
 
-    //public byte[] Content => _content;
-
     public TypeDefKind Kind => _typeDefKind;
-
-
-
 
     public EventDef GetEventDefByName(string eventName)
     {

@@ -23,6 +23,11 @@ public class ArgumentDef
 
     public Map<string, string> Annotations { get; set; }
 
+
+    //public ArgumentDefFlags Flags { get; set; }
+
+    public object DefaultValue { get; set; }
+
     public static async AsyncReply<ParseResult<ArgumentDef>> ParseAsync(byte[] data, uint offset, int index, EpConnection connection, ulong[] requestSequence)
     {
         var optional = (data[offset] & 0x1) == 0x1;

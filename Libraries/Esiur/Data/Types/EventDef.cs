@@ -26,83 +26,86 @@ public class EventDef : MemberDef
         return $"{Name}: {ArgumentType}";
     }
 
-    public bool Subscribable { get; set; }
+    public bool AutoDelivered { get; set; }
+
+    public bool Deprecated { get; set; }
 
     public EventInfo EventInfo { get; set; }
 
     public Tru ArgumentType { get; set; }
 
+    
 
-    public static async AsyncReply<ParseResult<EventDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
-    {
-        var oOffset = offset;
+    //public static async AsyncReply<ParseResult<EventDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
+    //{
+    //    var oOffset = offset;
 
-        var hasAnnotation = ((data[offset] & 0x10) == 0x10);
-        var subscribable = ((data[offset++] & 0x8) == 0x8);
+    //    var hasAnnotation = ((data[offset] & 0x10) == 0x10);
+    //    var subscribable = ((data[offset++] & 0x8) == 0x8);
 
-        var name = data.GetString(offset + 1, data[offset]);
-        offset += (uint)data[offset] + 1;
+    //    var name = data.GetString(offset + 1, data[offset]);
+    //    offset += (uint)data[offset] + 1;
 
-        var argType = await Tru.ParseAsync(data, offset, connection, requestSequence);
+    //    var argType = await Tru.ParseAsync(data, offset, connection, requestSequence);
 
-        offset += argType.Size;
+    //    offset += argType.Size;
 
-        // Annotation ?
-        Map<string, string> annotations = null;
+    //    // Annotation ?
+    //    Map<string, string> annotations = null;
 
-        if (hasAnnotation) 
-        {
-            var (len, anns) = Codec.ParseSync(data, offset, null);
+    //    if (hasAnnotation) 
+    //    {
+    //        var (len, anns) = Codec.ParseSync(data, offset, null);
 
-            if (anns is Map<string, string> map)
-                annotations = map;
+    //        if (anns is Map<string, string> map)
+    //            annotations = map;
 
-            offset += len;
-        }
+    //        offset += len;
+    //    }
 
-        return new ParseResult<EventDef>(new EventDef()
-        {
-            Index = index,
-            Name = name,
-            Inherited = inherited,
-            ArgumentType = argType.Value,
-            Subscribable = subscribable,
-            Annotations = annotations
-        }, offset - oOffset);
-    }
+    //    return new ParseResult<EventDef>(new EventDef()
+    //    {
+    //        Index = index,
+    //        Name = name,
+    //        Inherited = inherited,
+    //        ArgumentType = argType.Value,
+    //        AutoDelivered = !subscribable,
+    //        Annotations = annotations
+    //    }, offset - oOffset);
+    //}
 
-    public byte[] Compose(EpConnection connection)
-    {
-        var name = Name.ToBytes();
+    //public byte[] Compose(EpConnection connection)
+    //{
+    //    var name = Name.ToBytes();
 
-        var hdr = Inherited ? (byte)0x80 : (byte)0;
+    //    var hdr = Inherited ? (byte)0x80 : (byte)0;
 
-        if (Subscribable)
-            hdr |= 0x8;
+    //    if (Subscribable)
+    //        hdr |= 0x8;
 
-        if (Annotations != null)
-        {
-            var exp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection); //(  DC.ToBytes(Annotation);
-            hdr |= 0x50;
-            return new BinaryList()
-                    .AddUInt8(hdr)
-                    .AddUInt8((byte)name.Length)
-                    .AddUInt8Array(name)
-                    .AddUInt8Array(ArgumentType.Compose(connection))
-                    .AddInt32(exp.Length)
-                    .AddUInt8Array(exp)
-                    .ToArray();
-        }
-        else
-            hdr |= 0x40;
+    //    if (Annotations != null)
+    //    {
+    //        var exp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection); //(  DC.ToBytes(Annotation);
+    //        hdr |= 0x50;
+    //        return new BinaryList()
+    //                .AddUInt8(hdr)
+    //                .AddUInt8((byte)name.Length)
+    //                .AddUInt8Array(name)
+    //                .AddUInt8Array(ArgumentType.Compose(connection))
+    //                .AddInt32(exp.Length)
+    //                .AddUInt8Array(exp)
+    //                .ToArray();
+    //    }
+    //    else
+    //        hdr |= 0x40;
 
-        return new BinaryList()
-                .AddUInt8(hdr)
-                .AddUInt8((byte)name.Length)
-                .AddUInt8Array(name)
-                .AddUInt8Array(ArgumentType.Compose(connection))
-                .ToArray();
-    }
+    //    return new BinaryList()
+    //            .AddUInt8(hdr)
+    //            .AddUInt8((byte)name.Length)
+    //            .AddUInt8Array(name)
+    //            .AddUInt8Array(ArgumentType.Compose(connection))
+    //            .ToArray();
+    //}
 
 
     public static EventDef MakeEventDef(Warehouse warehouse, Type type, EventInfo ei, byte index, string name, TypeDef schema)
@@ -124,7 +127,7 @@ public class EventDef : MemberDef
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
 
         var annotationAttrs = ei.GetCustomAttributes<AnnotationAttribute>(true);
-        var subscribableAttr = ei.GetCustomAttribute<SubscribableAttribute>(true);
+        var autoDeliveredAttr = ei.GetCustomAttribute<AutoDeliveredAttribute>(true);
 
         //evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
 
@@ -175,7 +178,7 @@ public class EventDef : MemberDef
             Inherited = ei.DeclaringType != type,
             Annotations = annotations,
             EventInfo = ei,
-            Subscribable = subscribableAttr != null
+            AutoDelivered = autoDeliveredAttr != null
         };
     }
 

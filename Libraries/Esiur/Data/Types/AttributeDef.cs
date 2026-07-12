@@ -17,7 +17,7 @@ public class AttributeDef : MemberDef
         set;
     }
 
-
+   
     public static AttributeDef MakeAttributeDef(Type type, PropertyInfo pi, byte index, string name, TypeDef typeDef)
     {
         return new AttributeDef()

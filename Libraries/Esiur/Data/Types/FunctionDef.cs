@@ -30,6 +30,13 @@ public class FunctionDef : MemberDef
     public Tru ReturnType { get; set; }
 
     public bool IsStatic { get; set; }
+    public bool ReadOnly { get; set; }
+    public bool Idempotent { get; set; }
+    public bool Cancellable { get; set; }   
+    public bool Deprecated { get; set; }
+
+    //public FunctionDefFlags Flags { get; set; }
+    public StreamMode StreamMode { get; set; }
 
     public ArgumentDef[] Arguments { get; set; }
 

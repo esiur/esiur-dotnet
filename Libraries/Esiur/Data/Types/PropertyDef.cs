@@ -36,19 +36,18 @@ public class PropertyDef : MemberDef
     */
     //bool ReadOnly;
     //EPTypes::DataType ReturnType;
-    public PropertyPermission Permission
-    {
-        get;
-        set;
-    }
+    //public PropertyPermission Permission
+    //{
+    //    get;
+    //    set;
+    //}
 
+    public bool ReadOnly { get; set; }
+
+    public bool Constant { get; set; }
     //public bool IsNullable { get; set; }
 
-    public bool HasHistory
-    {
-        get;
-        set;
-    }
+    public bool Historical { get; set; }
 
     /*
     public PropertyType Mode
@@ -81,124 +80,124 @@ public class PropertyDef : MemberDef
         return $"{Name}: {ValueType}";
     }
 
-    public static async AsyncReply<ParseResult<PropertyDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
-    {
-        var oOffset = offset;
+    //public static async AsyncReply<ParseResult<PropertyDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
+    //{
+    //    var oOffset = offset;
 
 
 
-        var hasAnnotation = ((data[offset] & 0x8) == 0x8);
-        var hasHistory = ((data[offset] & 1) == 1);
-        var permission = (PropertyPermission)((data[offset++] >> 1) & 0x3);
-        var name = data.GetString(offset + 1, data[offset]);
+    //    var hasAnnotation = ((data[offset] & 0x8) == 0x8);
+    //    var hasHistory = ((data[offset] & 1) == 1);
+    //    var permission = (PropertyPermission)((data[offset++] >> 1) & 0x3);
+    //    var name = data.GetString(offset + 1, data[offset]);
 
-        //Console.WriteLine("Parsing propdef " + name);
+    //    //Console.WriteLine("Parsing propdef " + name);
 
-        offset += (uint)data[offset] + 1;
+    //    offset += (uint)data[offset] + 1;
 
-        var valueType = await Tru.ParseAsync(data, offset, connection, requestSequence);
+    //    var valueType = await Tru.ParseAsync(data, offset, connection, requestSequence);
 
-        offset += valueType.Size;
+    //    offset += valueType.Size;
 
-        Map<string, string> annotations = null;
+    //    Map<string, string> annotations = null;
 
-        // arguments
-        if (hasAnnotation) // Annotation ?
-        {
-            var (len, anns) = Codec.ParseSync(data, offset, null);
+    //    // arguments
+    //    if (hasAnnotation) // Annotation ?
+    //    {
+    //        var (len, anns) = Codec.ParseSync(data, offset, null);
 
-            if (anns is Map<string, string> map)
-                annotations = map;
+    //        if (anns is Map<string, string> map)
+    //            annotations = map;
 
-            offset += len;
-        }
+    //        offset += len;
+    //    }
 
-        return new ParseResult<PropertyDef>(new PropertyDef()
-        {
-            Index = index,
-            Name = name,
-            Inherited = inherited,
-            Permission = permission,
-            HasHistory = hasHistory,
-            ValueType = valueType.Value,
-            Annotations = annotations
-        }, offset - oOffset);
+    //    return new ParseResult<PropertyDef>(new PropertyDef()
+    //    {
+    //        Index = index,
+    //        Name = name,
+    //        Inherited = inherited,
+    //        Permission = permission,
+    //        HasHistory = hasHistory,
+    //        ValueType = valueType.Value,
+    //        Annotations = annotations
+    //    }, offset - oOffset);
 
-    }
+    //}
 
-    public byte[] Compose(EpConnection connection)
-    {
-        var name = DC.ToBytes(Name);
+    //public byte[] Compose(EpConnection connection)
+    //{
+    //    var name = DC.ToBytes(Name);
 
-        var pv = ((byte)(Permission) << 1) | (HasHistory ? 1 : 0);
+    //    var pv = ((byte)(Permission) << 1) | (HasHistory ? 1 : 0);
 
-        if (Inherited)
-            pv |= 0x80;
+    //    if (Inherited)
+    //        pv |= 0x80;
 
-        //if (WriteAnnotation != null && ReadAnnotation != null)
-        //{
-        //    var rexp = DC.ToBytes(ReadAnnotation);
-        //    var wexp = DC.ToBytes(WriteAnnotation);
-        //    return new BinaryList()
-        //        .AddUInt8((byte)(0x38 | pv))
-        //        .AddUInt8((byte)name.Length)
-        //        .AddUInt8Array(name)
-        //        .AddUInt8Array(ValueType.Compose())
-        //        .AddInt32(wexp.Length)
-        //        .AddUInt8Array(wexp)
-        //        .AddInt32(rexp.Length)
-        //        .AddUInt8Array(rexp)
-        //        .ToArray();
-        //}
-        //else if (WriteAnnotation != null)
-        //{
-        //    var wexp = DC.ToBytes(WriteAnnotation);
-        //    return new BinaryList()
-        //        .AddUInt8((byte)(0x30 | pv))
-        //        .AddUInt8((byte)name.Length)
-        //        .AddUInt8Array(name)
-        //        .AddUInt8Array(ValueType.Compose())
-        //        .AddInt32(wexp.Length)
-        //        .AddUInt8Array(wexp)
-        //        .ToArray();
-        //}
-        //else if (ReadAnnotation != null)
-        //{
-        //    var rexp = DC.ToBytes(ReadAnnotation);
-        //    return new BinaryList()
-        //        .AddUInt8((byte)(0x28 | pv))
-        //        .AddUInt8((byte)name.Length)
-        //        .AddUInt8Array(name)
-        //        .AddUInt8Array(ValueType.Compose())
-        //        .AddInt32(rexp.Length)
-        //        .AddUInt8Array(rexp)
-        //        .ToArray();
-        //}
-        if (Annotations != null)
-        {
-            var rexp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
-            return new BinaryList()
-                .AddUInt8((byte)(0x28 | pv))
-                .AddUInt8((byte)name.Length)
-                .AddUInt8Array(name)
-                .AddUInt8Array(ValueType.Compose(connection))
-                .AddUInt8Array(rexp)
-                .ToArray();
-        }
-        else
-        {
-            return new BinaryList()
-                .AddUInt8((byte)(0x20 | pv))
-                .AddUInt8((byte)name.Length)
-                .AddUInt8Array(name)
-                .AddUInt8Array(ValueType.Compose(connection))
-                .ToArray();
-        }
-    }
+    //    //if (WriteAnnotation != null && ReadAnnotation != null)
+    //    //{
+    //    //    var rexp = DC.ToBytes(ReadAnnotation);
+    //    //    var wexp = DC.ToBytes(WriteAnnotation);
+    //    //    return new BinaryList()
+    //    //        .AddUInt8((byte)(0x38 | pv))
+    //    //        .AddUInt8((byte)name.Length)
+    //    //        .AddUInt8Array(name)
+    //    //        .AddUInt8Array(ValueType.Compose())
+    //    //        .AddInt32(wexp.Length)
+    //    //        .AddUInt8Array(wexp)
+    //    //        .AddInt32(rexp.Length)
+    //    //        .AddUInt8Array(rexp)
+    //    //        .ToArray();
+    //    //}
+    //    //else if (WriteAnnotation != null)
+    //    //{
+    //    //    var wexp = DC.ToBytes(WriteAnnotation);
+    //    //    return new BinaryList()
+    //    //        .AddUInt8((byte)(0x30 | pv))
+    //    //        .AddUInt8((byte)name.Length)
+    //    //        .AddUInt8Array(name)
+    //    //        .AddUInt8Array(ValueType.Compose())
+    //    //        .AddInt32(wexp.Length)
+    //    //        .AddUInt8Array(wexp)
+    //    //        .ToArray();
+    //    //}
+    //    //else if (ReadAnnotation != null)
+    //    //{
+    //    //    var rexp = DC.ToBytes(ReadAnnotation);
+    //    //    return new BinaryList()
+    //    //        .AddUInt8((byte)(0x28 | pv))
+    //    //        .AddUInt8((byte)name.Length)
+    //    //        .AddUInt8Array(name)
+    //    //        .AddUInt8Array(ValueType.Compose())
+    //    //        .AddInt32(rexp.Length)
+    //    //        .AddUInt8Array(rexp)
+    //    //        .ToArray();
+    //    //}
+    //    if (Annotations != null)
+    //    {
+    //        var rexp = Codec.Compose(Annotations, connection.Instance.Warehouse, connection);
+    //        return new BinaryList()
+    //            .AddUInt8((byte)(0x28 | pv))
+    //            .AddUInt8((byte)name.Length)
+    //            .AddUInt8Array(name)
+    //            .AddUInt8Array(ValueType.Compose(connection))
+    //            .AddUInt8Array(rexp)
+    //            .ToArray();
+    //    }
+    //    else
+    //    {
+    //        return new BinaryList()
+    //            .AddUInt8((byte)(0x20 | pv))
+    //            .AddUInt8((byte)name.Length)
+    //            .AddUInt8Array(name)
+    //            .AddUInt8Array(ValueType.Compose(connection))
+    //            .ToArray();
+    //    }
+    //}
 
  
 
-    public static PropertyDef MakePropertyDef(Warehouse warehouse, Type type, PropertyInfo pi, string name, byte index, PropertyPermission permission, TypeDef schema)
+    public static PropertyDef MakePropertyDef(Warehouse warehouse, Type type, PropertyInfo pi, string name, byte index, TypeDef typeDef)
     {
         var genericPropType = pi.PropertyType.IsGenericType ? pi.PropertyType.GetGenericTypeDefinition() : null;
         // @TODO: need to check if the type is remote
@@ -211,7 +210,7 @@ public class PropertyDef : MemberDef
             throw new Exception($"Unsupported type `{pi.PropertyType}` in property `{type.Name}.{pi.Name}`");
 
         var annotationAttrs = pi.GetCustomAttributes<AnnotationAttribute>(true);
-        var storageAttr = pi.GetCustomAttribute<StorageAttribute>(true);
+        var historicalAttr = pi.GetCustomAttribute<HistoricalAttribute>(true);
 
         //var nullabilityContext = new NullabilityInfoContext();
         //propType.Nullable = nullabilityContext.Create(pi).ReadState is NullabilityState.Nullable;
@@ -267,8 +266,7 @@ public class PropertyDef : MemberDef
             Inherited = pi.DeclaringType != type,
             ValueType = propType,
             PropertyInfo = pi,
-            HasHistory = storageAttr == null ? false : storageAttr.Mode == StorageMode.History,
-            Permission = permission,
+            Historical = historicalAttr == null,
             Annotations = annotations,
         };
 
