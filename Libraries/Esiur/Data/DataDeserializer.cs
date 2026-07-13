@@ -23,6 +23,18 @@ public static class DataDeserializer
 {
     internal static readonly AsyncLocal<ulong[]> TypeDefRequestSequence = new();
 
+    private static void EnsureTypedArrayBudget(ParsedTdu tdu, Warehouse warehouse, int elementSize)
+        => ParserGuard.EnsureAllocation(
+            warehouse,
+            ParserGuard.MultiplySaturated(tdu.PayloadLength, (ulong)elementSize),
+            "typed array");
+
+    private static T[] GuardDecodedArray<T>(Warehouse warehouse, T[] values, int elementSize)
+    {
+        ParserGuard.EnsureCollectionCount(warehouse, values.Length, elementSize);
+        return values;
+    }
+
     public static async AsyncReply<object> TypeDefInfoParserAsync(
         ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
@@ -324,6 +336,10 @@ public static class DataDeserializer
 
     public static object ResourceLinkParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
+        ParserGuard.EnsureAllocation(
+            connection?.ParsingWarehouse,
+            ParserGuard.MultiplySaturated(tdu.PayloadLength, 2),
+            "resource link");
         var link = tdu.Data.GetString(tdu.PayloadOffset, (uint)tdu.PayloadLength);
         if (connection == null)
         {
@@ -337,6 +353,10 @@ public static class DataDeserializer
 
     public static object ResourceLinkParser(ParsedTdu tdu, Warehouse warehouse)
     {
+        ParserGuard.EnsureAllocation(
+            warehouse,
+            ParserGuard.MultiplySaturated(tdu.PayloadLength, 2),
+            "resource link");
         var link = tdu.Data.GetString(tdu.PayloadOffset, (uint)tdu.PayloadLength);
         return new ResourceLink(link);
     }
@@ -432,27 +452,41 @@ public static class DataDeserializer
 
     public static unsafe object RawDataParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
+        ParserGuard.EnsureAllocation(connection?.ParsingWarehouse, tdu.PayloadLength, "raw data");
         return tdu.Data.Clip(tdu.PayloadOffset, (uint)tdu.PayloadLength);
     }
 
     public static unsafe object RawDataParser(ParsedTdu tdu, Warehouse warehouse)
     {
+        ParserGuard.EnsureAllocation(warehouse, tdu.PayloadLength, "raw data");
         return tdu.Data.Clip(tdu.PayloadOffset, (uint)tdu.PayloadLength);
     }
 
 
     public static unsafe object StringParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
+        ParserGuard.EnsureAllocation(
+            connection?.ParsingWarehouse,
+            ParserGuard.MultiplySaturated(tdu.PayloadLength, 2),
+            "string");
         return tdu.Data.GetString(tdu.PayloadOffset, (uint)tdu.PayloadLength);
     }
 
     public static unsafe object StringParser(ParsedTdu tdu, Warehouse warehouse)
     {
+        ParserGuard.EnsureAllocation(
+            warehouse,
+            ParserGuard.MultiplySaturated(tdu.PayloadLength, 2),
+            "string");
         return tdu.Data.GetString(tdu.PayloadOffset, (uint)tdu.PayloadLength);
     }
 
     public static async AsyncReply<IRecord> RecordParserAsync(ParsedTdu tdu, TypeDef recordTypeDef, EpConnection connection, uint[] requestSequence)
     {
+        ParserGuard.EnsureCollectionCount(
+            connection?.ParsingWarehouse,
+            recordTypeDef.Properties.Length,
+            IntPtr.Size);
         //if (tdu.Metadata.TypeDefId == null)
         //    throw new Exception("TypeDefId metadata is required for record parsing.");
 
@@ -617,6 +651,8 @@ public static class DataDeserializer
             throw new AsyncException(ErrorType.Management, (ushort)ExceptionCode.TypeDefNotFound,
                     "TypeDef not found for record.");
         }
+
+        ParserGuard.EnsureCollectionCount(warehouse, recordTypeDef.Properties.Length, IntPtr.Size);
 
         var list = new List<object>();
 
@@ -789,6 +825,7 @@ public static class DataDeserializer
     public static async AsyncReply<object> RecordListParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IRecord>();
+        var count = 0;
 
         var length = tdu.PayloadLength;
         var offset = tdu.PayloadOffset;
@@ -798,6 +835,7 @@ public static class DataDeserializer
             //var (cs, reply) 
             var pr = await Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
 
+            ParserGuard.EnsureCollectionCount(connection?.ParsingWarehouse, ++count, IntPtr.Size);
             rt.Add(pr.Value);
 
             if (pr.Size > 0)
@@ -827,6 +865,7 @@ public static class DataDeserializer
         {
             var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
 
+            ParserGuard.EnsureCollectionCount(warehouse, rt.Count + 1, IntPtr.Size);
             rt.Add(reply as IRecord);
 
             if (cs > 0)
@@ -845,6 +884,7 @@ public static class DataDeserializer
     public static async AsyncReply<object> ResourceListParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         var rt = new AsyncBag<IResource>();
+        var count = 0;
 
         var length = tdu.PayloadLength;
         var offset = tdu.PayloadOffset;
@@ -854,6 +894,7 @@ public static class DataDeserializer
             //var (cs, reply) 
             var pr = await Codec.ParseAsync(tdu.Data, offset, connection, requestSequence);
 
+            ParserGuard.EnsureCollectionCount(connection?.ParsingWarehouse, ++count, IntPtr.Size);
             rt.Add(pr.Value);// reply);
 
             if (pr.Size > 0)
@@ -884,6 +925,7 @@ public static class DataDeserializer
         {
             var (cs, reply) = Codec.ParseSync(tdu.Data, offset, warehouse);
 
+            ParserGuard.EnsureCollectionCount(warehouse, rt.Count + 1, IntPtr.Size);
             rt.Add(reply as IResource);
 
             if (cs > 0)
@@ -931,6 +973,7 @@ public static class DataDeserializer
 
 
         var rt = new AsyncBag<object>();
+        var count = 0;
 
         //var list = new List<object>();
 
@@ -962,6 +1005,7 @@ public static class DataDeserializer
             //var (cs, reply)
             var value =  Codec.ParseAsync(current, connection, requestSequence);
 
+            ParserGuard.EnsureCollectionCount(connection?.ParsingWarehouse, ++count, IntPtr.Size);
             rt.Add(value);
 
             if (current.TotalLength > 0)
@@ -1012,6 +1056,7 @@ public static class DataDeserializer
 
             var reply = Codec.ParseSync(current, warehouse);
 
+            ParserGuard.EnsureCollectionCount(warehouse, list.Count + 1, IntPtr.Size);
             list.Add(reply);
 
             if (current.TotalLength > 0)
@@ -1040,6 +1085,7 @@ public static class DataDeserializer
         {
             var (cs, reply) = Codec.ParseSync(data, offset, warehouse);
 
+            ParserGuard.EnsureCollectionCount(warehouse, rt.Count + 1, IntPtr.Size);
             rt.Add(reply);
 
             if (cs > 0)
@@ -1151,26 +1197,37 @@ public static class DataDeserializer
 
     public static Array TypedArrayParser(ParsedTdu tdu, Tru elementTru, Warehouse warehouse)
     {
+        var primitiveElementSize = elementTru.Identifier switch
+        {
+            TruIdentifier.Int16 or TruIdentifier.UInt16 => 2,
+            TruIdentifier.Int32 or TruIdentifier.UInt32 => 4,
+            TruIdentifier.Int64 or TruIdentifier.UInt64 => 8,
+            _ => 0
+        };
+
+        if (primitiveElementSize > 0)
+            EnsureTypedArrayBudget(tdu, warehouse, primitiveElementSize);
+
         switch (elementTru.Identifier)
         {
             case TruIdentifier.Int32:
-                return GroupInt32Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength));
+                return GuardDecodedArray(warehouse, GroupInt32Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 4);
             case TruIdentifier.Int64:
-                return GroupInt64Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength));
+                return GuardDecodedArray(warehouse, GroupInt64Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 8);
             case TruIdentifier.Int16:
-                return GroupInt16Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength));
+                return GuardDecodedArray(warehouse, GroupInt16Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 2);
             case TruIdentifier.UInt32:
-                return GroupUInt32Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength));
+                return GuardDecodedArray(warehouse, GroupUInt32Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 4);
             case TruIdentifier.UInt64:
-                return GroupUInt64Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength));
+                return GuardDecodedArray(warehouse, GroupUInt64Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 8);
             case TruIdentifier.UInt16:
-                return GroupUInt16Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength));
+                return GuardDecodedArray(warehouse, GroupUInt16Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 2);
             //case TruIdentifier.Enum:
 
             //    var enumType = tru.GetRuntimeType(warehouse);
@@ -1224,6 +1281,7 @@ public static class DataDeserializer
 
                     var value = Codec.ParseSync(current, warehouse);
 
+                    ParserGuard.EnsureCollectionCount(warehouse, list.Count + 1, IntPtr.Size);
                     list.Add(value);
 
                     if (current.TotalLength > 0)
@@ -1249,26 +1307,38 @@ public static class DataDeserializer
     // Non-async/await version of TypedArrayParserAsync using continuations
     public static AsyncReply TypedArrayParserAsync2(ParsedTdu tdu, Tru elementTru, EpConnection connection, uint[] requestSequence)
     {
+        var warehouse = connection?.ParsingWarehouse;
+        var primitiveElementSize = elementTru.Identifier switch
+        {
+            TruIdentifier.Int16 or TruIdentifier.UInt16 => 2,
+            TruIdentifier.Int32 or TruIdentifier.UInt32 => 4,
+            TruIdentifier.Int64 or TruIdentifier.UInt64 => 8,
+            _ => 0
+        };
+
+        if (primitiveElementSize > 0)
+            EnsureTypedArrayBudget(tdu, warehouse, primitiveElementSize);
+
         switch (elementTru.Identifier)
         {
             case TruIdentifier.Int32:
-                return new AsyncReply(GroupInt32Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)));
+                return new AsyncReply(GuardDecodedArray(warehouse, GroupInt32Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 4));
             case TruIdentifier.Int64:
-                return new AsyncReply(GroupInt64Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)));
+                return new AsyncReply(GuardDecodedArray(warehouse, GroupInt64Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 8));
             case TruIdentifier.Int16:
-                return new AsyncReply(GroupInt16Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)));
+                return new AsyncReply(GuardDecodedArray(warehouse, GroupInt16Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 2));
             case TruIdentifier.UInt32:
-                return new AsyncReply(GroupUInt32Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)));
+                return new AsyncReply(GuardDecodedArray(warehouse, GroupUInt32Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 4));
             case TruIdentifier.UInt64:
-                return new AsyncReply(GroupUInt64Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)));
+                return new AsyncReply(GuardDecodedArray(warehouse, GroupUInt64Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 8));
             case TruIdentifier.UInt16:
-                return new AsyncReply(GroupUInt16Codec.Decode(tdu.Data.AsSpan(
-                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)));
+                return new AsyncReply(GuardDecodedArray(warehouse, GroupUInt16Codec.Decode(tdu.Data.AsSpan(
+                                                    (int)tdu.PayloadOffset, (int)tdu.PayloadLength)), 2));
 
             default:
                 var rt = new AsyncReply();
@@ -1285,6 +1355,7 @@ public static class DataDeserializer
 
                 // Recursive processor using continuations
                 Action<uint, uint, ParsedTdu?> processNext = null;
+                var itemCount = 0;
 
                 processNext = (curOffset, curLength, previous) =>
                 {
@@ -1332,6 +1403,19 @@ public static class DataDeserializer
                             }
 
                             var reply = Codec.ParseAsync(current, connection, requestSequence);
+
+                            try
+                            {
+                                ParserGuard.EnsureCollectionCount(
+                                    warehouse,
+                                    ++itemCount,
+                                    IntPtr.Size);
+                            }
+                            catch (Exception ex)
+                            {
+                                rt.TriggerError(ex);
+                                return;
+                            }
 
                             list.Add(reply);
 

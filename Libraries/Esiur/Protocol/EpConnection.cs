@@ -121,6 +121,7 @@ public partial class EpConnection : NetworkConnection, IStore
     Warehouse _serverWarehouse;
 
     public EpServer Server => _server;
+    internal Warehouse ParsingWarehouse => Instance?.Warehouse ?? _serverWarehouse ?? Warehouse.Default;
     //public EpServer Server
     //{
     //    get => _server;
@@ -1856,6 +1857,11 @@ public partial class EpConnection : NetworkConnection, IStore
             {
                 offset = processPacket(msg, offset, ends, data, chunkId);
             }
+        }
+        catch (ParserLimitException ex)
+        {
+            Global.Log("EpConnection:ParserLimit", LogType.Warning, ex.Message);
+            Close();
         }
         catch (Exception ex)
         {

@@ -13,6 +13,7 @@ Coverage includes:
 - pull streams backed by `IAsyncEnumerable<T>`;
 - `TerminateExecution` through async-enumerator disposal;
 - `HaltExecution` and `ResumeExecution` for a cooperative push stream.
+- parser allocation and collection budgets, attachment quotas, and per-IP connection limits.
 
 Run it from the repository root:
 
@@ -40,4 +41,18 @@ warehouse.Configuration.RateControl.DenialsBeforeConnectionBlock = 5;
 public void Call()
 {
 }
+```
+
+Security limits are configured per Warehouse. A value of zero disables an individual limit:
+
+```csharp
+warehouse.Configuration.Parser.MaximumPacketSize = 8 * 1024 * 1024;
+warehouse.Configuration.Parser.MaximumAllocationSize = 4 * 1024 * 1024;
+warehouse.Configuration.Parser.MaximumCollectionItems = 65_536;
+
+warehouse.Configuration.ResourceAttachments.MaximumAttachedResourcesPerConnection = 4_096;
+warehouse.Configuration.ResourceAttachments.MaximumPendingAttachmentsPerConnection = 128;
+warehouse.Configuration.ResourceAttachments.RejectDuplicateAttachments = true;
+
+warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress = 64;
 ```

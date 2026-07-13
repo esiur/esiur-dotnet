@@ -21,7 +21,11 @@ namespace Esiur.Data
 
 
 
-        public static PlainTdu Parse(byte[] data, uint offset, uint ends)
+        public static PlainTdu Parse(
+            byte[] data,
+            uint offset,
+            uint ends,
+            ulong maximumPayloadLength = ulong.MaxValue)
         {
             var oOffset = offset;
 
@@ -91,6 +95,10 @@ namespace Esiur.Data
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
 
+                if (cl > maximumPayloadLength)
+                    throw new ParserLimitException(
+                        $"Declared packet payload of {cl} bytes exceeds the {maximumPayloadLength}-byte limit.");
+
                 if (ends - offset < cl)
                     return new PlainTdu()
                     {
@@ -127,6 +135,10 @@ namespace Esiur.Data
 
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
+
+                if (cl > maximumPayloadLength)
+                    throw new ParserLimitException(
+                        $"Declared packet payload of {cl} bytes exceeds the {maximumPayloadLength}-byte limit.");
 
                 if (ends - offset < cl)
                     return new PlainTdu()

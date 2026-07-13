@@ -214,6 +214,8 @@ partial class EpConnection
     // Global.Counters suffer from). Used by the deadlock experiments.
     /// <summary>Number of resources fully attached on this connection (a monotonic progress signal).</summary>
     public long AttachedResourceCount { get; private set; }
+    /// <summary>Number of resource attach or reattach requests sent by this connection.</summary>
+    public long ResourceAttachRequestCount { get; private set; }
     /// <summary>Number of wait-for-cycle breaks (placeholders returned to break a cycle) on this connection.</summary>
     public long CycleBreakCount { get; private set; }
     /// <summary>Number of placeholders returned where no genuine cycle existed (legacy resolver only).</summary>
@@ -235,6 +237,7 @@ partial class EpConnection
     volatile int _callbackCounter = 0;
 
     Dictionary<IResource, List<byte>> _subscriptions = new Dictionary<IResource, List<byte>>();
+    readonly HashSet<uint> _peerAttachmentRequests = new HashSet<uint>();
 
     // resources might get attached by the client
     internal KeyList<IResource, DateTime> _cache = new();
@@ -928,38 +931,55 @@ partial class EpConnection
 
         var resourceId = Convert.ToUInt32(value);
 
+        if (!TryBeginPeerAttachment(resourceId, out var exceptionCode, out var exceptionMessage))
+        {
+            SendError(ErrorType.Management, callback, (ushort)exceptionCode, exceptionMessage);
+            return;
+        }
+
         Instance.Warehouse.GetById(resourceId).Then((res) =>
         {
-            if (res != null)
+            try
             {
-                if (res.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
+                if (res != null)
                 {
-                    SendError(ErrorType.Management, callback, 6);
-                    return;
+                    if (res.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
+                    {
+                        SendError(ErrorType.Management, callback, 6);
+                        return;
+                    }
+
+                    var r = res as IResource;
+
+                    // unsubscribe
+                    Unsubscribe(r);
+
+                    // reply ok
+                    SendReply(EpPacketReply.Completed, callback,
+                        r.Instance.Definition.Id,
+                        r.Instance.Age,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        r.Instance.Serialize());
+
+                    // subscribe
+                    Subscribe(r);
                 }
-
-                var r = res as IResource;
-
-                // unsubscribe
-                Unsubscribe(r);
-
-                // reply ok
-                SendReply(EpPacketReply.Completed, callback,
-                    r.Instance.Definition.Id,
-                    r.Instance.Age,
-                    r.Instance.Link,
-                    r.Instance.Hops,
-                    r.Instance.Serialize());
-
-                // subscribe
-                Subscribe(r);
+                else
+                {
+                    // reply failed
+                    Global.Log("EpConnection", LogType.Debug, "Not found " + resourceId);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                }
             }
-            else
+            finally
             {
-                // reply failed
-                Global.Log("EpConnection", LogType.Debug, "Not found " + resourceId);
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                EndPeerAttachment(resourceId);
             }
+        }).Error(ex =>
+        {
+            EndPeerAttachment(resourceId);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GeneralFailure, ex.Message);
         });
     }
 
@@ -974,40 +994,57 @@ partial class EpConnection
 
         var age = Convert.ToUInt64(args[1]);
 
+        if (!TryBeginPeerAttachment(resourceId, out var exceptionCode, out var exceptionMessage))
+        {
+            SendError(ErrorType.Management, callback, (ushort)exceptionCode, exceptionMessage);
+            return;
+        }
+
         Instance.Warehouse.GetById(resourceId).Then((res) =>
         {
-            if (res != null)
+            try
             {
-                if (res.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
+                if (res != null)
                 {
-                    SendError(ErrorType.Management, callback, 6);
-                    return;
+                    if (res.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
+                    {
+                        SendError(ErrorType.Management, callback, 6);
+                        return;
+                    }
+
+                    var r = res as IResource;
+
+                    // unsubscribe
+                    Unsubscribe(r);
+
+
+                    // reply ok
+                    SendReply(EpPacketReply.Completed, callback,
+                        r.Instance.Definition.Id,
+                        r.Instance.Age,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        r.Instance.SerializeAfter(age));
+
+
+                    // subscribe
+                    Subscribe(r);
                 }
-
-                var r = res as IResource;
-
-                // unsubscribe
-                Unsubscribe(r);
-
-
-                // reply ok
-                SendReply(EpPacketReply.Completed, callback,
-                    r.Instance.Definition.Id,
-                    r.Instance.Age,
-                    r.Instance.Link,
-                    r.Instance.Hops,
-                    r.Instance.SerializeAfter(age));
-
-
-                // subscribe
-                Subscribe(r);
+                else
+                {
+                    // reply failed
+                    Global.Log("EpConnection", LogType.Debug, "Not found " + resourceId);
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                }
             }
-            else
+            finally
             {
-                // reply failed
-                Global.Log("EpConnection", LogType.Debug, "Not found " + resourceId);
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                EndPeerAttachment(resourceId);
             }
+        }).Error(ex =>
+        {
+            EndPeerAttachment(resourceId);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GeneralFailure, ex.Message);
         });
     }
 
@@ -2660,6 +2697,88 @@ partial class EpConnection
         }
     }
 
+    private AsyncReply<EpResource> AttachmentLimitError(string message)
+    {
+        var reply = new AsyncReply<EpResource>();
+        // AsyncReply throws when an error is triggered before any observer is attached.
+        // Install a sink so this already-failed reply can be returned and observed by Codec.
+        reply.Error(_ => { });
+        reply.TriggerError(new AsyncException(
+            ErrorType.Management,
+            (ushort)ExceptionCode.AttachmentLimitExceeded,
+            message));
+        return reply;
+    }
+
+    private void FailResourceAttachment(
+        uint id,
+        AsyncReply<EpResource> reply,
+        Exception exception)
+    {
+        _resourceRequests.Remove(id);
+        _neededResources.Remove(id);
+        ClearResourceFetchNode(id);
+        reply.TriggerError(exception);
+    }
+
+    private bool TryReserveResourceAttachment(
+        uint id,
+        AsyncReply<EpResource> reply,
+        uint[] requestSequence,
+        out AsyncReply<EpResource> alternative)
+    {
+        lock (_resourceRequests.SyncRoot)
+        {
+            var existing = _resourceRequests[id];
+            if (existing != null)
+            {
+                alternative = existing.Reply;
+                return false;
+            }
+
+            var configuration = ParsingWarehouse.Configuration.ResourceAttachments;
+
+            if (configuration.MaximumPendingAttachmentsPerConnection > 0
+                && _resourceRequests.Count >= configuration.MaximumPendingAttachmentsPerConnection)
+            {
+                alternative = AttachmentLimitError(
+                    "The pending resource attachment limit for this connection was reached.");
+                return false;
+            }
+
+            var attachedCount = 0;
+            lock (_attachedResources.SyncRoot)
+            {
+                var stale = new List<uint>();
+                foreach (var pair in _attachedResources)
+                {
+                    if (pair.Value != null && pair.Value.TryGetTarget(out _))
+                        attachedCount++;
+                    else
+                        stale.Add(pair.Key);
+                }
+
+                foreach (var staleId in stale)
+                    _attachedResources.Remove(staleId);
+            }
+
+            if (configuration.MaximumAttachedResourcesPerConnection > 0
+                && attachedCount + _resourceRequests.Count
+                    >= configuration.MaximumAttachedResourcesPerConnection)
+            {
+                alternative = AttachmentLimitError(
+                    "The resource attachment limit for this connection was reached.");
+                return false;
+            }
+
+            _resourceRequests.Add(
+                id,
+                new FetchRequestInfo<EpResource, uint>(reply, requestSequence));
+            alternative = null;
+            return true;
+        }
+    }
+
     public AsyncReply<EpResource> FetchResource(uint id, uint[] requestSequence)
     {
         //lock (fetchLock)
@@ -2746,19 +2865,26 @@ partial class EpConnection
         var newSequence = requestSequence != null ? requestSequence.Concat(new uint[] { id }).ToArray() : new uint[] { id };
 
         var reply = new AsyncReply<EpResource>();
-        _resourceRequests.Add(id, new FetchRequestInfo<EpResource, uint>(reply, newSequence));
+        if (!TryReserveResourceAttachment(id, reply, newSequence, out var alternative))
+            return alternative;
 
         // This fetch's parent now waits on `id` until it attaches.
         if (parent != null)
             AddResourceFetchBlock(parent.Value, id);
 
+        ResourceAttachRequestCount++;
         SendRequest(EpPacketRequest.AttachResource, id)
                     .Then((result) =>
                     {
                         if (result == null)
                         {
-                            reply.TriggerError(new AsyncException(ErrorType.Management,
-                                    (ushort)ExceptionCode.ResourceNotFound, "Null response"));
+                            FailResourceAttachment(
+                                id,
+                                reply,
+                                new AsyncException(
+                                    ErrorType.Management,
+                                    (ushort)ExceptionCode.ResourceNotFound,
+                                    "Null response"));
                             return;
                         }
 
@@ -2801,11 +2927,7 @@ partial class EpConnection
                                 ClearResourceFetchNode(id);
                                 TryPublishDeliveredRoots();
                                 reply.Trigger(dr);
-                            }).Error(ex => { 
-                                _resourceRequests.Remove(id); 
-                                ClearResourceFetchNode(id); 
-                                reply.TriggerError(ex); 
-                            });
+                            }).Error(ex => FailResourceAttachment(id, reply, ex));
                         };
 
                         if (typeDef == null)
@@ -2827,17 +2949,14 @@ partial class EpConnection
                                     _neededResources[id] = resource;
                                     Instance.Warehouse.Put(Instance.Link + "/" + id.ToString(), resource)
                                         .Then(initResource)
-                                        .Error(ex => reply.TriggerError(ex));
+                                        .Error(ex => FailResourceAttachment(id, reply, ex));
 
                                 }
                                 else
                                 {
                                     initResource(resource);
                                 }
-                            }).Error((ex) =>
-                            {
-                                reply.TriggerError(ex);
-                            });
+                            }).Error(ex => FailResourceAttachment(id, reply, ex));
                         }
                         else
                         {
@@ -2854,7 +2973,8 @@ partial class EpConnection
                                 // references in the graph can resolve back to this instance.
                                 _neededResources[id] = resource;
                                 Instance.Warehouse.Put(this.Instance.Link + "/" + id.ToString(), resource)
-                                    .Then(initResource).Error((ex) => reply.TriggerError(ex));
+                                    .Then(initResource)
+                                    .Error(ex => FailResourceAttachment(id, reply, ex));
                             }
                             else
                             {
@@ -2862,13 +2982,11 @@ partial class EpConnection
                             }
                         }
 
-                    }).Error((ex) =>
+                    }).Error(ex =>
                     {
                         // Failed to attach: drop the in-flight request and wait-for edges so a
                         // later retry is not blocked by a stale entry.
-                        _resourceRequests.Remove(id);
-                        ClearResourceFetchNode(id);
-                        reply.TriggerError(ex);
+                        FailResourceAttachment(id, reply, ex);
                     });
 
 
@@ -2903,8 +3021,10 @@ partial class EpConnection
 
         var reply = new AsyncReply<EpResource>();
         var sequence = new uint[] { id };
-        _resourceRequests.Add(id, new FetchRequestInfo<EpResource, uint>(reply, sequence));
+        if (!TryReserveResourceAttachment(id, reply, sequence, out var alternative))
+            return alternative;
 
+        ResourceAttachRequestCount++;
         SendRequest(EpPacketRequest.ReattachResource, id, age).Then(result =>
         {
             if (result == null)
@@ -3106,10 +3226,62 @@ partial class EpConnection
         return reply;
     }
 
+    private bool TryBeginPeerAttachment(
+        uint resourceId,
+        out ExceptionCode exceptionCode,
+        out string exceptionMessage)
+    {
+        lock (_subscriptionsLock)
+        {
+            var configuration = ParsingWarehouse.Configuration.ResourceAttachments;
+            var alreadyAttached = _subscriptions.Keys.Any(
+                resource => resource.Instance?.Id == resourceId);
+
+            if (configuration.RejectDuplicateAttachments
+                && (alreadyAttached || _peerAttachmentRequests.Contains(resourceId)))
+            {
+                exceptionCode = ExceptionCode.AlreadyAttached;
+                exceptionMessage = $"Resource {resourceId} is already attached or being attached by this connection.";
+                return false;
+            }
+
+            if (configuration.MaximumPendingAttachmentsPerConnection > 0
+                && _peerAttachmentRequests.Count >= configuration.MaximumPendingAttachmentsPerConnection)
+            {
+                exceptionCode = ExceptionCode.AttachmentLimitExceeded;
+                exceptionMessage = "The pending resource attachment limit for this connection was reached.";
+                return false;
+            }
+
+            if (configuration.MaximumAttachedResourcesPerConnection > 0
+                && _subscriptions.Count + _peerAttachmentRequests.Count
+                    >= configuration.MaximumAttachedResourcesPerConnection)
+            {
+                exceptionCode = ExceptionCode.AttachmentLimitExceeded;
+                exceptionMessage = "The resource attachment limit for this connection was reached.";
+                return false;
+            }
+
+            _peerAttachmentRequests.Add(resourceId);
+            exceptionCode = default;
+            exceptionMessage = null;
+            return true;
+        }
+    }
+
+    private void EndPeerAttachment(uint resourceId)
+    {
+        lock (_subscriptionsLock)
+            _peerAttachmentRequests.Remove(resourceId);
+    }
+
     private void Subscribe(IResource resource)
     {
         lock (_subscriptionsLock)
         {
+            if (_subscriptions.ContainsKey(resource))
+                return;
+
             resource.Instance.EventOccurred += Instance_EventOccurred;
             resource.Instance.CustomEventOccurred += Instance_CustomEventOccurred;
             resource.Instance.PropertyModified += Instance_PropertyModified;
@@ -3147,6 +3319,7 @@ partial class EpConnection
             }
 
             _subscriptions.Clear();
+            _peerAttachmentRequests.Clear();
         }
     }
 

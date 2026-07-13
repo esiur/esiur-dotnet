@@ -112,6 +112,11 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
                     c.Assign(s);
                     Add(c);
 
+                    // A derived server can reject admission (for example, due to a per-peer
+                    // connection quota) by not adding the connection and closing its socket.
+                    if (!Connections.Contains(c))
+                        continue;
+
                     try
                     {
                         ClientConnected(c);

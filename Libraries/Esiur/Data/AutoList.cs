@@ -89,8 +89,8 @@ public class AutoList<T, ST> : IEnumerable<T>, ICollection, ICollection<T>
     /// <returns>Array</returns>
     public T[] ToArray()
     {
-        //    list.OrderBy()
-        return list.ToArray();
+        lock (syncRoot)
+            return list.ToArray();
     }
 
     /// <summary>
@@ -242,7 +242,11 @@ public class AutoList<T, ST> : IEnumerable<T>, ICollection, ICollection<T>
     /// </summary>
     public int Count
     {
-        get { return list.Count; }
+        get
+        {
+            lock (syncRoot)
+                return list.Count;
+        }
     }
 
     public bool IsSynchronized => (list as ICollection).IsSynchronized;
@@ -256,7 +260,8 @@ public class AutoList<T, ST> : IEnumerable<T>, ICollection, ICollection<T>
     /// <param name="value">Item to check if exists</param>
     public bool Contains(T value)
     {
-        return list.Contains(value);
+        lock (syncRoot)
+            return list.Contains(value);
     }
 
     /// <summary>

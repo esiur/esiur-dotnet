@@ -47,5 +47,9 @@ public enum ExceptionCode : ushort
     NotSupported,
     NotImplemented,
     NotAllowed,
-    RateLimitExceeded
+    RateLimitExceeded,
+    ParserLimitExceeded,
+    AttachmentLimitExceeded,
+    AlreadyAttached,
+    ConnectionLimitExceeded
 }

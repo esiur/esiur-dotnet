@@ -78,6 +78,12 @@ internal static class Program
     static async Task<MyService> StartServer(Warehouse warehouse, ushort port)
     {
         warehouse.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
+        warehouse.Configuration.Parser.MaximumPacketSize = 8 * 1024 * 1024;
+        warehouse.Configuration.Parser.MaximumAllocationSize = 4 * 1024 * 1024;
+        warehouse.Configuration.Parser.MaximumCollectionItems = 65_536;
+        warehouse.Configuration.ResourceAttachments.MaximumAttachedResourcesPerConnection = 4_096;
+        warehouse.Configuration.ResourceAttachments.MaximumPendingAttachmentsPerConnection = 128;
+        warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress = 64;
         warehouse.Configuration.RateControl.DenialsBeforeConnectionBlock = 10;
         warehouse.AddRatePolicy(new BurstRatePolicy("standard-call")
         {
@@ -139,6 +145,8 @@ internal static class Program
     static async Task<EpConnection> ConnectClient(Warehouse warehouse, ushort port)
     {
         warehouse.RegisterAuthenticationProvider(new ClientAuthenticationProvider());
+        warehouse.Configuration.ResourceAttachments.MaximumAttachedResourcesPerConnection = 4_096;
+        warehouse.Configuration.ResourceAttachments.MaximumPendingAttachmentsPerConnection = 128;
 
         return await warehouse.Get<EpConnection>($"ep://localhost:{port}", new EpConnectionContext
         {

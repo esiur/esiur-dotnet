@@ -27,8 +27,6 @@ namespace Esiur.Data
 
         public static async AsyncReply<ParsedTdu> ParseAsync(byte[] data, uint offset, uint ends, EpConnection connection)
         {
-            // @TODO: add protection against memory allocation attacks by checking the length of the data before parsing it.
-
             var h = data[offset++];
 
             var cls = (TduClass)(h >> 6);
@@ -91,6 +89,8 @@ namespace Esiur.Data
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
 
+                ParserGuard.EnsurePacketSize(ParserGuard.GetWarehouse(connection), cl);
+
                 if (ends - offset < cl)
                     return new ParsedTdu()
                     {
@@ -102,6 +102,10 @@ namespace Esiur.Data
                 //offset += data[offset] + (uint)1;
 
                 var metaDataTru = await Tru.ParseAsync(data, offset, connection, null);
+
+                if (metaDataTru.Size > cl)
+                    throw new ParserLimitException("Typed TDU metadata exceeds its declared payload length.");
+
                 offset += metaDataTru.Size;
 
                 return new ParsedTdu()
@@ -133,6 +137,8 @@ namespace Esiur.Data
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
 
+                ParserGuard.EnsurePacketSize(ParserGuard.GetWarehouse(connection), cl);
+
                 if (ends - offset < cl)
                     return new ParsedTdu()
                     {
@@ -158,8 +164,6 @@ namespace Esiur.Data
 
         public static object Parse(byte[] data, uint offset, uint ends, EpConnection connection)
         {
-            // @TODO: add protection against memory allocation attacks by checking the length of the data before parsing it.
-
             var h = data[offset++];
 
             var cls = (TduClass)(h >> 6);
@@ -222,6 +226,8 @@ namespace Esiur.Data
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
 
+                ParserGuard.EnsurePacketSize(ParserGuard.GetWarehouse(connection), cl);
+
                 if (ends - offset < cl)
                     return new ParsedTdu()
                     {
@@ -235,6 +241,13 @@ namespace Esiur.Data
 
                 Tru.ParseAsync(data, offset, connection, null).Then(metaDataTru =>
                 {
+                    if (metaDataTru.Size > cl)
+                    {
+                        rt.TriggerError(new ParserLimitException(
+                            "Typed TDU metadata exceeds its declared payload length."));
+                        return;
+                    }
+
                     offset += metaDataTru.Size;
 
                     rt.Trigger(new ParsedTdu()
@@ -268,6 +281,8 @@ namespace Esiur.Data
 
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
+
+                ParserGuard.EnsurePacketSize(ParserGuard.GetWarehouse(connection), cl);
 
                 if (ends - offset < cl)
                     return new ParsedTdu()
@@ -347,8 +362,6 @@ namespace Esiur.Data
 
         public static ParsedTdu ParseSync(byte[] data, uint offset, uint ends, Warehouse warehouse)
         {
-            // @TODO: add protection against memory allocation attacks by checking the length of the data before parsing it.
-
             var h = data[offset++];
 
             var cls = (TduClass)(h >> 6);
@@ -411,6 +424,8 @@ namespace Esiur.Data
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
 
+                ParserGuard.EnsurePacketSize(warehouse, cl);
+
                 if (ends - offset < cl)
                     return new ParsedTdu()
                     {
@@ -422,6 +437,10 @@ namespace Esiur.Data
                 //offset += data[offset] + (uint)1;
 
                 var metaDataTru = Tru.Parse(data, offset, warehouse);
+
+                if (metaDataTru.Size > cl)
+                    throw new ParserLimitException("Typed TDU metadata exceeds its declared payload length.");
+
                 offset += metaDataTru.Size;
 
                 return new ParsedTdu()
@@ -452,6 +471,8 @@ namespace Esiur.Data
 
                 for (uint i = 0; i < cll; i++)
                     cl = cl << 8 | data[offset++];
+
+                ParserGuard.EnsurePacketSize(warehouse, cl);
 
                 if (ends - offset < cl)
                     return new ParsedTdu()

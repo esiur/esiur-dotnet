@@ -185,7 +185,12 @@ public class EpAuthPacket : Packet
             if (NotEnough(offset, ends, 1))
                 return -dataLengthNeeded;
 
-            Tdu = PlainTdu.Parse(data, offset, ends);//, _warehouse);
+            var maximumPacketSize = _warehouse.Configuration.Parser.MaximumPacketSize;
+            Tdu = PlainTdu.Parse(
+                data,
+                offset,
+                ends,
+                maximumPacketSize == 0 ? ulong.MaxValue : maximumPacketSize);
 
             if (Tdu.Value.Class == TduClass.Invalid)
                 return -(int)Tdu.Value.TotalLength;

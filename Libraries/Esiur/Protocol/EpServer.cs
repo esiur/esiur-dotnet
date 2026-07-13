@@ -44,6 +44,9 @@ namespace Esiur.Protocol;
 
 public class EpServer : NetworkServer<EpConnection>, IResource
 {
+    readonly object _peerConnectionsLock = new object();
+    readonly Dictionary<IPAddress, int> _peerConnectionCounts = new Dictionary<IPAddress, int>();
+    readonly Dictionary<EpConnection, IPAddress> _admittedConnections = new Dictionary<EpConnection, IPAddress>();
 
 
     //[Attribute]
@@ -167,19 +170,99 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     public override void Add(EpConnection connection)
     {
-        connection.Handle(ResourceOperation.Configure, 
-                        new EpServerConnectionContext() { 
-                                    Server = this,
-                                    Warehouse = Instance.Warehouse }
-                        );
+        if (!TryAdmitConnection(connection))
+        {
+            Global.Log(
+                "EpServer:ConnectionLimit",
+                LogType.Warning,
+                $"Rejected connection from {connection.RemoteEndPoint?.Address}: per-IP limit reached.");
+            connection.Close();
+            return;
+        }
 
-        connection.ExceptionLevel = ExceptionLevel;
-        base.Add(connection);
+        try
+        {
+            connection.Handle(ResourceOperation.Configure,
+                            new EpServerConnectionContext()
+                            {
+                                Server = this,
+                                Warehouse = Instance.Warehouse
+                            });
+
+            connection.ExceptionLevel = ExceptionLevel;
+            base.Add(connection);
+        }
+        catch
+        {
+            ReleaseConnection(connection);
+            connection.Close();
+            throw;
+        }
     }
 
     public override void Remove(EpConnection connection)
     {
-        base.Remove(connection);
+        try
+        {
+            base.Remove(connection);
+        }
+        finally
+        {
+            ReleaseConnection(connection);
+        }
+    }
+
+    private bool TryAdmitConnection(EpConnection connection)
+    {
+        var address = NormalizeAddress(connection.RemoteEndPoint?.Address);
+        if (address == null)
+            return true;
+
+        lock (_peerConnectionsLock)
+        {
+            var count = _peerConnectionCounts.TryGetValue(address, out var current)
+                ? current
+                : 0;
+            var limit = Instance.Warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress;
+
+            if (limit > 0 && count >= limit)
+                return false;
+
+            _peerConnectionCounts[address] = count + 1;
+            _admittedConnections[connection] = address;
+            return true;
+        }
+    }
+
+    private void ReleaseConnection(EpConnection connection)
+    {
+        lock (_peerConnectionsLock)
+        {
+            if (!_admittedConnections.TryGetValue(connection, out var address))
+                return;
+
+            _admittedConnections.Remove(connection);
+
+            if (!_peerConnectionCounts.TryGetValue(address, out var count))
+                return;
+
+            if (count <= 1)
+                _peerConnectionCounts.Remove(address);
+            else
+                _peerConnectionCounts[address] = count - 1;
+        }
+    }
+
+    private static IPAddress NormalizeAddress(IPAddress address)
+        => address?.IsIPv4MappedToIPv6 == true ? address.MapToIPv4() : address;
+
+    internal int GetConnectionCount(IPAddress address)
+    {
+        address = NormalizeAddress(address);
+        lock (_peerConnectionsLock)
+            return address != null && _peerConnectionCounts.TryGetValue(address, out var count)
+                ? count
+                : 0;
     }
 
     protected override void ClientDisconnected(EpConnection connection)

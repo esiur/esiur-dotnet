@@ -62,14 +62,16 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
 
     public T Take(KT key)
     {
-        if (dic.ContainsKey(key))
+        lock (syncRoot)
         {
-            var v = dic[key];
-            Remove(key);
-            return v;
-        }
-        else
+            if (dic.TryGetValue(key, out var value))
+            {
+                Remove(key);
+                return value;
+            }
+
             return default(T);
+        }
     }
 
     public void Sort(Func<KeyValuePair<KT, T>, object> keySelector)
@@ -79,9 +81,12 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
 
     public T[] ToArray()
     {
-        var a = new T[Count];
-        dic.Values.CopyTo(a, 0);
-        return a;
+        lock (syncRoot)
+        {
+            var a = new T[dic.Count];
+            dic.Values.CopyTo(a, 0);
+            return a;
+        }
     }
 
     public void Add(KT key, T value)
@@ -132,10 +137,8 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
     {
         get
         {
-            if (dic.ContainsKey(key))
-                return dic[key];
-            else
-                return default(T);
+            lock (syncRoot)
+                return dic.TryGetValue(key, out var value) ? value : default(T);
         }
         set
         {
@@ -157,13 +160,15 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
 
     public void Clear()
     {
-        if (removableList)
-            foreach (IDestructible v in dic.Values)
-                if (v != null)
-                    v.OnDestroy -= ItemDestroyed;
-
         lock (syncRoot)
+        {
+            if (removableList)
+                foreach (IDestructible v in dic.Values)
+                    if (v != null)
+                        v.OnDestroy -= ItemDestroyed;
+
             dic.Clear();
+        }
 
         if (OnCleared != null)
             OnCleared(this);
@@ -184,17 +189,18 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
 
     public void Remove(KT key)
     {
-        if (!dic.ContainsKey(key))
-            return;
-
-        var value = dic[key];
-
-        if (removableList)
-            if (value != null)
-                ((IDestructible)value).OnDestroy -= ItemDestroyed;
-
+        T value;
         lock (syncRoot)
+        {
+            if (!dic.TryGetValue(key, out value))
+                return;
+
+            if (removableList)
+                if (value != null)
+                    ((IDestructible)value).OnDestroy -= ItemDestroyed;
+
             dic.Remove(key);
+        }
 
         if (OnRemoved != null)
             OnRemoved(key, value, this);
@@ -208,19 +214,26 @@ public class KeyList<KT, T> : IEnumerable<KeyValuePair<KT, T>>
 
     public int Count
     {
-        get { return dic.Count; }
+        get
+        {
+            lock (syncRoot)
+                return dic.Count;
+        }
     }
     public bool Contains(KT Key)
     {
-        return dic.ContainsKey(Key);
+        lock (syncRoot)
+            return dic.ContainsKey(Key);
     }
     public bool ContainsKey(KT Key)
     {
-        return dic.ContainsKey(Key);
+        lock (syncRoot)
+            return dic.ContainsKey(Key);
     }
     public bool ContainsValue(T Value)
     {
-        return dic.ContainsValue(Value);
+        lock (syncRoot)
+            return dic.ContainsValue(Value);
     }
 
 
