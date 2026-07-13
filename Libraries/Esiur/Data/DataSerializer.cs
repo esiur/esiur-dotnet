@@ -567,9 +567,13 @@ public static class DataSerializer
             {
                 var tdu = Codec.ComposeInternal(i, warehouse, connection);
 
-                var currentTru = Tru.FromType(i?.GetType(), warehouse);
+                // Structures are deliberately schema-less and therefore have no TRU of their
+                // own; their composed value is a typed byte/dynamic map.
+                var currentTru = IndexedStructureCodec.ContainsStructure(i?.GetType())
+                    ? null
+                    : Tru.FromType(i?.GetType(), warehouse);
 
-                if (tdu.Class == TduClass.Typed && tru.Match(currentTru))
+                if (tdu.Class == TduClass.Typed && currentTru != null && tru.Match(currentTru))
                 {
                     var d = tdu.Composed.Clip(tdu.ContentOffset,
                         (uint)tdu.Composed.Length - tdu.ContentOffset);
@@ -604,6 +608,12 @@ public static class DataSerializer
     public static Tdu TypedListComposer(IEnumerable value, Type type, Warehouse warehouse, EpConnection connection)
     {
         var elementTru = Tru.FromType(type, warehouse);
+
+        // Local structures and other schema-less CLR types intentionally have no TRU.
+        // Preserve them as a dynamic list; the indexed binder reconstructs the requested
+        // collection type after parsing.
+        if (elementTru == null)
+            return ListComposer(value, warehouse, connection);
 
         byte[] composed = TypedArrayComposer(value, elementTru, warehouse, connection);
 
@@ -857,6 +867,38 @@ public static class DataSerializer
             rt.AddRange(Codec.Compose(el, warehouse, connection));
 
         return new Tdu(TduIdentifier.Map, rt.ToArray(), (uint)rt.Count, null, null);
+    }
+
+    /// <summary>
+    /// Composes an indexed CLR structure using the compatible Map&lt;byte, object&gt; wire shape.
+    /// </summary>
+    public static Tdu StructureComposer(object value, Warehouse warehouse, EpConnection connection)
+    {
+        if (value == null)
+            return new Tdu(TduIdentifier.Null, Array.Empty<byte>(), 0, null, null);
+
+        var map = IndexedStructureCodec.ToMap((IndexedStructure)value);
+        return TypedMapComposer(map, typeof(byte), typeof(object), warehouse, connection);
+    }
+
+    /// <summary>
+    /// Carries a TRU as a self-framed value, allowing it to appear in dynamic structure fields.
+    /// </summary>
+    public static Tdu TruComposer(object value, Warehouse warehouse, EpConnection connection)
+    {
+        var data = ((Tru)value).Compose(connection);
+        return new Tdu(TduIdentifier.TRU, data, (ulong)data.Length, null, connection);
+    }
+
+    /// <summary>
+    /// Carries a TypeDefInfo in the dedicated TypeDef slot. Its payload remains an indexed
+    /// structure so new fields can be added without changing this outer framing.
+    /// </summary>
+    public static Tdu TypeDefComposer(object value, Warehouse warehouse, EpConnection connection)
+    {
+        var structure = StructureComposer(value, warehouse, connection);
+        return new Tdu(TduIdentifier.TypeDef, structure.Composed,
+                       (ulong)structure.Composed.Length, null, connection);
     }
 
     public static unsafe Tdu UUIDComposer(object value, Warehouse warehouse, EpConnection connection)

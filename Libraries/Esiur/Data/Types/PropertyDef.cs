@@ -44,10 +44,57 @@ public class PropertyDef : MemberDef
 
     public bool ReadOnly { get; set; }
 
+    // Compatibility for code still consuming the previous permission model.
+    public PropertyPermission Permission
+    {
+        get => ReadOnly ? PropertyPermission.Read : PropertyPermission.ReadWrite;
+        set => ReadOnly = value == PropertyPermission.Read;
+    }
+
     public bool Constant { get; set; }
     //public bool IsNullable { get; set; }
 
     public bool Historical { get; set; }
+
+    public bool HasHistory
+    {
+        get => Historical;
+        set => Historical = value;
+    }
+
+    public static async AsyncReply<ParseResult<PropertyDef>> ParseAsync(
+        byte[] data, uint offset, byte index, bool inherited,
+        EpConnection connection, ulong[] requestSequence)
+    {
+        var originalOffset = offset;
+        var hasAnnotations = (data[offset] & 0x08) != 0;
+        var hasHistory = (data[offset] & 0x01) != 0;
+        var permission = (PropertyPermission)((data[offset++] >> 1) & 0x03);
+        var name = data.GetString(offset + 1, data[offset]);
+        offset += (uint)data[offset] + 1;
+
+        var valueType = await Tru.ParseAsync(data, offset, connection, requestSequence);
+        offset += valueType.Size;
+
+        Map<string, string> annotations = null;
+        if (hasAnnotations)
+        {
+            var (size, value) = Codec.ParseSync(data, offset, null);
+            annotations = value as Map<string, string>;
+            offset += size;
+        }
+
+        return new ParseResult<PropertyDef>(new PropertyDef
+        {
+            Index = index,
+            Name = name,
+            Inherited = inherited,
+            Permission = permission,
+            HasHistory = hasHistory,
+            ValueType = valueType.Value,
+            Annotations = annotations,
+        }, offset - originalOffset);
+    }
 
     /*
     public PropertyType Mode
@@ -271,6 +318,15 @@ public class PropertyDef : MemberDef
         };
 
  
+    }
+
+    public static PropertyDef MakePropertyDef(
+        Warehouse warehouse, Type type, PropertyInfo pi, string name, byte index,
+        PropertyPermission permission, TypeDef typeDef)
+    {
+        var definition = MakePropertyDef(warehouse, type, pi, name, index, typeDef);
+        definition.Permission = permission;
+        return definition;
     }
 
 

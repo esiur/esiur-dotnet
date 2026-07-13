@@ -81,7 +81,8 @@ public struct Tdu
                 Composed = DC.Combine(new byte[] { (byte)Identifier }, 0, 1, data, 0, (uint)length);
         }
         else if (Class == TduClass.Dynamic
-            || Class == TduClass.Extension)
+            || Class == TduClass.Extension
+            || (Class == TduClass.Typed && Identifier != TduIdentifier.Typed))
         {
 
             if (length == 0)
@@ -285,6 +286,14 @@ public struct Tdu
             return false;
 
         if (Class != TduClass.Typed || with.Class != TduClass.Typed)
+            return false;
+
+        // Dedicated typed-class values (TypeDef/TRU) carry no metadata. Their identifier
+        // completely describes the outer type and is sufficient for continuation encoding.
+        if (Identifier != TduIdentifier.Typed)
+            return true;
+
+        if (Metadata == null || with.Metadata == null)
             return false;
 
         if (!Metadata.Match(with.Metadata))

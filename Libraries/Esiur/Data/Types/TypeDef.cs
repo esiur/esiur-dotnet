@@ -46,6 +46,8 @@ public class TypeDef
 
     public TypeDefKind Kind => _typeDefKind;
 
+    public int Version => _version;
+
     public EventDef GetEventDefByName(string eventName)
     {
         foreach (var i in _events)
@@ -151,7 +153,8 @@ public class TypeDef
 
     public virtual byte[] Compose(EpConnection connection)
     {
-        return null;
+        var warehouse = connection?.Instance?.Warehouse ?? Warehouse.Default;
+        return Codec.Compose(TypeDefInfo.FromTypeDef(this), warehouse, connection);
     }
 
    

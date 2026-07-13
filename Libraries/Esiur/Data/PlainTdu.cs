@@ -75,7 +75,7 @@ namespace Esiur.Data
                     Ends = ends
                 };
             }
-            else if (cls == TduClass.Typed)
+            else if ((h & 0xC7) == 0x80) // else if (cls == TduClass.Typed)
             {
                 ulong cll = (ulong)(h >> 3) & 0x7;
 

@@ -28,11 +28,50 @@ public class EventDef : MemberDef
 
     public bool AutoDelivered { get; set; }
 
+    // Compatibility for existing subscription paths while callers migrate to AutoDelivered.
+    public bool Subscribable
+    {
+        get => !AutoDelivered;
+        set => AutoDelivered = !value;
+    }
+
     public bool Deprecated { get; set; }
 
     public EventInfo EventInfo { get; set; }
 
     public Tru ArgumentType { get; set; }
+
+    public static async AsyncReply<ParseResult<EventDef>> ParseAsync(
+        byte[] data, uint offset, byte index, bool inherited,
+        EpConnection connection, ulong[] requestSequence)
+    {
+        var originalOffset = offset;
+        var hasAnnotations = (data[offset] & 0x10) != 0;
+        var subscribable = (data[offset++] & 0x08) != 0;
+        var name = data.GetString(offset + 1, data[offset]);
+        offset += (uint)data[offset] + 1;
+
+        var argumentType = await Tru.ParseAsync(data, offset, connection, requestSequence);
+        offset += argumentType.Size;
+
+        Map<string, string> annotations = null;
+        if (hasAnnotations)
+        {
+            var (size, value) = Codec.ParseSync(data, offset, null);
+            annotations = value as Map<string, string>;
+            offset += size;
+        }
+
+        return new ParseResult<EventDef>(new EventDef
+        {
+            Index = index,
+            Name = name,
+            Inherited = inherited,
+            ArgumentType = argumentType.Value,
+            Subscribable = subscribable,
+            Annotations = annotations,
+        }, offset - originalOffset);
+    }
 
     
 

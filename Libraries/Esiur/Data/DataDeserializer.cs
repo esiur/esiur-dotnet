@@ -11,14 +11,57 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
+using System.Threading;
 
 namespace Esiur.Data;
 
 public static class DataDeserializer
 {
+    internal static readonly AsyncLocal<ulong[]> TypeDefRequestSequence = new();
+
+    public static async AsyncReply<object> TypeDefInfoParserAsync(
+        ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
+    {
+        var parsed = await Codec.ParseAsync(tdu.Data, tdu.PayloadOffset, connection, requestSequence);
+        if (parsed.Size != tdu.PayloadLength)
+            throw new InvalidDataException("The TypeDef payload contains trailing or incomplete data.");
+
+        return IndexedStructureCodec.FromMap<Types.TypeDefInfo>(parsed.Value);
+    }
+
+    public static object TypeDefInfoParser(ParsedTdu tdu, Warehouse warehouse)
+    {
+        var (size, value) = Codec.ParseSync(tdu.Data, tdu.PayloadOffset, warehouse);
+        if (size != tdu.PayloadLength)
+            throw new InvalidDataException("The TypeDef payload contains trailing or incomplete data.");
+
+        return IndexedStructureCodec.FromMap<Types.TypeDefInfo>(value);
+    }
+
+    public static async AsyncReply<object> TruParserAsync(
+        ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
+    {
+        var parsed = await Tru.ParseAsync(tdu.Data, tdu.PayloadOffset, connection,
+                                          TypeDefRequestSequence.Value);
+        if (parsed.Size != tdu.PayloadLength)
+            throw new InvalidDataException("The TRU payload contains trailing or incomplete data.");
+
+        return parsed.Value;
+    }
+
+    public static object TruParser(ParsedTdu tdu, Warehouse warehouse)
+    {
+        var parsed = Tru.Parse(tdu.Data, tdu.PayloadOffset, warehouse);
+        if (parsed.Size != tdu.PayloadLength)
+            throw new InvalidDataException("The TRU payload contains trailing or incomplete data.");
+
+        return parsed.Value;
+    }
+
     public static object NullParserAsync(ParsedTdu tdu, EpConnection connection, uint[] requestSequence)
     {
         return null;
@@ -445,6 +488,7 @@ public static class DataDeserializer
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
+                current.Index = previous.Value.Index;
                 current.Metadata = previous.Value.Metadata;
             }
             else if (current.Identifier == TduIdentifier.TypeOfTarget)
@@ -596,6 +640,7 @@ public static class DataDeserializer
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
+                current.Index = previous.Value.Index;
                 current.Metadata = previous.Value.Metadata;
             }
             else if (current.Identifier == TduIdentifier.TypeOfTarget)
@@ -908,6 +953,7 @@ public static class DataDeserializer
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
+                current.Index = previous.Value.Index;
                 current.Metadata = previous.Value.Metadata;
             }
 
@@ -959,6 +1005,7 @@ public static class DataDeserializer
             {
                 current.Class = previous.Value.Class;
                 current.Identifier = previous.Value.Identifier;
+                current.Index = previous.Value.Index;
                 current.Metadata = previous.Value.Metadata;
             }
 
@@ -1163,6 +1210,7 @@ public static class DataDeserializer
                     {
                         current.Class = previous.Value.Class;
                         current.Identifier = previous.Value.Identifier;
+                        current.Index = previous.Value.Index;
                         current.Metadata = previous.Value.Metadata;
                     }
                     else if (current.Identifier == TduIdentifier.TypeOfTarget)
@@ -1271,6 +1319,7 @@ public static class DataDeserializer
                                 {
                                     current.Class = previous.Value.Class;
                                     current.Identifier = previous.Value.Identifier;
+                                    current.Index = previous.Value.Index;
                                     current.Metadata = previous.Value.Metadata;
                                 }
                             }
@@ -1624,6 +1673,7 @@ public static class DataDeserializer
                     {
                         current.Class = previous.Value.Class;
                         current.Identifier = previous.Value.Identifier;
+                        current.Index = previous.Value.Index;
                         current.Metadata = previous.Value.Metadata;
                     }
                     else if (current.Identifier == TduIdentifier.TypeOfTarget)

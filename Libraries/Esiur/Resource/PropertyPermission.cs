@@ -4,10 +4,10 @@ using System.Text;
 
 namespace Esiur.Resource
 {
-    //public enum PropertyPermission : byte
-    //{
-    //    ReadOnly = 0,
-    //    Write,
-    //    ReadWrite,
-    //}
+    public enum PropertyPermission : byte
+    {
+        Read = 1,
+        Write,
+        ReadWrite,
+    }
 }

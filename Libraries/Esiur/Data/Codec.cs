@@ -102,6 +102,8 @@ public static class Codec
     static AsyncParser[] TypedAsyncParsers = new AsyncParser[]
     {
         DataDeserializer.TypedParserAsync,
+        DataDeserializer.TypeDefInfoParserAsync,
+        DataDeserializer.TruParserAsync,
     };
 
     static AsyncParser[] ExtendedAsyncParsers = new AsyncParser[]
@@ -168,6 +170,8 @@ public static class Codec
     static SyncParser[] TypedParsers = new SyncParser[]
     {
         DataDeserializer.TypedParser,
+        DataDeserializer.TypeDefInfoParser,
+        DataDeserializer.TruParser,
         //DataDeserializer.RecordParser,
         //DataDeserializer.TypedListParser,
         //DataDeserializer.TypedMapParser,
@@ -541,7 +545,15 @@ public static class Codec
         type = valueOrSource.GetType();
 
 
-        if (Composers.ContainsKey(type))
+        if (valueOrSource is Tru)
+        {
+            return DataSerializer.TruComposer(valueOrSource, warehouse, connection);
+        }
+        else if (valueOrSource is Types.TypeDefInfo)
+        {
+            return DataSerializer.TypeDefComposer(valueOrSource, warehouse, connection);
+        }
+        else if (Composers.ContainsKey(type))
         {
             return Composers[type](valueOrSource, warehouse, connection);
         }
@@ -554,6 +566,10 @@ public static class Codec
             else if (Codec.ImplementsInterface(type, typeof(IRecord)))
             {
                 return DataSerializer.RecordComposer(valueOrSource, warehouse, connection);
+            }
+            else if (valueOrSource is IndexedStructure)
+            {
+                return DataSerializer.StructureComposer(valueOrSource, warehouse, connection);
             }
             else if (type.IsGenericType)
             {
@@ -635,6 +651,43 @@ public static class Codec
         var tdu = ComposeInternal(valueOrSource, warehouse, connection);
         return tdu.Composed;
     }
+
+    /// <summary>
+    /// Encodes a local indexed structure. This is equivalent to <see cref="Compose"/>, but
+    /// makes the expected structure type explicit at call sites such as TypeDef and authentication.
+    /// </summary>
+    public static byte[] ComposeIndexedType<T>(T value, Warehouse warehouse, EpConnection connection)
+        where T : IndexedStructure
+        => Compose(value, warehouse, connection);
+
+    /// <summary>
+    /// Parses one indexed structure and returns both the consumed byte count and typed value.
+    /// Unknown indexes are ignored and missing indexes retain their CLR defaults.
+    /// </summary>
+    public static (uint Size, T Value) ParseIndexedType<T>(byte[] data, uint offset, Warehouse warehouse)
+        where T : IndexedStructure
+    {
+        var (size, value) = ParseSync(data, offset, warehouse);
+        return (size, value is T typed ? typed : IndexedStructureCodec.FromMap<T>(value));
+    }
+
+    /// <summary>
+    /// Parses an already framed TDU as an indexed structure.
+    /// </summary>
+    public static T ParseIndexedType<T>(PlainTdu tdu, Warehouse warehouse)
+        where T : IndexedStructure
+    {
+        var value = ParseSync(tdu, warehouse);
+        return value is T typed ? typed : IndexedStructureCodec.FromMap<T>(value);
+    }
+
+    /// <summary>
+    /// Converts an indexed map already decoded by the codec to a typed structure without
+    /// reparsing any wire data.
+    /// </summary>
+    public static T ParseIndexedType<T>(object indexedMap)
+        where T : IndexedStructure
+        => indexedMap is T typed ? typed : IndexedStructureCodec.FromMap<T>(indexedMap);
 
     public static bool IsAnonymous(Type type)
     {

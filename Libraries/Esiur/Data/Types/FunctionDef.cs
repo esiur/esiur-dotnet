@@ -46,49 +46,38 @@ public class FunctionDef : MemberDef
         set;
     }
 
-
-    public static async AsyncReply<ParseResult<FunctionDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
+    public static async AsyncReply<ParseResult<FunctionDef>> ParseAsync(
+        byte[] data, uint offset, byte index, bool inherited,
+        EpConnection connection, ulong[] requestSequence)
     {
-
-        var oOffset = offset;
-
-        var isStatic = ((data[offset] & 0x4) == 0x4);
-        var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
-
+        var originalOffset = offset;
+        var isStatic = (data[offset] & 0x04) != 0;
+        var hasAnnotations = (data[offset++] & 0x10) != 0;
         var name = data.GetString(offset + 1, data[offset]);
         offset += (uint)data[offset] + 1;
 
-        //Console.WriteLine("Parsing functionDef " + name);
-
-        // return type
         var returnType = await Tru.ParseAsync(data, offset, connection, requestSequence);
         offset += returnType.Size;
-            
-        // arguments count
-        var argsCount = data[offset++];
-        List<ArgumentDef> arguments = new();
 
-        for (var a = 0; a < argsCount; a++)
+        var argumentCount = data[offset++];
+        var arguments = new List<ArgumentDef>(argumentCount);
+        for (var argumentIndex = 0; argumentIndex < argumentCount; argumentIndex++)
         {
-            var argType = await ArgumentDef.ParseAsync(data, offset, a, connection, requestSequence);
-            arguments.Add(argType.Value);
-            offset += argType.Size;
+            var argument = await ArgumentDef.ParseAsync(
+                data, offset, argumentIndex, connection, requestSequence);
+            arguments.Add(argument.Value);
+            offset += argument.Size;
         }
 
         Map<string, string> annotations = null;
-
-        // arguments
-        if (hasAnnotation) // Annotation ?
+        if (hasAnnotations)
         {
-            var (len, anns) = Codec.ParseSync(data, offset, null);
-
-            if (anns is Map<string, string> map)
-                annotations = map;
-
-            offset += len;
+            var (size, value) = Codec.ParseSync(data, offset, null);
+            annotations = value as Map<string, string>;
+            offset += size;
         }
 
-        return new ParseResult<FunctionDef>( new FunctionDef()
+        return new ParseResult<FunctionDef>(new FunctionDef
         {
             Index = index,
             Name = name,
@@ -97,35 +86,89 @@ public class FunctionDef : MemberDef
             Inherited = inherited,
             Annotations = annotations,
             ReturnType = returnType.Value,
-        }, offset - oOffset);
+        }, offset - originalOffset);
     }
 
-    public byte[] Compose(EpConnection connection)
-    {
 
-        var name = DC.ToBytes(Name);
+    //public static async AsyncReply<ParseResult<FunctionDef>> ParseAsync(byte[] data, uint offset, byte index, bool inherited, EpConnection connection, ulong[] requestSequence)
+    //{
 
-        var bl = new BinaryList()
-                .AddUInt8((byte)name.Length)
-                .AddUInt8Array(name)
-                .AddUInt8Array(ReturnType.Compose(connection))
-                .AddUInt8((byte)Arguments.Length);
+    //    var oOffset = offset;
 
-        for (var i = 0; i < Arguments.Length; i++)
-            bl.AddUInt8Array(Arguments[i].Compose(connection));
+    //    var isStatic = ((data[offset] & 0x4) == 0x4);
+    //    var hasAnnotation = ((data[offset++] & 0x10) == 0x10);
+
+    //    var name = data.GetString(offset + 1, data[offset]);
+    //    offset += (uint)data[offset] + 1;
+
+    //    //Console.WriteLine("Parsing functionDef " + name);
+
+    //    // return type
+    //    var returnType = await Tru.ParseAsync(data, offset, connection, requestSequence);
+    //    offset += returnType.Size;
+
+    //    // arguments count
+    //    var argsCount = data[offset++];
+    //    List<ArgumentDef> arguments = new();
+
+    //    for (var a = 0; a < argsCount; a++)
+    //    {
+    //        var argType = await ArgumentDef.ParseAsync(data, offset, a, connection, requestSequence);
+    //        arguments.Add(argType.Value);
+    //        offset += argType.Size;
+    //    }
+
+    //    Map<string, string> annotations = null;
+
+    //    // arguments
+    //    if (hasAnnotation) // Annotation ?
+    //    {
+    //        var (len, anns) = Codec.ParseSync(data, offset, null);
+
+    //        if (anns is Map<string, string> map)
+    //            annotations = map;
+
+    //        offset += len;
+    //    }
+
+    //    return new ParseResult<FunctionDef>( new FunctionDef()
+    //    {
+    //        Index = index,
+    //        Name = name,
+    //        Arguments = arguments.ToArray(),
+    //        IsStatic = isStatic,
+    //        Inherited = inherited,
+    //        Annotations = annotations,
+    //        ReturnType = returnType.Value,
+    //    }, offset - oOffset);
+    //}
+
+    //public byte[] Compose(EpConnection connection)
+    //{
+
+    //    var name = DC.ToBytes(Name);
+
+    //    var bl = new BinaryList()
+    //            .AddUInt8((byte)name.Length)
+    //            .AddUInt8Array(name)
+    //            .AddUInt8Array(ReturnType.Compose(connection))
+    //            .AddUInt8((byte)Arguments.Length);
+
+    //    for (var i = 0; i < Arguments.Length; i++)
+    //        bl.AddUInt8Array(Arguments[i].Compose(connection));
 
 
-        if (Annotations != null)
-        {
-            var exp = Codec.Compose(Annotations, connection.Instance.Warehouse , connection);// DC.ToBytes(Annotation);
-            bl.AddUInt8Array(exp);
-            bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x90 : (byte)0x10) | (IsStatic ? 0x4 : 0)));
-        }
-        else
-            bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x80 : (byte)0x0) | (IsStatic ? 0x4 : 0)));
+    //    if (Annotations != null)
+    //    {
+    //        var exp = Codec.Compose(Annotations, connection.Instance.Warehouse , connection);// DC.ToBytes(Annotation);
+    //        bl.AddUInt8Array(exp);
+    //        bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x90 : (byte)0x10) | (IsStatic ? 0x4 : 0)));
+    //    }
+    //    else
+    //        bl.InsertUInt8(0, (byte)((Inherited ? (byte)0x80 : (byte)0x0) | (IsStatic ? 0x4 : 0)));
 
-        return bl.ToArray();
-    }
+    //    return bl.ToArray();
+    //}
 
 
     public static FunctionDef MakeFunctionDef(Warehouse warehouse, Type type, MethodInfo mi, byte index, string name, TypeDef schema)

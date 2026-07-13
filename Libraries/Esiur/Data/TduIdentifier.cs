@@ -51,16 +51,11 @@ namespace Esiur.Data
         MapList = 0x47,
 
         Typed = 0x80,
+        TypeDef = 0x81,
+        TRU = 0x82,
 
-        //Record = 0x80,
-        //TypedList = 0x81,
-        //TypedMap = 0x82,
-        //TypedTuple = 0x83,
-        //TypedEnum = 0x84,
-        //TypedConstant = 0x85,
 
         TypeContinuation = 0xC0,
         TypeOfTarget = 0xC1,
-        TypeDef = 0xC2,
     }
 }
