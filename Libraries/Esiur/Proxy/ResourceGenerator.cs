@@ -113,7 +113,7 @@ namespace Esiur.Proxy
 
                             if (!ci.HasHandle)
                             {
-                                code.AppendLine("public virtual AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null) => new AsyncReply<bool>(true);");
+                                code.AppendLine("public virtual AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext? context = null) => new AsyncReply<bool>(true);");
                             }
                         }
 

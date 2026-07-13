@@ -38,6 +38,8 @@ namespace Esiur.Resource;
     AttributeTargets.Field,
     AllowMultiple = false,
     Inherited = true)]
-public sealed class AutoDeliveredAttribute : Attribute
+public class AutoDeliveryAttribute : Attribute
 {
+
 }
+

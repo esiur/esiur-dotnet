@@ -15,5 +15,6 @@ namespace Esiur.Data.Types
         ReadOnly = 0x08,
         Idempotent = 0x10,
         Cancellable = 0x20,
+        Pausable = 0x40,
     }
 }

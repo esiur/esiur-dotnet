@@ -322,7 +322,7 @@ public static class TypeDefGenerator
 
         var rt = new StringBuilder();
 
-        rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Protocol;");
+        rt.AppendLine("using System;\r\nusing Esiur.Resource;\r\nusing Esiur.Core;\r\nusing Esiur.Data;\r\nusing Esiur.Data.Types;\r\nusing Esiur.Protocol;");
         rt.AppendLine("#nullable enable");
 
         rt.AppendLine($"namespace {nameSpace} {{");
@@ -355,6 +355,8 @@ public static class TypeDefGenerator
                 continue;
 
             var rtTypeName = GetTypeName(f.ReturnType, typeDefs);
+            var isStream = f.StreamMode != StreamMode.None;
+            var replyType = isStream ? "AsyncStreamReply" : "AsyncReply";
 
             var positionalArgs = f.Arguments.Where((x) => !x.Optional).ToArray();
             var optionalArgs = f.Arguments.Where((x) => x.Optional).ToArray();
@@ -367,10 +369,13 @@ public static class TypeDefGenerator
                 }
             }
 
+            if (isStream)
+                rt.AppendLine($"[Stream(StreamMode.{f.StreamMode}, Pausable = {f.Pausable.ToString().ToLowerInvariant()})]");
+
             if (f.IsStatic)
             {
 
-                rt.Append($"[Export] public static AsyncReply<{rtTypeName}> {f.Name}(EpConnection connection");
+                rt.Append($"[Export] public static {replyType}<{rtTypeName}> {f.Name}(EpConnection connection");
 
                 if (positionalArgs.Length > 0)
                     rt.Append(", " +
@@ -383,7 +388,7 @@ public static class TypeDefGenerator
             }
             else
             {
-                rt.Append($"[Export] public AsyncReply<{rtTypeName}> {f.Name}(");
+                rt.Append($"[Export] public {replyType}<{rtTypeName}> {f.Name}(");
 
                 if (positionalArgs.Length > 0)
                     rt.Append(
@@ -409,6 +414,15 @@ public static class TypeDefGenerator
                     $"if ({a.Name} != null) args[{a.Index}] = {a.Name};");
             }
 
+            if (isStream)
+            {
+                if (f.IsStatic)
+                    rt.AppendLine($"return connection.StaticStreamCall<{rtTypeName}>({typeDef.Id}UL, {f.Index}, args, StreamMode.{f.StreamMode}); }}");
+                else
+                    rt.AppendLine($"return _InvokeStream<{rtTypeName}>({f.Index}, args); }}");
+
+                continue;
+            }
 
             rt.AppendLine($"var rt = new AsyncReply<{rtTypeName}>();");
 

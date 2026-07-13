@@ -23,6 +23,16 @@ public class TypeDef
 
     public Map<string, string> Annotations { get; set; }
 
+    public string? Usage { get; set; }
+
+    public string? Description { get; set; }
+
+    public object? Example { get; set; }
+
+    public string? Category { get; set; }
+
+    public string? Since { get; set; }
+
     protected string _typeName;
     protected List<FunctionDef> _functions = new List<FunctionDef>();
     protected List<EventDef> _events = new List<EventDef>();

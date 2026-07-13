@@ -66,6 +66,11 @@ public class TypeDefInfo : IndexedStructure
             Name = definition.Name,
             Kind = definition.Kind,
             Parent = definition.ParentTypeId,
+            Usage = definition.Usage,
+            Description = definition.Description,
+            Example = definition.Example,
+            Category = definition.Category,
+            Since = definition.Since,
             Annotations = definition.Annotations,
             Properties = definition.Properties.Select(FromProperty).ToList(),
             Functions = definition.Functions.Select(FromFunction).ToList(),
@@ -94,21 +99,26 @@ public class TypeDefInfo : IndexedStructure
         target.Warnings = source.Warnings;
         target.RelatedMembers = source.RelatedMembers;
         target.DeprecationMessage = source.DeprecationMessage;
+        target.Annotations = source.Annotations;
         return target;
     }
 
     private static PropertyDefInfo FromProperty(PropertyDef source)
     {
         var flags = source.Inherited ? PropertyDefFlags.Inherited : PropertyDefFlags.None;
+        if (source.Deprecated) flags |= PropertyDefFlags.Deprecated;
         if (source.ReadOnly) flags |= PropertyDefFlags.ReadOnly;
         if (source.Constant) flags |= PropertyDefFlags.Constant;
+        if (source.Volatile) flags |= PropertyDefFlags.Volatile;
         if (source.Historical) flags |= PropertyDefFlags.Historical;
 
         return CopyMember(source, new PropertyDefInfo
         {
             Flags = (byte)flags,
             ValueType = source.ValueType,
+            OrderingControl = source.OrderingControl,
             HistoryControl = source.Historical ? (byte)1 : (byte)0,
+            DefaultValue = source.DefaultValue,
         });
     }
 
@@ -120,6 +130,7 @@ public class TypeDefInfo : IndexedStructure
         if (source.ReadOnly) flags |= FunctionDefFlags.ReadOnly;
         if (source.Idempotent) flags |= FunctionDefFlags.Idempotent;
         if (source.Cancellable) flags |= FunctionDefFlags.Cancellable;
+        if (source.Pausable) flags |= FunctionDefFlags.Pausable;
 
         return CopyMember(source, new FunctionDefInfo
         {
@@ -139,6 +150,7 @@ public class TypeDefInfo : IndexedStructure
             Flags = source.Optional ? (byte)ArgumentDefFlags.Optional : (byte)ArgumentDefFlags.None,
             ValueType = source.Type,
             DefaultValue = source.DefaultValue,
+            Annotations = source.Annotations,
         };
     }
 
@@ -147,17 +159,21 @@ public class TypeDefInfo : IndexedStructure
         var flags = source.Inherited ? EventDefFlags.Inherited : EventDefFlags.None;
         if (source.Deprecated) flags |= EventDefFlags.Deprecated;
         if (source.AutoDelivered) flags |= EventDefFlags.AutoDelivered;
+        if (source.Historical) flags |= EventDefFlags.Historical;
 
         return CopyMember(source, new EventDefInfo
         {
             Flags = (byte)flags,
             ArgumentType = source.ArgumentType,
+            OrderingControl = source.OrderingControl,
+            HistoryControl = source.Historical ? (byte)1 : (byte)0,
         });
     }
 
     private static ConstantDefInfo FromConstant(ConstantDef source)
     {
         var flags = source.Inherited ? ConstantDefFlags.Inherited : ConstantDefFlags.None;
+        if (source.Deprecated) flags |= ConstantDefFlags.Deprecated;
         return CopyMember(source, new ConstantDefInfo
         {
             Flags = (byte)flags,

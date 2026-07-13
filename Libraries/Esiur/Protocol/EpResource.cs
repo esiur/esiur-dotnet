@@ -289,9 +289,33 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             throw new Exception("Function definition not found.");
 
         if (ft.IsStatic)
-            return _connection.StaticCall(Instance.Definition.Id, index, args);
-        else
-            return _connection.SendInvoke(_instanceId, index, args);
+            return ft.StreamMode == StreamMode.None
+                ? _connection.StaticCall(Instance.Definition.Id, index, args)
+                : _connection.StaticStreamCall(Instance.Definition.Id, index, args, ft.StreamMode);
+
+        return ft.StreamMode == StreamMode.None
+            ? _connection.SendInvoke(_instanceId, index, args)
+            : _connection.SendStreamInvoke(_instanceId, index, args, ft.StreamMode);
+    }
+
+    public AsyncStreamReply<T> _InvokeStream<T>(byte index, object args)
+    {
+        if (_status == ResourceStatus.Destroyed)
+            throw new Exception("Trying to access a destroyed object.");
+
+        if (_status == ResourceStatus.Suspended)
+            throw new Exception("Trying to access a suspended object.");
+
+        var function = Instance.Definition.GetFunctionDefByIndex(index)
+            ?? throw new Exception("Function definition not found.");
+
+        if (function.StreamMode == StreamMode.None)
+            throw new Exception("Function is not a stream.");
+
+        if (function.IsStatic)
+            return _connection.StaticStreamCall<T>(Instance.Definition.Id, index, args, function.StreamMode);
+
+        return _connection.SendStreamInvoke<T>(_instanceId, index, args, function.StreamMode);
     }
 
     public AsyncReply Subscribe(EventDef et)
@@ -634,7 +658,8 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
                         // this only happens if the programmer forgot to emit in property setter
                         _properties[index] = value;
                         reply.Trigger(null);
-                    });
+                    })
+                    .Error(reply.TriggerError);
 
         return reply;
 

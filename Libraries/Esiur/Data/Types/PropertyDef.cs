@@ -14,11 +14,6 @@ namespace Esiur.Data.Types;
 
 public class PropertyDef : MemberDef
 {
-    public Map<string, string> Annotations { get; set; }
-
-
-
-
     public PropertyInfo PropertyInfo
     {
         get;
@@ -52,9 +47,14 @@ public class PropertyDef : MemberDef
     }
 
     public bool Constant { get; set; }
+    public bool Volatile { get; set; }
     //public bool IsNullable { get; set; }
 
     public bool Historical { get; set; }
+
+    public OrderingControl OrderingControl { get; set; }
+
+    public object? DefaultValue { get; set; }
 
     public bool HasHistory
     {
@@ -258,6 +258,10 @@ public class PropertyDef : MemberDef
 
         var annotationAttrs = pi.GetCustomAttributes<AnnotationAttribute>(true);
         var historicalAttr = pi.GetCustomAttribute<HistoricalAttribute>(true);
+        var readOnlyAttr = pi.GetCustomAttribute<ReadOnlyAttribute>(true);
+        var volatileAttr = pi.GetCustomAttribute<VolatileAttribute>(true);
+        var orderingAttr = pi.GetCustomAttribute<OrderingAttribute>(true);
+        var defaultValueAttr = pi.GetCustomAttribute<System.ComponentModel.DefaultValueAttribute>(true);
 
         //var nullabilityContext = new NullabilityInfoContext();
         //propType.Nullable = nullabilityContext.Create(pi).ReadState is NullabilityState.Nullable;
@@ -306,16 +310,21 @@ public class PropertyDef : MemberDef
         }
 
 
-        return new PropertyDef()
+        return DefinitionAttributeReader.Apply(pi, new PropertyDef()
         {
             Name = name,
             Index = index,
             Inherited = pi.DeclaringType != type,
             ValueType = propType,
             PropertyInfo = pi,
-            Historical = historicalAttr == null,
+            RatePolicyName = pi.GetCustomAttribute<RateControlAttribute>(true)?.PolicyName,
+            ReadOnly = readOnlyAttr != null,
+            Volatile = volatileAttr != null,
+            Historical = historicalAttr != null,
+            OrderingControl = orderingAttr?.Control ?? OrderingControl.Strict,
+            DefaultValue = defaultValueAttr?.Value,
             Annotations = annotations,
-        };
+        });
 
  
     }
@@ -325,7 +334,7 @@ public class PropertyDef : MemberDef
         PropertyPermission permission, TypeDef typeDef)
     {
         var definition = MakePropertyDef(warehouse, type, pi, name, index, typeDef);
-        definition.Permission = permission;
+        definition.ReadOnly = definition.ReadOnly || permission == PropertyPermission.Read;
         return definition;
     }
 

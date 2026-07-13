@@ -15,12 +15,6 @@ namespace Esiur.Data.Types;
 public class FunctionDef : MemberDef
 {
 
-    public Map<string, string> Annotations
-    {
-        get;
-        set;
-    }
-
     //public bool IsVoid
     //{
     //    get;
@@ -33,7 +27,7 @@ public class FunctionDef : MemberDef
     public bool ReadOnly { get; set; }
     public bool Idempotent { get; set; }
     public bool Cancellable { get; set; }   
-    public bool Deprecated { get; set; }
+    public bool Pausable { get; set; }
 
     //public FunctionDefFlags Flags { get; set; }
     public StreamMode StreamMode { get; set; }
@@ -175,28 +169,61 @@ public class FunctionDef : MemberDef
     {
 
         var genericRtType = mi.ReturnType.IsGenericType ? mi.ReturnType.GetGenericTypeDefinition() : null;
-
+        var streamAttribute = mi.GetCustomAttribute<StreamAttribute>(true);
+        var streamMode = StreamMode.None;
+        var pausable = false;
         Tru rtType;
 
-        if (genericRtType == typeof(AsyncReply<>))
+        if (streamAttribute != null &&
+            genericRtType != typeof(AsyncReply<>) &&
+            genericRtType != typeof(AsyncStreamReply<>))
+            throw new Exception($"Method `{type.Name}.{mi.Name}` uses StreamAttribute and must return AsyncReply<T> or AsyncStreamReply<T>.");
+
+        if (genericRtType == typeof(IAsyncEnumerable<>))
         {
+            streamMode = StreamMode.Pull;
             rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
         }
-        else if (genericRtType == typeof(Task<>))
+        else if (genericRtType == typeof(IEnumerable<>))
         {
+            streamMode = StreamMode.Push;
             rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
         }
-        else if (genericRtType == typeof(IEnumerable<>) || genericRtType == typeof(IAsyncEnumerable<>))
+        else if (genericRtType == typeof(AsyncStreamReply<>))
         {
-            // get export
+            if (streamAttribute == null)
+                throw new Exception($"Method `{type.Name}.{mi.Name}` returning AsyncStreamReply<T> must declare StreamAttribute.");
+
+            streamMode = streamAttribute.Mode;
+            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
+        }
+        else if (streamAttribute != null)
+        {
+            streamMode = streamAttribute.Mode;
+            rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
+        }
+        else if (genericRtType == typeof(AsyncReply<>) || genericRtType == typeof(Task<>))
+        {
             rtType = Tru.FromType(mi.ReturnType.GetGenericArguments()[0], warehouse);
         }
         else
         {
-            if (mi.ReturnType == typeof(Task))
-                rtType = Tru.FromType(null, warehouse);
-            else
-                rtType = Tru.FromType(mi.ReturnType, warehouse);
+            rtType = mi.ReturnType == typeof(Task)
+                ? Tru.FromType(null, warehouse)
+                : Tru.FromType(mi.ReturnType, warehouse);
+        }
+
+        if (streamAttribute != null)
+        {
+            if (streamAttribute.Mode != StreamMode.Push && streamAttribute.Mode != StreamMode.Pull)
+                throw new Exception($"Stream method `{type.Name}.{mi.Name}` must use Push or Pull mode.");
+
+            if (streamMode != streamAttribute.Mode)
+                throw new Exception($"Stream mode `{streamAttribute.Mode}` conflicts with return type `{mi.ReturnType}` in method `{type.Name}.{mi.Name}`.");
+
+            pausable = streamAttribute.Pausable;
+            if (pausable && streamMode != StreamMode.Push)
+                throw new Exception($"Only push stream method `{type.Name}.{mi.Name}` can be pausable.");
         }
 
         if (rtType == null)
@@ -237,7 +264,12 @@ public class FunctionDef : MemberDef
         //var rtFlags = rtNullableAttr?.Flags?.ToList() ?? new List<byte>();
         //var rtFlags = ((byte[])rtNullableAttr?.NullableFlags ?? new byte[0]).ToList();
 
-        if (rtNullableAttrFlags.Count > 0 && genericRtType == typeof(AsyncReply<>))
+        if (rtNullableAttrFlags.Count > 0 &&
+            (genericRtType == typeof(AsyncReply<>) ||
+             genericRtType == typeof(Task<>) ||
+             genericRtType == typeof(IEnumerable<>) ||
+             genericRtType == typeof(IAsyncEnumerable<>) ||
+             genericRtType == typeof(AsyncStreamReply<>)))
             rtNullableAttrFlags.RemoveAt(0);
 
         if (rtNullableContextAttrFlag == 2)
@@ -333,7 +365,7 @@ public class FunctionDef : MemberDef
 
         }
 
-        return new FunctionDef()
+        return DefinitionAttributeReader.Apply(mi, new FunctionDef()
         {
             Name = name,
             Index = index,
@@ -342,8 +374,14 @@ public class FunctionDef : MemberDef
             ReturnType = rtType,
             Arguments = arguments,
             MethodInfo = mi,
-            Annotations = annotations
-        };
+            Annotations = annotations,
+            ReadOnly = mi.GetCustomAttribute<ReadOnlyAttribute>(true) != null,
+            Idempotent = mi.GetCustomAttribute<IdempotentAttribute>(true) != null,
+            Cancellable = mi.GetCustomAttribute<CancellableAttribute>(true) != null,
+            RatePolicyName = mi.GetCustomAttribute<RateControlAttribute>(true)?.PolicyName,
+            StreamMode = streamMode,
+            Pausable = pausable,
+        });
 
     }
 

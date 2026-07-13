@@ -37,6 +37,7 @@ namespace Esiur.Net.Packets
         PullStream = 0x1C,
         TerminateExecution = 0x1D,
         HaltExecution = 0x1E,
+        ResumeExecution = 0x1F,
 
     }
 }

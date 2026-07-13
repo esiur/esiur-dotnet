@@ -14,7 +14,6 @@ public class ConstantDef : MemberDef
 {
     public object Value { get; set; }
 
-    public Map<string, string> Annotations { get; set; }
     public Tru ValueType { get; set; }
 
     public FieldInfo FieldInfo { get; set; }
@@ -128,7 +127,7 @@ public class ConstantDef : MemberDef
 
 
 
-        return new ConstantDef()
+        return DefinitionAttributeReader.Apply(ci, new ConstantDef()
         {
             Name = customName,
             Index = index,
@@ -137,7 +136,7 @@ public class ConstantDef : MemberDef
             Value = value,
             FieldInfo = ci,
             Annotations = annotations,
-        };
+        });
 
     }
 

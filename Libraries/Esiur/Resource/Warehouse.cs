@@ -31,6 +31,7 @@ using Esiur.Protocol;
 using Esiur.Proxy;
 using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
+using Esiur.Security.RateLimiting;
 using Org.BouncyCastle.Asn1.Cms;
 using System;
 using System.Collections;
@@ -88,6 +89,8 @@ public class Warehouse
 
     Map<string, IAuthenticationProvider> _authenticationProviders = new Map<string, IAuthenticationProvider>();
     List<IPermissionsManager> _permissionsManagers = new List<IPermissionsManager>();
+    readonly ConcurrentDictionary<string, RatePolicy> _ratePolicies
+        = new ConcurrentDictionary<string, RatePolicy>(StringComparer.Ordinal);
 
 
     object _typeDefsLock = new object();
@@ -101,6 +104,11 @@ public class Warehouse
     public delegate AsyncReply<IStore> ProtocolInstance(string name, IResourceContext resourceContext);
 
     public KeyList<string, ProtocolInstance> Protocols { get; } = new KeyList<string, ProtocolInstance>();
+
+    /// <summary>
+    /// Runtime settings for this Warehouse.
+    /// </summary>
+    public WarehouseConfiguration Configuration { get; }
 
     private Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
@@ -121,6 +129,41 @@ public class Warehouse
         _permissionsManagers.Add(manager);
     }
 
+    /// <summary>
+    /// Registers a named rate policy referenced by RateControl attributes.
+    /// </summary>
+    public void AddRatePolicy(RatePolicy policy)
+    {
+        if (policy == null)
+            throw new ArgumentNullException(nameof(policy));
+        if (string.IsNullOrWhiteSpace(policy.Name))
+            throw new ArgumentException("The rate policy must have a name.", nameof(policy));
+        if (!_ratePolicies.TryAdd(policy.Name, policy))
+            throw new InvalidOperationException($"A rate policy named `{policy.Name}` is already registered.");
+    }
+
+    /// <summary>
+    /// Registers a policy under the supplied name.
+    /// </summary>
+    public void AddRatePolicy(string name, RatePolicy policy)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A rate policy name is required.", nameof(name));
+        if (policy == null)
+            throw new ArgumentNullException(nameof(policy));
+
+        policy.Name = name;
+        AddRatePolicy(policy);
+    }
+
+    public RatePolicy? TryGetRatePolicy(string name)
+        => !string.IsNullOrWhiteSpace(name) && _ratePolicies.TryGetValue(name, out var policy)
+            ? policy
+            : null;
+
+    public bool RemoveRatePolicy(string name)
+        => !string.IsNullOrWhiteSpace(name) && _ratePolicies.TryRemove(name, out _);
+
     public IAuthenticationProvider GetAuthenticationProvider(string name)
     {
         if (_authenticationProviders.ContainsKey(name))
@@ -137,8 +180,14 @@ public class Warehouse
     }
 
 
-    public Warehouse()
+    public Warehouse() : this(new WarehouseConfiguration())
     {
+    }
+
+    public Warehouse(WarehouseConfiguration configuration)
+    {
+        Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+
         Protocols.Add("EP",
             async (name, context)
             => await New<EpConnection>(name, context));

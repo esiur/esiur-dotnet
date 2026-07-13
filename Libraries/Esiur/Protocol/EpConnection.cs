@@ -454,6 +454,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
     public override void Destroy()
     {
+        TerminateInvocations();
         UnsubscribeAll();
         this.OnReady = null;
         this.OnError = null;
@@ -477,7 +478,9 @@ public partial class EpConnection : NetworkConnection, IStore
             {
                 offset += (uint)rt;
 
-                if (_packet.Tdu == null)
+                if (_packet.Tdu == null &&
+                    _packet.Method != EpPacketMethod.Reply &&
+                    _packet.Method != EpPacketMethod.Extension)
                     return offset;
 
 #if VERBOSE
@@ -514,6 +517,9 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
                 else if (_packet.Method == EpPacketMethod.Request)
                 {
+                    if (IsRateControlBlocked)
+                        return offset;
+
                     var dt = _packet.Tdu.Value;
 
                     switch (_packet.Request)
@@ -582,37 +588,58 @@ public partial class EpConnection : NetworkConnection, IStore
                         case EpPacketRequest.StaticCall:
                             EpRequestStaticCall(_packet.CallbackId, dt);
                             break;
+                        case EpPacketRequest.PullStream:
+                            EpRequestPullStream(_packet.CallbackId, dt);
+                            break;
+                        case EpPacketRequest.TerminateExecution:
+                            EpRequestTerminateExecution(_packet.CallbackId, dt);
+                            break;
+                        case EpPacketRequest.HaltExecution:
+                            EpRequestHaltExecution(_packet.CallbackId, dt);
+                            break;
+                        case EpPacketRequest.ResumeExecution:
+                            EpRequestResumeExecution(_packet.CallbackId, dt);
+                            break;
                     }
                 }
                 else if (_packet.Method == EpPacketMethod.Reply)
                 {
-                    var dt = _packet.Tdu.Value;
+                    var dt = _packet.Tdu;
 
                     switch (_packet.Reply)
                     {
                         case EpPacketReply.Completed:
                             EpReplyCompleted(_packet.CallbackId, dt);
                             break;
+                        case EpPacketReply.Stream:
+                            EpReplyStream(_packet.CallbackId);
+                            break;
                         case EpPacketReply.Propagated:
-                            EpReplyPropagated(_packet.CallbackId, dt);
+                            if (dt.HasValue)
+                                EpReplyPropagated(_packet.CallbackId, dt.Value);
                             break;
                         case EpPacketReply.PermissionError:
-                            EpReplyError(_packet.CallbackId, dt, ErrorType.Management);
+                            if (dt.HasValue)
+                                EpReplyError(_packet.CallbackId, dt.Value, ErrorType.Management);
                             break;
                         case EpPacketReply.ExecutionError:
-                            EpReplyError(_packet.CallbackId, dt, ErrorType.Exception);
+                            if (dt.HasValue)
+                                EpReplyError(_packet.CallbackId, dt.Value, ErrorType.Exception);
                             break;
 
                         case EpPacketReply.Progress:
-                            EpReplyProgress(_packet.CallbackId, dt);
+                            if (dt.HasValue)
+                                EpReplyProgress(_packet.CallbackId, dt.Value);
                             break;
 
                         case EpPacketReply.Chunk:
-                            EpReplyChunk(_packet.CallbackId, dt);
+                            if (dt.HasValue)
+                                EpReplyChunk(_packet.CallbackId, dt.Value);
                             break;
 
                         case EpPacketReply.Warning:
-                            EpReplyWarning(_packet.Extension, dt);
+                            if (dt.HasValue)
+                                EpReplyWarning(_packet.CallbackId, dt.Value);
                             break;
 
                     }
@@ -2102,6 +2129,7 @@ public partial class EpConnection : NetworkConnection, IStore
     protected override void Disconnected()
     {
         // clean up
+        TerminateInvocations();
         _authenticated = false;
         Status = EpConnectionStatus.Closed;
 

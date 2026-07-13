@@ -271,7 +271,7 @@ public class AsyncReply
         return;
     }
 
-    public void TriggerError(Exception exception)
+    public virtual void TriggerError(Exception exception)
     {
         //timeout?.Dispose();
 

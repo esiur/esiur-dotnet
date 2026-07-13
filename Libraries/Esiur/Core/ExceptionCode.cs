@@ -46,5 +46,6 @@ public enum ExceptionCode : ushort
     Timeout,
     NotSupported,
     NotImplemented,
-    NotAllowed
+    NotAllowed,
+    RateLimitExceeded
 }

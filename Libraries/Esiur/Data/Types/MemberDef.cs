@@ -16,6 +16,14 @@ public class MemberDef
 
     public bool Inherited { get; set; }
 
+    public bool Deprecated { get; set; }
+
+    /// <summary>
+    /// Name of the server-side Warehouse rate policy applied to this member.
+    /// This is local execution metadata and is not sent to remote clients.
+    /// </summary>
+    public string? RatePolicyName { get; set; }
+
     public TypeDef Definition { get; set; } = null!;
 
     // Human-readable metadata
@@ -53,6 +61,8 @@ public class MemberDef
 
     // Compatibility guidance
     public string? DeprecationMessage { get; set; }
+
+    public Map<string, string>? Annotations { get; set; }
 
     public string Fullname =>
         Definition is null || string.IsNullOrEmpty(Definition.Name)

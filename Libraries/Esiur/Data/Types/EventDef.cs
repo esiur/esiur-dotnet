@@ -15,12 +15,6 @@ namespace Esiur.Data.Types;
 public class EventDef : MemberDef
 {
 
-    public Map<string, string> Annotations
-    {
-        get;
-        set;
-    }
-
     public override string ToString()
     {
         return $"{Name}: {ArgumentType}";
@@ -35,7 +29,9 @@ public class EventDef : MemberDef
         set => AutoDelivered = !value;
     }
 
-    public bool Deprecated { get; set; }
+    public bool Historical { get; set; }
+
+    public OrderingControl OrderingControl { get; set; }
 
     public EventInfo EventInfo { get; set; }
 
@@ -166,7 +162,9 @@ public class EventDef : MemberDef
             throw new Exception($"Unsupported type `{argType}` in event `{type.Name}.{ei.Name}`");
 
         var annotationAttrs = ei.GetCustomAttributes<AnnotationAttribute>(true);
-        var autoDeliveredAttr = ei.GetCustomAttribute<AutoDeliveredAttribute>(true);
+        var autoDeliveryAttr = ei.GetCustomAttribute<AutoDeliveryAttribute>(true);
+        var historicalAttr = ei.GetCustomAttribute<HistoricalAttribute>(true);
+        var orderingAttr = ei.GetCustomAttribute<OrderingAttribute>(true);
 
         //evtType.Nullable =  new NullabilityInfoContext().Create(ei).ReadState is NullabilityState.Nullable;
 
@@ -209,7 +207,7 @@ public class EventDef : MemberDef
         }
 
 
-        return new EventDef()
+        return DefinitionAttributeReader.Apply(ei, new EventDef()
         {
             Name = name,
             ArgumentType = evtType,
@@ -217,8 +215,10 @@ public class EventDef : MemberDef
             Inherited = ei.DeclaringType != type,
             Annotations = annotations,
             EventInfo = ei,
-            AutoDelivered = autoDeliveredAttr != null
-        };
+            AutoDelivered = autoDeliveryAttr != null,
+            Historical = historicalAttr != null,
+            OrderingControl = orderingAttr?.Control ?? OrderingControl.Strict,
+        });
     }
 
 }

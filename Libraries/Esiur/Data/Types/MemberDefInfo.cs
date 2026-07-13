@@ -68,4 +68,7 @@ public class MemberDefInfo : IndexedStructure
 
     [Index((int)MemberDefField.DeprecationMessage)]
     public string? DeprecationMessage { get; set; }
+
+    [Index((int)MemberDefField.Annotations)]
+    public Map<string, string>? Annotations { get; set; }
 }

@@ -194,6 +194,11 @@ public class RemoteTypeDef:TypeDef
             : $"{info.Namespace}.{info.Name}";
         definition._typeDefKind = info.Kind;
         definition._version = info.Version;
+        definition.Usage = info.Usage;
+        definition.Description = info.Description;
+        definition.Example = info.Example;
+        definition.Category = info.Category;
+        definition.Since = info.Since;
         definition.Annotations = info.Annotations;
 
         definition._properties.Clear();
@@ -218,6 +223,7 @@ public class RemoteTypeDef:TypeDef
         member.Index = info.Index;
         member.Name = info.Name;
         member.Inherited = (info.Flags & (byte)MemberDefFlags.Inherited) != 0;
+        member.Deprecated = (info.Flags & (byte)MemberDefFlags.Deprecated) != 0;
         member.Description = info.Description;
         member.Usage = info.Usage;
         member.Examples = info.Examples;
@@ -234,6 +240,7 @@ public class RemoteTypeDef:TypeDef
         member.Warnings = info.Warnings;
         member.RelatedMembers = info.RelatedMembers;
         member.DeprecationMessage = info.DeprecationMessage;
+        member.Annotations = info.Annotations;
         return member;
     }
 
@@ -245,7 +252,10 @@ public class RemoteTypeDef:TypeDef
             ValueType = info.ValueType,
             ReadOnly = flags.HasFlag(PropertyDefFlags.ReadOnly),
             Constant = flags.HasFlag(PropertyDefFlags.Constant),
+            Volatile = flags.HasFlag(PropertyDefFlags.Volatile),
             Historical = flags.HasFlag(PropertyDefFlags.Historical) || info.HistoryControl != 0,
+            OrderingControl = info.OrderingControl,
+            DefaultValue = info.DefaultValue,
         });
     }
 
@@ -260,7 +270,7 @@ public class RemoteTypeDef:TypeDef
             ReadOnly = flags.HasFlag(FunctionDefFlags.ReadOnly),
             Idempotent = flags.HasFlag(FunctionDefFlags.Idempotent),
             Cancellable = flags.HasFlag(FunctionDefFlags.Cancellable),
-            Deprecated = flags.HasFlag(FunctionDefFlags.Deprecated),
+            Pausable = flags.HasFlag(FunctionDefFlags.Pausable),
             Arguments = info.Arguments?.Select(ToArgument).ToArray() ?? Array.Empty<ArgumentDef>(),
         });
     }
@@ -275,6 +285,7 @@ public class RemoteTypeDef:TypeDef
             Optional = flags.HasFlag(ArgumentDefFlags.Optional),
             Type = info.ValueType,
             DefaultValue = info.DefaultValue,
+            Annotations = info.Annotations,
         };
     }
 
@@ -285,7 +296,8 @@ public class RemoteTypeDef:TypeDef
         {
             ArgumentType = info.ArgumentType,
             AutoDelivered = flags.HasFlag(EventDefFlags.AutoDelivered),
-            Deprecated = flags.HasFlag(EventDefFlags.Deprecated),
+            Historical = flags.HasFlag(EventDefFlags.Historical) || info.HistoryControl != 0,
+            OrderingControl = info.OrderingControl,
         });
     }
 

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Esiur.Resource.Attributes
+namespace Esiur.Resource
 {
     /// <summary>
     /// Indicates that an exported property has volatile synchronization

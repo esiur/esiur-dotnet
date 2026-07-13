@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace Esiur.Tests.Functional;
 
     [Export]
-    public class MyRecord:IRecord
+    public class MyRecord : IMyRecord
     {
         public string Name { get; set; }
         public int Id { get; set; }

@@ -1,4 +1,4 @@
-﻿/*
+/*
  
 Copyright (c) 2017-2026 Ahmed Kh. Zamil
 
@@ -22,337 +22,338 @@ SOFTWARE.
 
 */
 
-using Esiur.Data;
 using Esiur.Core;
-using Esiur.Net.Http;
-using Esiur.Net.Sockets;
+using Esiur.Data;
+using Esiur.Data.Types;
+using Esiur.Protocol;
 using Esiur.Resource;
+using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
+using Esiur.Security.RateLimiting;
 using Esiur.Stores;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Esiur.Security.Integrity;
-using System.Linq;
-using Esiur.Data.Types;
-using System.Collections;
-using System.Runtime.CompilerServices;
-using Esiur.Proxy;
-using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
-using Esiur.Security.Cryptography;
-using Esiur.Security.Membership;
-using Esiur.Net.Packets;
-using System.Numerics;
-using Esiur.Protocol;
-using Esiur.Security.Authority.Providers;
-using Esiur.Security.Authority;
+#nullable enable
 
 namespace Esiur.Tests.Functional;
 
-
-class Program
+internal static class Program
 {
-
-    static void TestSerialization(object x, EpConnection connection = null)
+    static async Task Main()
     {
+        var serverWarehouse = new Warehouse();
+        var clientWarehouse = new Warehouse();
+        EpConnection? connection = null;
 
-        var d = Codec.Compose(x, Warehouse.Default, connection);
-        //            var rr = DC.ToHex(y);
-
-        var y = Codec.ParseSync(d, 0, Warehouse.Default);
-        Console.WriteLine($"{x.GetType().Name}: {x} == {y}, {d.ToHex()}");
-    }
-
-
-    [Export]
-    public class StudentRecord : IRecord
-    {
-        public string Name { get; set; }
-        public byte Grade { get; set; }
-    }
-    public enum LogLevel : int
-    {
-        Debug,
-        Warning,
-        Error,
-    }
-
-    static async Task Main(string[] args)
-    {
-        //TestSerialization("Hello");
-        //TestSerialization(10);
-        //TestSerialization(10.1);
-        //TestSerialization(10.1d);
-        //TestSerialization((byte)1);
-        //TestSerialization((byte)2);
-        //TestSerialization(new int[] { 1, 2, 3, 4 });
-        //var x = LogLevel.Warning;
-
-        //TestSerialization(LogLevel.Warning);
-
-        //TestSerialization(new Map<string, byte?>
-        //{
-        //    ["C++"] = 1,
-        //    ["C#"] = 2,
-        //    ["JS"] = null
-        //});
-
-
-
-        //TestSerialization(new StudentRecord() { Name = "Ali", Grade = 90 });
-
-        //var tn = Encoding.UTF8.GetBytes("Test.StudentRecord");
-        //var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(tn).Clip(0, 16);
-        //hash[6] = (byte)((hash[6] & 0xF) | 0x80);
-        //hash[8] = (byte)((hash[8] & 0xF) | 0x80);
-
-        //var g = new UUID(hash);
-
-        //Console.WriteLine(g);
-
-
-
-        //var a = new ECDH();
-        //var b = new ECDH();
-
-        //var apk = a.GetPublicKey();
-        //var bpk = b.GetPublicKey();
-
-        //var ska = a.ComputeSharedKey(bpk);
-        //var skb = b.ComputeSharedKey(apk);
-
-        //Console.WriteLine(ska.ToHex());
-        //Console.WriteLine(skb.ToHex());
-
-        //// Simple membership provider
-        //var membership = new SimpleMembership() { GuestsAllowed = true };
-
-        //membership.AddUser("user", "123456", new SimpleMembership.QuestionAnswer[0]);
-        //membership.AddUser("admin", "admin", new SimpleMembership.QuestionAnswer[]
-        //{
-        //        new SimpleMembership.QuestionAnswer()
-        //        {
-        //            Question = "What is 5+5",
-        //            Answer = 10,
-        //            Hashed = true,
-        //        }
-        //});
-
-        var wh = new Warehouse();
-        wh.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
-
-        // Create stores to keep objects.
-        var system = await wh.Put("sys", new MemoryStore());
-        var server = await wh.Put("sys/server", new EpServer()
+        try
         {
-            AllowedAuthenticationProviders = new string[] { "hash" },
+            var port = FindAvailablePort();
+            var service = await StartServer(serverWarehouse, port);
+
+            connection = await ConnectClient(clientWarehouse, port);
+            var remote = await connection.Get("sys/service") as EpResource
+                ?? throw new InvalidOperationException("Remote service was not found.");
+
+            await RunCoreScenarios(connection, service, remote);
+            await RunRateControlScenarios(remote);
+            await RunStreamingScenarios(service, remote);
+
+            Console.WriteLine();
+            Console.WriteLine("All functional scenarios passed.");
+        }
+        finally
+        {
+            try { connection?.Destroy(); } catch { }
+            try { await clientWarehouse.Close(); } catch { }
+            try { await serverWarehouse.Close(); } catch { }
+        }
+    }
+
+    static async Task<MyService> StartServer(Warehouse warehouse, ushort port)
+    {
+        warehouse.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
+        warehouse.Configuration.RateControl.DenialsBeforeConnectionBlock = 10;
+        warehouse.AddRatePolicy(new BurstRatePolicy("standard-call")
+        {
+            PermitLimit = 1,
+            Period = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        });
+        warehouse.AddRatePolicy(new BurstRatePolicy("standard-set")
+        {
+            PermitLimit = 1,
+            Period = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
         });
 
-
-        var web = await wh.Put("sys/web", new HttpServer() { Port = 8088 });
-
-        var service = await wh.Put("sys/service", new MyService());
-        var res1 = await wh.Put("sys/service/r1", new MyResource() { Description = "Testing 1", CategoryId = 10 });
-        var res2 = await wh.Put("sys/service/r2", new MyResource() { Description = "Testing 2", CategoryId = 11 });
-        var res3 = await wh.Put("sys/service/c1", new MyChildResource() { ChildName = "Child 1", Description = "Child Testing 3", CategoryId = 12 });
-        var res4 = await wh.Put("sys/service/c2", new MyChildResource() { ChildName = "Child 2 Destroy", Description = "Testing Destroy Handler", CategoryId = 12 });
-
-        //TestSerialization(res1);
-
-        server.MapCall("Hello", (string msg, DateTime time, EpConnection sender) =>
+        await warehouse.Put("sys", new MemoryStore());
+        var server = await warehouse.Put("sys/server", new EpServer
         {
-            Console.WriteLine(msg);
-            return "Hi " + DateTime.UtcNow;
-        }).MapCall("temp", () => res4);
-
-        service.Resource = res1;
-        service.ChildResource = res3;
-        service.Resources = new MyResource[] { res1, res2, res1, res3 };
-        service.MyResources = new MyResource[] { res1, res2, res3, res4 };
-
-        //web.MapGet("/{action}/{age}", (int age, string action, HTTPConnection sender) =>
-        //{
-        //    Console.WriteLine($"AGE: {age} ACTION: {action}");
-
-        //    sender.Response.Number = Esiur.Net.Packets.HTTPResponsePacket.ResponseCode.NotFound;
-        //    sender.Send("Not found");
-        //});
-
-        web.MapGet("/", (HttpConnection sender) =>
-        {
-            sender.Send("Hello");
+            Port = port,
+            AllowedAuthenticationProviders = new[] { "hash" },
         });
 
-        await wh.Open();
+        var service = await warehouse.Put("sys/service", new MyService());
+        service.Instance!.Managers.Add(new AllowPropertySetPermissions());
+        var resource1 = await warehouse.Put("sys/service/r1", new MyResource
+        {
+            Description = "Testing 1",
+            CategoryId = 10,
+        });
+        var resource2 = await warehouse.Put("sys/service/r2", new MyResource
+        {
+            Description = "Testing 2",
+            CategoryId = 11,
+        });
+        var child1 = await warehouse.Put("sys/service/c1", new MyChildResource
+        {
+            ChildName = "Child 1",
+            Description = "Child Testing 3",
+            CategoryId = 12,
+        });
+        var child2 = await warehouse.Put("sys/service/c2", new MyChildResource
+        {
+            ChildName = "Child 2",
+            Description = "Testing lifecycle controls",
+            CategoryId = 12,
+        });
 
+        service.Resource = resource1;
+        service.ChildResource = child1;
+        service.Resources = new MyResource[] { resource1, resource2, resource1, child1 };
+        service.MyResources = new MyResource[] { resource1, resource2, child1, child2 };
 
-        //var sc = service.GetGenericRecord();
-        //var d = Codec.Compose(sc, Warehouse.Default, null);
+        server.MapCall("Hello", (string message, DateTime _, EpConnection __) => $"Hi {message}");
+        server.MapCall("temp", () => child2);
 
-        // Start testing
-        TestClient(service);
+        await warehouse.Open();
+        return service;
     }
 
-
-    //        AuthorizationRequest, AsyncReply<object>
-    static AsyncReply<object> Authenticator(AuthorizationRequest x)
+    static async Task<EpConnection> ConnectClient(Warehouse warehouse, ushort port)
     {
-        Console.WriteLine($"Authenticator: {x.Clue}");
+        warehouse.RegisterAuthenticationProvider(new ClientAuthenticationProvider());
 
-        var format = x.RequiredFormat;
-
-        if (format == EpAuthPacketIAuthFormat.Number)
-            return new AsyncReply<object>(Convert.ToInt32(10));
-        else if (format == EpAuthPacketIAuthFormat.Text)
-            return new AsyncReply<object>(Console.ReadLine().Trim());
-
-        throw new NotImplementedException("Not supported format.");
-    }
-
-    private static async void TestClient(IResource local)
-    {
-        var wh = new Warehouse();
-        var auth = new ClientAuthenticationProvider();
-        wh.RegisterAuthenticationProvider(auth);
-
-        var con = await wh.Get<EpConnection>("ep://localhost", new EpConnectionContext
+        return await warehouse.Get<EpConnection>($"ep://localhost:{port}", new EpConnectionContext
         {
             AuthenticationMode = AuthenticationMode.InitializerIdentity,
-            AutoReconnect = true,
+            AutoReconnect = false,
             Identity = "tester",
             AuthenticationProtocol = "hash",
             Domain = "test",
         });
-
-
-        dynamic remote = await con.Get("sys/service");
-
-        TestObjectProps(local, remote);
-
-        //return;
-
-        //return;
-
-        Console.WriteLine("OK");
-
-        perodicTimer = new Timer(new TimerCallback(perodicTimerElapsed), remote, 0, 1000);
-
-        var pcall = await con.Call("Hello", "whats up ?", DateTime.UtcNow);
-
-        var temp = await con.Call("temp");
-        Console.WriteLine("Temp: " + temp.GetHashCode());
-
-
-
-
-        var opt = await remote.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
-        Console.WriteLine(opt);
-
-        var hello = await remote.AsyncHello();
-
-        await remote.Void();
-        await remote.Connection("ss", 33);
-        await remote.ConnectionOptional("Test 2", 88);
-        var rt = await remote.Optional("Optiona", 311);
-        Console.WriteLine(rt);
-
-        var t2 = await remote.GetTuple2(1, "A");
-        Console.WriteLine(t2);
-        var t3 = await remote.GetTuple3(1, "A", 1.3);
-        Console.WriteLine(t3);
-        var t4 = await remote.GetTuple4(1, "A", 1.3, true);
-        Console.WriteLine(t4);
-
-        remote.StringEvent += new EpResourceEvent((sender, args) =>
-           Console.WriteLine($"StringEvent {args}")
-        );
-
-        remote.ArrayEvent += new EpResourceEvent((sender, args) =>
-           Console.WriteLine($"ArrayEvent {args}")
-        );
-
-        await remote.InvokeEvents("Hello");
-
-
-
-        //var path = TemplateGenerator.GetTemplate("EP://localhost/sys/service", "Generated");
-
-        //Console.WriteLine(path);
-
-
     }
 
-    static async void perodicTimerElapsed(object state)
+    static async Task RunCoreScenarios(EpConnection connection, MyService local, EpResource remote)
     {
-        GC.Collect();
+        Console.WriteLine("Core RPC and serialization");
+        ReportProperties(local, remote);
+
+        dynamic api = remote;
+
+        var procedureResult = (string)await connection.Call("Hello", "functional", DateTime.UtcNow);
+        Require(procedureResult == "Hi functional", "Procedure call returned an unexpected value.");
+
+        var temporaryResource = (IResource)await connection.Call("temp");
+        Require(
+            temporaryResource is EpResource &&
+            temporaryResource.Instance?.Definition.Name.EndsWith(nameof(MyChildResource), StringComparison.Ordinal) == true,
+            "Procedure call did not return the expected remote resource type.");
+
+        var optional = await api.Optional(new { a1 = 22, a2 = 33, a4 = "What?" });
+        Require(optional is double, "Optional argument invocation failed.");
+
+        var hello = await api.AsyncHello();
+        Require(hello is not null, "AsyncReply invocation returned null.");
+
+        await api.Void();
+        await api.Connection("connection", 33);
+        await api.ConnectionOptional("optional connection", 88);
+
+        var tuple = await api.GetTuple4(1, "A", 1.3, true);
+        Require(tuple is not null, "Tuple invocation returned null.");
+
+        var eventReceived = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        EpResourceEvent handler = (_, value) => eventReceived.TrySetResult((string)value);
+        await remote.Subscribe(nameof(MyService.StringEvent));
+        api.StringEvent += handler;
+
+        await api.InvokeEvents("event payload");
+        var eventValue = await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Require(eventValue == "event payload", "Remote event payload did not round-trip.");
+
+        api.StringEvent -= handler;
+        await remote.Unsubscribe(nameof(MyService.StringEvent));
+        Console.WriteLine("  PASS core RPC, optional arguments, tuples, and events");
+    }
+
+    static async Task RunStreamingScenarios(MyService local, EpResource remote)
+    {
+        Console.WriteLine("Streaming and execution controls");
+
+        var pull = InvokeStream<int>(remote, nameof(MyService.PullRange), 10, 5, 5);
+        var pulledValues = new List<int>();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+        {
+            await foreach (var value in pull.WithCancellation(timeout.Token))
+                pulledValues.Add(value);
+        }
+
+        Require(
+            pulledValues.SequenceEqual(new[] { 10, 11, 12, 13, 14 }),
+            "PullStream did not preserve item order or backpressure.");
+        Console.WriteLine("  PASS PullStream / IAsyncEnumerable<T>");
+
+        var terminatedBefore = local.TerminatedPullStreams;
+        var infinite = InvokeStream<int>(remote, nameof(MyService.PullForever), 5);
+        var infiniteEnumerator = infinite.GetAsyncEnumerator();
+
+        Require(await infiniteEnumerator.MoveNextAsync(), "Infinite pull stream returned no first item.");
+        Require(await infiniteEnumerator.MoveNextAsync(), "Infinite pull stream returned no second item.");
+        await infiniteEnumerator.DisposeAsync();
+
+        await WaitUntil(
+            () => local.TerminatedPullStreams == terminatedBefore + 1,
+            TimeSpan.FromSeconds(5));
+        Require(infinite.Completed, "TerminateExecution did not complete the client stream.");
+        Console.WriteLine("  PASS TerminateExecution / enumerator disposal");
+
+        var push = InvokeStream<int>(remote, nameof(MyService.PushSequence), 4, 150);
+        var pushEnumerator = push.GetAsyncEnumerator();
+        var pushedValues = new List<int>();
+
+        Require(await pushEnumerator.MoveNextAsync(), "Push stream returned no first item.");
+        pushedValues.Add(pushEnumerator.Current);
+
+        await push.Halt();
+        var haltedMove = pushEnumerator.MoveNextAsync().AsTask();
+        await Task.Delay(250);
+        Require(!haltedMove.IsCompleted, "HaltExecution did not pause the producer.");
+
+        await push.Resume();
+        Require(
+            await haltedMove.WaitAsync(TimeSpan.FromSeconds(5)),
+            "ResumeExecution did not resume the producer.");
+        pushedValues.Add(pushEnumerator.Current);
+
+        while (await pushEnumerator.MoveNextAsync())
+            pushedValues.Add(pushEnumerator.Current);
+
+        Require(
+            pushedValues.SequenceEqual(new[] { 0, 1, 2, 3 }),
+            "Push stream lost or reordered items across halt/resume.");
+        Console.WriteLine("  PASS HaltExecution / ResumeExecution");
+    }
+
+    static async Task RunRateControlScenarios(EpResource remote)
+    {
+        Console.WriteLine("Rate control");
+
+        var function = remote.Instance.Definition.GetFunctionDefByName(nameof(MyService.RateLimitedCall))
+            ?? throw new InvalidOperationException("Rate-limited function was not found.");
+        var property = remote.Instance.Definition.GetPropertyDefByName(nameof(MyService.RateLimitedValue))
+            ?? throw new InvalidOperationException("Rate-limited property was not found.");
+
+        await remote._Invoke(function.Index, Array.Empty<object>());
+        await ExpectRateLimit(() => remote._Invoke(function.Index, Array.Empty<object>()));
+
+        await remote.SetResourcePropertyAsync(property.Index, 1);
+        await ExpectRateLimit(() => remote.SetResourcePropertyAsync(property.Index, 2));
+
+        Console.WriteLine("  PASS function-call and property-set policies");
+    }
+
+    static async Task ExpectRateLimit(Func<AsyncReply> action)
+    {
         try
         {
-            dynamic remote = state;
-            await remote.InvokeEvents("Hello");
-
-            Console.WriteLine("Perodic : " + await remote.AsyncHello());
+            await action();
         }
-        catch (Exception ex)
+        catch (AsyncException exception) when (exception.Code == ExceptionCode.RateLimitExceeded)
         {
-            Console.WriteLine("Perodic : " + ex.ToString());
+            return;
+        }
+
+        throw new InvalidOperationException("The request was expected to be rate limited.");
+    }
+
+    static AsyncStreamReply<T> InvokeStream<T>(
+        EpResource resource,
+        string functionName,
+        params object[] arguments)
+    {
+        var function = resource.Instance.Definition.GetFunctionDefByName(functionName)
+            ?? throw new InvalidOperationException($"Function `{functionName}` was not found.");
+
+        var indexedArguments = new Map<byte, object>();
+        for (byte i = 0; i < arguments.Length; i++)
+            indexedArguments[i] = arguments[i];
+
+        return resource._InvokeStream<T>(function.Index, indexedArguments);
+    }
+
+    static void ReportProperties(MyService local, EpResource remote)
+    {
+        var compared = 0;
+        var definition = local.Instance?.Definition
+            ?? throw new InvalidOperationException("Local service was not initialized.");
+
+        foreach (var property in definition.Properties)
+        {
+            if (!remote.TryGetPropertyValue(property.Index, out _))
+                throw new InvalidOperationException($"Remote property `{property.Name}` was not attached.");
+
+            compared++;
+        }
+
+        Console.WriteLine($"  Attached {compared} exported properties");
+    }
+
+    static async Task WaitUntil(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline)
+                throw new TimeoutException("Timed out waiting for the functional condition.");
+
+            await Task.Delay(10);
         }
     }
 
-    static Timer perodicTimer;
-
-    static void TestObjectProps(IResource local, EpResource remote)
+    static void Require(bool condition, string message)
     {
-
-        foreach (var pt in local.Instance.Definition.Properties)
-        {
-
-            var lv = pt.PropertyInfo.GetValue(local);
-            object v;
-            var rv = remote.TryGetPropertyValue(pt.Index, out v);
-            if (!rv)
-                Console.WriteLine($" ** {pt.Name} Failed");
-            else
-                Console.WriteLine($"{pt.Name} {GetString(lv)} == {GetString(v)}");
-        }
-
+        if (!condition)
+            throw new InvalidOperationException(message);
     }
 
-    static string GetString(object value)
+    static ushort FindAvailablePort()
     {
-        if (value == null)
-            return "NULL";
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = (ushort)((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
 
-        var t = value.GetType();
-        var nt = Nullable.GetUnderlyingType(t);
-        if (nt != null)
-            t = nt;
-        if (t.IsArray)
-        {
-            var ar = (Array)value;
-            if (ar.Length == 0)
-                return "[]";
-            var rt = "[";
-            for (var i = 0; i < ar.Length - 1; i++)
-                rt += GetString(ar.GetValue(i)) + ",";
-            rt += GetString(ar.GetValue(ar.Length - 1)) + "]";
+    sealed class AllowPropertySetPermissions : IPermissionsManager
+    {
+        public Map<string, object> Settings { get; } = new();
 
-            return rt;
-        }
-        else if (value is Record)
-        {
-            return value.ToString();
-        }
-        else if (value is IRecord)
-        {
-            return "{" + String.Join(", ", t.GetProperties().Select(x => x.Name + ": " + x.GetValue(value))) + "}";
-        }
+        public Ruling Applicable(
+            IResource resource,
+            Session session,
+            ActionType action,
+            MemberDef member,
+            object inquirer = null!)
+            => action == ActionType.SetProperty ? Ruling.Allowed : Ruling.DontCare;
 
-        else
-            return value.ToString();
+        public bool Initialize(Map<string, object> settings, IResource resource) => true;
     }
 }

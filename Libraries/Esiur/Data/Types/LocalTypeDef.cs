@@ -61,6 +61,9 @@ public class LocalTypeDef:TypeDef
             if (genericType == typeof(List<>)
                 || genericType == typeof(PropertyContext<>)
                 || genericType == typeof(AsyncReply<>)
+                || genericType == typeof(Task<>)
+                || genericType == typeof(IEnumerable<>)
+                || genericType == typeof(IAsyncEnumerable<>)
                 || genericType == typeof(ResourceLink<>))
             {
                 return GetDistributedTypes(genericTypeArgs[0]);
@@ -272,6 +275,8 @@ public class LocalTypeDef:TypeDef
         _definedType = type;
 
         _typeName = GetTypeName(type);
+
+        DefinitionAttributeReader.Apply(type, this);
 
 
         warehouse.TryRegisterLocalTypeDef(this);

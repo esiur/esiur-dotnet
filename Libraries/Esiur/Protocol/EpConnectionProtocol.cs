@@ -31,6 +31,7 @@ using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Security.Permissions;
+using Esiur.Security.RateLimiting;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections;
@@ -47,6 +48,140 @@ namespace Esiur.Protocol;
 
 partial class EpConnection
 {
+    readonly object _rateControlDenialsLock = new object();
+    DateTime _rateControlDenialWindowStarted;
+    int _rateControlDenials;
+    int _rateControlBlocked;
+
+    internal bool IsRateControlBlocked => Volatile.Read(ref _rateControlBlocked) != 0;
+
+    bool TryApplyRateControl(
+        MemberDef member,
+        IResource? resource,
+        ActionType action,
+        uint callback,
+        out TimeSpan delay)
+    {
+        delay = TimeSpan.Zero;
+
+        if (string.IsNullOrWhiteSpace(member.RatePolicyName))
+            return true;
+
+        if (IsRateControlBlocked)
+            return false;
+
+        var warehouse = Instance.Warehouse;
+        var policy = warehouse.TryGetRatePolicy(member.RatePolicyName);
+
+        if (policy == null)
+        {
+            DenyRateControlledRequest(
+                callback,
+                $"Rate policy `{member.RatePolicyName}` is not registered.");
+            return false;
+        }
+
+        try
+        {
+            var context = new RateControlContext(
+                warehouse,
+                this,
+                _session,
+                resource,
+                member,
+                action);
+
+            if (policy.Applicable(context) == Ruling.Denied)
+            {
+                DenyRateControlledRequest(
+                    callback,
+                    $"Rate policy `{member.RatePolicyName}` denied `{member.Fullname}`.");
+                return false;
+            }
+
+            delay = context.Delay > TimeSpan.Zero ? context.Delay : TimeSpan.Zero;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            DenyRateControlledRequest(
+                callback,
+                $"Rate policy `{member.RatePolicyName}` failed: {exception.Message}");
+            return false;
+        }
+    }
+
+    void DenyRateControlledRequest(uint callback, string message)
+    {
+        var configuration = Instance.Warehouse.Configuration.RateControl;
+        var now = DateTime.UtcNow;
+        var shouldBlock = false;
+
+        lock (_rateControlDenialsLock)
+        {
+            var window = configuration.DenialWindow > TimeSpan.Zero
+                ? configuration.DenialWindow
+                : TimeSpan.FromMinutes(1);
+
+            if (_rateControlDenialWindowStarted == default ||
+                now - _rateControlDenialWindowStarted > window)
+            {
+                _rateControlDenialWindowStarted = now;
+                _rateControlDenials = 0;
+            }
+
+            _rateControlDenials++;
+            shouldBlock = configuration.DenialsBeforeConnectionBlock > 0 &&
+                          _rateControlDenials >= configuration.DenialsBeforeConnectionBlock &&
+                          Interlocked.Exchange(ref _rateControlBlocked, 1) == 0;
+        }
+
+        SendError(
+            ErrorType.Management,
+            callback,
+            (ushort)ExceptionCode.RateLimitExceeded,
+            message);
+
+        if (shouldBlock)
+            _ = CloseRateControlledConnectionAsync(configuration.ConnectionBlockDelay);
+    }
+
+    async Task CloseRateControlledConnectionAsync(TimeSpan delay)
+    {
+        if (delay > TimeSpan.Zero)
+            await Task.Delay(delay).ConfigureAwait(false);
+
+        Close();
+    }
+
+    void ExecuteRateControlled(uint callback, TimeSpan delay, Action action)
+    {
+        if (delay <= TimeSpan.Zero)
+        {
+            action();
+            return;
+        }
+
+        _ = ExecuteRateControlledAsync(callback, delay, action);
+    }
+
+    async Task ExecuteRateControlledAsync(uint callback, TimeSpan delay, Action action)
+    {
+        await Task.Delay(delay).ConfigureAwait(false);
+
+        if (!IsConnected || IsRateControlBlocked)
+            return;
+
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure, exception.Message);
+        }
+    }
+
     KeyList<ulong, RemoteTypeDef> _neededTypeDefs = new KeyList<ulong, RemoteTypeDef>();
     KeyList<ulong, RemoteTypeDef> _cachedTypeDefs = new KeyList<ulong, RemoteTypeDef>();
     KeyList<ulong, FetchRequestInfo<RemoteTypeDef, ulong>> _typeDefRequests = new KeyList<ulong, FetchRequestInfo<RemoteTypeDef, ulong>>();
@@ -94,6 +229,9 @@ partial class EpConnection
 
     KeyList<uint, AsyncReply> _requests = new KeyList<uint, AsyncReply>();
 
+    readonly object _invocationsLock = new object();
+    readonly Dictionary<uint, InvocationContext> _invocations = new Dictionary<uint, InvocationContext>();
+
     volatile int _callbackCounter = 0;
 
     Dictionary<IResource, List<byte>> _subscriptions = new Dictionary<IResource, List<byte>>();
@@ -125,18 +263,25 @@ partial class EpConnection
         //callbackCounter++; // avoid thread racing
         _requests.Add(c, reply);
 
+        SendRequestPacket(action, c, args);
+        return reply;
+    }
+
+    void SendRequestPacket(EpPacketRequest action, uint callbackId, object[] args)
+    {
+
         if (args.Length == 0)
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x40 | (byte)action))
-              .AddUInt32(c);
+              .AddUInt32(callbackId);
             Send(bl.ToArray());
         }
         if (args.Length == 1)
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x60 | (byte)action))
-              .AddUInt32(c)
+              .AddUInt32(callbackId)
               .AddUInt8Array(Codec.Compose(args[0], this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
@@ -144,11 +289,39 @@ partial class EpConnection
         {
             var bl = new BinaryList();
             bl.AddUInt8((byte)(0x60 | (byte)action))
-              .AddUInt32(c)
+              .AddUInt32(callbackId)
               .AddUInt8Array(Codec.Compose(args, this.Instance?.Warehouse ?? _serverWarehouse, this));
             Send(bl.ToArray());
         }
+    }
 
+    AsyncStreamReply SendStreamRequest(StreamMode streamMode, EpPacketRequest action, params object[] args)
+    {
+        var callbackId = (uint)Interlocked.Increment(ref _callbackCounter);
+        var reply = new AsyncStreamReply(
+            streamMode,
+            () => SendRequest(EpPacketRequest.PullStream, callbackId),
+            () => SendRequest(EpPacketRequest.TerminateExecution, callbackId),
+            () => SendRequest(EpPacketRequest.HaltExecution, callbackId),
+            () => SendRequest(EpPacketRequest.ResumeExecution, callbackId));
+
+        _requests.Add(callbackId, reply);
+        SendRequestPacket(action, callbackId, args);
+        return reply;
+    }
+
+    AsyncStreamReply<T> SendStreamRequest<T>(StreamMode streamMode, EpPacketRequest action, params object[] args)
+    {
+        var callbackId = (uint)Interlocked.Increment(ref _callbackCounter);
+        var reply = new AsyncStreamReply<T>(
+            streamMode,
+            () => SendRequest(EpPacketRequest.PullStream, callbackId),
+            () => SendRequest(EpPacketRequest.TerminateExecution, callbackId),
+            () => SendRequest(EpPacketRequest.HaltExecution, callbackId),
+            () => SendRequest(EpPacketRequest.ResumeExecution, callbackId));
+
+        _requests.Add(callbackId, reply);
+        SendRequestPacket(action, callbackId, args);
         return reply;
     }
 
@@ -304,6 +477,16 @@ partial class EpConnection
         return SendRequest(EpPacketRequest.StaticCall, typeId, index, parameters);
     }
 
+    public AsyncStreamReply<T> StaticStreamCall<T>(ulong typeId, byte index, object parameters, StreamMode streamMode)
+    {
+        return SendStreamRequest<T>(streamMode, EpPacketRequest.StaticCall, typeId, index, parameters);
+    }
+
+    public AsyncStreamReply StaticStreamCall(ulong typeId, byte index, object parameters, StreamMode streamMode)
+    {
+        return SendStreamRequest(streamMode, EpPacketRequest.StaticCall, typeId, index, parameters);
+    }
+
     public AsyncReply Call(string procedureCall, params object[] parameters)
     {
         //var args = new Map<byte, object>();
@@ -322,6 +505,16 @@ partial class EpConnection
     internal AsyncReply SendInvoke(uint instanceId, byte index, object parameters)
     {
         return SendRequest(EpPacketRequest.InvokeFunction, instanceId, index, parameters);
+    }
+
+    internal AsyncStreamReply SendStreamInvoke(uint instanceId, byte index, object parameters, StreamMode streamMode)
+    {
+        return SendStreamRequest(streamMode, EpPacketRequest.InvokeFunction, instanceId, index, parameters);
+    }
+
+    internal AsyncStreamReply<T> SendStreamInvoke<T>(uint instanceId, byte index, object parameters, StreamMode streamMode)
+    {
+        return SendStreamRequest<T>(streamMode, EpPacketRequest.InvokeFunction, instanceId, index, parameters);
     }
 
     internal AsyncReply SendSetProperty(uint instanceId, byte index, object value)
@@ -383,7 +576,7 @@ partial class EpConnection
         SendReply(EpPacketReply.Chunk, callbackId, chunk);
     }
 
-    void EpReplyCompleted(uint callbackId, PlainTdu tdu)
+    void EpReplyCompleted(uint callbackId, PlainTdu? tdu)
     {
         var req = _requests.Take(callbackId);
 
@@ -395,7 +588,19 @@ partial class EpConnection
             return;
         }
 
-        var pr = Codec.Parse(tdu, this, null);
+        if (req is AsyncStreamReply streamReply)
+        {
+            streamReply.TriggerStreamCompleted();
+            return;
+        }
+
+        if (tdu == null)
+        {
+            req.Trigger(null);
+            return;
+        }
+
+        var pr = Codec.Parse(tdu.Value, this, null);
 
         if (pr is AsyncReply asyncReply)
         {
@@ -419,6 +624,12 @@ partial class EpConnection
         //        req.Trigger(pr.Value);
         //    }
         //}).Error(req.TriggerError);
+    }
+
+    void EpReplyStream(uint callbackId)
+    {
+        if (_requests[callbackId] is AsyncStreamReply streamReply)
+            streamReply.TriggerStreamStarted();
     }
 
     void EpExtensionAction(byte actionId, PlainTdu? tdu)
@@ -1420,6 +1631,22 @@ partial class EpConnection
 
     void InvokeFunction(FunctionDef ft, uint callback, object arguments, EpPacketRequest actionType, object target = null)
     {
+        if (!TryApplyRateControl(
+                ft,
+                target as IResource,
+                ActionType.Execute,
+                callback,
+                out var delay))
+            return;
+
+        ExecuteRateControlled(
+            callback,
+            delay,
+            () => InvokeFunctionCore(ft, callback, arguments, actionType, target));
+    }
+
+    void InvokeFunctionCore(FunctionDef ft, uint callback, object arguments, EpPacketRequest actionType, object target = null)
+    {
 
         // cast arguments
         ParameterInfo[] pis = ft.MethodInfo.GetParameters();
@@ -1559,59 +1786,44 @@ partial class EpConnection
             return;
         }
 
-        if (rt is IAsyncEnumerable<object>)
+        if (ft.StreamMode != StreamMode.None)
         {
-            var enu = rt as IAsyncEnumerable<object>;
-            var enumerator = enu.GetAsyncEnumerator();
-            Task.Run(async () =>
+            context ??= new InvocationContext(this, callback);
+            context.InitializeStream(ft.StreamMode, ft.Pausable);
+
+            if (ft.StreamMode == StreamMode.Pull && context.SetAsyncEnumerable(rt))
             {
-                try
-                {
-                    while (await enumerator.MoveNextAsync())
+                RegisterInvocation(callback, context);
+                SendReply(EpPacketReply.Stream, callback);
+            }
+            else if (ft.StreamMode == StreamMode.Push && rt is System.Collections.IEnumerable enumerable)
+            {
+                context.SetEnumerable(enumerable);
+                RegisterInvocation(callback, context);
+                SendReply(EpPacketReply.Stream, callback);
+                PumpEnumerable(callback, context);
+            }
+            else if (ft.StreamMode == StreamMode.Push && rt is AsyncReply streamSource)
+            {
+                RegisterInvocation(callback, context);
+                SendReply(EpPacketReply.Stream, callback);
+
+                streamSource.Then(_ => CompleteInvocation(callback, context))
+                    .Error(ex => FailInvocation(callback, context, ex))
+                    .Progress((pt, pv, pm) => SendProgress(callback, pv, pm))
+                    .Chunk(value =>
                     {
-                        var v = enumerator.Current;
-                        SendChunk(callback, v);
-                    }
-
-                    SendReply(EpPacketReply.Completed, callback);
-
-                    if (context != null)
-                        context.Ended = true;
-                }
-                catch (Exception ex)
-                {
-                    if (context != null)
-                        context.Ended = true;
-
-                    var (code, msg) = SummerizeException(ex);
-                    SendError(ErrorType.Exception, callback, code, msg);
-                }
-            });
-        }
-        else if (rt is System.Collections.IEnumerable && !(rt is Array || rt is Map<string, object> || rt is string))
-        {
-            var enu = rt as System.Collections.IEnumerable;
-
-            try
-            {
-                foreach (var v in enu)
-                    SendChunk(callback, v);
-
-                SendReply(EpPacketReply.Completed, callback);
-
-                if (context != null)
-                    context.Ended = true;
-
+                        if (!context.Ended)
+                            context.Chunk(value);
+                    })
+                    .Warning((level, message) => SendWarning(callback, level, message));
             }
-            catch (Exception ex)
+            else
             {
-                if (context != null)
-                    context.Ended = true;
-
-                var (code, msg) = SummerizeException(ex);
-                SendError(ErrorType.Exception, callback, code, msg);
+                context.Ended = true;
+                SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.NotSupported,
+                    $"Stream mode `{ft.StreamMode}` is not compatible with `{rt?.GetType()}`.");
             }
-
         }
         else if (rt is Task)
         {
@@ -1663,6 +1875,217 @@ partial class EpConnection
         }
     }
 
+    void RegisterInvocation(uint callback, InvocationContext context)
+    {
+        lock (_invocationsLock)
+            _invocations[callback] = context;
+    }
+
+    InvocationContext GetInvocation(uint callback)
+    {
+        lock (_invocationsLock)
+            return _invocations.TryGetValue(callback, out var context) ? context : null;
+    }
+
+    void TerminateInvocations()
+    {
+        InvocationContext[] contexts;
+
+        lock (_invocationsLock)
+        {
+            contexts = _invocations.Values.ToArray();
+            _invocations.Clear();
+        }
+
+        foreach (var context in contexts)
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await context.TerminateAsync();
+                }
+                catch
+                {
+                    // The connection is already closing; disposal is best effort.
+                }
+            });
+    }
+
+    bool TakeInvocation(uint callback, InvocationContext expected, out InvocationContext context)
+    {
+        lock (_invocationsLock)
+        {
+            if (!_invocations.TryGetValue(callback, out context) ||
+                (expected != null && !ReferenceEquals(expected, context)))
+                return false;
+
+            _invocations.Remove(callback);
+            return true;
+        }
+    }
+
+    async void CompleteInvocation(uint callback, InvocationContext expected)
+    {
+        if (!TakeInvocation(callback, expected, out var context))
+            return;
+
+        try
+        {
+            await context.EndAsync();
+            SendReply(EpPacketReply.Completed, callback);
+        }
+        catch (Exception ex)
+        {
+            var (code, message) = SummerizeException(ex);
+            SendError(ErrorType.Exception, callback, code, message);
+        }
+    }
+
+    async void FailInvocation(uint callback, InvocationContext expected, Exception exception)
+    {
+        if (!TakeInvocation(callback, expected, out var context))
+            return;
+
+        try
+        {
+            await context.TerminateAsync();
+        }
+        catch
+        {
+            // Preserve the exception that ended the stream.
+        }
+
+        var (code, message) = SummerizeException(exception);
+        SendError(ErrorType.Exception, callback, code, message);
+    }
+
+    void PumpEnumerable(uint callback, InvocationContext context)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                while (true)
+                {
+                    var next = await context.MoveNextAsync();
+                    if (!next.HasValue)
+                    {
+                        CompleteInvocation(callback, context);
+                        return;
+                    }
+
+                    context.Chunk(next.Value);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // TerminateExecution owns completion when it cancels the pump.
+            }
+            catch (Exception ex)
+            {
+                FailInvocation(callback, context, ex);
+            }
+        });
+    }
+
+    uint ParseExecutionCallback(PlainTdu tdu)
+        => Convert.ToUInt32(Codec.ParseSync(tdu, Instance.Warehouse));
+
+    void EpRequestPullStream(uint callback, PlainTdu tdu)
+    {
+        var executionCallback = ParseExecutionCallback(tdu);
+        var context = GetInvocation(executionCallback);
+
+        if (context == null || context.StreamMode != StreamMode.Pull)
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not an active pull stream.");
+            return;
+        }
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                var next = await context.PullAsync();
+                if (next.HasValue)
+                    SendChunk(executionCallback, next.Value);
+                else
+                    CompleteInvocation(executionCallback, context);
+
+                SendReply(EpPacketReply.Completed, callback);
+            }
+            catch (OperationCanceledException)
+            {
+                SendReply(EpPacketReply.Completed, callback);
+            }
+            catch (Exception ex)
+            {
+                FailInvocation(executionCallback, context, ex);
+                var (code, message) = SummerizeException(ex);
+                SendError(ErrorType.Exception, callback, code, message);
+            }
+        });
+    }
+
+    void EpRequestTerminateExecution(uint callback, PlainTdu tdu)
+    {
+        var executionCallback = ParseExecutionCallback(tdu);
+
+        if (!TakeInvocation(executionCallback, null, out var context))
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not active.");
+            return;
+        }
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await context.TerminateAsync();
+                SendReply(EpPacketReply.Completed, executionCallback);
+                SendReply(EpPacketReply.Completed, callback);
+            }
+            catch (Exception ex)
+            {
+                var (code, message) = SummerizeException(ex);
+                SendError(ErrorType.Exception, executionCallback, code, message);
+                SendError(ErrorType.Exception, callback, code, message);
+            }
+        });
+    }
+
+    void EpRequestHaltExecution(uint callback, PlainTdu tdu)
+    {
+        var executionCallback = ParseExecutionCallback(tdu);
+        var context = GetInvocation(executionCallback);
+
+        if (context == null || !context.Halt())
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not pausable or is already halted.");
+            return;
+        }
+
+        SendReply(EpPacketReply.Completed, callback);
+    }
+
+    void EpRequestResumeExecution(uint callback, PlainTdu tdu)
+    {
+        var executionCallback = ParseExecutionCallback(tdu);
+        var context = GetInvocation(executionCallback);
+
+        if (context == null || !context.Resume())
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not pausable or is not halted.");
+            return;
+        }
+
+        SendReply(EpPacketReply.Completed, callback);
+    }
+
     void EpRequestSubscribe(uint callback, PlainTdu tdu)
     {
 
@@ -1683,7 +2106,7 @@ partial class EpConnection
 
             var et = r.Instance.Definition.GetEventDefByIndex(index);
 
-            if (et != null)
+            if (et == null)
             {
                 // et not found
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
@@ -1789,7 +2212,7 @@ partial class EpConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset,
                                                                      tdu.PayloadLength, Instance.Warehouse, 2);
 
-        var rid = (uint)args[0];
+        var rid = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
 
         // un hold the socket to send data immediately
@@ -1806,12 +2229,26 @@ partial class EpConnection
 
             var pt = r.Instance.Definition.GetPropertyDefByIndex(index);
 
-            if (pt != null)
+            if (pt == null)
             {
                 // property not found
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
                 return;
             }
+
+            if (r.Instance.Applicable(_session, ActionType.SetProperty, pt, this) == Ruling.Denied)
+            {
+                SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
+                return;
+            }
+
+            if (!TryApplyRateControl(
+                    pt,
+                    r,
+                    ActionType.SetProperty,
+                    callback,
+                    out var rateControlDelay))
+                return;
 
 
             if (r is IDynamicResource dynamicResource)
@@ -1823,25 +2260,27 @@ partial class EpConnection
                         asyncReply.Then((value) =>
                         {
                             // propagation
-                            dynamicResource.SetResourcePropertyAsync(index, value).Then((x) =>
-                            {
-                                SendReply(EpPacketReply.Completed, callback);
-                            }).Error(x =>
-                            {
-                                SendError(x.Type, callback, (ushort)x.Code, x.Message);
-                            });
+                            ExecuteRateControlled(callback, rateControlDelay, () =>
+                                dynamicResource.SetResourcePropertyAsync(index, value).Then((x) =>
+                                {
+                                    SendReply(EpPacketReply.Completed, callback);
+                                }).Error(x =>
+                                {
+                                    SendError(x.Type, callback, (ushort)x.Code, x.Message);
+                                }));
                         });
                     }
                     else
                     {
                         // propagation
-                        dynamicResource.SetResourcePropertyAsync(index, pr.Value).Then((x) =>
-                        {
-                            SendReply(EpPacketReply.Completed, callback);
-                        }).Error(x =>
-                        {
-                            SendError(x.Type, callback, (ushort)x.Code, x.Message);
-                        });
+                        ExecuteRateControlled(callback, rateControlDelay, () =>
+                            dynamicResource.SetResourcePropertyAsync(index, pr.Value).Then((x) =>
+                            {
+                                SendReply(EpPacketReply.Completed, callback);
+                            }).Error(x =>
+                            {
+                                SendError(x.Type, callback, (ushort)x.Code, x.Message);
+                            }));
                     }
                 }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError)); ;
 
@@ -1853,12 +2292,6 @@ partial class EpConnection
                 {
                     // pt found, pi not found, this should never happen
                     SendError(ErrorType.Management, callback, (ushort)ExceptionCode.PropertyNotFound);
-                    return;
-                }
-
-                if (r.Instance.Applicable(_session, ActionType.SetProperty, pt, this) == Ruling.Denied)
-                {
-                    SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
                     return;
                 }
 
@@ -1877,6 +2310,36 @@ partial class EpConnection
                     {
                         asyncReply.Then((value) =>
                         {
+                            ExecuteRateControlled(callback, rateControlDelay, () =>
+                            {
+                                if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
+                                        == typeof(PropertyContext<>))
+                                {
+                                    value = Activator.CreateInstance(pi.PropertyType, this, value);
+                                }
+                                else
+                                {
+                                    value = RuntimeCaster.Cast(value, pi.PropertyType);
+                                }
+
+                                try
+                                {
+                                    pi.SetValue(r, value);
+                                    SendReply(EpPacketReply.Completed, callback);
+                                }
+                                catch (Exception ex)
+                                {
+                                    SendError(ErrorType.Exception, callback, 0, ex.Message);
+                                }
+                            });
+                        });
+                    }
+                    else
+                    {
+                        var value = pr.Value;
+
+                        ExecuteRateControlled(callback, rateControlDelay, () =>
+                        {
                             if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
                                     == typeof(PropertyContext<>))
                             {
@@ -1884,7 +2347,6 @@ partial class EpConnection
                             }
                             else
                             {
-                                // cast new value type to property type
                                 value = RuntimeCaster.Cast(value, pi.PropertyType);
                             }
 
@@ -1898,32 +2360,6 @@ partial class EpConnection
                                 SendError(ErrorType.Exception, callback, 0, ex.Message);
                             }
                         });
-                    }
-                    else
-                    {
-                        var value = pr.Value;
-
-                        if (pi.PropertyType.IsGenericType && pi.PropertyType.GetGenericTypeDefinition()
-                                == typeof(PropertyContext<>))
-                        {
-                            value = Activator.CreateInstance(pi.PropertyType, this, value);
-                            //value = new DistributedPropertyContext(this, value);
-                        }
-                        else
-                        {
-                            // cast new value type to property type
-                            value = RuntimeCaster.Cast(value, pi.PropertyType);
-                        }
-
-                        try
-                        {
-                            pi.SetValue(r, value);
-                            SendReply(EpPacketReply.Completed, callback);
-                        }
-                        catch (Exception ex)
-                        {
-                            SendError(ErrorType.Exception, callback, 0, ex.Message);
-                        }
                     }
                 }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError));
             }

@@ -1,10 +1,11 @@
 ﻿using Esiur.Data;
 using Esiur.Core;
+using Esiur.Data.Types;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Esiur.Protocol;
 
 #nullable enable
@@ -142,7 +143,7 @@ public partial class MyService
     [Export] public IRecord[] RecordsArray => new IRecord[] { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
     [Export] public List<MyRecord> RecordsList => new() { new MyRecord() { Id = 22, Name = "Test", Score = 22.1 } };
 
-    [Export] public IMyRecord myrecord { get; set; }
+    [Export] public IMyRecord myrecord { get; set; } = new MyRecord();
 
     [Export] public MyResource[]? myResources;
 
@@ -213,5 +214,93 @@ public partial class MyService
     }
 
     [Export] public static string staticFunction(string name) => $"Hello {name}";
+
+    int _terminatedPullStreams;
+
+    public int TerminatedPullStreams => Volatile.Read(ref _terminatedPullStreams);
+
+    [Export]
+    [RateControl("standard-call")]
+    public int RateLimitedCall() => 1;
+
+    [Export]
+    [RateControl("standard-set")]
+    public int RateLimitedValue { get; set; }
+
+    [Export]
+    [Cancellable]
+    public async IAsyncEnumerable<int> PullRange(
+        int start,
+        int count,
+        int delayMilliseconds,
+        InvocationContext context)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            await Task.Delay(Math.Max(0, delayMilliseconds), context.CancellationToken);
+            yield return start + i;
+        }
+    }
+
+    [Export]
+    [Cancellable]
+    public async IAsyncEnumerable<int> PullForever(
+        int delayMilliseconds,
+        InvocationContext context)
+    {
+        var value = 0;
+
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(Math.Max(1, delayMilliseconds), context.CancellationToken);
+                yield return value++;
+            }
+        }
+        finally
+        {
+            Interlocked.Increment(ref _terminatedPullStreams);
+        }
+    }
+
+    [Export]
+    [Cancellable]
+    [Stream(StreamMode.Push, Pausable = true)]
+    public AsyncReply<int> PushSequence(
+        int count,
+        int delayMilliseconds,
+        InvocationContext context)
+    {
+        var reply = new AsyncReply<int>();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(50, context.CancellationToken);
+
+                for (var i = 0; i < count; i++)
+                {
+                    await context.WaitWhileHaltedAsync();
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                    reply.TriggerChunk(i);
+                    await Task.Delay(Math.Max(1, delayMilliseconds), context.CancellationToken);
+                }
+
+                reply.Trigger(0);
+            }
+            catch (OperationCanceledException)
+            {
+                // TerminateExecution completes the remote stream.
+            }
+            catch (Exception exception)
+            {
+                reply.TriggerError(exception);
+            }
+        });
+
+        return reply;
+    }
 
 }

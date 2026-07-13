@@ -34,5 +34,8 @@ namespace Esiur.Data.Types
 
         // Compatibility guidance
         DeprecationMessage = 0x2F, // string
+
+        // Extensible application metadata
+        Annotations = 0x30, // Map<string, string>
     }
 }

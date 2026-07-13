@@ -6,7 +6,9 @@ using System.Text;
 namespace Esiur.Resource
 {
     /// <summary>
-    /// Marks an exported function as streaming and specifies its delivery mode.
+    /// Marks an AsyncReply-returning exported function as streaming and specifies
+    /// its delivery mode. IEnumerable and IAsyncEnumerable return types infer push
+    /// and pull mode respectively and do not require this attribute.
     /// </summary>
     [AttributeUsage(
         AttributeTargets.Method,
