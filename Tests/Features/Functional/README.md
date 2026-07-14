@@ -12,7 +12,8 @@ Coverage includes:
 - rate-limit denial propagation to callers;
 - pull streams backed by `IAsyncEnumerable<T>`;
 - `TerminateExecution` through async-enumerator disposal;
-- `HaltExecution` and `ResumeExecution` for a cooperative push stream.
+- `HaltExecution` and `ResumeExecution` for a cooperative push stream;
+- AES-256-GCM provider negotiation and encrypted authenticated-session traffic;
 - parser allocation and collection budgets, attachment quotas, and per-IP connection limits.
 
 Run it from the repository root:
@@ -55,4 +56,22 @@ warehouse.Configuration.ResourceAttachments.MaximumPendingAttachmentsPerConnecti
 warehouse.Configuration.ResourceAttachments.RejectDuplicateAttachments = true;
 
 warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress = 64;
+warehouse.Configuration.Encryption.MaximumRecordSize = 8 * 1024 * 1024 + 1024;
+```
+
+Authenticated encryption is opt-in and fails closed when requested. Register the
+provider on both Warehouses, allow it on the server, and request it from the client:
+
+```csharp
+serverWarehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
+server.AllowedEncryptionProviders = new[] { AesEncryptionProvider.Name };
+server.RequireEncryption = true;
+
+clientWarehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
+var context = new EpConnectionContext
+{
+    AuthenticationMode = AuthenticationMode.InitializerIdentity,
+    EncryptionMode = EncryptionMode.EncryptWithSessionKey,
+    EncryptionProviders = new[] { AesEncryptionProvider.Name },
+};
 ```

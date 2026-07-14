@@ -38,8 +38,10 @@ using Esiur.Security.Membership;
 using Esiur.Security.Permissions;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -47,6 +49,7 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
@@ -85,6 +88,20 @@ public partial class EpConnection : NetworkConnection, IStore
 
     // Fields
     bool _invalidCredentials = false;
+
+    enum OutboundProtectionState : byte
+    {
+        Plaintext,
+        Encrypted,
+        Closed,
+    }
+
+    const int EncryptedRecordHeaderSize = 4;
+    readonly object _encryptionSendLock = new object();
+    NetworkBuffer _decryptedReceiveBuffer = new NetworkBuffer();
+    OutboundProtectionState _outboundProtectionState = OutboundProtectionState.Plaintext;
+    volatile bool _decryptInbound;
+    string[] _offeredEncryptionProviders = Array.Empty<string>();
 
     System.Timers.Timer _keepAliveTimer;
     DateTime? _lastKeepAliveSent;
@@ -140,6 +157,11 @@ public partial class EpConnection : NetworkConnection, IStore
     /// The session related to this connection.
     /// </summary>
     public Session Session => _session;
+
+    /// <summary>
+    /// True after authenticated encryption is active in both directions.
+    /// </summary>
+    public bool IsEncrypted => _session?.EncryptionActive ?? false;
 
     [Export]
     public virtual EpConnectionStatus Status { get; private set; }
@@ -236,8 +258,79 @@ public partial class EpConnection : NetworkConnection, IStore
             Console.WriteLine("Client: {0}", data.Length);
 #endif
 
-        Global.Counters["Ep Sent Packets"]++;
-        base.Send(data);
+        lock (_encryptionSendLock)
+        {
+            if (_outboundProtectionState == OutboundProtectionState.Closed)
+                return;
+
+            Global.Counters["Ep Sent Packets"]++;
+
+            if (_outboundProtectionState == OutboundProtectionState.Encrypted)
+                base.Send(ComposeEncryptedRecord(data));
+            else
+                base.Send(data);
+        }
+    }
+
+    public override void Send(byte[] data, int offset, int length)
+    {
+        if (data == null)
+            throw new ArgumentNullException(nameof(data));
+        if (offset < 0 || length < 0 || offset > data.Length - length)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
+        var message = new byte[length];
+        Buffer.BlockCopy(data, offset, message, 0, length);
+        Send(message);
+    }
+
+    public override AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
+    {
+        if (message == null)
+            throw new ArgumentNullException(nameof(message));
+        if (offset < 0 || length < 0 || offset > message.Length - length)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
+        lock (_encryptionSendLock)
+        {
+            if (_outboundProtectionState == OutboundProtectionState.Closed)
+                return new AsyncReply<bool>(false);
+            if (_outboundProtectionState == OutboundProtectionState.Plaintext)
+                return base.SendAsync(message, offset, length);
+
+            var plaintext = new byte[length];
+            Buffer.BlockCopy(message, offset, plaintext, 0, length);
+            var record = ComposeEncryptedRecord(plaintext);
+            return base.SendAsync(record, 0, record.Length);
+        }
+    }
+
+    byte[] ComposeEncryptedRecord(byte[] plaintext)
+    {
+        var cipher = _session?.SymetricCipher
+            ?? throw new InvalidOperationException("Session encryption is active without a cipher.");
+        var provider = _session.EncryptionProvider
+            ?? throw new InvalidOperationException("Session encryption is active without a provider.");
+        var maximumRecordSize = ParsingWarehouse.Configuration.Encryption.MaximumRecordSize;
+
+        if (maximumRecordSize > 0
+            && (ulong)plaintext.LongLength + provider.MaximumRecordOverhead > maximumRecordSize)
+            throw new ParserLimitException(
+                $"Encrypted record would exceed the {maximumRecordSize}-byte limit.");
+
+        var protectedPayload = cipher.Encrypt(plaintext);
+
+        if (maximumRecordSize > 0 && protectedPayload.Length > maximumRecordSize)
+            throw new InvalidOperationException(
+                $"Encryption provider `{provider.DefaultName}` exceeded its declared record overhead.");
+        if (protectedPayload.Length > int.MaxValue - EncryptedRecordHeaderSize)
+            throw new ParserLimitException("Encrypted record exceeds the runtime allocation limit.");
+
+        var record = new byte[EncryptedRecordHeaderSize + protectedPayload.Length];
+        BinaryPrimitives.WriteUInt32BigEndian(record.AsSpan(0, EncryptedRecordHeaderSize),
+                                              (uint)protectedPayload.Length);
+        Buffer.BlockCopy(protectedPayload, 0, record, EncryptedRecordHeaderSize, protectedPayload.Length);
+        return record;
     }
 
     /// <summary>
@@ -276,6 +369,24 @@ public partial class EpConnection : NetworkConnection, IStore
         if (_authDirection != AuthenticationDirection.Initiator)
             return;
 
+        if (_session.EncryptionMode != EncryptionMode.None)
+        {
+            try
+            {
+                PrepareEncryptionOffer();
+            }
+            catch (Exception ex)
+            {
+                _invalidCredentials = true;
+                FailPendingOpen(new AsyncException(
+                    ErrorType.Management,
+                    0,
+                    ex.Message));
+                Close();
+                return;
+            }
+        }
+
         var headers = _session.LocalHeaders.Copy();
 
         if (_session.AuthenticationMode != AuthenticationMode.None)
@@ -285,21 +396,309 @@ public partial class EpConnection : NetworkConnection, IStore
 
             var initAuthResult = _session.AuthenticationHandler.Process(null);
 
+            if (initAuthResult.Ruling == AuthenticationRuling.Failed)
+                throw new InvalidOperationException("Authentication initialization failed.");
+
+            if (initAuthResult.Ruling == AuthenticationRuling.Succeeded)
+            {
+                SetSessionKey(initAuthResult.SessionKey);
+                _session.LocalIdentity = initAuthResult.LocalIdentity;
+                _session.RemoteIdentity = initAuthResult.RemoteIdentity;
+            }
+
             headers.AuthenticationProtocol = _session.AuthenticationHandler.Protocol;
             headers.AuthenticationData = initAuthResult.AuthenticationData;
             headers.Domain = _remoteDomain;
 
         }
 
-        if (_session.EncryptionMode != EncryptionMode.None)
-        {
-            //@TODO: get the handler
-        }
-
         SendAuthHeaders((EpAuthPacketMethod)(
               (byte)EpAuthPacketMethod.Initialize
-            | (byte)(_session.AuthenticationMode) << 2
-            | (byte)_session.EncryptionMode), headers);
+            | ((byte)_session.AuthenticationMode & 0x3) << 2
+            | ((byte)_session.EncryptionMode & 0x3)), headers);
+    }
+
+    void PrepareEncryptionOffer()
+    {
+        if (_session.AuthenticationMode == AuthenticationMode.None)
+            throw new InvalidOperationException(
+                "Session-key encryption requires an authenticated session.");
+        if (_session.EncryptionMode != EncryptionMode.EncryptWithSessionKey
+            && _session.EncryptionMode != EncryptionMode.EncryptWithSessionKeyAndAddress)
+            throw new InvalidOperationException($"Unsupported encryption mode `{_session.EncryptionMode}`.");
+
+        var warehouse = Instance?.Warehouse ?? _serverWarehouse ?? Warehouse.Default;
+        var configured = _offeredEncryptionProviders ?? Array.Empty<string>();
+        if (configured.Length == 0)
+            configured = warehouse.GetEncryptionProviderNames();
+
+        var offered = configured
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal)
+            .Where(x => warehouse.TryGetEncryptionProvider(x) != null)
+            .ToArray();
+
+        if (offered.Length == 0)
+            throw new InvalidOperationException(
+                "Encryption was requested but none of the offered providers are registered.");
+
+        _offeredEncryptionProviders = offered;
+        _session.LocalHeaders.SupportedCiphers = offered;
+        _session.LocalHeaders.CipherType = null;
+        _session.LocalHeaders.CipherNonce = Global.GenerateBytes(32);
+    }
+
+    bool NegotiateEncryptionAsResponder(SessionHeaders localHeaders)
+    {
+        _session.EncryptionMode = _authPacket.EncryptionMode;
+
+        if (_session.EncryptionMode == EncryptionMode.None)
+        {
+            if (Server?.RequireEncryption == true)
+                return RejectEncryption("This server requires an encrypted authenticated session.");
+
+            return true;
+        }
+
+        if (_session.EncryptionMode != EncryptionMode.EncryptWithSessionKey
+            && _session.EncryptionMode != EncryptionMode.EncryptWithSessionKeyAndAddress)
+            return RejectEncryption("The requested encryption mode is not supported.");
+        if (_authPacket.AuthMode == AuthenticationMode.None)
+            return RejectEncryption("Session-key encryption requires authentication.");
+
+        var offered = _session.RemoteHeaders.SupportedCiphers ?? Array.Empty<string>();
+        var allowed = Server?.AllowedEncryptionProviders ?? Array.Empty<string>();
+        var selected = offered.FirstOrDefault(name =>
+            !string.IsNullOrWhiteSpace(name)
+            && allowed.Contains(name, StringComparer.Ordinal)
+            && _serverWarehouse.TryGetEncryptionProvider(name) != null);
+
+        if (selected == null)
+            return RejectEncryption("No mutually supported encryption provider is available.");
+        if (_session.RemoteHeaders.CipherNonce == null
+            || _session.RemoteHeaders.CipherNonce.Length < 16
+            || _session.RemoteHeaders.CipherNonce.Length > 64)
+            return RejectEncryption("The initiator did not supply a valid cipher nonce.");
+
+        _session.EncryptionProvider = _serverWarehouse.GetEncryptionProvider(selected);
+        _session.LocalHeaders.SupportedCiphers = allowed
+            .Where(name => _serverWarehouse.TryGetEncryptionProvider(name) != null)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        _session.LocalHeaders.CipherType = selected;
+        _session.LocalHeaders.CipherNonce = Global.GenerateBytes(32);
+
+        localHeaders.SupportedCiphers = _session.LocalHeaders.SupportedCiphers;
+        localHeaders.CipherType = selected;
+        localHeaders.CipherNonce = _session.LocalHeaders.CipherNonce;
+        return true;
+    }
+
+    bool AcceptEncryptionAsInitiator()
+    {
+        if (_session.EncryptionMode == EncryptionMode.None)
+            return _session.RemoteHeaders.CipherType == null
+                || RejectEncryption("The responder selected encryption that was not requested.");
+
+        var selected = _session.RemoteHeaders.CipherType;
+        if (string.IsNullOrWhiteSpace(selected)
+            || !_offeredEncryptionProviders.Contains(selected, StringComparer.Ordinal))
+            return RejectEncryption("The responder did not select an offered encryption provider.");
+        if (_session.RemoteHeaders.CipherNonce == null
+            || _session.RemoteHeaders.CipherNonce.Length < 16
+            || _session.RemoteHeaders.CipherNonce.Length > 64)
+            return RejectEncryption("The responder did not supply a valid cipher nonce.");
+
+        var provider = Instance?.Warehouse.TryGetEncryptionProvider(selected);
+        if (provider == null)
+            return RejectEncryption($"Encryption provider `{selected}` is not registered locally.");
+
+        _session.EncryptionProvider = provider;
+        return true;
+    }
+
+    bool RejectEncryption(string message)
+    {
+        _invalidCredentials = true;
+
+        try
+        {
+            SendAuthMessage(EpAuthPacketMethod.ErrorMustEncrypt, message);
+        }
+        catch (Exception ex)
+        {
+            Global.Log("EpConnection:EncryptionNegotiation", LogType.Warning, ex.Message);
+        }
+
+        FailPendingOpen(new AsyncException(ErrorType.Management, 0, message));
+        Task.Delay(100).ContinueWith(_ => Close());
+        return false;
+    }
+
+    void PrepareSessionEncryption()
+    {
+        if (_session.EncryptionMode == EncryptionMode.None || _session.SymetricCipher != null)
+            return;
+        if (_session.Key == null || _session.Key.Length == 0)
+            throw new InvalidOperationException(
+                "The authentication provider did not derive a session key for encryption.");
+        if (_session.EncryptionProvider == null)
+            throw new InvalidOperationException("No encryption provider was negotiated.");
+
+        var initiator = _authDirection == AuthenticationDirection.Initiator;
+        var initiatorNonce = initiator
+            ? _session.LocalHeaders.CipherNonce
+            : _session.RemoteHeaders.CipherNonce;
+        var responderNonce = initiator
+            ? _session.RemoteHeaders.CipherNonce
+            : _session.LocalHeaders.CipherNonce;
+        var initiatorAddress = initiator
+            ? _session.RemoteHeaders.IPAddress
+            : _session.LocalHeaders.IPAddress;
+        var responderAddress = initiator
+            ? _session.LocalHeaders.IPAddress
+            : _session.RemoteHeaders.IPAddress;
+        var offeredProtocols = initiator
+            ? _offeredEncryptionProviders
+            : _session.RemoteHeaders.SupportedCiphers;
+        var authenticationProtocol = initiator
+            ? _session.AuthenticationHandler?.Protocol
+            : _session.RemoteHeaders.AuthenticationProtocol;
+
+        _session.SymetricCipher = _session.EncryptionProvider.CreateCipher(new EncryptionContext
+        {
+            Key = _session.Key,
+            Direction = _authDirection,
+            Mode = _session.EncryptionMode,
+            Protocol = initiator
+                ? _session.RemoteHeaders.CipherType
+                : _session.LocalHeaders.CipherType,
+            OfferedProtocols = offeredProtocols?.ToArray() ?? Array.Empty<string>(),
+            AuthenticationMode = _session.AuthenticationMode,
+            AuthenticationProtocol = authenticationProtocol,
+            Domain = initiator ? _remoteDomain : _session.RemoteHeaders.Domain,
+            InitiatorNonce = initiatorNonce,
+            ResponderNonce = responderNonce,
+            InitiatorAddress = initiatorAddress,
+            ResponderAddress = responderAddress,
+        });
+    }
+
+    void EnableInboundEncryption()
+    {
+        if (_session.SymetricCipher == null)
+            throw new InvalidOperationException("Cannot enable encryption before creating a cipher.");
+
+        lock (_encryptionSendLock)
+        {
+            _decryptInbound = true;
+            _session.EncryptionActive =
+                _outboundProtectionState == OutboundProtectionState.Encrypted;
+        }
+    }
+
+    void EnableEncryption(Action firstProtectedSend = null)
+    {
+        if (_session.SymetricCipher == null)
+            throw new InvalidOperationException("Cannot enable encryption before creating a cipher.");
+
+        lock (_encryptionSendLock)
+        {
+            _decryptInbound = true;
+            _outboundProtectionState = OutboundProtectionState.Encrypted;
+            _session.EncryptionActive = true;
+            firstProtectedSend?.Invoke();
+        }
+    }
+
+    void SendPlaintextAndEnableEncryption(Action finalPlaintextSend, Action firstProtectedSend)
+    {
+        if (_session.SymetricCipher == null)
+            throw new InvalidOperationException("Cannot enable encryption before creating a cipher.");
+
+        lock (_encryptionSendLock)
+        {
+            finalPlaintextSend();
+            _decryptInbound = true;
+            _outboundProtectionState = OutboundProtectionState.Encrypted;
+            _session.EncryptionActive = true;
+            firstProtectedSend();
+        }
+    }
+
+    void SetSessionKey(byte[] key)
+    {
+        // Authentication providers own their result buffers. Keep a private copy so
+        // disconnect cleanup cannot erase a provider-wide or cached shared secret.
+        var replacement = key == null ? null : (byte[])key.Clone();
+        if (_session.Key != null)
+            Array.Clear(_session.Key, 0, _session.Key.Length);
+        _session.Key = replacement;
+    }
+
+    void CompletePendingOpen()
+    {
+        var pending = Interlocked.Exchange(ref _openReply, null);
+        if (pending == null)
+            return;
+
+        try
+        {
+            pending.Trigger(true);
+        }
+        catch (Exception ex)
+        {
+            Global.Log(ex);
+        }
+    }
+
+    void FailPendingOpen(Exception exception)
+    {
+        var pending = Interlocked.Exchange(ref _openReply, null);
+        if (pending == null)
+            return;
+
+        try
+        {
+            pending.TriggerError(exception);
+        }
+        catch (Exception ex)
+        {
+            Global.Log(ex);
+        }
+    }
+
+    void BeginPlaintextHandshake()
+    {
+        lock (_encryptionSendLock)
+        {
+            _outboundProtectionState = OutboundProtectionState.Plaintext;
+            _decryptInbound = false;
+            _decryptedReceiveBuffer = new NetworkBuffer();
+            if (_session != null)
+                _session.EncryptionActive = false;
+        }
+    }
+
+    void DisposeSessionEncryption()
+    {
+        lock (_encryptionSendLock)
+        {
+            _outboundProtectionState = OutboundProtectionState.Closed;
+            _decryptInbound = false;
+            _decryptedReceiveBuffer = new NetworkBuffer();
+
+            if (_session?.SymetricCipher is IDisposable disposable)
+                disposable.Dispose();
+
+            if (_session != null)
+            {
+                _session.SymetricCipher = null;
+                _session.EncryptionProvider = null;
+                _session.EncryptionActive = false;
+                SetSessionKey(null);
+            }
+        }
     }
 
     /// <summary>
@@ -454,6 +853,7 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         TerminateInvocations();
         UnsubscribeAll();
+        DisposeSessionEncryption();
         this.OnReady = null;
         this.OnError = null;
         base.Destroy();
@@ -736,7 +1136,11 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
 
                     _session.RemoteHeaders = remoteHeaders;
+                    _session.AuthenticationMode = _authPacket.AuthMode;
                     var localHeaders = _session.LocalHeaders.Copy();
+
+                    if (!NegotiateEncryptionAsResponder(localHeaders))
+                        return offset;
 
                     if (_authPacket.AuthMode == AuthenticationMode.None)
                     {
@@ -807,14 +1211,35 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
                     else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                     {
-                        SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
-
                         _session.Authenticated = true;
                         _session.LocalIdentity = authResult.LocalIdentity;
                         _session.RemoteIdentity = authResult.RemoteIdentity;
-                        _session.Key = authResult.SessionKey;
+                        SetSessionKey(authResult.SessionKey);
 
-                        AuthenticatonCompleted();
+                        try
+                        {
+                            PrepareSessionEncryption();
+                        }
+                        catch (Exception ex)
+                        {
+                            RejectEncryption(ex.Message);
+                            return offset;
+                        }
+
+                        AuthenticatonCompleted(() =>
+                        {
+                            // The initiator needs the selected provider and responder nonce
+                            // before it can construct its cipher, so this acknowledgement is
+                            // intentionally the final plaintext packet in a one-step handshake.
+                            if (_session.EncryptionMode != EncryptionMode.None)
+                            {
+                                SendPlaintextAndEnableEncryption(
+                                    () => SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders),
+                                    () => SendAuth(EpAuthPacketMethod.Established));
+                            }
+                            else
+                                SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
+                        });
                     }
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Acknowledge)
@@ -829,8 +1254,66 @@ public partial class EpConnection : NetworkConnection, IStore
                         _session.Authenticated = true;
                         _session.LocalIdentity = null;
                         _session.RemoteIdentity = null;
-                        _session.Key = null;
+                        SetSessionKey(null);
                         AuthenticatonCompleted();
+                        return offset;
+                    }
+
+                    if (_session.AuthenticationMode != AuthenticationMode.None
+                        && _authPacket.Method == EpAuthPacketMethod.SessionEstablished)
+                    {
+                        var remoteHeaders = new SessionHeaders();
+                        object remoteAuthData = null;
+
+                        if (_authPacket.Tdu != null)
+                        {
+                            remoteHeaders = Codec.ParseIndexedType<SessionHeaders>(
+                                _authPacket.Tdu.Value,
+                                Instance.Warehouse);
+                            remoteAuthData = remoteHeaders.AuthenticationData;
+                            remoteHeaders.AuthenticationData = null;
+                        }
+
+                        _session.RemoteHeaders = remoteHeaders;
+                        if (!AcceptEncryptionAsInitiator())
+                            return offset;
+
+                        if (_session.Key == null)
+                        {
+                            var authResult = _session.AuthenticationHandler.Process(remoteAuthData);
+                            if (authResult.Ruling != AuthenticationRuling.Succeeded)
+                            {
+                                _invalidCredentials = true;
+                                FailPendingOpen(new AsyncException(
+                                    ErrorType.Management,
+                                    0,
+                                    "Authentication did not produce a session key."));
+                                Task.Delay(100).ContinueWith(_ => Close());
+                                return offset;
+                            }
+
+                            SetSessionKey(authResult.SessionKey);
+                            _session.LocalIdentity = authResult.LocalIdentity;
+                            _session.RemoteIdentity = authResult.RemoteIdentity;
+                        }
+
+                        _session.Authenticated = true;
+
+                        try
+                        {
+                            PrepareSessionEncryption();
+                            if (_session.EncryptionMode != EncryptionMode.None)
+                                EnableInboundEncryption();
+                        }
+                        catch (Exception ex)
+                        {
+                            RejectEncryption(ex.Message);
+                            return offset;
+                        }
+
+                        if (_session.EncryptionMode == EncryptionMode.None)
+                            AuthenticatonCompleted();
+
                         return offset;
                     }
 
@@ -851,6 +1334,9 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         _session.RemoteHeaders = remoteHeaders;
 
+                        if (!AcceptEncryptionAsInitiator())
+                            return offset;
+
                         if (_session.AuthenticationMode == AuthenticationMode.None)
                         {
                             if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
@@ -858,7 +1344,7 @@ public partial class EpConnection : NetworkConnection, IStore
                                 _session.Authenticated = true;
                                 _session.LocalIdentity = null;
                                 _session.RemoteIdentity = null;
-                                _session.Key = null;
+                                SetSessionKey(null);
                                 AuthenticatonCompleted();
                             }
                             else
@@ -894,13 +1380,26 @@ public partial class EpConnection : NetworkConnection, IStore
                         else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                         {
                             _session.Authenticated = true;
-                            _session.Key = authResult.SessionKey;
+                            SetSessionKey(authResult.SessionKey);
                             _session.LocalIdentity = authResult.LocalIdentity;
                             _session.RemoteIdentity = authResult.RemoteIdentity;
+
+                            try
+                            {
+                                PrepareSessionEncryption();
+                            }
+                            catch (Exception ex)
+                            {
+                                RejectEncryption(ex.Message);
+                                return offset;
+                            }
 
                             // send final handshake with data
                             SendAuthData(EpAuthPacketMethod.FinalHandshake,
                                         authResult.AuthenticationData);
+
+                            if (_session.EncryptionMode != EncryptionMode.None)
+                                EnableInboundEncryption();
 
                             //if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
                             //{
@@ -929,7 +1428,10 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         _invalidCredentials = true;
                         OnError?.Invoke(this, _authPacket.ErrorCode, errorMessage);
-                        _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
+                        FailPendingOpen(new AsyncException(
+                            ErrorType.Management,
+                            _authPacket.ErrorCode,
+                            errorMessage));
 
                     }
                 }
@@ -962,21 +1464,53 @@ public partial class EpConnection : NetworkConnection, IStore
                         else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                         {
                             _session.Authenticated = true;
-                            _session.Key = authResult.SessionKey;
+                            SetSessionKey(authResult.SessionKey);
                             _session.LocalIdentity = authResult.LocalIdentity;
                             _session.RemoteIdentity = authResult.RemoteIdentity;
-
-                            if (authResult.AuthenticationData != null)
-                            {
-                                SendAuthData(EpAuthPacketMethod.FinalHandshake, authResult.AuthenticationData);
-                            }
 
                             if (_authDirection == AuthenticationDirection.Responder
                                 && _authPacket.Method == EpAuthPacketMethod.FinalHandshake)
                             {
-                                // Send established event
-                                SendAuth(EpAuthPacketMethod.Established);
-                                AuthenticatonCompleted();
+                                try
+                                {
+                                    PrepareSessionEncryption();
+                                }
+                                catch (Exception ex)
+                                {
+                                    RejectEncryption(ex.Message);
+                                    return offset;
+                                }
+
+                                // Registration and receive readiness must complete before the
+                                // initiator is allowed to send its first application request.
+                                AuthenticatonCompleted(() =>
+                                {
+                                    if (_session.EncryptionMode != EncryptionMode.None)
+                                    {
+                                        EnableEncryption(() =>
+                                        {
+                                            if (authResult.AuthenticationData != null)
+                                                SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                                                             authResult.AuthenticationData);
+
+                                            // The completion packet is protected and confirms that
+                                            // both peers derived the same transcript-bound key.
+                                            SendAuth(EpAuthPacketMethod.Established);
+                                        });
+                                    }
+                                    else
+                                    {
+                                        if (authResult.AuthenticationData != null)
+                                            SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                                                         authResult.AuthenticationData);
+                                        SendAuth(EpAuthPacketMethod.Established);
+                                    }
+                                });
+                            }
+                            else if (authResult.AuthenticationData != null)
+                            {
+                                SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                                             authResult.AuthenticationData);
                             }
 
                         }
@@ -998,7 +1532,10 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         _invalidCredentials = true;
                         OnError?.Invoke(this, _authPacket.ErrorCode, errorMessage);
-                        _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
+                        FailPendingOpen(new AsyncException(
+                            ErrorType.Management,
+                            _authPacket.ErrorCode,
+                            errorMessage));
 
                         Task.Delay(100).ContinueWith(x => Close());
                     }
@@ -1006,13 +1543,16 @@ public partial class EpConnection : NetworkConnection, IStore
                     {
                         if (_session.Authenticated)
                         {
+                            if (_session.EncryptionMode != EncryptionMode.None)
+                                EnableEncryption();
+
                             AuthenticatonCompleted();
                         }
                         else
                         {
                             _invalidCredentials = true;
                             OnError?.Invoke(this, _authPacket.ErrorCode, "Authentication error.");
-                            _openReply?.TriggerError(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
+                            FailPendingOpen(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
                             Task.Delay(100).ContinueWith(x => Close());
                         }
                     }
@@ -1031,7 +1571,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
 
-    void AuthenticatonCompleted()
+    void AuthenticatonCompleted(Action beforeReady = null)
     {
 
         if (this.Instance == null)
@@ -1043,9 +1583,9 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     _authenticated = true;
 
+                    beforeReady?.Invoke();
                     Status = EpConnectionStatus.Connected;
-                    _openReply?.Trigger(true);
-                    _openReply = null;
+                    CompletePendingOpen();
                     OnReady?.Invoke(this);
 
                     _session.AuthenticationHandler?.Provider?.Login(_session);
@@ -1054,13 +1594,13 @@ public partial class EpConnection : NetworkConnection, IStore
 
                 }).Error(x =>
                 {
-                    _openReply?.TriggerError(x);
-                    _openReply = null;
+                    FailPendingOpen(x);
                 });
         }
         else
         {
             _authenticated = true;
+            beforeReady?.Invoke();
             Status = EpConnectionStatus.Connected;
 
             _session.AuthenticationHandler?.Provider?.Login(_session);
@@ -1095,25 +1635,22 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         bag.Then((o) =>
                         {
-                            _openReply?.Trigger(true);
-                            _openReply = null;
+                            CompletePendingOpen();
                         });
                     }).Error(ex =>
                     {
-                        _openReply.TriggerError(ex);
+                        FailPendingOpen(ex);
                         // do nothing, proxies won't work but connection is established
                     });
                 }
                 else
                 {
-                    _openReply?.Trigger(true);
-                    _openReply = null;
+                    CompletePendingOpen();
                 }
             }
             else
             {
-                _openReply?.Trigger(true);
-                _openReply = null;
+                CompletePendingOpen();
             }
 
         }
@@ -1814,34 +2351,143 @@ public partial class EpConnection : NetworkConnection, IStore
     protected override void DataReceived(NetworkBuffer data)
     {
         var msg = data.Read();
-        uint offset = 0;
-        uint ends = (uint)msg.Length;
-
-        var packs = new List<string>();
-
-        var chunkId = (new Random()).Next(1000, 1000000);
+        if (msg == null)
+            return;
 
         this.Socket.Hold();
 
         try
         {
-            while (offset < ends)
-            {
-                offset = processPacket(msg, offset, ends, data, chunkId);
-            }
+            if (_decryptInbound)
+                ProcessEncryptedRecords(msg, data);
+            else
+                ProcessPlainPackets(msg, data);
         }
         catch (ParserLimitException ex)
         {
+            _invalidCredentials = true;
             Global.Log("EpConnection:ParserLimit", LogType.Warning, ex.Message);
+            FailPendingOpen(new AsyncException(
+                ErrorType.Management,
+                0,
+                "Session establishment exceeded a configured parser limit."));
+            Close();
+        }
+        catch (CryptographicException ex)
+        {
+            _invalidCredentials = true;
+            Global.Log("EpConnection:Encryption", LogType.Warning, ex.Message);
+            FailPendingOpen(new AsyncException(
+                ErrorType.Management,
+                0,
+                "Encrypted session validation failed."));
+            Close();
+        }
+        catch (InvalidDataException ex)
+        {
+            _invalidCredentials = true;
+            Global.Log("EpConnection:Encryption", LogType.Warning, ex.Message);
+            FailPendingOpen(new AsyncException(
+                ErrorType.Management,
+                0,
+                "Encrypted session framing is invalid."));
             Close();
         }
         catch (Exception ex)
         {
             Global.Log(ex);
+            if (_decryptInbound)
+            {
+                _invalidCredentials = true;
+                FailPendingOpen(new AsyncException(
+                    ErrorType.Management,
+                    0,
+                    "Encrypted session processing failed."));
+                Close();
+            }
         }
         finally
         {
             this.Socket?.Unhold();
+        }
+    }
+
+    void ProcessPlainPackets(byte[] msg, NetworkBuffer holdingBuffer)
+    {
+        uint offset = 0;
+        var ends = (uint)msg.Length;
+        var chunkId = (new Random()).Next(1000, 1000000);
+
+        while (offset < ends)
+        {
+            var encryptionWasEnabled = _decryptInbound;
+            offset = processPacket(msg, offset, ends, holdingBuffer, chunkId);
+
+            // A handshake packet may switch the remainder of the same socket read to
+            // encrypted records. Preserve that boundary even when TCP coalesces writes.
+            if (!encryptionWasEnabled && _decryptInbound && offset < ends)
+            {
+                var remaining = new byte[ends - offset];
+                Buffer.BlockCopy(msg, (int)offset, remaining, 0, remaining.Length);
+                ProcessEncryptedRecords(remaining, holdingBuffer);
+                return;
+            }
+        }
+    }
+
+    void ProcessEncryptedRecords(byte[] data, NetworkBuffer holdingBuffer)
+    {
+        uint offset = 0;
+        var ends = (uint)data.Length;
+
+        while (offset < ends)
+        {
+            var remaining = ends - offset;
+            if (remaining < EncryptedRecordHeaderSize)
+            {
+                holdingBuffer.HoldFor(data, offset, remaining, EncryptedRecordHeaderSize);
+                return;
+            }
+
+            var protectedLength = BinaryPrimitives.ReadUInt32BigEndian(
+                data.AsSpan((int)offset, EncryptedRecordHeaderSize));
+            var maximumRecordSize = ParsingWarehouse.Configuration.Encryption.MaximumRecordSize;
+
+            if (maximumRecordSize > 0 && protectedLength > maximumRecordSize)
+                throw new ParserLimitException(
+                    $"Encrypted record of {protectedLength} bytes exceeds the {maximumRecordSize}-byte limit.");
+            if (protectedLength > int.MaxValue)
+                throw new ParserLimitException("Encrypted record exceeds the runtime allocation limit.");
+            if (protectedLength > uint.MaxValue - EncryptedRecordHeaderSize)
+                throw new InvalidDataException("Encrypted record length is invalid.");
+
+            var totalLength = protectedLength + EncryptedRecordHeaderSize;
+            if (remaining < totalLength)
+            {
+                holdingBuffer.HoldFor(data, offset, remaining, totalLength);
+                return;
+            }
+
+            var protectedPayload = new byte[(int)protectedLength];
+            Buffer.BlockCopy(data,
+                             (int)offset + EncryptedRecordHeaderSize,
+                             protectedPayload,
+                             0,
+                             protectedPayload.Length);
+
+            var cipher = _session?.SymetricCipher
+                ?? throw new InvalidDataException("Encrypted data arrived before cipher initialization.");
+            var plaintext = cipher.Decrypt(protectedPayload);
+            _decryptedReceiveBuffer.Write(plaintext);
+
+            while (_decryptedReceiveBuffer.Available > 0 && !_decryptedReceiveBuffer.Protected)
+            {
+                var plainPacket = _decryptedReceiveBuffer.Read();
+                if (plainPacket != null)
+                    ProcessPlainPackets(plainPacket, _decryptedReceiveBuffer);
+            }
+
+            offset += totalLength;
         }
     }
 
@@ -1901,6 +2547,8 @@ public partial class EpConnection : NetworkConnection, IStore
                 }
 
                 _session.AuthenticationMode = epContext.AuthenticationMode;
+                _session.EncryptionMode = epContext.EncryptionMode;
+                _offeredEncryptionProviders = epContext.EncryptionProviders ?? Array.Empty<string>();
                 _session.LocalIdentity = epContext.Identity;
                 ReconnectInterval = epContext.ReconnectInterval;
                 ExceptionLevel = epContext.ExceptionLevel;
@@ -1928,18 +2576,20 @@ public partial class EpConnection : NetworkConnection, IStore
 
     public AsyncReply<bool> Connect(ISocket socket = null, string hostname = null, ushort port = 0, string domain = null)
     {
-        if (_openReply != null)
+        if (IsConnected || Status == EpConnectionStatus.Connected)
+            throw new AsyncException(ErrorType.Exception, 0, "Connection is already established");
+        var openReply = new AsyncReply<bool>();
+        if (Interlocked.CompareExchange(ref _openReply, openReply, null) != null)
             throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
 
         Status = EpConnectionStatus.Connecting;
-
-        _openReply = new AsyncReply<bool>();
 
         // set auth direction to initiator
         _authDirection = AuthenticationDirection.Initiator;
 
         if (hostname != null)
         {
+            DisposeSessionEncryption();
             _session = new Session();
             _authDirection = AuthenticationDirection.Initiator;
             _invalidCredentials = false;
@@ -1954,6 +2604,8 @@ public partial class EpConnection : NetworkConnection, IStore
         if (_session == null)
             throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
 
+        BeginPlaintextHandshake();
+
         if (socket == null)
         {
             var os = RuntimeInformation.FrameworkDescription;
@@ -1966,7 +2618,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
         connectSocket(socket);
 
-        return _openReply;
+        return openReply;
     }
 
     void connectSocket(ISocket socket)
@@ -1983,8 +2635,7 @@ public partial class EpConnection : NetworkConnection, IStore
             }
             else
             {
-                _openReply.TriggerError(x);
-                _openReply = null;
+                FailPendingOpen(x);
             }
         });
 
@@ -2107,9 +2758,17 @@ public partial class EpConnection : NetworkConnection, IStore
     protected override void Disconnected()
     {
         // clean up
+        var wasAuthenticated = _authenticated || (_session?.Authenticated ?? false);
         TerminateInvocations();
+        DisposeSessionEncryption();
         _authenticated = false;
+        if (_session != null)
+            _session.Authenticated = false;
         Status = EpConnectionStatus.Closed;
+        FailPendingOpen(new AsyncException(
+            ErrorType.Management,
+            0,
+            "Connection closed before session establishment completed."));
 
         _keepAliveTimer.Stop();
 
@@ -2176,7 +2835,7 @@ public partial class EpConnection : NetworkConnection, IStore
             UnsubscribeAll();
             Instance?.Warehouse?.Remove(this);
 
-            if (_authenticated)
+            if (wasAuthenticated)
             {
                 _session.AuthenticationHandler?.Provider.Logout(_session);
                 //Server.Membership?.Logout(_session);

@@ -33,10 +33,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Esiur.Data.Types;
+using Esiur.Security.Management;
 
 namespace Esiur.Security.Permissions;
 
-public interface IPermissionsManager
+public interface IPermissionsManager : IResourceManager
 {
     /// <summary>
     /// Check for permission.

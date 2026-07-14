@@ -90,9 +90,12 @@ public class IndexedStructureTests
         {
             Version = (byte)3,
             Domain = "example.test",
+            SupportedCiphers = new[] { "aes-gcm" },
+            CipherType = "aes-gcm",
             IPAddress = new byte[] { 127, 0, 0, 1 },
             AuthenticationProtocol = "hash",
             AuthenticationData = new byte[] { 1, 2, 3 },
+            CipherNonce = Enumerable.Range(0, 32).Select(x => (byte)x).ToArray(),
         };
 
         var bytes = Codec.ComposeIndexedType(source, Warehouse.Default, null);
@@ -100,9 +103,12 @@ public class IndexedStructureTests
         {
             [(byte)EpAuthPacketHeader.Version] = source.Version,
             [(byte)EpAuthPacketHeader.Domain] = source.Domain,
+            [(byte)EpAuthPacketHeader.SupportedCiphers] = source.SupportedCiphers,
+            [(byte)EpAuthPacketHeader.CipherType] = source.CipherType,
             [(byte)EpAuthPacketHeader.IPAddress] = source.IPAddress,
             [(byte)EpAuthPacketHeader.AuthenticationProtocol] = source.AuthenticationProtocol,
             [(byte)EpAuthPacketHeader.AuthenticationData] = source.AuthenticationData,
+            [(byte)EpAuthPacketHeader.CipherNonce] = source.CipherNonce,
         }, Warehouse.Default, null);
         var (_, raw) = Codec.ParseSync(bytes, 0, Warehouse.Default);
         var map = Assert.IsType<Map<byte, object>>(raw);
@@ -116,6 +122,9 @@ public class IndexedStructureTests
         Assert.Equal(source.IPAddress, parsed.IPAddress);
         Assert.Equal(source.AuthenticationProtocol, parsed.AuthenticationProtocol);
         Assert.Equal(source.AuthenticationData, parsed.AuthenticationData);
+        Assert.Equal(source.SupportedCiphers, parsed.SupportedCiphers);
+        Assert.Equal(source.CipherType, parsed.CipherType);
+        Assert.Equal(source.CipherNonce, parsed.CipherNonce);
     }
 
     private sealed class InvalidStructure : IndexedStructure

@@ -59,6 +59,17 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     //[Attribute]
     public string[] AllowedAuthenticationProviders { get; set; }
 
+    /// <summary>
+    /// Encryption provider protocol names that incoming connections may negotiate.
+    /// Providers must also be registered with the server Warehouse.
+    /// </summary>
+    public string[] AllowedEncryptionProviders { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Rejects incoming sessions that do not request authenticated encryption.
+    /// </summary>
+    public bool RequireEncryption { get; set; }
+
     //[Attribute]
     public bool AllowUnauthorizedAccess { get; set; }
 

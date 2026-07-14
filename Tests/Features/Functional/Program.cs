@@ -28,6 +28,7 @@ using Esiur.Data.Types;
 using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Cryptography;
 using Esiur.Security.Permissions;
 using Esiur.Security.RateLimiting;
 using Esiur.Stores;
@@ -57,6 +58,7 @@ internal static class Program
             var service = await StartServer(serverWarehouse, port);
 
             connection = await ConnectClient(clientWarehouse, port);
+            Require(connection.IsEncrypted, "Authenticated connection did not enable AES encryption.");
             var remote = await connection.Get("sys/service") as EpResource
                 ?? throw new InvalidOperationException("Remote service was not found.");
 
@@ -78,6 +80,7 @@ internal static class Program
     static async Task<MyService> StartServer(Warehouse warehouse, ushort port)
     {
         warehouse.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
+        warehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
         warehouse.Configuration.Parser.MaximumPacketSize = 8 * 1024 * 1024;
         warehouse.Configuration.Parser.MaximumAllocationSize = 4 * 1024 * 1024;
         warehouse.Configuration.Parser.MaximumCollectionItems = 65_536;
@@ -103,6 +106,8 @@ internal static class Program
         {
             Port = port,
             AllowedAuthenticationProviders = new[] { "hash" },
+            AllowedEncryptionProviders = new[] { AesEncryptionProvider.Name },
+            RequireEncryption = true,
         });
 
         var service = await warehouse.Put("sys/service", new MyService());
@@ -145,6 +150,7 @@ internal static class Program
     static async Task<EpConnection> ConnectClient(Warehouse warehouse, ushort port)
     {
         warehouse.RegisterAuthenticationProvider(new ClientAuthenticationProvider());
+        warehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
         warehouse.Configuration.ResourceAttachments.MaximumAttachedResourcesPerConnection = 4_096;
         warehouse.Configuration.ResourceAttachments.MaximumPendingAttachmentsPerConnection = 128;
 
@@ -155,6 +161,8 @@ internal static class Program
             Identity = "tester",
             AuthenticationProtocol = "hash",
             Domain = "test",
+            EncryptionMode = EncryptionMode.EncryptWithSessionKey,
+            EncryptionProviders = new[] { AesEncryptionProvider.Name },
         });
     }
 

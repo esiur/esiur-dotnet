@@ -30,6 +30,7 @@ using Esiur.Net.Packets;
 using Esiur.Protocol;
 using Esiur.Proxy;
 using Esiur.Security.Authority;
+using Esiur.Security.Cryptography;
 using Esiur.Security.Permissions;
 using Esiur.Security.RateLimiting;
 using Org.BouncyCastle.Asn1.Cms;
@@ -88,6 +89,8 @@ public class Warehouse
 
 
     Map<string, IAuthenticationProvider> _authenticationProviders = new Map<string, IAuthenticationProvider>();
+    readonly ConcurrentDictionary<string, IEncryptionProvider> _encryptionProviders
+        = new ConcurrentDictionary<string, IEncryptionProvider>(StringComparer.Ordinal);
     List<IPermissionsManager> _permissionsManagers = new List<IPermissionsManager>();
     readonly ConcurrentDictionary<string, RatePolicy> _ratePolicies
         = new ConcurrentDictionary<string, RatePolicy>(StringComparer.Ordinal);
@@ -121,6 +124,30 @@ public class Warehouse
     public void RegisterAuthenticationProvider(string name, IAuthenticationProvider provider)
     {
         _authenticationProviders.Add(name, provider);
+    }
+
+    /// <summary>
+    /// Registers an encryption provider using its default protocol name.
+    /// </summary>
+    public void RegisterEncryptionProvider(IEncryptionProvider provider)
+    {
+        if (provider == null)
+            throw new ArgumentNullException(nameof(provider));
+
+        RegisterEncryptionProvider(provider.DefaultName, provider);
+    }
+
+    /// <summary>
+    /// Registers an encryption provider under a protocol name used during session negotiation.
+    /// </summary>
+    public void RegisterEncryptionProvider(string name, IEncryptionProvider provider)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("An encryption provider name is required.", nameof(name));
+        if (provider == null)
+            throw new ArgumentNullException(nameof(provider));
+        if (!_encryptionProviders.TryAdd(name, provider))
+            throw new InvalidOperationException($"An encryption provider named `{name}` is already registered.");
     }
 
 
@@ -178,6 +205,32 @@ public class Warehouse
 
         return null;
     }
+
+    /// <summary>
+    /// Gets a registered encryption provider or throws when the protocol is unavailable.
+    /// </summary>
+    public IEncryptionProvider GetEncryptionProvider(string name)
+    {
+        if (TryGetEncryptionProvider(name) is { } provider)
+            return provider;
+
+        throw new InvalidOperationException($"Encryption provider `{name}` was not found.");
+    }
+
+    /// <summary>
+    /// Attempts to get a registered encryption provider by protocol name.
+    /// </summary>
+    public IEncryptionProvider? TryGetEncryptionProvider(string name)
+        => !string.IsNullOrWhiteSpace(name)
+            && _encryptionProviders.TryGetValue(name, out var provider)
+                ? provider
+                : null;
+
+    /// <summary>
+    /// Returns a snapshot of encryption protocol names registered in this Warehouse.
+    /// </summary>
+    public string[] GetEncryptionProviderNames()
+        => _encryptionProviders.Keys.OrderBy(x => x, StringComparer.Ordinal).ToArray();
 
 
     public Warehouse() : this(new WarehouseConfiguration())

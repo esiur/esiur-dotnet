@@ -11,6 +11,16 @@ public sealed class WarehouseConfiguration
     public ParserConfiguration Parser { get; set; } = new ParserConfiguration();
     public ResourceAttachmentConfiguration ResourceAttachments { get; set; } = new ResourceAttachmentConfiguration();
     public ConnectionConfiguration Connections { get; set; } = new ConnectionConfiguration();
+    public EncryptionConfiguration Encryption { get; set; } = new EncryptionConfiguration();
+}
+
+/// <summary>
+/// Bounds encrypted transport records before any peer-controlled allocation occurs.
+/// A value of zero disables the limit.
+/// </summary>
+public sealed class EncryptionConfiguration
+{
+    public uint MaximumRecordSize { get; set; } = 8 * 1024 * 1024 + 1024;
 }
 
 /// <summary>

@@ -55,7 +55,7 @@ public sealed class SessionHeaders : IndexedStructure
     public object? SupportedHashAlgorithms { get; set; }
 
     [Index((int)EpAuthPacketHeader.SupportedCiphers)]
-    public object? SupportedCiphers { get; set; }
+    public string[]? SupportedCiphers { get; set; }
 
     [Index((int)EpAuthPacketHeader.SupportedCompression)]
     public object? SupportedCompression { get; set; }
@@ -64,7 +64,7 @@ public sealed class SessionHeaders : IndexedStructure
     public object? SupportedMultiFactorAuthentications { get; set; }
 
     [Index((int)EpAuthPacketHeader.CipherType)]
-    public object? CipherType { get; set; }
+    public string? CipherType { get; set; }
 
     [Index((int)EpAuthPacketHeader.CipherKey)]
     public byte[]? CipherKey { get; set; }
@@ -93,6 +93,13 @@ public sealed class SessionHeaders : IndexedStructure
     [Index((int)EpAuthPacketHeader.ErrorMessage)]
     public string? ErrorMessage { get; set; }
 
+    /// <summary>
+    /// Fresh public nonce used with the authenticated session key to derive unique
+    /// per-connection encryption keys. This value is not a secret key.
+    /// </summary>
+    [Index((int)EpAuthPacketHeader.CipherNonce)]
+    public byte[]? CipherNonce { get; set; }
+
     internal SessionHeaders Copy() => (SessionHeaders)MemberwiseClone();
 }
 
@@ -107,6 +114,8 @@ public class Session
 
     //public IKeyExchanger KeyExchanger { get; set; } = null;
     public ISymetricCipher SymetricCipher { get; set; } = null;
+    public IEncryptionProvider EncryptionProvider { get; set; } = null;
+    public bool EncryptionActive { get; internal set; }
 
 
     public SessionHeaders LocalHeaders { get; set; } = new SessionHeaders();

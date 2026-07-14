@@ -6,6 +6,7 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Security.Authority.Providers;
+using Esiur.Security.Cryptography;
 using Esiur.Stores;
 
 namespace Esiur.Tests.Unit.Integration;
@@ -32,6 +33,50 @@ internal class TestClientAuthProvider : PasswordAuthenticationProvider
         => domain == "test"
             ? new IdentityPassword { Identity = "tester", Password = new byte[] { 1, 2, 3, 4, 5 } }
             : new IdentityPassword { Identity = null, Password = null };
+}
+
+internal sealed class OneStepAuthenticationProvider : IAuthenticationProvider
+{
+    readonly byte _keyMarker;
+
+    public OneStepAuthenticationProvider(byte keyMarker = 0)
+        => _keyMarker = keyMarker;
+
+    public string DefaultName => "one-step";
+
+    public IAuthenticationHandler CreateAuthenticationHandler(AuthenticationContext context)
+        => new OneStepAuthenticationHandler(this, _keyMarker);
+
+    public AsyncReply<bool> Login(Session session) => new AsyncReply<bool>(true);
+    public AsyncReply<bool> Logout(Session session) => new AsyncReply<bool>(true);
+}
+
+internal sealed class OneStepAuthenticationHandler : IAuthenticationHandler
+{
+    static readonly byte[] SharedKey = Enumerable.Range(1, 64).Select(x => (byte)x).ToArray();
+    readonly OneStepAuthenticationProvider _provider;
+    readonly byte _keyMarker;
+
+    public OneStepAuthenticationHandler(OneStepAuthenticationProvider provider, byte keyMarker)
+    {
+        _provider = provider;
+        _keyMarker = keyMarker;
+    }
+
+    public IAuthenticationProvider Provider => _provider;
+    public string Protocol => _provider.DefaultName;
+
+    public AuthenticationResult Process(object authData)
+    {
+        var key = (byte[])SharedKey.Clone();
+        key[0] ^= _keyMarker;
+        return new AuthenticationResult(
+            AuthenticationRuling.Succeeded,
+            null,
+            "tester",
+            "server",
+            key);
+    }
 }
 
 /// <summary>
@@ -61,18 +106,37 @@ internal sealed class IntegrationCluster : IAsyncDisposable
     /// Builds a server hosting resources under "sys/&lt;rootPath&gt;" populated by
     /// <paramref name="populate"/>, opens it, then connects an authenticated client.
     /// </summary>
-    public static async Task<IntegrationCluster> StartAsync(Func<Warehouse, Task> populate)
+    public static async Task<IntegrationCluster> StartAsync(
+        Func<Warehouse, Task> populate,
+        bool encrypted = false,
+        bool requireEncryption = false,
+        EncryptionMode encryptionMode = EncryptionMode.EncryptWithSessionKey,
+        bool allowEncryption = true,
+        bool oneStepAuthentication = false,
+        bool useWebSocket = false,
+        bool mismatchedSessionKeys = false)
     {
         var port = Interlocked.Increment(ref _portCounter);
 
         var serverWh = new Warehouse();
-        serverWh.RegisterAuthenticationProvider(new TestServerAuthProvider());
+        serverWh.RegisterAuthenticationProvider(oneStepAuthentication
+            ? new OneStepAuthenticationProvider()
+            : new TestServerAuthProvider());
+        if (encrypted || requireEncryption)
+            serverWh.RegisterEncryptionProvider(new AesEncryptionProvider());
 
         await serverWh.Put("sys", new MemoryStore());
         var server = await serverWh.Put("sys/server", new EpServer
         {
             Port = (ushort)port,
-            AllowedAuthenticationProviders = new[] { "hash" },
+            AllowedAuthenticationProviders = new[]
+            {
+                oneStepAuthentication ? "one-step" : "hash",
+            },
+            AllowedEncryptionProviders = (encrypted || requireEncryption) && allowEncryption
+                ? new[] { AesEncryptionProvider.Name }
+                : Array.Empty<string>(),
+            RequireEncryption = requireEncryption,
         });
 
         await populate(serverWh);
@@ -81,18 +145,38 @@ internal sealed class IntegrationCluster : IAsyncDisposable
 
         var cluster = new IntegrationCluster(serverWh, server, port);
 
-        cluster.ClientWarehouse.RegisterAuthenticationProvider(new TestClientAuthProvider());
-        cluster.Connection = await cluster.ClientWarehouse.Get<EpConnection>(
-            $"ep://localhost:{port}",
-            new EpConnectionContext
-            {
-                AuthenticationMode = AuthenticationMode.InitializerIdentity,
-                Identity = "tester",
-                AuthenticationProtocol = "hash",
-                Domain = "test",
-            });
+        cluster.ClientWarehouse.RegisterAuthenticationProvider(oneStepAuthentication
+            ? new OneStepAuthenticationProvider(mismatchedSessionKeys ? (byte)0x80 : (byte)0)
+            : new TestClientAuthProvider());
+        if (encrypted)
+            cluster.ClientWarehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
 
-        return cluster;
+        try
+        {
+            cluster.Connection = await cluster.ClientWarehouse.Get<EpConnection>(
+                $"ep://localhost:{port}",
+                new EpConnectionContext
+                {
+                    AuthenticationMode = AuthenticationMode.InitializerIdentity,
+                    Identity = "tester",
+                    AuthenticationProtocol = oneStepAuthentication ? "one-step" : "hash",
+                    Domain = "test",
+                    EncryptionMode = encrypted
+                        ? encryptionMode
+                        : EncryptionMode.None,
+                    EncryptionProviders = new[] { AesEncryptionProvider.Name },
+                    UseWebSocket = useWebSocket,
+                });
+
+            return cluster;
+        }
+        catch
+        {
+            try { server.Destroy(); } catch { }
+            try { await cluster.ClientWarehouse.Close(); } catch { }
+            try { await serverWh.Close(); } catch { }
+            throw;
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -3,6 +3,7 @@ using Esiur.Data;
 using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Cryptography;
 using Esiur.Security.Membership;
 using Esiur.Security.Permissions;
 using System;
@@ -39,6 +40,16 @@ public class EpConnectionContext : IResourceContext
     public AuthenticationMode AuthenticationMode { get; set; } = AuthenticationMode.None;
     public string Identity { get; set; }
     public string AuthenticationProtocol { get; set; } = "hash";
+
+    /// <summary>
+    /// Controls whether the authenticated session key must protect EP traffic.
+    /// </summary>
+    public EncryptionMode EncryptionMode { get; set; } = EncryptionMode.None;
+
+    /// <summary>
+    /// Encryption provider protocol names offered to the responder, in preference order.
+    /// </summary>
+    public string[] EncryptionProviders { get; set; } = new[] { "aes-gcm" };
 
     public bool AutoReconnect { get; set; } = false;
 

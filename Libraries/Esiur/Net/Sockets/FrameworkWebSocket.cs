@@ -28,6 +28,8 @@ namespace Esiur.Net.Sockets
         ArraySegment<byte> websocketReceiveBufferSegment;
 
         object sendLock = new object();
+        readonly SemaphoreSlim sendSemaphore = new SemaphoreSlim(1, 1);
+        int sendFailureNotified;
         bool held;
 
         public event DestroyedEvent OnDestroy;
@@ -70,7 +72,7 @@ namespace Esiur.Net.Sockets
 
         public void Send(byte[] message)
         {
-
+            byte[] queued = null;
             lock (sendLock)
             {
                 if (held)
@@ -79,16 +81,18 @@ namespace Esiur.Net.Sockets
                 }
                 else
                 {
-                    totalSent += message.Length;
-                    sock.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary,
-                        true, new System.Threading.CancellationToken());
+                    queued = (byte[])message.Clone();
                 }
             }
+
+            if (queued != null)
+                ObserveSend(QueueSend(queued));
         }
 
 
         public void Send(byte[] message, int offset, int size)
         {
+            byte[] queued = null;
             lock (sendLock)
             {
                 if (held)
@@ -97,12 +101,13 @@ namespace Esiur.Net.Sockets
                 }
                 else
                 {
-                    totalSent += size;
-
-                    sock.SendAsync(new ArraySegment<byte>(message, offset, size),
-                        WebSocketMessageType.Binary, true, new System.Threading.CancellationToken());
+                    queued = new byte[size];
+                    Buffer.BlockCopy(message, offset, queued, 0, size);
                 }
             }
+
+            if (queued != null)
+                ObserveSend(QueueSend(queued));
         }
 
 
@@ -184,39 +189,83 @@ namespace Esiur.Net.Sockets
 
         public void Unhold()
         {
+            byte[] message;
             lock (sendLock)
             {
                 held = false;
-
-                var message = sendNetworkBuffer.Read();
-
-                if (message == null)
-                    return;
-
-                totalSent += message.Length;
-
-                sock.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary,
-                    true, new System.Threading.CancellationToken());
-
+                message = sendNetworkBuffer.Read();
             }
+
+            if (message != null)
+                ObserveSend(QueueSend(message));
         }
 
         public async AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
         {
-            if (held)
+            byte[] queued = null;
+            lock (sendLock)
             {
-                sendNetworkBuffer.Write(message, (uint)offset, (uint)length);
+                if (held)
+                {
+                    sendNetworkBuffer.Write(message, (uint)offset, (uint)length);
+                }
+                else
+                {
+                    queued = new byte[length];
+                    Buffer.BlockCopy(message, offset, queued, 0, length);
+                }
             }
-            else
-            {
-                totalSent += length;
 
-                await sock.SendAsync(new ArraySegment<byte>(message, offset, length),
-                    WebSocketMessageType.Binary, true, new System.Threading.CancellationToken());
-            }
-
+            if (queued != null)
+                await QueueSend(queued);
 
             return true;
+        }
+
+        async Task QueueSend(byte[] message)
+        {
+            await sendSemaphore.WaitAsync();
+            try
+            {
+                var socket = sock ?? throw new InvalidOperationException("WebSocket is closed.");
+                await socket.SendAsync(
+                    new ArraySegment<byte>(message),
+                    WebSocketMessageType.Binary,
+                    true,
+                    CancellationToken.None);
+                Interlocked.Add(ref totalSent, message.Length);
+            }
+            catch
+            {
+                NotifySendFailure();
+                throw;
+            }
+            finally
+            {
+                sendSemaphore.Release();
+            }
+        }
+
+        void ObserveSend(Task task)
+        {
+            _ = task.ContinueWith(
+                completed =>
+                {
+                    // Observe the exception; QueueSend already closed/notified the receiver.
+                    _ = completed.Exception;
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
+        }
+
+        void NotifySendFailure()
+        {
+            if (Interlocked.Exchange(ref sendFailureNotified, 1) == 0)
+            {
+                try { sock?.Abort(); } catch { }
+                Receiver?.NetworkClose(this);
+            }
         }
 
         public ISocket Accept()

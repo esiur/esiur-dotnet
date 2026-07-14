@@ -158,7 +158,8 @@ public class EpAuthPacket : Packet
         if (Command == EpAuthPacketCommand.Initialize)
         {
             AuthMode = (AuthenticationMode)(data[offset] >> 2 & 0x3);
-            EncryptionMode = (EncryptionMode)(data[offset++] & 0x7);
+            // Authentication occupies bits 2-3; encryption is confined to bits 0-1.
+            EncryptionMode = (EncryptionMode)(data[offset++] & 0x3);
         }
         else if (Command == EpAuthPacketCommand.Acknowledge)
         {
