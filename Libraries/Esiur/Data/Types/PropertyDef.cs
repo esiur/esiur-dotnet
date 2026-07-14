@@ -312,12 +312,17 @@ public class PropertyDef : MemberDef
 
         return DefinitionAttributeReader.Apply(pi, new PropertyDef()
         {
+            Definition = typeDef,
             Name = name,
             Index = index,
             Inherited = pi.DeclaringType != type,
             ValueType = propType,
             PropertyInfo = pi,
-            RatePolicyName = pi.GetCustomAttribute<RateControlAttribute>(true)?.PolicyName,
+            RatePolicyName = (Attribute.GetCustomAttribute(
+                pi,
+                typeof(RateControlAttribute),
+                true) as RateControlAttribute)?.PolicyName,
+            MemberPolicyAttributes = Attribute.GetCustomAttributes(pi, true),
             ReadOnly = readOnlyAttr != null,
             Volatile = volatileAttr != null,
             Historical = historicalAttr != null,

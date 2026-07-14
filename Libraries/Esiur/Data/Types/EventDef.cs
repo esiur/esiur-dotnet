@@ -209,12 +209,14 @@ public class EventDef : MemberDef
 
         return DefinitionAttributeReader.Apply(ei, new EventDef()
         {
+            Definition = schema,
             Name = name,
             ArgumentType = evtType,
             Index = index,
             Inherited = ei.DeclaringType != type,
             Annotations = annotations,
             EventInfo = ei,
+            MemberPolicyAttributes = Attribute.GetCustomAttributes(ei, true),
             AutoDelivered = autoDeliveryAttr != null,
             Historical = historicalAttr != null,
             OrderingControl = orderingAttr?.Control ?? OrderingControl.Strict,

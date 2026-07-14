@@ -367,6 +367,7 @@ public class FunctionDef : MemberDef
 
         return DefinitionAttributeReader.Apply(mi, new FunctionDef()
         {
+            Definition = schema,
             Name = name,
             Index = index,
             Inherited = mi.DeclaringType != type,
@@ -379,6 +380,7 @@ public class FunctionDef : MemberDef
             Idempotent = mi.GetCustomAttribute<IdempotentAttribute>(true) != null,
             Cancellable = mi.GetCustomAttribute<CancellableAttribute>(true) != null,
             RatePolicyName = mi.GetCustomAttribute<RateControlAttribute>(true)?.PolicyName,
+            MemberPolicyAttributes = Attribute.GetCustomAttributes(mi, true),
             StreamMode = streamMode,
             Pausable = pausable,
         });

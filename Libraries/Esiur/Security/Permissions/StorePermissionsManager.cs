@@ -30,6 +30,7 @@ using Esiur.Core;
 using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Data.Types;
+using System.Linq;
 
 namespace Esiur.Security.Permissions;
 
@@ -41,7 +42,29 @@ public class StorePermissionsManager : IPermissionsManager
 
     public Ruling Applicable(IResource resource, Session session, ActionType action, MemberDef member, object inquirer = null)
     {
-        return resource.Instance.Store.Instance.Applicable(session, action, member, inquirer);
+        var storeInstance = resource?.Instance?.Store?.Instance;
+        if (storeInstance == null)
+            return Ruling.DontCare;
+
+        // Delegate only to managers attached to the store. Re-entering
+        // Instance.Applicable would run Warehouse defaults (including this manager)
+        // again and can recurse indefinitely or charge rate policies twice.
+        var store = storeInstance.Resource;
+        var allowed = false;
+
+        foreach (var manager in storeInstance.Managers
+            .ToArray()
+            .OfType<IPermissionsManager>()
+            .Where(manager => !ReferenceEquals(manager, this)))
+        {
+            var ruling = manager.Applicable(store, session, action, member, inquirer);
+            if (ruling == Ruling.Denied)
+                return Ruling.Denied;
+            if (ruling == Ruling.Allowed)
+                allowed = true;
+        }
+
+        return allowed ? Ruling.Allowed : Ruling.DontCare;
     }
 
     public bool Initialize(Map<string,object> settings, IResource resource)

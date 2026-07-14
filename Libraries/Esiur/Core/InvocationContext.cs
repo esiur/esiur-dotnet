@@ -1,5 +1,6 @@
 using Esiur.Data.Types;
 using Esiur.Protocol;
+using Esiur.Resource;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -23,6 +24,8 @@ namespace Esiur.Core
 
         internal StreamMode StreamMode { get; private set; }
         internal bool Pausable { get; private set; }
+        internal IResource Resource { get; private set; }
+        internal FunctionDef Function { get; private set; }
 
         internal volatile bool Ended;
 
@@ -73,6 +76,12 @@ namespace Esiur.Core
         {
             Connection = connection;
             CallbackId = callbackId;
+        }
+
+        internal void BindOperation(IResource resource, FunctionDef function)
+        {
+            Resource = resource;
+            Function = function;
         }
 
         internal void InitializeStream(StreamMode streamMode, bool pausable)

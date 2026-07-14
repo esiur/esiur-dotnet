@@ -7,7 +7,10 @@ namespace Esiur.Resource;
 /// Associates a registered permissions-manager implementation with a resource type.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = true)]
-public sealed class PermissionsManagerAttribute<T> : Attribute
+public sealed class PermissionsManagerAttribute<T> : ResourceManagerAttribute
     where T : IPermissionsManager
 {
+    public PermissionsManagerAttribute() : base(typeof(T))
+    {
+    }
 }

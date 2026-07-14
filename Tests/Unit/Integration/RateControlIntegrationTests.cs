@@ -104,8 +104,11 @@ public class RateControlIntegrationTests
                 QueueLimit = queueLimit,
             });
 
+            var permissions = new AllowPropertySetPermissions();
+            warehouse.RegisterManager(permissions);
+
             var resource = await warehouse.Put("sys/rate", new RateLimitedResource());
-            resource.Instance!.Managers.Add(new AllowPropertySetPermissions());
+            resource.Instance!.Managers.Add(permissions);
         });
 
     static async Task<EpResource> GetRemote(IntegrationCluster cluster)

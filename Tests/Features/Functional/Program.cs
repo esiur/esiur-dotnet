@@ -24,12 +24,11 @@ SOFTWARE.
 
 using Esiur.Core;
 using Esiur.Data;
-using Esiur.Data.Types;
 using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Security.Cryptography;
-using Esiur.Security.Permissions;
+using Esiur.Security.Management;
 using Esiur.Security.RateLimiting;
 using Esiur.Stores;
 using System;
@@ -55,16 +54,17 @@ internal static class Program
         try
         {
             var port = FindAvailablePort();
-            var service = await StartServer(serverWarehouse, port);
+            var server = await StartServer(serverWarehouse, port);
 
             connection = await ConnectClient(clientWarehouse, port);
             Require(connection.IsEncrypted, "Authenticated connection did not enable AES encryption.");
             var remote = await connection.Get("sys/service") as EpResource
                 ?? throw new InvalidOperationException("Remote service was not found.");
 
-            await RunCoreScenarios(connection, service, remote);
+            await RunCoreScenarios(connection, server.Service, remote);
+            await ManagerScenarios.Run(connection, server.ManagerScenario);
             await RunRateControlScenarios(remote);
-            await RunStreamingScenarios(service, remote);
+            await RunStreamingScenarios(server.Service, remote);
 
             Console.WriteLine();
             Console.WriteLine("All functional scenarios passed.");
@@ -77,10 +77,25 @@ internal static class Program
         }
     }
 
-    static async Task<MyService> StartServer(Warehouse warehouse, ushort port)
+    static async Task<(MyService Service, ManagerScenarioFixture ManagerScenario)> StartServer(
+        Warehouse warehouse,
+        ushort port)
     {
         warehouse.RegisterAuthenticationProvider(new ServerAuthenticationProvider());
         warehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
+
+        var defaultPermissions = new DefaultAllowPermissionsManager();
+        var denyPermissions = new ProbeDenyPermissionsManager();
+        var rateControl = new ProbeRateControlManager();
+        var attributeAudit = new AttributeProbeAuditingManager();
+        var contextAudit = new ContextProbeAuditingManager();
+
+        warehouse.RegisterPermissionsManager(defaultPermissions);
+        warehouse.RegisterManager(denyPermissions);
+        warehouse.RegisterRateControlManager(rateControl);
+        warehouse.RegisterAuditingManager(attributeAudit);
+        warehouse.RegisterAuditingManager(contextAudit);
+
         warehouse.Configuration.Parser.MaximumPacketSize = 8 * 1024 * 1024;
         warehouse.Configuration.Parser.MaximumAllocationSize = 4 * 1024 * 1024;
         warehouse.Configuration.Parser.MaximumCollectionItems = 65_536;
@@ -111,7 +126,10 @@ internal static class Program
         });
 
         var service = await warehouse.Put("sys/service", new MyService());
-        service.Instance!.Managers.Add(new AllowPropertySetPermissions());
+        var managerProbe = await warehouse.Put(
+            "sys/manager-probe",
+            new ManagerProbeResource(),
+            new ResourceContext(new IResourceManager[] { contextAudit }));
         var resource1 = await warehouse.Put("sys/service/r1", new MyResource
         {
             Description = "Testing 1",
@@ -144,7 +162,15 @@ internal static class Program
         server.MapCall("temp", () => child2);
 
         await warehouse.Open();
-        return service;
+        return (
+            service,
+            new ManagerScenarioFixture(
+                managerProbe,
+                defaultPermissions,
+                denyPermissions,
+                rateControl,
+                attributeAudit,
+                contextAudit));
     }
 
     static async Task<EpConnection> ConnectClient(Warehouse warehouse, ushort port)
@@ -358,18 +384,4 @@ internal static class Program
         return port;
     }
 
-    sealed class AllowPropertySetPermissions : IPermissionsManager
-    {
-        public Map<string, object> Settings { get; } = new();
-
-        public Ruling Applicable(
-            IResource resource,
-            Session session,
-            ActionType action,
-            MemberDef member,
-            object inquirer = null!)
-            => action == ActionType.SetProperty ? Ruling.Allowed : Ruling.DontCare;
-
-        public bool Initialize(Map<string, object> settings, IResource resource) => true;
-    }
 }

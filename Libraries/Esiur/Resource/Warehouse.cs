@@ -31,6 +31,7 @@ using Esiur.Protocol;
 using Esiur.Proxy;
 using Esiur.Security.Authority;
 using Esiur.Security.Cryptography;
+using Esiur.Security.Management;
 using Esiur.Security.Permissions;
 using Esiur.Security.RateLimiting;
 using Org.BouncyCastle.Asn1.Cms;
@@ -91,7 +92,10 @@ public class Warehouse
     Map<string, IAuthenticationProvider> _authenticationProviders = new Map<string, IAuthenticationProvider>();
     readonly ConcurrentDictionary<string, IEncryptionProvider> _encryptionProviders
         = new ConcurrentDictionary<string, IEncryptionProvider>(StringComparer.Ordinal);
-    List<IPermissionsManager> _permissionsManagers = new List<IPermissionsManager>();
+    readonly ConcurrentDictionary<Type, IResourceManager> _resourceManagers
+        = new ConcurrentDictionary<Type, IResourceManager>();
+    readonly ConcurrentDictionary<Type, byte> _defaultResourceManagerTypes
+        = new ConcurrentDictionary<Type, byte>();
     readonly ConcurrentDictionary<string, RatePolicy> _ratePolicies
         = new ConcurrentDictionary<string, RatePolicy>(StringComparer.Ordinal);
 
@@ -151,10 +155,373 @@ public class Warehouse
     }
 
 
-    public void RegisterPermissionsManager(IPermissionsManager manager)
+    /// <summary>
+    /// Registers a manager instance by its concrete type. Type attributes and
+    /// ResourceContext bindings can only reference instances registered here.
+    /// </summary>
+    public void RegisterManager(IResourceManager manager, bool useAsDefault = false)
     {
-        _permissionsManagers.Add(manager);
+        if (manager == null)
+            throw new ArgumentNullException(nameof(manager));
+
+        var managerType = manager.GetType();
+        var categoryCount =
+            (manager is IPermissionsManager ? 1 : 0) +
+            (manager is IRateControlManager ? 1 : 0) +
+            (manager is IAuditingManager ? 1 : 0);
+
+        if (categoryCount == 0)
+            throw new ArgumentException(
+                $"Manager `{managerType}` does not implement a supported manager category.",
+                nameof(manager));
+        if (categoryCount > 1)
+            throw new ArgumentException(
+                $"Manager `{managerType}` must implement exactly one manager category.",
+                nameof(manager));
+
+        if (!_resourceManagers.TryAdd(managerType, manager))
+            throw new InvalidOperationException(
+                $"A resource manager of type `{managerType}` is already registered.");
+
+        if (useAsDefault)
+            _defaultResourceManagerTypes.TryAdd(managerType, 0);
     }
+
+    public void RegisterManager<TManager>(TManager manager, bool useAsDefault = false)
+        where TManager : class, IResourceManager
+        => RegisterManager((IResourceManager)manager, useAsDefault);
+
+    public TManager RegisterManager<TManager>(bool useAsDefault = false)
+        where TManager : class, IResourceManager, new()
+    {
+        var manager = new TManager();
+        RegisterManager(manager, useAsDefault);
+        return manager;
+    }
+
+    /// <summary>
+    /// Compatibility registration for Warehouse-wide permissions. Registered
+    /// permission managers are defaults, matching the original API's intent.
+    /// </summary>
+    public void RegisterPermissionsManager(IPermissionsManager manager)
+        => RegisterManager(manager, true);
+
+    public void RegisterPermissionsManager(
+        IPermissionsManager manager,
+        bool useAsDefault)
+        => RegisterManager(manager, useAsDefault);
+
+    public void RegisterRateControlManager(IRateControlManager manager, bool useAsDefault = false)
+        => RegisterManager(manager, useAsDefault);
+
+    public void RegisterAuditingManager(IAuditingManager manager, bool useAsDefault = false)
+        => RegisterManager(manager, useAsDefault);
+
+    /// <summary>
+    /// Enables or disables a registered manager as a Warehouse-wide default.
+    /// Multiple defaults may be enabled for the same manager category.
+    /// </summary>
+    public void SetDefaultManager(Type managerType, bool enabled = true)
+    {
+        if (managerType == null)
+            throw new ArgumentNullException(nameof(managerType));
+        if (!_resourceManagers.ContainsKey(managerType))
+            throw new InvalidOperationException(
+                $"Resource manager `{managerType}` is not registered.");
+        if (!enabled && typeof(NamedRateControlManager).IsAssignableFrom(managerType))
+            throw new InvalidOperationException(
+                "The built-in named rate-control manager cannot be disabled.");
+
+        if (enabled)
+            _defaultResourceManagerTypes.TryAdd(managerType, 0);
+        else
+            _defaultResourceManagerTypes.TryRemove(managerType, out _);
+    }
+
+    public void SetDefaultManager<TManager>(bool enabled = true)
+        where TManager : IResourceManager
+        => SetDefaultManager(typeof(TManager), enabled);
+
+    public IResourceManager? TryGetManager(Type managerType)
+        => managerType != null && _resourceManagers.TryGetValue(managerType, out var manager)
+            ? manager
+            : null;
+
+    public TManager? TryGetManager<TManager>() where TManager : class, IResourceManager
+        => TryGetManager(typeof(TManager)) as TManager;
+
+    public bool RemoveManager(Type managerType)
+    {
+        if (managerType == null)
+            return false;
+        if (typeof(NamedRateControlManager).IsAssignableFrom(managerType))
+            return false;
+
+        _defaultResourceManagerTypes.TryRemove(managerType, out _);
+        return _resourceManagers.TryRemove(managerType, out _);
+    }
+
+    public Type[] GetRegisteredManagerTypes()
+        => _resourceManagers.Keys.OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
+
+    public IResourceManager[] GetDefaultManagers()
+        => _defaultResourceManagerTypes.Keys
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .Select(type => TryGetManager(type))
+            .Where(manager => manager != null)
+            .ToArray()!;
+
+    internal bool IsRegisteredManager(IResourceManager manager)
+        => manager != null &&
+           _resourceManagers.TryGetValue(manager.GetType(), out var registered) &&
+           ReferenceEquals(manager, registered);
+
+    internal IResourceManager[] ResolveResourceManagers(
+        Type resourceType,
+        IResourceContext resourceContext)
+    {
+        if (resourceType == null)
+            throw new ArgumentNullException(nameof(resourceType));
+
+        var resolved = new List<IResourceManager>();
+        var baseType = ResourceProxy.GetBaseType(resourceType);
+
+        foreach (var attribute in baseType
+            .GetCustomAttributes(typeof(ResourceManagerAttribute), true)
+            .OfType<ResourceManagerAttribute>())
+        {
+            var manager = TryGetManager(attribute.ManagerType);
+            if (manager == null)
+                throw new InvalidOperationException(
+                    $"Resource manager `{attribute.ManagerType}` declared by `{baseType}` is not registered.");
+
+            if (!resolved.Any(existing => ReferenceEquals(existing, manager)))
+                resolved.Add(manager);
+        }
+
+        if (resourceContext is IResourceManagersContext managerContext)
+        {
+            foreach (var manager in managerContext.ResourceManagers ?? Array.Empty<IResourceManager>())
+            {
+                if (manager == null)
+                    throw new InvalidOperationException("A ResourceContext supplied a null manager.");
+                if (!IsRegisteredManager(manager))
+                    throw new InvalidOperationException(
+                        $"Resource manager `{manager.GetType()}` supplied by ResourceContext is not registered with this Warehouse.");
+
+                if (!resolved.Any(existing => ReferenceEquals(existing, manager)))
+                    resolved.Add(manager);
+            }
+        }
+
+        return resolved.ToArray();
+    }
+
+    /// <summary>
+    /// Asks every applicable manager using independent deny-overrides aggregation
+    /// for permissions, rate control and auditing.
+    /// </summary>
+    public ResourceManagerEvaluation EvaluateManagers(
+        ResourceManagerContext context,
+        IEnumerable<IResourceManager>? resourceManagers = null)
+    {
+        if (context == null)
+            throw new ArgumentNullException(nameof(context));
+        if (!ReferenceEquals(context.Warehouse, this))
+            throw new ArgumentException(
+                "The manager context belongs to another Warehouse.",
+                nameof(context));
+
+        var localManagers = resourceManagers?.ToArray()
+            ?? context.Resource?.Instance?.Managers.ToArray()
+            ?? Array.Empty<IResourceManager>();
+
+        var managers = new List<IResourceManager>();
+        foreach (var manager in GetDefaultManagers().Concat(localManagers))
+            if (manager != null && !managers.Any(existing => ReferenceEquals(existing, manager)))
+                managers.Add(manager);
+
+        var permissionsAllowed = false;
+        var permissionsDenied = false;
+        var rateAllowed = false;
+        var rateDenied = false;
+        var auditingAllowed = false;
+        var auditingDenied = false;
+        var delay = TimeSpan.Zero;
+        string permissionsReason = null;
+        string rateReason = null;
+        string auditingReason = null;
+
+        foreach (var manager in managers)
+        {
+            var registered = IsRegisteredManager(manager);
+            context.Delay = TimeSpan.Zero;
+            context.DenialReason = null;
+
+            try
+            {
+                if (!registered)
+                    throw new InvalidOperationException(
+                        $"Resource manager `{manager.GetType()}` is not registered with this Warehouse.");
+
+                if (manager is IPermissionsManager permissionsManager)
+                {
+                    var ruling = permissionsManager.Applicable(
+                        context.Resource,
+                        context.Session,
+                        context.Action,
+                        context.Member,
+                        context.Inquirer);
+
+                    permissionsDenied |= ruling == Ruling.Denied;
+                    permissionsAllowed |= ruling == Ruling.Allowed;
+                    if (ruling == Ruling.Denied && permissionsReason == null)
+                        permissionsReason = context.DenialReason
+                            ?? $"Permissions manager `{manager.GetType().Name}` denied the operation.";
+                }
+                else if (manager is IRateControlManager rateControlManager)
+                {
+                    var ruling = rateControlManager.Applicable(context);
+                    rateDenied |= ruling == Ruling.Denied;
+                    rateAllowed |= ruling == Ruling.Allowed;
+                    if (context.Delay > delay)
+                        delay = context.Delay;
+                    if (ruling == Ruling.Denied && rateReason == null)
+                        rateReason = context.DenialReason
+                            ?? $"Rate-control manager `{manager.GetType().Name}` denied the operation.";
+                }
+                else if (manager is IAuditingManager auditingManager)
+                {
+                    var ruling = auditingManager.Applicable(context);
+                    auditingDenied |= ruling == Ruling.Denied;
+                    auditingAllowed |= ruling == Ruling.Allowed;
+                    if (ruling == Ruling.Denied && auditingReason == null)
+                        auditingReason = context.DenialReason
+                            ?? $"Auditing manager `{manager.GetType().Name}` denied the operation.";
+                }
+            }
+            catch (Exception exception)
+            {
+                Global.Log(
+                    "ResourceManager",
+                    LogType.Error,
+                    $"Manager `{manager.GetType()}` failed while evaluating `{context.Action}`: {exception}");
+
+                if (manager is IPermissionsManager)
+                {
+                    permissionsDenied = true;
+                    permissionsReason ??= "A permissions manager failed while evaluating the operation.";
+                }
+                else if (manager is IRateControlManager)
+                {
+                    rateDenied = true;
+                    rateReason ??= "A rate-control manager failed while evaluating the operation.";
+                }
+                else if (manager is IAuditingManager)
+                {
+                    auditingDenied = true;
+                    auditingReason ??= "An auditing manager failed while evaluating the operation.";
+                }
+            }
+        }
+
+        var permissions = permissionsDenied
+            ? Ruling.Denied
+            : permissionsAllowed
+                ? Ruling.Allowed
+                : DefaultPermissions(context.Action);
+        var rateControl = rateDenied
+            ? Ruling.Denied
+            : rateAllowed ? Ruling.Allowed : Ruling.DontCare;
+        var auditing = auditingDenied
+            ? Ruling.Denied
+            : auditingAllowed ? Ruling.Allowed : Ruling.DontCare;
+
+        context.Delay = delay;
+        context.DenialReason = permissions == Ruling.Denied
+            ? permissionsReason
+            : auditing == Ruling.Denied
+                ? auditingReason
+                : rateReason;
+
+        return new ResourceManagerEvaluation(
+            permissions,
+            rateControl,
+            auditing,
+            delay,
+            permissionsReason,
+            rateReason,
+            auditingReason);
+    }
+
+    internal Ruling EvaluatePermissions(
+        ResourceManagerContext context,
+        IEnumerable<IResourceManager> resourceManagers)
+    {
+        if (context == null)
+            throw new ArgumentNullException(nameof(context));
+        if (!ReferenceEquals(context.Warehouse, this))
+            throw new ArgumentException(
+                "The manager context belongs to another Warehouse.",
+                nameof(context));
+
+        var managers = new List<IPermissionsManager>();
+        foreach (var manager in GetDefaultManagers()
+            .Concat(resourceManagers ?? Array.Empty<IResourceManager>())
+            .OfType<IPermissionsManager>())
+            if (!managers.Any(existing => ReferenceEquals(existing, manager)))
+                managers.Add(manager);
+
+        var allowed = false;
+        var denied = false;
+
+        foreach (var manager in managers)
+        {
+            try
+            {
+                if (!IsRegisteredManager(manager))
+                    throw new InvalidOperationException(
+                        $"Resource manager `{manager.GetType()}` is not registered with this Warehouse.");
+
+                var ruling = manager.Applicable(
+                    context.Resource,
+                    context.Session,
+                    context.Action,
+                    context.Member,
+                    context.Inquirer);
+                denied |= ruling == Ruling.Denied;
+                allowed |= ruling == Ruling.Allowed;
+            }
+            catch (Exception exception)
+            {
+                denied = true;
+                Global.Log(
+                    "ResourceManager",
+                    LogType.Error,
+                    $"Permissions manager `{manager.GetType()}` failed while evaluating `{context.Action}`: {exception}");
+            }
+        }
+
+        return denied
+            ? Ruling.Denied
+            : allowed ? Ruling.Allowed : DefaultPermissions(context.Action);
+    }
+
+    internal static Ruling DefaultPermissions(ActionType action)
+        => action == ActionType.GetProperty
+           || action == ActionType.ViewTypeDef
+           || action == ActionType.ReceiveEvent
+           || action == ActionType.Attach
+           || action == ActionType.Execute
+           || action == ActionType.Detach
+           || action == ActionType.Subscribe
+           || action == ActionType.Unsubscribe
+           || action == ActionType.PullStream
+           || action == ActionType.TerminateExecution
+           || action == ActionType.HaltExecution
+           || action == ActionType.ResumeExecution
+            ? Ruling.Allowed
+            : Ruling.Denied;
 
     /// <summary>
     /// Registers a named rate policy referenced by RateControl attributes.
@@ -240,6 +607,8 @@ public class Warehouse
     public Warehouse(WarehouseConfiguration configuration)
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+
+        RegisterManager(new NamedRateControlManager(), true);
 
         Protocols.Add("EP",
             async (name, context)
@@ -540,10 +909,13 @@ public class Warehouse
         }
 
         var resourceReference = new WeakReference<IResource>(resource);
+        var resourceManagers = ResolveResourceManagers(resource.GetType(), resourceContext);
 
         var resourceId = (uint)Interlocked.Increment(ref _resourceCounter);
 
         resource.Instance = new Instance(this, resourceId, instanceName, resource, store, resourceContext?.Age ?? 0);
+
+        resource.Instance.Managers.AddRange(resourceManagers);
 
         if (resourceContext?.Attributes != null)
             resource.Instance.SetAttributes(resourceContext.Attributes);

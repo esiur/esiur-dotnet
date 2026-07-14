@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Reflection;
 using Esiur.Misc;
 using Esiur.Security.Permissions;
+using Esiur.Security.Management;
 using Esiur.Security.Authority;
 using Esiur.Proxy;
 using Esiur.Core;
@@ -30,7 +31,7 @@ public class Instance
 	WeakReference<IResource> resource;
 	IStore store;
 	TypeDef definition;
-	AutoList<IPermissionsManager, Instance> managers;
+	AutoList<IResourceManager, Instance> managers;
 
 
 	public event PropertyModifiedEvent PropertyModified;
@@ -696,36 +697,55 @@ public class Instance
 	/// <returns>Ruling.</returns>
 	public Ruling Applicable(Session session, ActionType action, MemberDef member, object inquirer = null)
 	{
-		IResource res;
-		if (this.resource.TryGetTarget(out res))
-		{
-			//return store.Applicable(res, session, action, member, inquirer);
+		var context = MakeManagerContext(session, action, member, inquirer);
+		return Warehouse.EvaluatePermissions(context, managers.ToArray());
+	}
 
-			foreach (IPermissionsManager manager in managers)
-			{
-				var r = manager.Applicable(res, session, action, member, inquirer);
-				if (r != Ruling.DontCare)
-					return r;
-			}
+	/// <summary>
+	/// Evaluates the Warehouse defaults and this resource's manager snapshot.
+	/// </summary>
+	public ResourceManagerEvaluation EvaluateManagers(
+		Session session,
+		ActionType action,
+		MemberDef member,
+		object inquirer = null)
+	{
+		var context = MakeManagerContext(session, action, member, inquirer);
+		return Warehouse.EvaluateManagers(context, managers.ToArray());
+	}
 
-		}
-
-        // Apply default permissions if no manager is applicable or if the resource is not available.
-		if (action == ActionType.GetProperty 
-			|| action == ActionType.ViewTypeDef 
-			|| action == ActionType.ReceiveEvent
-			|| action == ActionType.Attach
-			|| action == ActionType.Execute)
-			return Ruling.Allowed;
-		else
-			return Ruling.Denied;
-
+	ResourceManagerContext MakeManagerContext(
+		Session session,
+		ActionType action,
+		MemberDef member,
+		object inquirer)
+	{
+		resource.TryGetTarget(out var res);
+		return new ResourceManagerContext(
+			Warehouse,
+			inquirer as EpConnection,
+			session,
+			res,
+			member,
+			action,
+			inquirer,
+			member?.MemberPolicyAttributes);
 	}
 
 	/// <summary>
 	/// Execution managers.
 	/// </summary>
-	public AutoList<IPermissionsManager, Instance> Managers => managers;
+	public AutoList<IResourceManager, Instance> Managers => managers;
+
+	void ManagerAdded(Instance instance, IResourceManager manager)
+	{
+		if (manager != null && Warehouse.IsRegisteredManager(manager))
+			return;
+
+		managers.Remove(manager);
+		throw new InvalidOperationException(
+			$"Resource manager `{manager?.GetType()}` must be registered with this Warehouse before it is attached.");
+	}
 
 	public readonly Warehouse Warehouse;
 	/// <summary>
@@ -747,7 +767,8 @@ public class Instance
 		//this.attributes = new KeyList<string, object>(this);
 		//children = new AutoList<IResource, Instance>(this);
 		//parents = new AutoList<IResource, Instance>(this);
-		managers = new AutoList<IPermissionsManager, Instance>(this);
+		managers = new AutoList<IResourceManager, Instance>(this);
+		managers.OnAdd += ManagerAdded;
 		//children.OnAdd += Children_OnAdd;
 		//children.OnRemoved += Children_OnRemoved;
 		//parents.OnAdd += Parents_OnAdd;

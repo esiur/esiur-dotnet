@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace Esiur.Data.Types;
 public class MemberDef
 {
+    IReadOnlyList<Attribute> memberPolicyAttributes = Array.Empty<Attribute>();
 
     // Core fields
     public byte Index { get; set; }
@@ -23,6 +24,18 @@ public class MemberDef
     /// This is local execution metadata and is not sent to remote clients.
     /// </summary>
     public string? RatePolicyName { get; set; }
+
+    /// <summary>
+    /// Local reflection attributes supplied to resource managers while this member
+    /// is evaluated. This execution metadata is not serialized to remote peers.
+    /// </summary>
+    public IReadOnlyList<Attribute> MemberPolicyAttributes
+    {
+        get => memberPolicyAttributes;
+        internal set => memberPolicyAttributes = value is null
+            ? Array.Empty<Attribute>()
+            : Array.AsReadOnly(value.ToArray());
+    }
 
     public TypeDef Definition { get; set; } = null!;
 

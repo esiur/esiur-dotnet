@@ -46,5 +46,12 @@ public enum ActionType
     RemoveChild,
     Rename,
     ReceiveEvent,
-    ViewTypeDef
+    ViewTypeDef,
+    Detach,
+    Subscribe,
+    Unsubscribe,
+    PullStream,
+    TerminateExecution,
+    HaltExecution,
+    ResumeExecution
 }

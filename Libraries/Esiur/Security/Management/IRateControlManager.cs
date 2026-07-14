@@ -5,7 +5,8 @@ namespace Esiur.Security.Management;
 /// <summary>
 /// Evaluates whether a resource operation is admitted by rate-control policy.
 /// A manager may assign <see cref="ResourceManagerContext.Delay"/> when allowing
-/// an operation that should be queued.
+/// an operation that should be queued and
+/// <see cref="ResourceManagerContext.SupportsDelay"/> is true.
 /// </summary>
 public interface IRateControlManager : IResourceManager
 {

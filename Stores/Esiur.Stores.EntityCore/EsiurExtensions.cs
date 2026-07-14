@@ -131,7 +131,13 @@ public static class EsiurExtensions
 
         var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(resource);
 
-        await options.Warehouse.Put($"{store.Instance.Name}/{typeof(T).Name}/{id}", res, new ResourceContext(0, null, null,  manager));
+        var resourceContext = manager == null
+            ? null
+            : new ResourceContext(new[] { manager });
+        await options.Warehouse.Put(
+            $"{store.Instance.Name}/{typeof(T).Name}/{id}",
+            res,
+            resourceContext);
 
         return (T)res;
     }

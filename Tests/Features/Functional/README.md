@@ -8,6 +8,8 @@ Coverage includes:
 
 - resource attachment and property serialization;
 - procedure and resource calls, optional arguments, tuples, and events;
+- registered resource managers from Warehouse defaults, generic type attributes,
+  and `ResourceContext`, including deny-overrides and audit fan-out;
 - named rate policies for function calls and property setters;
 - rate-limit denial propagation to callers;
 - pull streams backed by `IAsyncEnumerable<T>`;

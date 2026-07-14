@@ -30,6 +30,7 @@ using Esiur.Net;
 using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Management;
 using Esiur.Security.Permissions;
 using Esiur.Security.RateLimiting;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -55,63 +56,110 @@ partial class EpConnection
 
     internal bool IsRateControlBlocked => Volatile.Read(ref _rateControlBlocked) != 0;
 
-    bool TryApplyRateControl(
+    bool TryApplyManagers(
         MemberDef member,
         IResource? resource,
         ActionType action,
         uint callback,
-        out TimeSpan delay)
+        ErrorType denialErrorType,
+        ExceptionCode denialCode,
+        out TimeSpan delay,
+        IEnumerable<IResourceManager> managers = null,
+        bool supportsDelay = false)
     {
         delay = TimeSpan.Zero;
 
-        if (string.IsNullOrWhiteSpace(member.RatePolicyName))
-            return true;
-
         if (IsRateControlBlocked)
-            return false;
-
-        var warehouse = Instance.Warehouse;
-        var policy = warehouse.TryGetRatePolicy(member.RatePolicyName);
-
-        if (policy == null)
         {
-            DenyRateControlledRequest(
+            SendError(
+                ErrorType.Management,
                 callback,
-                $"Rate policy `{member.RatePolicyName}` is not registered.");
+                (ushort)ExceptionCode.RateLimitExceeded,
+                "The connection is blocked by rate control.");
             return false;
         }
 
+        var warehouse = Instance.Warehouse;
+
         try
         {
-            var context = new RateControlContext(
+            if (resource == null && member?.Definition is LocalTypeDef localTypeDef)
+                managers ??= warehouse.ResolveResourceManagers(localTypeDef.DefinedType, null);
+            else if (resource == null && member is FunctionDef functionDef)
+                managers ??= warehouse.ResolveResourceManagers(functionDef.MethodInfo?.DeclaringType, null);
+
+            var context = new ResourceManagerContext(
                 warehouse,
                 this,
                 _session,
                 resource,
                 member,
-                action);
+                action,
+                this,
+                member?.MemberPolicyAttributes);
 
-            if (policy.Applicable(context) == Ruling.Denied)
+            var evaluation = warehouse.EvaluateManagers(context, managers);
+            delay = evaluation.Delay;
+
+            if (evaluation.Permissions == Ruling.Denied ||
+                evaluation.Auditing == Ruling.Denied)
             {
-                DenyRateControlledRequest(
-                    callback,
-                    $"Rate policy `{member.RatePolicyName}` denied `{member.Fullname}`.");
+                if (evaluation.RateControl == Ruling.Denied)
+                    DenyRateControlledRequest(
+                        callback,
+                        evaluation.RateControlDenialReason ?? "Rate control denied the operation.",
+                        false);
+
+                SendError(denialErrorType, callback, (ushort)denialCode);
                 return false;
             }
 
-            delay = context.Delay > TimeSpan.Zero ? context.Delay : TimeSpan.Zero;
-            return true;
+            if (evaluation.RateControl == Ruling.Denied)
+            {
+                DenyRateControlledRequest(
+                    callback,
+                    evaluation.RateControlDenialReason ?? "Rate control denied the operation.");
+                return false;
+            }
+
+            if (delay > TimeSpan.Zero && !supportsDelay)
+            {
+                DenyRateControlledRequest(
+                    callback,
+                    $"Delayed `{action}` operations are not supported.");
+                return false;
+            }
+
+            return evaluation.IsAllowed;
         }
         catch (Exception exception)
         {
-            DenyRateControlledRequest(
-                callback,
-                $"Rate policy `{member.RatePolicyName}` failed: {exception.Message}");
+            Global.Log(exception);
+            SendError(denialErrorType, callback, (ushort)denialCode);
             return false;
         }
     }
 
-    void DenyRateControlledRequest(uint callback, string message)
+    bool IsOperationAllowed(
+        IResource resource,
+        MemberDef member,
+        ActionType action,
+        object inquirer = null)
+    {
+        var context = new ResourceManagerContext(
+            Instance.Warehouse,
+            this,
+            _session,
+            resource,
+            member,
+            action,
+            inquirer ?? this,
+            member?.MemberPolicyAttributes);
+
+        return Instance.Warehouse.EvaluateManagers(context).IsAllowed;
+    }
+
+    void DenyRateControlledRequest(uint callback, string message, bool sendError = true)
     {
         var configuration = Instance.Warehouse.Configuration.RateControl;
         var now = DateTime.UtcNow;
@@ -136,11 +184,12 @@ partial class EpConnection
                           Interlocked.Exchange(ref _rateControlBlocked, 1) == 0;
         }
 
-        SendError(
-            ErrorType.Management,
-            callback,
-            (ushort)ExceptionCode.RateLimitExceeded,
-            message);
+        if (sendError)
+            SendError(
+                ErrorType.Management,
+                callback,
+                (ushort)ExceptionCode.RateLimitExceeded,
+                message);
 
         if (shouldBlock)
             _ = CloseRateControlledConnectionAsync(configuration.ConnectionBlockDelay);
@@ -944,11 +993,15 @@ partial class EpConnection
             {
                 if (res != null)
                 {
-                    if (res.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
-                    {
-                        SendError(ErrorType.Management, callback, 6);
+                    if (!TryApplyManagers(
+                            null,
+                            res,
+                            ActionType.Attach,
+                            callback,
+                            ErrorType.Management,
+                            ExceptionCode.AttachDenied,
+                            out _))
                         return;
-                    }
 
                     var r = res as IResource;
 
@@ -1007,11 +1060,15 @@ partial class EpConnection
             {
                 if (res != null)
                 {
-                    if (res.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
-                    {
-                        SendError(ErrorType.Management, callback, 6);
+                    if (!TryApplyManagers(
+                            null,
+                            res,
+                            ActionType.Attach,
+                            callback,
+                            ErrorType.Management,
+                            ExceptionCode.AttachDenied,
+                            out _))
                         return;
-                    }
 
                     var r = res as IResource;
 
@@ -1059,6 +1116,15 @@ partial class EpConnection
         {
             if (res != null)
             {
+                if (!TryApplyManagers(
+                        null,
+                        res,
+                        ActionType.Detach,
+                        callback,
+                        ErrorType.Management,
+                        ExceptionCode.NotAllowed,
+                        out _))
+                    return;
 
                 // unsubscribe
                 Unsubscribe(res);
@@ -1121,11 +1187,15 @@ partial class EpConnection
                      var store = r.Instance.Store;
 
                      // check security
-                     if (store.Instance.Applicable(_session, ActionType.CreateResource, null) != Ruling.Allowed)
-                     {
-                         SendError(ErrorType.Management, callback, (ushort)ExceptionCode.CreateDenied);
+                     if (!TryApplyManagers(
+                             null,
+                             store,
+                             ActionType.CreateResource,
+                             callback,
+                             ErrorType.Management,
+                             ExceptionCode.CreateDenied,
+                             out _))
                          return;
-                     }
 
                      Instance.Warehouse.New(localTypeDef.DefinedType, path,
                          new ResourceContext(0,
@@ -1166,11 +1236,20 @@ partial class EpConnection
                 return;
             }
 
-            if (r.Instance.Store.Instance.Applicable(_session, ActionType.Delete, null) != Ruling.Allowed)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.DeleteDenied);
+            var deleteManagers = r.Instance.Managers
+                .ToArray()
+                .Concat(r.Instance.Store.Instance.Managers.ToArray());
+
+            if (!TryApplyManagers(
+                    null,
+                    r,
+                    ActionType.Delete,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.DeleteDenied,
+                    out _,
+                    deleteManagers))
                 return;
-            }
 
             if (Instance.Warehouse.Remove(r))
                 SendReply(EpPacketReply.Completed, callback);
@@ -1205,11 +1284,15 @@ partial class EpConnection
                 return;
             }
 
-            if (resource.Instance.Applicable(this._session, ActionType.Rename, null) != Ruling.Allowed)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.RenameDenied);
+            if (!TryApplyManagers(
+                    null,
+                    resource,
+                    ActionType.Rename,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.RenameDenied,
+                    out _))
                 return;
-            }
 
 
             resource.Instance.Name = name;
@@ -1240,11 +1323,15 @@ partial class EpConnection
                 return;
             }
 
-            if (r.Instance.Applicable(_session, ActionType.ViewTypeDef, null) == Ruling.Denied)
-            {
-                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed);
+            if (!TryApplyManagers(
+                    null,
+                    r,
+                    ActionType.ViewTypeDef,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.NotAllowed,
+                    out _))
                 return;
-            }
 
             // make sure the resource is a local type def.
             if (r.Instance.Definition is LocalTypeDef localTypeDef)
@@ -1272,19 +1359,33 @@ partial class EpConnection
 
         var classNames = (string[])value;
 
-        var typeDefs = new List<ulong>();
+        var typeDefs = new List<LocalTypeDef>();
 
         foreach (var className in classNames)
         {
             //@TODO: need to search in remoteTypeDefs as well  
             var typeDef = Instance.Warehouse.GetLocalTypeDefByName(className);
             if (typeDef != null)
-                typeDefs.Add(typeDef.Id);
+                typeDefs.Add(typeDef);
         }
 
         if (typeDefs.Count > 0)
         {
-            SendReply(EpPacketReply.Completed, callback, typeDefs.ToArray());
+            var managers = typeDefs
+                .SelectMany(typeDef => Instance.Warehouse.ResolveResourceManagers(typeDef.DefinedType, null));
+
+            if (!TryApplyManagers(
+                    null,
+                    null,
+                    ActionType.ViewTypeDef,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.NotAllowed,
+                    out _,
+                    managers))
+                return;
+
+            SendReply(EpPacketReply.Completed, callback, typeDefs.Select(typeDef => typeDef.Id).ToArray());
         }
         else
         {
@@ -1304,6 +1405,18 @@ partial class EpConnection
 
         if (t != null)
         {
+            var managers = Instance.Warehouse.ResolveResourceManagers(t.DefinedType, null);
+            if (!TryApplyManagers(
+                    null,
+                    null,
+                    ActionType.ViewTypeDef,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.NotAllowed,
+                    out _,
+                    managers))
+                return;
+
             SendReply(EpPacketReply.Completed, callback, t.Compose(this));
         }
         else
@@ -1326,6 +1439,16 @@ partial class EpConnection
         {
             if (r != null)
             {
+                if (!TryApplyManagers(
+                        null,
+                        r,
+                        ActionType.ViewTypeDef,
+                        callback,
+                        ErrorType.Management,
+                        ExceptionCode.NotAllowed,
+                        out _))
+                    return;
+
                 SendReply(EpPacketReply.Completed, callback, r.Instance.Definition.Compose(this));
             }
             else
@@ -1349,11 +1472,15 @@ partial class EpConnection
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             else
             {
-                if (r.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                if (!TryApplyManagers(
+                        null,
+                        r,
+                        ActionType.Attach,
+                        callback,
+                        ErrorType.Management,
+                        ExceptionCode.ResourceNotFound,
+                        out _))
                     return;
-                }
 
                 SendReply(EpPacketReply.Completed, callback, r);
             }
@@ -1378,15 +1505,21 @@ partial class EpConnection
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
             else
             {
-                if (r.Instance.Applicable(_session, ActionType.Attach, null) == Ruling.Denied)
-                {
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed);
+                if (!TryApplyManagers(
+                        null,
+                        r,
+                        ActionType.Attach,
+                        callback,
+                        ErrorType.Management,
+                        ExceptionCode.NotAllowed,
+                        out _))
                     return;
-                }
 
                 r.Instance.Children<IResource>().Then(children =>
                 {
-                    var list = children.Where(x => x.Instance.Applicable(_session, ActionType.Attach, null) != Ruling.Denied).ToArray();
+                    var list = children
+                        .Where(x => IsOperationAllowed(x, null, ActionType.Attach))
+                        .ToArray();
                     SendReply(EpPacketReply.Completed, callback, list);
                 }).Error(e =>
                 {
@@ -1445,6 +1578,17 @@ partial class EpConnection
             return;
         }
 
+        if (!TryApplyManagers(
+                call.Value.Definition,
+                call.Value.Delegate.Target as IResource,
+                ActionType.Execute,
+                callback,
+                ErrorType.Management,
+                ExceptionCode.InvokeDenied,
+                out var managerDelay,
+                supportsDelay: true))
+            return;
+
         Codec.ParseAsync(tdu.Data, offset, this, null).Then(pr =>
         {
             if (pr.Value is AsyncReply reply)
@@ -1464,7 +1608,7 @@ partial class EpConnection
                     //    return;
                     //}
 
-                    InvokeFunction(call.Value.Definition, callback, results, EpPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+                    InvokeFunction(call.Value.Definition, callback, results, EpPacketRequest.ProcedureCall, managerDelay, call.Value.Delegate.Target);
 
                 }).Error(x =>
                 {
@@ -1479,7 +1623,7 @@ partial class EpConnection
                 this.Socket.Unhold();
 
                 // @TODO: Make managers for procedure calls
-                InvokeFunction(call.Value.Definition, callback, pr.Value, EpPacketRequest.ProcedureCall, call.Value.Delegate.Target);
+                InvokeFunction(call.Value.Definition, callback, pr.Value, EpPacketRequest.ProcedureCall, managerDelay, call.Value.Delegate.Target);
             }
         }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError));
     }
@@ -1518,6 +1662,18 @@ partial class EpConnection
             return;
         }
 
+        if (!TryApplyManagers(
+                fd,
+                null,
+                ActionType.Execute,
+                callback,
+                ErrorType.Management,
+                ExceptionCode.InvokeDenied,
+                out var managerDelay,
+                managers: Instance.Warehouse.ResolveResourceManagers(typeDef.DefinedType, null),
+                supportsDelay: true))
+            return;
+
         Codec.ParseAsync(tdu.Data, offset, this, null).Then(pr =>
         {
             if (pr.Value is AsyncReply reply)
@@ -1538,7 +1694,7 @@ partial class EpConnection
                     //    return;
                     //}
 
-                    InvokeFunction(fd, callback, results, EpPacketRequest.StaticCall, null);
+                    InvokeFunction(fd, callback, results, EpPacketRequest.StaticCall, managerDelay, null);
 
                 }).Error(x =>
                 {
@@ -1555,7 +1711,7 @@ partial class EpConnection
                 // @TODO: Make managers for static calls
 
 
-                InvokeFunction(fd, callback, pr.Value, EpPacketRequest.StaticCall, null);
+                InvokeFunction(fd, callback, pr.Value, EpPacketRequest.StaticCall, managerDelay, null);
             }
         }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError));
     }
@@ -1586,6 +1742,17 @@ partial class EpConnection
                 return;
             }
 
+            if (!TryApplyManagers(
+                    ft,
+                    r,
+                    ActionType.Execute,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.InvokeDenied,
+                    out var managerDelay,
+                    supportsDelay: true))
+                return;
+
             Codec.ParseAsync(tdu.Data, offset, this, null).Then(pr =>
             {
                 if (pr.Value is AsyncReply asyncReply)
@@ -1599,30 +1766,26 @@ partial class EpConnection
 
                         if (r is EpResource)
                         {
-                            var rt = (r as EpResource)._Invoke(index, result);
-                            if (rt != null)
+                            ExecuteRateControlled(callback, managerDelay, () =>
                             {
-                                rt.Then(res =>
+                                var rt = (r as EpResource)._Invoke(index, result);
+                                if (rt != null)
                                 {
-                                    SendReply(EpPacketReply.Completed, callback, res);
-                                });
-                            }
-                            else
-                            {
-                                // function not found on a distributed object
-                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                            }
+                                    rt.Then(res =>
+                                    {
+                                        SendReply(EpPacketReply.Completed, callback, res);
+                                    });
+                                }
+                                else
+                                {
+                                    // function not found on a distributed object
+                                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                                }
+                            });
                         }
                         else
                         {
-                            if (r.Instance.Applicable(_session, ActionType.Execute, ft) == Ruling.Denied)
-                            {
-                                SendError(ErrorType.Management, callback,
-                                    (ushort)ExceptionCode.InvokeDenied);
-                                return;
-                            }
-
-                            InvokeFunction(ft, callback, result, EpPacketRequest.InvokeFunction, r);
+                            InvokeFunction(ft, callback, result, EpPacketRequest.InvokeFunction, managerDelay, r);
                         }
                     });
                 }
@@ -1635,30 +1798,26 @@ partial class EpConnection
 
                     if (r is EpResource)
                     {
-                        var rt = (r as EpResource)._Invoke(index, pr.Value);
-                        if (rt != null)
+                        ExecuteRateControlled(callback, managerDelay, () =>
                         {
-                            rt.Then(res =>
+                            var rt = (r as EpResource)._Invoke(index, pr.Value);
+                            if (rt != null)
                             {
-                                SendReply(EpPacketReply.Completed, callback, res);
-                            });
-                        }
-                        else
-                        {
-                            // function not found on a distributed object
-                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
-                        }
+                                rt.Then(res =>
+                                {
+                                    SendReply(EpPacketReply.Completed, callback, res);
+                                });
+                            }
+                            else
+                            {
+                                // function not found on a distributed object
+                                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                            }
+                        });
                     }
                     else
                     {
-                        if (r.Instance.Applicable(_session, ActionType.Execute, ft) == Ruling.Denied)
-                        {
-                            SendError(ErrorType.Management, callback,
-                                (ushort)ExceptionCode.InvokeDenied);
-                            return;
-                        }
-
-                        InvokeFunction(ft, callback, pr.Value, EpPacketRequest.InvokeFunction, r);
+                        InvokeFunction(ft, callback, pr.Value, EpPacketRequest.InvokeFunction, managerDelay, r);
                     }
                 }
             }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError)); ;
@@ -1667,19 +1826,17 @@ partial class EpConnection
 
 
 
-    void InvokeFunction(FunctionDef ft, uint callback, object arguments, EpPacketRequest actionType, object target = null)
+    void InvokeFunction(
+        FunctionDef ft,
+        uint callback,
+        object arguments,
+        EpPacketRequest actionType,
+        TimeSpan managerDelay,
+        object target = null)
     {
-        if (!TryApplyRateControl(
-                ft,
-                target as IResource,
-                ActionType.Execute,
-                callback,
-                out var delay))
-            return;
-
         ExecuteRateControlled(
             callback,
-            delay,
+            managerDelay,
             () => InvokeFunctionCore(ft, callback, arguments, actionType, target));
     }
 
@@ -1811,6 +1968,8 @@ partial class EpConnection
 
         object rt;
 
+        context?.BindOperation(target as IResource, ft);
+
         try
         {
             rt = ft.MethodInfo.Invoke(target, args);
@@ -1827,6 +1986,7 @@ partial class EpConnection
         if (ft.StreamMode != StreamMode.None)
         {
             context ??= new InvocationContext(this, callback);
+            context.BindOperation(target as IResource, ft);
             context.InitializeStream(ft.StreamMode, ft.Pausable);
 
             if (ft.StreamMode == StreamMode.Pull && context.SetAsyncEnumerable(rt))
@@ -2041,10 +2201,24 @@ partial class EpConnection
             return;
         }
 
+        if (!TryApplyManagers(
+                context.Function,
+                context.Resource,
+                ActionType.PullStream,
+                callback,
+                ErrorType.Management,
+                ExceptionCode.NotAllowed,
+                out var managerDelay,
+                supportsDelay: true))
+            return;
+
         Task.Run(async () =>
         {
             try
             {
+                if (managerDelay > TimeSpan.Zero)
+                    await Task.Delay(managerDelay).ConfigureAwait(false);
+
                 var next = await context.PullAsync();
                 if (next.HasValue)
                     SendChunk(executionCallback, next.Value);
@@ -2070,7 +2244,25 @@ partial class EpConnection
     {
         var executionCallback = ParseExecutionCallback(tdu);
 
-        if (!TakeInvocation(executionCallback, null, out var context))
+        var activeContext = GetInvocation(executionCallback);
+        if (activeContext == null)
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not active.");
+            return;
+        }
+
+        if (!TryApplyManagers(
+                activeContext.Function,
+                activeContext.Resource,
+                ActionType.TerminateExecution,
+                callback,
+                ErrorType.Management,
+                ExceptionCode.NotAllowed,
+                out _))
+            return;
+
+        if (!TakeInvocation(executionCallback, activeContext, out var context))
         {
             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
                 "The target execution is not active.");
@@ -2099,7 +2291,24 @@ partial class EpConnection
         var executionCallback = ParseExecutionCallback(tdu);
         var context = GetInvocation(executionCallback);
 
-        if (context == null || !context.Halt())
+        if (context == null)
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not pausable or is already halted.");
+            return;
+        }
+
+        if (!TryApplyManagers(
+                context.Function,
+                context.Resource,
+                ActionType.HaltExecution,
+                callback,
+                ErrorType.Management,
+                ExceptionCode.NotAllowed,
+                out _))
+            return;
+
+        if (!context.Halt())
         {
             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
                 "The target execution is not pausable or is already halted.");
@@ -2114,7 +2323,24 @@ partial class EpConnection
         var executionCallback = ParseExecutionCallback(tdu);
         var context = GetInvocation(executionCallback);
 
-        if (context == null || !context.Resume())
+        if (context == null)
+        {
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
+                "The target execution is not pausable or is not halted.");
+            return;
+        }
+
+        if (!TryApplyManagers(
+                context.Function,
+                context.Resource,
+                ActionType.ResumeExecution,
+                callback,
+                ErrorType.Management,
+                ExceptionCode.NotAllowed,
+                out _))
+            return;
+
+        if (!context.Resume())
         {
             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed,
                 "The target execution is not pausable or is not halted.");
@@ -2150,6 +2376,16 @@ partial class EpConnection
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                 return;
             }
+
+            if (!TryApplyManagers(
+                    et,
+                    r,
+                    ActionType.Subscribe,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.NotAllowed,
+                    out _))
+                return;
 
             if (r is EpResource)
             {
@@ -2209,6 +2445,16 @@ partial class EpConnection
                 SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
                 return;
             }
+
+            if (!TryApplyManagers(
+                    et,
+                    r,
+                    ActionType.Unsubscribe,
+                    callback,
+                    ErrorType.Management,
+                    ExceptionCode.NotAllowed,
+                    out _))
+                return;
 
             if (r is EpResource)
             {
@@ -2274,18 +2520,15 @@ partial class EpConnection
                 return;
             }
 
-            if (r.Instance.Applicable(_session, ActionType.SetProperty, pt, this) == Ruling.Denied)
-            {
-                SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.SetPropertyDenied);
-                return;
-            }
-
-            if (!TryApplyRateControl(
+            if (!TryApplyManagers(
                     pt,
                     r,
                     ActionType.SetProperty,
                     callback,
-                    out var rateControlDelay))
+                    ErrorType.Exception,
+                    ExceptionCode.SetPropertyDenied,
+                    out var rateControlDelay,
+                    supportsDelay: true))
                 return;
 
 
@@ -3359,7 +3602,7 @@ partial class EpConnection
         if (!info.Receivers(_session))
             return;
 
-        if (info.Resource.Instance.Applicable(_session, ActionType.ReceiveEvent, info.EventDef, info.Issuer) == Ruling.Denied)
+        if (!IsOperationAllowed(info.Resource, info.EventDef, ActionType.ReceiveEvent, info.Issuer))
             return;
 
 
@@ -3385,7 +3628,7 @@ partial class EpConnection
             }
         }
 
-        if (info.Resource.Instance.Applicable(_session, ActionType.ReceiveEvent, info.Definition, null) == Ruling.Denied)
+        if (!IsOperationAllowed(info.Resource, info.Definition, ActionType.ReceiveEvent))
             return;
 
         // compose the packet
