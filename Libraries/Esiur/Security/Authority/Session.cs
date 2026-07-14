@@ -34,6 +34,68 @@ using Esiur.Security.Cryptography;
 using Esiur.Net.Packets;
 
 namespace Esiur.Security.Authority;
+
+/// <summary>
+/// Authentication metadata exchanged while establishing a session.
+/// Members retain the indexes defined by <see cref="EpAuthPacketHeader"/>, so this
+/// structure has the same wire representation as the former header map.
+/// </summary>
+public sealed class SessionHeaders : IndexedStructure
+{
+    [Index((int)EpAuthPacketHeader.Version)]
+    public object? Version { get; set; }
+
+    [Index((int)EpAuthPacketHeader.Domain)]
+    public string? Domain { get; set; }
+
+    [Index((int)EpAuthPacketHeader.SupportedAuthentications)]
+    public object? SupportedAuthentications { get; set; }
+
+    [Index((int)EpAuthPacketHeader.SupportedHashAlgorithms)]
+    public object? SupportedHashAlgorithms { get; set; }
+
+    [Index((int)EpAuthPacketHeader.SupportedCiphers)]
+    public object? SupportedCiphers { get; set; }
+
+    [Index((int)EpAuthPacketHeader.SupportedCompression)]
+    public object? SupportedCompression { get; set; }
+
+    [Index((int)EpAuthPacketHeader.SupportedMultiFactorAuthentications)]
+    public object? SupportedMultiFactorAuthentications { get; set; }
+
+    [Index((int)EpAuthPacketHeader.CipherType)]
+    public object? CipherType { get; set; }
+
+    [Index((int)EpAuthPacketHeader.CipherKey)]
+    public byte[]? CipherKey { get; set; }
+
+    [Index((int)EpAuthPacketHeader.SoftwareIdentity)]
+    public string? SoftwareIdentity { get; set; }
+
+    [Index((int)EpAuthPacketHeader.Referrer)]
+    public string? Referrer { get; set; }
+
+    [Index((int)EpAuthPacketHeader.Time)]
+    public DateTime? Time { get; set; }
+
+    [Index((int)EpAuthPacketHeader.IPAddress)]
+    public byte[]? IPAddress { get; set; }
+
+    [Index((int)EpAuthPacketHeader.Identity)]
+    public string? Identity { get; set; }
+
+    [Index((int)EpAuthPacketHeader.AuthenticationProtocol)]
+    public string? AuthenticationProtocol { get; set; }
+
+    [Index((int)EpAuthPacketHeader.AuthenticationData)]
+    public object? AuthenticationData { get; set; }
+
+    [Index((int)EpAuthPacketHeader.ErrorMessage)]
+    public string? ErrorMessage { get; set; }
+
+    internal SessionHeaders Copy() => (SessionHeaders)MemberwiseClone();
+}
+
 public class Session
 {
     public byte[] Id { get; set; }
@@ -47,8 +109,8 @@ public class Session
     public ISymetricCipher SymetricCipher { get; set; } = null;
 
 
-    public Map<EpAuthPacketHeader, object> LocalHeaders { get; set; } = new Map<EpAuthPacketHeader, object>();
-    public Map<EpAuthPacketHeader, object> RemoteHeaders { get; set; } = new Map<EpAuthPacketHeader, object>();
+    public SessionHeaders LocalHeaders { get; set; } = new SessionHeaders();
+    public SessionHeaders RemoteHeaders { get; set; } = new SessionHeaders();
 
     //public AuthenticationMethod AuthenticationMethod { get; set; }
     //public AuthenticationMethod RemoteMethod { get; set; }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Esiur.Data;
+using Esiur.Net.Packets;
 using Esiur.Resource;
+using Esiur.Security.Authority;
 
 namespace Esiur.Tests.Unit;
 
@@ -79,6 +81,41 @@ public class IndexedStructureTests
             Codec.ComposeIndexedType(value, Warehouse.Default, null));
 
         Assert.Contains("index 1", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SessionHeaders_RoundTripUsingAuthenticationHeaderIndexes()
+    {
+        var source = new SessionHeaders
+        {
+            Version = (byte)3,
+            Domain = "example.test",
+            IPAddress = new byte[] { 127, 0, 0, 1 },
+            AuthenticationProtocol = "hash",
+            AuthenticationData = new byte[] { 1, 2, 3 },
+        };
+
+        var bytes = Codec.ComposeIndexedType(source, Warehouse.Default, null);
+        var legacyBytes = Codec.Compose(new Map<byte, object>
+        {
+            [(byte)EpAuthPacketHeader.Version] = source.Version,
+            [(byte)EpAuthPacketHeader.Domain] = source.Domain,
+            [(byte)EpAuthPacketHeader.IPAddress] = source.IPAddress,
+            [(byte)EpAuthPacketHeader.AuthenticationProtocol] = source.AuthenticationProtocol,
+            [(byte)EpAuthPacketHeader.AuthenticationData] = source.AuthenticationData,
+        }, Warehouse.Default, null);
+        var (_, raw) = Codec.ParseSync(bytes, 0, Warehouse.Default);
+        var map = Assert.IsType<Map<byte, object>>(raw);
+        var (_, parsed) = Codec.ParseIndexedType<SessionHeaders>(bytes, 0, Warehouse.Default);
+
+        Assert.Equal(legacyBytes, bytes);
+        Assert.Equal("example.test", map[(byte)EpAuthPacketHeader.Domain]);
+        Assert.Equal("hash", map[(byte)EpAuthPacketHeader.AuthenticationProtocol]);
+        Assert.False(map.ContainsKey((byte)EpAuthPacketHeader.ErrorMessage));
+        Assert.Equal(source.Domain, parsed.Domain);
+        Assert.Equal(source.IPAddress, parsed.IPAddress);
+        Assert.Equal(source.AuthenticationProtocol, parsed.AuthenticationProtocol);
+        Assert.Equal(source.AuthenticationData, parsed.AuthenticationData);
     }
 
     private sealed class InvalidStructure : IndexedStructure

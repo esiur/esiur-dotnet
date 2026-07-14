@@ -193,7 +193,7 @@ public partial class EpConnection : NetworkConnection, IStore
         set
         {
             _remoteDomain = value;
-            _session.RemoteHeaders[EpAuthPacketHeader.Domain] = value;
+            _session.RemoteHeaders.Domain = value;
         }
     }
 
@@ -203,7 +203,7 @@ public partial class EpConnection : NetworkConnection, IStore
         set
         {
             _localDomain = value;
-            _session.LocalHeaders[EpAuthPacketHeader.Domain] = value;
+            _session.LocalHeaders.Domain = value;
         }
 
     }
@@ -262,8 +262,7 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         base.Assign(socket);
 
-        _session.LocalHeaders[EpAuthPacketHeader.IPAddress]
-                                = socket.RemoteEndPoint.Address.GetAddressBytes();
+        _session.LocalHeaders.IPAddress = socket.RemoteEndPoint.Address.GetAddressBytes();
 
         if (socket.State == SocketState.Established &&
             _authDirection == AuthenticationDirection.Initiator)
@@ -277,8 +276,7 @@ public partial class EpConnection : NetworkConnection, IStore
         if (_authDirection != AuthenticationDirection.Initiator)
             return;
 
-        // change to Map<byte, object> for compatibility
-        var headers = _session.LocalHeaders.Select(x => new KeyValuePair<byte, object>((byte)x.Key, x.Value));
+        var headers = _session.LocalHeaders.Copy();
 
         if (_session.AuthenticationMode != AuthenticationMode.None)
         {
@@ -287,9 +285,9 @@ public partial class EpConnection : NetworkConnection, IStore
 
             var initAuthResult = _session.AuthenticationHandler.Process(null);
 
-            headers.Add((byte)EpAuthPacketHeader.AuthenticationProtocol, _session.AuthenticationHandler.Protocol);
-            headers.Add((byte)EpAuthPacketHeader.AuthenticationData, initAuthResult.AuthenticationData);
-            headers.Add((byte)EpAuthPacketHeader.Domain, _remoteDomain);
+            headers.AuthenticationProtocol = _session.AuthenticationHandler.Protocol;
+            headers.AuthenticationData = initAuthResult.AuthenticationData;
+            headers.Domain = _remoteDomain;
 
         }
 
@@ -308,10 +306,9 @@ public partial class EpConnection : NetworkConnection, IStore
     /// Create a new distributed connection. 
     /// </summary>
     /// <param name="socket">Socket to transfer data through.</param>
-    /// <param name="domain">Working domain.</param>
-    /// <param name="username">Username.</param>
-    /// <param name="password">Password.</param>
-    public EpConnection(ISocket socket, IAuthenticationHandler authenticationHandler, Map<EpAuthPacketHeader, object> headers)
+    /// <param name="authenticationHandler">Authentication handler for the session.</param>
+    /// <param name="headers">Initial local session headers.</param>
+    public EpConnection(ISocket socket, IAuthenticationHandler authenticationHandler, SessionHeaders headers)
     {
         _session = new Session();
 
@@ -728,30 +725,18 @@ public partial class EpConnection : NetworkConnection, IStore
                 if (_authPacket.Command == EpAuthPacketCommand.Initialize)
                 {
 
-                    var remoteHeaders = new Map<byte, object>();
+                    var remoteHeaders = new SessionHeaders();
                     object remoteAuthData = null;
 
                     if (_authPacket.Tdu != null)
                     {
-                        var parsed = Codec.ParseSync(_authPacket.Tdu.Value, null);
-
-                        if (parsed is Map<byte, object> headers)
-                        {
-                            remoteHeaders = headers;
-
-                            foreach (var header in headers)
-                            {
-                                if (header.Key == (byte)EpAuthPacketHeader.AuthenticationData)
-                                    remoteAuthData = header.Value;
-                                else
-                                    _session.RemoteHeaders.Add((EpAuthPacketHeader)header.Key, header.Value);
-                            }
-                        }
+                        remoteHeaders = Codec.ParseIndexedType<SessionHeaders>(_authPacket.Tdu.Value, null);
+                        remoteAuthData = remoteHeaders.AuthenticationData;
+                        remoteHeaders.AuthenticationData = null;
                     }
 
-                    var localHeaders = new Map<byte, object>();
-                    foreach (var header in _session.LocalHeaders)
-                        localHeaders.Add((byte)header.Key, header.Value);
+                    _session.RemoteHeaders = remoteHeaders;
+                    var localHeaders = _session.LocalHeaders.Copy();
 
                     if (_authPacket.AuthMode == AuthenticationMode.None)
                     {
@@ -773,7 +758,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         return offset;
                     }
 
-                    if (!_session.RemoteHeaders.ContainsKey(EpAuthPacketHeader.AuthenticationProtocol))
+                    if (_session.RemoteHeaders.AuthenticationProtocol == null)
                     {
                         SendAuthHeaders(EpAuthPacketMethod.NotSupported, localHeaders);
                         _invalidCredentials = true;
@@ -781,13 +766,13 @@ public partial class EpConnection : NetworkConnection, IStore
                         return offset;
                     }
 
-                    var provider = _serverWarehouse.GetAuthenticationProvider(_session.RemoteHeaders[EpAuthPacketHeader.AuthenticationProtocol].ToString());
+                    var provider = _serverWarehouse.GetAuthenticationProvider(_session.RemoteHeaders.AuthenticationProtocol);
 
                     var handler = provider.CreateAuthenticationHandler(new AuthenticationContext()
                     {
                         Direction = AuthenticationDirection.Responder,
                         Mode = _authPacket.AuthMode,
-                        Domain = _session.RemoteHeaders.ContainsKey(EpAuthPacketHeader.Domain) ? _session.RemoteHeaders[EpAuthPacketHeader.Domain].ToString() : null,
+                        Domain = _session.RemoteHeaders.Domain,
                         Materials = new AuthenticationMaterial[] { new AuthenticationMaterial() { Type = AuthenticationMaterialType.Data, Value = remoteAuthData } }
                     });
 
@@ -807,8 +792,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     // send acknowledgements
 
-                    localHeaders.Add((byte)EpAuthPacketHeader.AuthenticationData,
-                        authResult.AuthenticationData);
+                    localHeaders.AuthenticationData = authResult.AuthenticationData;
 
                     if (authResult.Ruling == AuthenticationRuling.Failed)
                     {
@@ -853,31 +837,19 @@ public partial class EpConnection : NetworkConnection, IStore
                     if (_authPacket.Method == EpAuthPacketMethod.ProceedToHandshake
                         || _authPacket.Method == EpAuthPacketMethod.ProceedToFinalHandshake)
                     {
-                        var remoteHeaders
-                            = new Map<EpAuthPacketHeader, object>();
+                        var remoteHeaders = new SessionHeaders();
                         object remoteAuthData = null;
 
                         if (_authPacket.Tdu != null)
                         {
-                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, Instance.Warehouse);
-
-                            if (parsed is Map<byte, object> headers)
-                            {
-                                foreach (var header in headers)
-                                {
-                                    if (header.Key == (byte)EpAuthPacketHeader.AuthenticationData)
-                                    {
-                                        remoteAuthData = header.Value;
-                                    }
-                                    else
-                                    {
-                                        remoteHeaders.Add((EpAuthPacketHeader)header.Key, header.Value);
-                                    }
-                                }
-
-                                _session.RemoteHeaders = remoteHeaders;// headers.Select(x => new KeyValuePair<EpAuthPacketHeader, object>((EpAuthPacketHeader)x.Key, x.Value));
-                            }
+                            remoteHeaders = Codec.ParseIndexedType<SessionHeaders>(
+                                _authPacket.Tdu.Value,
+                                Instance.Warehouse);
+                            remoteAuthData = remoteHeaders.AuthenticationData;
+                            remoteHeaders.AuthenticationData = null;
                         }
+
+                        _session.RemoteHeaders = remoteHeaders;
 
                         if (_session.AuthenticationMode == AuthenticationMode.None)
                         {
@@ -1972,7 +1944,7 @@ public partial class EpConnection : NetworkConnection, IStore
             _authDirection = AuthenticationDirection.Initiator;
             _invalidCredentials = false;
 
-            _session.LocalHeaders[EpAuthPacketHeader.Domain] = domain;
+            _session.LocalHeaders.Domain = domain;
             _hostname = hostname;
         }
 

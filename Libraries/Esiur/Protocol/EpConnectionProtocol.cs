@@ -375,7 +375,7 @@ partial class EpConnection
     }
 
     void SendAuthHeaders(EpAuthPacketMethod method,
-        Map<byte, object> authHeaders)
+        SessionHeaders authHeaders)
     {
         if (authHeaders != null)
         {
@@ -388,9 +388,10 @@ partial class EpConnection
 
             var bl = new BinaryList();
             bl.AddUInt8((byte)((byte)method | 0x20));
-            bl.AddUInt8Array(Codec.Compose(authHeaders, 
-                                            this.Instance?.Warehouse ?? _serverWarehouse, 
-                                            this));
+            bl.AddUInt8Array(Codec.ComposeIndexedType(
+                authHeaders,
+                this.Instance?.Warehouse ?? _serverWarehouse,
+                this));
             Send(bl.ToArray());
         }
         else
