@@ -265,7 +265,9 @@ internal sealed class IntegrationCluster : IAsyncDisposable
                         ? encryptionMode
                         : EncryptionMode.None,
                     EncryptionProviders = new[] { AesEncryptionProvider.Name },
-                    UseWebSocket = useWebSocket,
+                    WebSocketUri = useWebSocket
+                        ? new Uri($"ws://127.0.0.1:{port}")
+                        : null,
                 });
 
             return cluster;

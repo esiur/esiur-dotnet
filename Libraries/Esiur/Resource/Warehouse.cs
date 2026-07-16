@@ -43,6 +43,7 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -89,7 +90,8 @@ public class Warehouse
     KeyList<string, KeyList<TypeDefKind, KeyList<string, Type>>> _proxyTypeDefs = new();
 
 
-    Map<string, IAuthenticationProvider> _authenticationProviders = new Map<string, IAuthenticationProvider>();
+    readonly ConcurrentDictionary<string, IAuthenticationProvider> _authenticationProviders
+        = new ConcurrentDictionary<string, IAuthenticationProvider>(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, IEncryptionProvider> _encryptionProviders
         = new ConcurrentDictionary<string, IEncryptionProvider>(StringComparer.Ordinal);
     readonly ConcurrentDictionary<Type, IResourceManager> _resourceManagers
@@ -102,7 +104,10 @@ public class Warehouse
 
     object _typeDefsLock = new object();
 
-    bool _warehouseIsOpen = false;
+    readonly object _warehouseLifecycleLock = new object();
+    readonly SemaphoreSlim _warehouseLifecycleGate = new SemaphoreSlim(1, 1);
+    volatile bool _warehouseIsOpen = false;
+    bool _warehouseRequiresTermination = false;
 
     public delegate void StoreEvent(IStore store);
     public event StoreEvent StoreConnected;
@@ -117,18 +122,45 @@ public class Warehouse
     /// </summary>
     public WarehouseConfiguration Configuration { get; }
 
+    /// <summary>Indicates whether this Warehouse is currently open.</summary>
+    public bool IsOpen
+    {
+        get
+        {
+            lock (_warehouseLifecycleLock)
+                return _warehouseIsOpen;
+        }
+    }
+
     private Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
 
     public void RegisterAuthenticationProvider(IAuthenticationProvider provider)
     {
+        if (provider == null)
+            throw new ArgumentNullException(nameof(provider));
+
         RegisterAuthenticationProvider(provider.DefaultName, provider);
     }
 
     public void RegisterAuthenticationProvider(string name, IAuthenticationProvider provider)
     {
-        _authenticationProviders.Add(name, provider);
+        if (string.IsNullOrWhiteSpace(name)
+            || !string.Equals(name, name.Trim(), StringComparison.Ordinal))
+            throw new ArgumentException("An authentication provider name is required.", nameof(name));
+        if (provider == null)
+            throw new ArgumentNullException(nameof(provider));
+        if (!_authenticationProviders.TryAdd(name, provider))
+            throw new InvalidOperationException(
+                $"An authentication provider named `{name}` is already registered.");
     }
+
+    /// <summary>Removes an authentication provider only when the same instance is registered.</summary>
+    public bool UnregisterAuthenticationProvider(string name, IAuthenticationProvider provider)
+        => !string.IsNullOrWhiteSpace(name)
+            && provider != null
+            && ((ICollection<KeyValuePair<string, IAuthenticationProvider>>)_authenticationProviders)
+                .Remove(new KeyValuePair<string, IAuthenticationProvider>(name, provider));
 
     /// <summary>
     /// Registers an encryption provider using its default protocol name.
@@ -146,13 +178,21 @@ public class Warehouse
     /// </summary>
     public void RegisterEncryptionProvider(string name, IEncryptionProvider provider)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(name)
+            || !string.Equals(name, name.Trim(), StringComparison.Ordinal))
             throw new ArgumentException("An encryption provider name is required.", nameof(name));
         if (provider == null)
             throw new ArgumentNullException(nameof(provider));
         if (!_encryptionProviders.TryAdd(name, provider))
             throw new InvalidOperationException($"An encryption provider named `{name}` is already registered.");
     }
+
+    /// <summary>Removes an encryption provider only when the same instance is registered.</summary>
+    public bool UnregisterEncryptionProvider(string name, IEncryptionProvider provider)
+        => !string.IsNullOrWhiteSpace(name)
+            && provider != null
+            && ((ICollection<KeyValuePair<string, IEncryptionProvider>>)_encryptionProviders)
+                .Remove(new KeyValuePair<string, IEncryptionProvider>(name, provider));
 
 
     /// <summary>
@@ -560,15 +600,16 @@ public class Warehouse
 
     public IAuthenticationProvider GetAuthenticationProvider(string name)
     {
-        if (_authenticationProviders.ContainsKey(name))
-            return _authenticationProviders[name];
+        if (_authenticationProviders.TryGetValue(name, out var provider))
+            return provider;
         throw new Exception("Authentication provider not found.");
     }
 
     public IAuthenticationProvider? TryGetAuthenticationProvider(string name)
     {
-        if (_authenticationProviders.ContainsKey(name))
-            return _authenticationProviders[name];
+        if (!string.IsNullOrWhiteSpace(name)
+            && _authenticationProviders.TryGetValue(name, out var provider))
+            return provider;
 
         return null;
     }
@@ -689,52 +730,70 @@ public class Warehouse
     /// <returns>True, if no problem occurred.</returns>
     public async AsyncReply<bool> Open()
     {
-        if (_warehouseIsOpen)
-            return false;
-
-        // Load generated models
-        //LoadGenerated();
-
-
-        _warehouseIsOpen = true;
-
-        var resSnap = _resources.Select(x =>
+        await _warehouseLifecycleGate.WaitAsync();
+        try
         {
-            IResource r;
-            if (x.Value.TryGetTarget(out r))
-                return r;
-            else
-                return null;
-        }).Where(r => r != null).ToArray();
-
-        foreach (var r in resSnap)
-        {
-            //IResource r;
-            //if (rk.Value.TryGetTarget(out r))
-            //{
-            var rt = await r.Handle(ResourceOperation.Initialize);
-            //if (!rt)
-            //  return false;
-
-            if (!rt)
+            lock (_warehouseLifecycleLock)
             {
-                Global.Log("Warehouse", LogType.Warning, $"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Definition.Name}]");
-            }
-            //}
-        }
+                if (_warehouseIsOpen || _warehouseRequiresTermination)
+                    return false;
 
-        foreach (var r in resSnap)
-        {
-            var rt = await r.Handle(ResourceOperation.SystemReady);
-            if (!rt)
+                _warehouseIsOpen = true;
+                _warehouseRequiresTermination = true;
+            }
+
+            try
             {
-                Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Definition.Name}]");
+                // Load generated models
+                //LoadGenerated();
+
+                var resSnap = _resources.Select(x =>
+                {
+                    IResource r;
+                    if (x.Value.TryGetTarget(out r))
+                        return r;
+                    else
+                        return null;
+                }).Where(r => r != null).ToArray();
+
+                foreach (var r in resSnap)
+                {
+                    //IResource r;
+                    //if (rk.Value.TryGetTarget(out r))
+                    //{
+                    var rt = await r.Handle(ResourceOperation.Initialize);
+                    //if (!rt)
+                    //  return false;
+
+                    if (!rt)
+                    {
+                        Global.Log("Warehouse", LogType.Warning, $"Resource failed at Initialize {r.Instance.Name} [{r.Instance.Definition.Name}]");
+                    }
+                    //}
+                }
+
+                foreach (var r in resSnap)
+                {
+                    var rt = await r.Handle(ResourceOperation.SystemReady);
+                    if (!rt)
+                    {
+                        Global.Log("Warehouse", LogType.Warning, $"Resource failed at SystemInitialized {r.Instance.Name} [{r.Instance.Definition.Name}]");
+                    }
+                }
+
+                return true;
+            }
+            catch
+            {
+                lock (_warehouseLifecycleLock)
+                    _warehouseIsOpen = false;
+                throw;
             }
         }
-
-
-        return true;
-
+        finally
+        {
+            _warehouseLifecycleGate.Release();
+        }
     }
 
     /// <summary>
@@ -742,56 +801,109 @@ public class Warehouse
     /// This function issues terminate trigger to all resources and stores.
     /// </summary>
     /// <returns>True, if no problem occurred.</returns>
-    public AsyncReply<bool> Close()
+    public async AsyncReply<bool> Close()
     {
+        await _warehouseLifecycleGate.WaitAsync();
+        try
+        {
+            lock (_warehouseLifecycleLock)
+            {
+                if (!_warehouseRequiresTermination)
+                    return false;
 
-        var bag = new AsyncBag<bool>();
+                // Resources added after this point must not initialize while the
+                // existing graph is terminating.
+                _warehouseIsOpen = false;
+            }
+
+            // Use the same stable resource graph for both shutdown phases. Stores are
+            // also retained by _stores, so include that registry in case its weak
+            // _resources entry was concurrently removed or became unavailable.
+            var resources = SnapshotResources();
+
+            // Every Terminate callback must settle before SystemTerminated starts.
+            // Each phase captures failures per resource so one synchronous throw or
+            // failed reply cannot prevent the remaining callbacks from running.
+            var terminate = await SettleOperation(resources, ResourceOperation.Terminate);
+            var systemTerminated = await SettleOperation(resources, ResourceOperation.SystemTerminated);
+
+            var errors = terminate.Errors.Concat(systemTerminated.Errors).ToArray();
+            if (errors.Length == 1)
+                throw errors[0];
+            if (errors.Length > 1)
+                throw new AggregateException(
+                    "One or more resources failed while closing the warehouse.",
+                    errors);
+
+            return terminate.Success && systemTerminated.Success;
+        }
+        finally
+        {
+            lock (_warehouseLifecycleLock)
+            {
+                _warehouseIsOpen = false;
+                _warehouseRequiresTermination = false;
+            }
+
+            _warehouseLifecycleGate.Release();
+        }
+    }
+
+    private IResource[] SnapshotResources()
+    {
+        var resources = new HashSet<IResource>(ResourceReferenceComparer.Instance);
 
         foreach (var resource in _resources.Values)
-        {
-            IResource r;
-            if (resource.TryGetTarget(out r))
-            {
-                if (!(r is IStore))
-                    bag.Add(r.Handle(ResourceOperation.Terminate));
+            if (resource.TryGetTarget(out var target))
+                resources.Add(target);
 
-            }
+        foreach (var store in _stores.Keys)
+            resources.Add(store);
+
+        return resources.ToArray();
+    }
+
+    private static async Task<(bool Success, Exception[] Errors)> SettleOperation(
+        IResource[] resources,
+        ResourceOperation operation)
+    {
+        var pending = resources
+            .Select(resource => SettleResourceOperation(resource, operation))
+            .ToArray();
+        var outcomes = await Task.WhenAll(pending);
+
+        return (
+            outcomes.All(outcome => outcome.Success),
+            outcomes
+                .Where(outcome => outcome.Error != null)
+                .Select(outcome => outcome.Error!)
+                .ToArray());
+    }
+
+    private static async Task<(bool Success, Exception? Error)> SettleResourceOperation(
+        IResource resource,
+        ResourceOperation operation)
+    {
+        try
+        {
+            var reply = resource.Handle(operation)
+                ?? throw new InvalidOperationException(
+                    $"Resource `{resource.GetType().FullName}` returned no reply for `{operation}`.");
+            return (await reply, null);
         }
-
-        foreach (var store in _stores)
-            bag.Add(store.Key.Handle(ResourceOperation.Terminate));
-
-
-        foreach (var resource in _resources.Values)
+        catch (Exception exception)
         {
-            IResource r;
-            if (resource.TryGetTarget(out r))
-            {
-                if (!(r is IStore))
-                    bag.Add(r.Handle(ResourceOperation.SystemTerminated));
-            }
+            return (false, exception);
         }
+    }
 
+    private sealed class ResourceReferenceComparer : IEqualityComparer<IResource>
+    {
+        internal static readonly ResourceReferenceComparer Instance = new ResourceReferenceComparer();
 
-        foreach (var store in _stores)
-            bag.Add(store.Key.Handle(ResourceOperation.SystemTerminated));
+        public bool Equals(IResource x, IResource y) => ReferenceEquals(x, y);
 
-        bag.Seal();
-
-        var rt = new AsyncReply<bool>();
-        bag.Then((x) =>
-        {
-            foreach (var b in x)
-                if (!b)
-                {
-                    rt.Trigger(false);
-                    return;
-                }
-
-            rt.Trigger(true);
-        });
-
-        return rt;
+        public int GetHashCode(IResource resource) => RuntimeHelpers.GetHashCode(resource);
     }
 
 

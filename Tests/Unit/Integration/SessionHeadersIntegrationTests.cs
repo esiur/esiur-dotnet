@@ -5,6 +5,7 @@ using Esiur.Net.Sockets;
 using Esiur.Protocol;
 using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
+using System.Net;
 
 [Collection("Integration")]
 public class SessionHeadersIntegrationTests
@@ -248,16 +249,17 @@ public class SessionHeadersIntegrationTests
     }
 
     [Fact]
-    public async Task AddressBoundEncryption_RejectsWebSocketWithoutConcreteEndpoints()
+    public async Task AddressBoundEncryption_WorksAcrossWebSocketWithConcreteEndpoints()
     {
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
-            await IntegrationCluster.StartAsync(
-                    _ => Task.CompletedTask,
-                    encrypted: true,
-                    encryptionMode: EncryptionMode.EncryptWithSessionKeyAndAddress,
-                    useWebSocket: true)
-                .WaitAsync(TimeSpan.FromSeconds(5)));
+        await using var cluster = await IntegrationCluster.StartAsync(
+                _ => Task.CompletedTask,
+                encrypted: true,
+                encryptionMode: EncryptionMode.EncryptWithSessionKeyAndAddress,
+                useWebSocket: true)
+            .WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.IsNotType<TimeoutException>(exception);
+        Assert.True(cluster.Connection.IsEncrypted);
+        Assert.True(Assert.Single(cluster.Server.Connections).IsEncrypted);
+        Assert.NotEqual(IPAddress.Any, cluster.Connection.RemoteEndPoint.Address);
     }
 }

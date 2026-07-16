@@ -41,7 +41,7 @@ Esiur has implementations in C#, JavaScript, and Dart, making it highly versatil
 * Game Development: Enable multiplayer synchronization of game states and events, ensuring real-time feedback for interactive experiences.
 * Financial Services: Support real-time, distributed data sharing for trading platforms or monitoring systems where latency is critical.
 
-Esiur’s robust, feature-rich approach allows developers to focus on building applications without worrying about the complexities of distributed systems, while its self-describing API and broad data type support enable flexible and scalable application design.
+Esiurâ€™s robust, feature-rich approach allows developers to focus on building applications without worrying about the complexities of distributed systems, while its self-describing API and broad data type support enable flexible and scalable application design.
 
 ## Installation
 - Nuget
@@ -68,42 +68,53 @@ Esiur for C# uses source generator feature of .Net framework to implement the ne
 >```
 
 ### Setting up the server
-Esiur resources are arrange by stores (IStore) and accessed in a similar *nix file system paths, each store is responsible for storing and retriving of it's resources from memory, files or database.
+Esiur resources are arranged into stores (`IStore`) and accessed using paths similar to a Unix file system. Each store is responsible for keeping its resources in memory, files, or a database.
 
-In this example we're going to use the built-in MemoryStore, which keeps its resources in RAM.
+This example creates a Warehouse and uses the built-in `MemoryStore`, which keeps its resources in RAM.
 
 ```C#
-    // Warehouse is the singleton instance that holds all stores and active resources. 
-    await Warehouse.Put("sys", new MemoryStore());
+var warehouse = new Warehouse();
+await warehouse.Put("sys", new MemoryStore());
 ```
 
-Now we can add our resource to the memory store using ***Warehouse.Put*** 
+Now we can add our resource to the memory store using `warehouse.Put`.
 
 ```C#
-    await Warehouse.Put("sys/hello", new HelloResource());
+await warehouse.Put("sys/hello", new HelloResource());
 ```
 
-To distribute our resource using Esiur EP Protocol we need to add a DistributedServer
+Add an `EpServer` to expose the resource through the Esiur EP protocol. Anonymous access is enabled here only to make the development example easy to run; production applications should configure an authentication provider.
 
 
 ```C#
-    await Warehouse.Put("sys/server", new DistributedServer());
+await warehouse.Put("sys/server", new EpServer
+{
+    AllowUnauthorizedAccess = true, // Development only.
+});
 ```
 
-Finally we call ***Warehouse.Open*** to initialize the system.
+Finally, open the Warehouse to initialize the system.
 
 ```C#
-await Warehouse.Open();
+await warehouse.Open();
 ```
 
 To sum up
 
 >***Program.cs***
 >```C#
->    await Warehouse.Put("sys", new MemoryStore());
->    await Warehouse.Put("sys/hello", new HelloResource());
->    await Warehouse.Put("sys/server", new DistributedServer());
->    await Warehouse.Open();
+>using Esiur.Protocol;
+>using Esiur.Resource;
+>using Esiur.Stores;
+>
+>var warehouse = new Warehouse();
+>await warehouse.Put("sys", new MemoryStore());
+>await warehouse.Put("sys/hello", new HelloResource());
+>await warehouse.Put("sys/server", new EpServer
+>{
+>    AllowUnauthorizedAccess = true, // Development only.
+>});
+>await warehouse.Open();
 >```
 
 
@@ -111,7 +122,8 @@ To sum up
 To access our resource remotely, we need to use it's full path including the protocol, host and instance link.
 
 ```C#
-    dynamic res = await Warehouse.Get<IResource>("EP://localhost/sys/hello");
+var warehouse = new Warehouse();
+dynamic res = await warehouse.Get<IResource>("ep://localhost/sys/hello");
 ```
 
 Now we can invoke the exported functions and read/write properties;
@@ -126,14 +138,15 @@ Summing up
 
 >***Program.cs***
 >```C#
->    using Esiur.Resource;
->    
->    dynamic res = await Warehouse.Get<IResource>("EP://localhost/sys/hello");
->    
->    var reply = await res.SayHi("Hi, I'm calling you from dotnet");
->    
->    Console.WriteLine(reply);
->    Console.WriteLine($"Number of people said hi {res.Counts}");
+>using Esiur.Resource;
+>
+>var warehouse = new Warehouse();
+>dynamic res = await warehouse.Get<IResource>("ep://localhost/sys/hello");
+>
+>var reply = await res.SayHi("Hi, I'm calling you from dotnet");
+>
+>Console.WriteLine(reply);
+>Console.WriteLine($"Number of people said hi {res.Counts}");
 >
 >```
 
@@ -143,7 +156,7 @@ In the above client example, we relied on Esiur support for dynamic objects, but
 
 Esiur has a self describing feature which comes with every language it supports, allowing the developer to fetch and generate classes that match the ones on the other side (i.e. server).
 
-After installing the Esiur nuget package a new command is added to Visual Studio Package Console Manager that is called ***Get-Types***, which generates client side classes for robust static typing.
+After installing the Esiur NuGet package, a new command named ***Get-Types*** is added to the Visual Studio Package Manager Console. It generates client-side classes for robust static typing.
 
 ```ps 
 Get-Types ep://localhost/sys/hello
@@ -153,8 +166,9 @@ This will generate and add wrappers for all types needed by our resource.
 
 Allowing us to use
 ```C#
-    var res = await Warehouse.Get<MyResource>("EP://localhost/sys/hello");
-    var reply = await res.SayHi("Static typing is better");
-    Console.WriteLine(reply);
+var warehouse = new Warehouse();
+var res = await warehouse.Get<MyResource>("ep://localhost/sys/hello");
+var reply = await res.SayHi("Static typing is better");
+Console.WriteLine(reply);
 ```
 

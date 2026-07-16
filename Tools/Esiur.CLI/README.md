@@ -23,7 +23,7 @@ Global options:
 ## Example
 
 ```
-    dotnet run esiur get-template EP://localhost/sys/service
+    dotnet run esiur get-template ep://localhost/sys/service
 ```
 
  

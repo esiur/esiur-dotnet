@@ -15,6 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
@@ -22,6 +26,7 @@
        mirroring Tests/Features/Functional so [Resource]/[Export] test types get generated code. -->
   <ItemGroup>
     <ProjectReference Include="..\..\Libraries\Esiur\Esiur.csproj" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\..\Integrations\Esiur.AspNetCore\Esiur.AspNetCore.csproj" />
   </ItemGroup>
 
 </Project>

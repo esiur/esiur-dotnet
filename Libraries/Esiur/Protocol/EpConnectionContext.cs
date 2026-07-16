@@ -15,23 +15,6 @@ namespace Esiur.Protocol;
 
 public class EpConnectionContext : IResourceContext
 {
-    //public EpConnectionContext()
-    //    : base(0, new Map<string, object>(), null, null)
-    //{
-
-    //}
-
-    //public override void Build()
-    //{
-    //    Attributes["AutoConnect"] = AutoReconnect;
-    //    Attributes["ReconnectInterval"] = ReconnectInterval;
-    //    Attributes["UseWebSocket"] = UseWebSocket;
-    //    Attributes["SecureWebSocket"] = SecureWebSocket;
-    //    Attributes["Domain"] = SecureWebSocket;
-    //    Attributes["AuthenticationProtocol"] = SecureWebSocket;
-    //    Attributes["Identity"] = SecureWebSocket;
-    //}
-
     public ExceptionLevel ExceptionLevel { get; set; }
     = ExceptionLevel.Code | ExceptionLevel.Message | ExceptionLevel.Source | ExceptionLevel.Trace;
 
@@ -74,9 +57,11 @@ public class EpConnectionContext : IResourceContext
 
     //public string Username { get; set; }
 
-    public bool UseWebSocket { get; set; }
-
-    public bool SecureWebSocket { get; set; }
+    /// <summary>
+    /// Uses WebSocket transport when set. The absolute <c>ws</c> or <c>wss</c>
+    /// URI can include the endpoint path and query string.
+    /// </summary>
+    public Uri WebSocketUri { get; set; }
 
     // public string Password { get; set; }
 

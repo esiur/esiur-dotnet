@@ -1,6 +1,7 @@
 ﻿using Esiur.Core;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Esiur.Security.Authority.Providers
@@ -12,14 +13,40 @@ namespace Esiur.Security.Authority.Providers
         /// </summary>
         public const string ProtocolName = "password-sha3-v1";
 
-        /// <summary>
-        /// Previous protocol name, retained only to make explicit migration aliases possible.
-        /// New connections should use <see cref="ProtocolName"/>.
-        /// </summary>
-        [Obsolete("Use ProtocolName (`password-sha3-v1`) for new connections.")]
-        public const string LegacyProtocolName = "hash";
-
         public string DefaultName => ProtocolName;
+
+        /// <summary>
+        /// Creates the salted credential stored by a server for the
+        /// <c>password-sha3-v1</c> protocol. Call this once during account enrollment,
+        /// persist the returned hash and salt, and discard the plaintext password.
+        /// The hash is a password-equivalent protocol verifier and must be protected
+        /// from disclosure, logs, and client-visible data.
+        /// </summary>
+        public static PasswordHash CreateCredential(byte[] password)
+        {
+            if (password == null)
+                throw new ArgumentNullException(nameof(password));
+            if (password.Length == 0)
+                throw new ArgumentException("A password cannot be empty.", nameof(password));
+
+            var salt = new byte[32];
+            using (var random = RandomNumberGenerator.Create())
+                random.GetBytes(salt);
+
+            var material = new byte[password.Length + salt.Length];
+            try
+            {
+                Buffer.BlockCopy(password, 0, material, 0, password.Length);
+                Buffer.BlockCopy(salt, 0, material, password.Length, salt.Length);
+                return new PasswordHash(
+                    PasswordAuthenticationHandler.ComputeSha3(material),
+                    salt);
+            }
+            finally
+            {
+                Array.Clear(material, 0, material.Length);
+            }
+        }
 
         public IAuthenticationHandler CreateAuthenticationHandler(AuthenticationContext context)
         {

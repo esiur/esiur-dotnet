@@ -115,6 +115,12 @@ public partial class EpConnection : NetworkConnection, IStore
     Session _session;
 
     AsyncReply<bool> _openReply;
+    readonly object _connectLifecycleLock = new object();
+    long _connectAttemptGeneration;
+    bool _isDestroyed;
+    bool _connectAttemptIsRetrying;
+    CancellationTokenSource _connectRetryCancellation;
+    volatile bool _autoReconnect;
 
     bool _authenticated;
     bool _authenticationHandshakeSucceeded;
@@ -191,7 +197,44 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
     //[Attribute]
-    public bool AutoReconnect { get; set; } = false;
+    public bool AutoReconnect
+    {
+        get => _autoReconnect;
+        set
+        {
+            AsyncReply<bool> canceledReply = null;
+            CancellationTokenSource retryCancellation = null;
+
+            lock (_connectLifecycleLock)
+            {
+                _autoReconnect = value;
+                if (value || !_connectAttemptIsRetrying)
+                    return;
+
+                _connectAttemptIsRetrying = false;
+                retryCancellation = _connectRetryCancellation;
+                _connectRetryCancellation = null;
+
+                var pending = Volatile.Read(ref _openReply);
+                if (pending != null
+                    && ReferenceEquals(
+                        Interlocked.CompareExchange(ref _openReply, null, pending),
+                        pending))
+                {
+                    Status = EpConnectionStatus.Closed;
+                    canceledReply = pending;
+                }
+            }
+
+            CancelAndDispose(retryCancellation);
+            TriggerOpenError(
+                canceledReply,
+                new AsyncException(
+                    ErrorType.Management,
+                    0,
+                    "Automatic reconnect was canceled."));
+        }
+    }
 
     //[Attribute]
     public uint ReconnectInterval { get; set; } = 5;
@@ -199,11 +242,15 @@ public partial class EpConnection : NetworkConnection, IStore
     //[Attribute]
     //public string Username { get; set; }
 
-    //[Attribute]
-    public bool UseWebSocket { get; set; }
+    /// <summary>
+    /// Full WebSocket endpoint used by outbound connections. When null, EP uses
+    /// its native TCP transport (except on browser runtimes).
+    /// </summary>
+    public Uri WebSocketUri { get; set; }
 
-    //[Attribute]
-    public bool SecureWebSocket { get; set; }
+    // Test seam for verifying the same fresh-socket policy used by native TCP and
+    // FrameworkWebSocket reconnects without expanding the public API.
+    internal Func<ISocket> ClientSocketFactory { get; set; }
 
     //[Attribute]
     //public string Password { get; set; }
@@ -857,17 +904,16 @@ public partial class EpConnection : NetworkConnection, IStore
     void FailPendingOpen(Exception exception)
     {
         var pending = Interlocked.Exchange(ref _openReply, null);
+        TriggerOpenError(pending, exception);
+    }
+
+    static void TriggerOpenError(AsyncReply<bool> pending, Exception exception)
+    {
         if (pending == null)
             return;
 
-        try
-        {
-            pending.TriggerError(exception);
-        }
-        catch (Exception ex)
-        {
-            Global.Log(ex);
-        }
+        try { pending.TriggerError(exception); }
+        catch (Exception ex) { Global.Log(ex); }
     }
 
     void BeginPlaintextHandshake()
@@ -1005,14 +1051,9 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         if (cancellation == null)
             return;
-        try
-        {
-            cancellation.Cancel();
-        }
-        finally
-        {
-            cancellation.Dispose();
-        }
+
+        try { cancellation.Cancel(); } catch (ObjectDisposedException) { }
+        try { cancellation.Dispose(); } catch (ObjectDisposedException) { }
     }
 
     bool TryPublishAuthenticationReady(
@@ -1233,6 +1274,23 @@ public partial class EpConnection : NetworkConnection, IStore
 
     public override void Destroy()
     {
+        CancellationTokenSource retryCancellation;
+        lock (_connectLifecycleLock)
+        {
+            _isDestroyed = true;
+            _connectAttemptGeneration++;
+            _autoReconnect = false;
+            _connectAttemptIsRetrying = false;
+            retryCancellation = _connectRetryCancellation;
+            _connectRetryCancellation = null;
+            Status = EpConnectionStatus.Closed;
+        }
+
+        CancelAndDispose(retryCancellation);
+        FailPendingOpen(new AsyncException(
+            ErrorType.Management,
+            0,
+            "The connection was destroyed before it finished opening."));
         TerminateInvocations();
         UnsubscribeAll();
         EndAuthenticationAttempt();
@@ -1479,8 +1537,24 @@ public partial class EpConnection : NetworkConnection, IStore
                             Socket?.Unhold();
 
                             var res = new HttpResponsePacket();
+                            HttpConnection.Upgrade(
+                                req,
+                                res,
+                                new[] { FrameworkWebSocket.SubProtocol },
+                                out var selectedSubProtocol);
 
-                            HttpConnection.Upgrade(req, res);
+                            if (selectedSubProtocol != FrameworkWebSocket.SubProtocol)
+                            {
+                                res = new HttpResponsePacket
+                                {
+                                    Number = HttpResponseCode.BadRequest,
+                                    Text = "The EP WebSocket subprotocol is required."
+                                };
+                                res.Compose(HttpComposeOption.AllCalculateLength);
+                                Send(res.Data);
+                                Close();
+                                return ends;
+                            }
 
                             res.Compose(HttpComposeOption.AllCalculateLength);
                             Send(res.Data);
@@ -3101,8 +3175,7 @@ public partial class EpConnection : NetworkConnection, IStore
                 ReconnectInterval = epContext.ReconnectInterval;
                 AuthenticationTimeout = epContext.AuthenticationTimeout;
                 ExceptionLevel = epContext.ExceptionLevel;
-                UseWebSocket = epContext.UseWebSocket;
-                SecureWebSocket = epContext.SecureWebSocket;
+                WebSocketUri = epContext.WebSocketUri;
                 AutoReconnect = epContext.AutoReconnect;
                 _hostname = address;
                 _port = port;
@@ -3124,77 +3197,335 @@ public partial class EpConnection : NetworkConnection, IStore
 
     public AsyncReply<bool> Connect(ISocket socket = null, string hostname = null, ushort port = 0, string domain = null)
     {
-        if (IsConnected || Status == EpConnectionStatus.Connected)
-            throw new AsyncException(ErrorType.Exception, 0, "Connection is already established");
-        var openReply = new AsyncReply<bool>();
-        if (Interlocked.CompareExchange(ref _openReply, openReply, null) != null)
-            throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
+        AsyncReply<bool> openReply;
+        long attemptGeneration;
+        bool canCreateReplacement;
 
-        Status = EpConnectionStatus.Connecting;
-
-        // set auth direction to initiator
-        _authDirection = AuthenticationDirection.Initiator;
-
-        if (hostname != null)
+        lock (_connectLifecycleLock)
         {
-            DisposeSessionEncryption();
-            _session = new Session();
-            _authDirection = AuthenticationDirection.Initiator;
-            _invalidCredentials = false;
+            if (_isDestroyed)
+                throw new AsyncException(ErrorType.Exception, 0, "Connection was destroyed");
+            if (IsConnected || Status == EpConnectionStatus.Connected)
+                throw new AsyncException(ErrorType.Exception, 0, "Connection is already established");
 
-            _session.LocalHeaders.Domain = domain;
-            _hostname = hostname;
+            openReply = new AsyncReply<bool>();
+            if (Interlocked.CompareExchange(ref _openReply, openReply, null) != null)
+                throw new AsyncException(ErrorType.Exception, 0, "Connection in progress");
+
+            attemptGeneration = ++_connectAttemptGeneration;
+            _connectAttemptIsRetrying = false;
+
+            try
+            {
+                Status = EpConnectionStatus.Connecting;
+
+                // set auth direction to initiator
+                _authDirection = AuthenticationDirection.Initiator;
+
+                if (hostname != null)
+                {
+                    DisposeSessionEncryption();
+                    _session = new Session();
+                    _authDirection = AuthenticationDirection.Initiator;
+                    _invalidCredentials = false;
+
+                    _session.LocalHeaders.Domain = domain;
+                    _hostname = hostname;
+                }
+
+                if (port > 0)
+                    this._port = port;
+
+                if (_session == null)
+                    throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
+
+                if (_authenticationProvider != null && _authenticationContext != null)
+                {
+                    DisposeAuthenticationHandler();
+                    _session.AuthenticationHandler =
+                        _authenticationProvider.CreateAuthenticationHandler(_authenticationContext);
+                }
+
+                BeginPlaintextHandshake();
+
+                canCreateReplacement = socket == null;
+                socket ??= CreateClientSocket();
+            }
+            catch
+            {
+                Interlocked.CompareExchange(ref _openReply, null, openReply);
+                _connectAttemptIsRetrying = false;
+                Status = EpConnectionStatus.Closed;
+                throw;
+            }
         }
 
-        if (port > 0)
-            this._port = port;
-
-        if (_session == null)
-            throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
-
-        if (_authenticationProvider != null && _authenticationContext != null)
-        {
-            DisposeAuthenticationHandler();
-            _session.AuthenticationHandler =
-                _authenticationProvider.CreateAuthenticationHandler(_authenticationContext);
-        }
-
-        BeginPlaintextHandshake();
-
-        if (socket == null)
-        {
-            var os = RuntimeInformation.FrameworkDescription;
-            if (UseWebSocket || RuntimeInformation.OSDescription == "Browser")
-                socket = new FrameworkWebSocket();
-            else
-                socket = new TcpSocket();
-        }
-
-
-        connectSocket(socket);
+        connectSocket(socket, canCreateReplacement, openReply, attemptGeneration);
 
         return openReply;
     }
 
-    void connectSocket(ISocket socket)
+    ISocket CreateClientSocket()
     {
-        socket.Connect(this._hostname, this._port).Then(x =>
+        if (ClientSocketFactory != null)
+            return ClientSocketFactory();
+        if (WebSocketUri != null)
+            return new FrameworkWebSocket(WebSocketUri);
+        if (RuntimeInformation.OSDescription == "Browser")
         {
-            Assign(socket);
-        }).Error((x) =>
-        {
-            if (AutoReconnect)
-            {
-                Global.Log("EpConnection", LogType.Debug, "Reconnecting socket...");
-                Task.Delay(TimeSpan.FromSeconds(ReconnectInterval))
-                    .ContinueWith((x) => connectSocket(socket));
-            }
-            else
-            {
-                FailPendingOpen(x);
-            }
-        });
+            return new FrameworkWebSocket(
+                new UriBuilder("ws", _hostname, _port).Uri);
+        }
 
+        return new TcpSocket();
+    }
+
+    void connectSocket(
+        ISocket socket,
+        bool canCreateReplacement,
+        AsyncReply<bool> expectedOpenReply,
+        long attemptGeneration)
+    {
+        if (!IsCurrentConnectAttempt(expectedOpenReply, attemptGeneration))
+        {
+            DestroyStaleSocket(socket);
+            return;
+        }
+
+        AsyncReply<bool> connectReply;
+        try
+        {
+            connectReply = socket.Connect(this._hostname, this._port);
+        }
+        catch (Exception exception)
+        {
+            HandleSocketConnectFailure(
+                socket,
+                canCreateReplacement,
+                expectedOpenReply,
+                attemptGeneration,
+                exception);
+            return;
+        }
+
+        connectReply.Then(connected =>
+        {
+            if (!connected)
+            {
+                HandleSocketConnectFailure(
+                    socket,
+                    canCreateReplacement,
+                    expectedOpenReply,
+                    attemptGeneration,
+                    new AsyncException(
+                        ErrorType.Management,
+                        0,
+                        "The socket did not establish a connection."));
+                return;
+            }
+
+            try
+            {
+                var staleAttempt = false;
+                lock (_connectLifecycleLock)
+                {
+                    staleAttempt = !IsCurrentConnectAttemptLocked(
+                        expectedOpenReply,
+                        attemptGeneration);
+                    if (!staleAttempt)
+                    {
+                        _connectAttemptIsRetrying = false;
+                        Assign(socket);
+                        // Some transports begin their receive loop as part of Connect
+                        // and report false here to mean "already started". Preserve that
+                        // valid contract; assignment/handshake failures still throw.
+                        socket.Begin();
+                    }
+                }
+
+                if (staleAttempt)
+                    DestroyStaleSocket(socket);
+            }
+            catch (Exception exception)
+            {
+                // A connected transport that cannot be assigned or initialize the EP
+                // handshake has a deterministic configuration/protocol failure. A new
+                // socket cannot correct it.
+                HandleSocketConnectFailure(
+                    socket,
+                    canCreateReplacement: false,
+                    expectedOpenReply,
+                    attemptGeneration,
+                    exception);
+            }
+        }).Error(exception =>
+            HandleSocketConnectFailure(
+                socket,
+                canCreateReplacement,
+                expectedOpenReply,
+                attemptGeneration,
+                exception));
+    }
+
+    void HandleSocketConnectFailure(
+        ISocket socket,
+        bool canCreateReplacement,
+        AsyncReply<bool> expectedOpenReply,
+        long attemptGeneration,
+        Exception exception)
+    {
+        if (!IsCurrentConnectAttempt(expectedOpenReply, attemptGeneration))
+        {
+            DestroyStaleSocket(socket);
+            return;
+        }
+
+        if (ReferenceEquals(Socket, socket))
+            Unassign();
+
+        DestroyStaleSocket(socket);
+
+        CancellationTokenSource retryCancellation = null;
+        CancellationTokenSource previousRetryCancellation = null;
+        if (canCreateReplacement)
+        {
+            lock (_connectLifecycleLock)
+            {
+                if (_autoReconnect
+                    && IsCurrentConnectAttemptLocked(expectedOpenReply, attemptGeneration))
+                {
+                    _connectAttemptIsRetrying = true;
+                    retryCancellation = new CancellationTokenSource();
+                    previousRetryCancellation = _connectRetryCancellation;
+                    _connectRetryCancellation = retryCancellation;
+                }
+            }
+        }
+
+        CancelAndDispose(previousRetryCancellation);
+
+        if (retryCancellation != null)
+        {
+            Global.Log(
+                "EpConnection",
+                LogType.Debug,
+                $"Reconnecting with a fresh socket after: {exception.Message}");
+            _ = RetryConnectSocketAsync(
+                retryCancellation,
+                expectedOpenReply,
+                attemptGeneration);
+            return;
+        }
+
+        FailConnectAttempt(expectedOpenReply, attemptGeneration, exception);
+    }
+
+    async Task RetryConnectSocketAsync(
+        CancellationTokenSource retryCancellation,
+        AsyncReply<bool> expectedOpenReply,
+        long attemptGeneration)
+    {
+        try
+        {
+            await Task.Delay(
+                TimeSpan.FromSeconds(ReconnectInterval),
+                retryCancellation.Token);
+        }
+        catch (OperationCanceledException) when (retryCancellation.IsCancellationRequested)
+        {
+            return;
+        }
+        finally
+        {
+            lock (_connectLifecycleLock)
+            {
+                if (ReferenceEquals(_connectRetryCancellation, retryCancellation))
+                    _connectRetryCancellation = null;
+            }
+
+            retryCancellation.Dispose();
+        }
+
+        lock (_connectLifecycleLock)
+        {
+            if (!_autoReconnect
+                || !IsCurrentConnectAttemptLocked(expectedOpenReply, attemptGeneration))
+                return;
+        }
+
+        try
+        {
+            connectSocket(
+                CreateClientSocket(),
+                canCreateReplacement: true,
+                expectedOpenReply,
+                attemptGeneration);
+        }
+        catch (Exception retryException)
+        {
+            FailConnectAttempt(
+                expectedOpenReply,
+                attemptGeneration,
+                retryException);
+        }
+    }
+
+    bool IsCurrentConnectAttempt(
+        AsyncReply<bool> expectedOpenReply,
+        long attemptGeneration)
+    {
+        lock (_connectLifecycleLock)
+            return IsCurrentConnectAttemptLocked(expectedOpenReply, attemptGeneration);
+    }
+
+    bool IsCurrentConnectAttemptLocked(
+        AsyncReply<bool> expectedOpenReply,
+        long attemptGeneration)
+        => !_isDestroyed
+           && _connectAttemptGeneration == attemptGeneration
+           && ReferenceEquals(Volatile.Read(ref _openReply), expectedOpenReply);
+
+    void FailConnectAttempt(
+        AsyncReply<bool> expectedOpenReply,
+        long attemptGeneration,
+        Exception exception)
+    {
+        var ownsAttempt = false;
+        CancellationTokenSource retryCancellation = null;
+        lock (_connectLifecycleLock)
+        {
+            if (IsCurrentConnectAttemptLocked(expectedOpenReply, attemptGeneration))
+            {
+                ownsAttempt = ReferenceEquals(
+                    Interlocked.CompareExchange(
+                        ref _openReply,
+                        null,
+                        expectedOpenReply),
+                    expectedOpenReply);
+
+                if (ownsAttempt)
+                {
+                    Status = EpConnectionStatus.Closed;
+                    _connectAttemptIsRetrying = false;
+                    retryCancellation = _connectRetryCancellation;
+                    _connectRetryCancellation = null;
+                }
+            }
+        }
+
+        if (!ownsAttempt)
+            return;
+
+        CancelAndDispose(retryCancellation);
+        TriggerOpenError(expectedOpenReply, exception);
+    }
+
+    void DestroyStaleSocket(ISocket socket)
+    {
+        if (ReferenceEquals(Socket, socket))
+            return;
+
+        try { socket.Destroy(); } catch { }
     }
 
     public async AsyncReply<bool> Reconnect()
@@ -3414,8 +3745,17 @@ public partial class EpConnection : NetworkConnection, IStore
 
             if (AutoReconnect && !_invalidCredentials)
             {
-                Task.Delay(TimeSpan.FromSeconds(ReconnectInterval))
-                    .ContinueWith((x) => Reconnect());
+                _ = Task.Delay(TimeSpan.FromSeconds(ReconnectInterval))
+                    .ContinueWith(completedDelay =>
+                    {
+                        lock (_connectLifecycleLock)
+                        {
+                            if (!_autoReconnect || _isDestroyed)
+                                return;
+
+                            _ = Reconnect();
+                        }
+                    });
             }
             else
             {

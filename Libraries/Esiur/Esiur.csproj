@@ -16,6 +16,9 @@
 		<PackageId>Esiur</PackageId>
 		<Product>Esiur</Product>
 		<LangVersion>latest</LangVersion>
+		<!-- Keep CallerFilePath/PDB entries deterministic and avoid embedding the
+		     build machine's absolute source directory in the package assembly. -->
+		<PathMap>$(MSBuildProjectDirectory)=/_/Esiur</PathMap>
 		<!-- Enable the nullable *annotation* context project-wide so '?' reference-type
 		     annotations are legal everywhere, without turning on nullable flow warnings
 		     (files that opt in via '#nullable enable' still get full checking). -->
@@ -39,6 +42,8 @@
 	<ItemGroup>
 		<!-- Allow the unit test project to exercise internal helpers (e.g. wait-for cycle detection). -->
 		<InternalsVisibleTo Include="Esiur.Tests.Unit" />
+		<!-- The ASP.NET adapter supplies a host-wide transport memory budget. -->
+		<InternalsVisibleTo Include="Esiur.AspNetCore" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -50,7 +55,9 @@
 	<ItemGroup>
 		<PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
 		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.2" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+		<!-- Compile the generator against the .NET 8 Roslyn baseline so the combined
+		     runtime/analyzer assembly does not require System.Collections.Immutable 9. -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
 		<PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
 		<PackageReference Include="System.Reflection.Emit" Version="4.7.0" />

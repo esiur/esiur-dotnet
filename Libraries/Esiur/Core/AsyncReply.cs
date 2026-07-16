@@ -22,6 +22,7 @@ SOFTWARE.
 
 */
 
+using Esiur.Misc;
 using Esiur.Resource;
 using System;
 using System.Collections.Generic;
@@ -217,7 +218,17 @@ public class AsyncReply
         return this;
     }
 
-    public void Trigger(object result)
+    public void Trigger(object result) => TrySetResult(result, dispatchCallbacksAsynchronously: false);
+
+    /// <summary>
+    /// Completes the reply immediately while dispatching callbacks independently.
+    /// This is reserved for teardown paths where consumer code must not hold a
+    /// transport or other infrastructure resource open.
+    /// </summary>
+    internal void TriggerDetached(object result) =>
+        TrySetResult(result, dispatchCallbacksAsynchronously: true);
+
+    private bool TrySetResult(object result, bool dispatchCallbacksAsynchronously)
     {
         Action<object> singleCallback = null;
         Action<object>[] registeredCallbacks = null;
@@ -227,7 +238,7 @@ public class AsyncReply
         lock (asyncLock)
         {
             if (exception != null || resultReady)
-                return;
+                return false;
 
             ReadyTime = DateTime.Now;
             this.result = result;
@@ -250,16 +261,42 @@ public class AsyncReply
 
         waiter?.Set();
 
-        if (callbackCount == 1)
+        if (dispatchCallbacksAsynchronously)
+        {
+            if (callbackCount == 1)
+                QueueDetachedCallbacks(singleCallback, null, result);
+            else if (registeredCallbacks != null)
+                QueueDetachedCallbacks(null, registeredCallbacks, result);
+        }
+        else if (callbackCount == 1)
+        {
             singleCallback(result);
+        }
         else if (registeredCallbacks != null)
+        {
             foreach (var callback in registeredCallbacks)
                 callback(result);
+        }
+
+        return true;
     }
 
     public virtual void TriggerError(Exception exception)
     {
         TrySetException(exception);
+    }
+
+    /// <summary>
+    /// Faults the reply immediately while dispatching callbacks independently.
+    /// This is reserved for teardown paths where consumer code must not hold a
+    /// transport or other infrastructure resource open.
+    /// </summary>
+    internal void TriggerErrorDetached(Exception exception)
+    {
+        TrySetException(
+            exception,
+            preserveSourceForAwait: false,
+            dispatchCallbacksAsynchronously: true);
     }
 
     internal void TriggerErrorFromBuilder(Exception exception, bool preserveSourceForAwait)
@@ -347,7 +384,10 @@ public class AsyncReply
         }
     }
 
-    private bool TrySetException(Exception sourceException, bool preserveSourceForAwait = false)
+    private bool TrySetException(
+        Exception sourceException,
+        bool preserveSourceForAwait = false,
+        bool dispatchCallbacksAsynchronously = false)
     {
         AsyncException asyncException;
         Action<AsyncException> singleCallback = null;
@@ -378,12 +418,52 @@ public class AsyncReply
 
         waiter?.Set();
 
-        if (callbackCount == 1)
+        if (dispatchCallbacksAsynchronously)
+        {
+            if (callbackCount == 1)
+                QueueDetachedCallbacks(singleCallback, null, asyncException);
+            else if (registeredCallbacks != null)
+                QueueDetachedCallbacks(null, registeredCallbacks, asyncException);
+        }
+        else if (callbackCount == 1)
+        {
             singleCallback(asyncException);
+        }
         else if (registeredCallbacks != null)
+        {
             foreach (var callback in registeredCallbacks)
                 callback(asyncException);
+        }
 
         return true;
+    }
+
+    private static void QueueDetachedCallbacks<T>(
+        Action<T> singleCallback,
+        Action<T>[] registeredCallbacks,
+        T value)
+    {
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                if (singleCallback != null)
+                {
+                    singleCallback(value);
+                }
+                else
+                {
+                    foreach (var callback in registeredCallbacks)
+                    {
+                        try { callback(value); }
+                        catch (Exception exception) { Global.Log(exception); }
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                Global.Log(exception);
+            }
+        });
     }
 }

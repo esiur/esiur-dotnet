@@ -1,34 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<Description>Esiur distributed resource framework support for ASP.Net</Description>
+		<Description>ASP.NET Core hosting and endpoint routing for the Esiur distributed resource framework</Description>
 		<Copyright>Ahmed Kh. Zamil</Copyright>
-		<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
+		<PackageProjectUrl>https://www.esiur.com</PackageProjectUrl>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<Version>1.0.0</Version>
+		<Version>3.0.0</Version>
 		<Authors>Ahmed Kh. Zamil</Authors>
 		<Company>Esiur Foundation</Company>
 
-		<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
 
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Title>Esiur ASP.Net Middleware</Title>
+		<PathMap>$(MSBuildProjectDirectory)=/_/Esiur.AspNetCore</PathMap>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<Title>Esiur for ASP.NET Core</Title>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\Libraries\Esiur\Esiur.csproj" />
+		<ProjectReference Include="..\..\Libraries\Esiur\Esiur.csproj"
+			IncludeAssets="all"
+			PrivateAssets="none" />
 		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 

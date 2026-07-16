@@ -65,7 +65,17 @@ public sealed class ResourceAttachmentConfiguration
 /// </summary>
 public sealed class ConnectionConfiguration
 {
+    /// <summary>Maximum concurrent connections admitted by one EP server.</summary>
+    public int MaximumConnections { get; set; } = 1_024;
+
     public int MaximumConnectionsPerIpAddress { get; set; } = 64;
+
+    /// <summary>
+    /// Maximum connection attempts admitted by one EP server during
+    /// <see cref="ConnectionAttemptWindow"/>. This also bounds clients that rotate IP
+    /// addresses. A value of zero disables the limit.
+    /// </summary>
+    public int MaximumConnectionAttempts { get; set; } = 4_096;
 
     /// <summary>
     /// Maximum connection attempts admitted from one IP during

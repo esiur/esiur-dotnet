@@ -53,6 +53,13 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
 
     public event DestroyedEvent OnDestroy;
 
+    protected NetworkServer()
+    {
+        // Connection tracking is also used by externally hosted transports (for example,
+        // ASP.NET Core WebSockets) that don't create an ISocket listener through Start().
+        Connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
+    }
+
 
     private void MinuteThread(object state)
     {
@@ -92,8 +99,6 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
         {
             if (listener != null)
                 return;
-
-            Connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
 
             if (Timeout > 0 && Clock > 0)
             {
@@ -273,7 +278,12 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
         finally
         {
             try { currentTimer?.Dispose(); } catch { }
-            Global.Log("NetworkServer", LogType.Warning, $"Server on port {port} is down.");
+            if (currentListener != null
+                || currentTimer != null
+                || (connections?.Length ?? 0) > 0)
+            {
+                Global.Log("NetworkServer", LogType.Debug, $"Server on port {port} is down.");
+            }
         }
     }
 

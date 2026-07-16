@@ -52,9 +52,11 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     readonly object _peerConnectionsLock = new object();
     readonly Dictionary<IPAddress, int> _peerConnectionCounts = new Dictionary<IPAddress, int>();
-    readonly Dictionary<EpConnection, IPAddress> _admittedConnections = new Dictionary<EpConnection, IPAddress>();
+    readonly Dictionary<EpConnection, IPAddress?> _admittedConnections =
+        new Dictionary<EpConnection, IPAddress?>();
     readonly Dictionary<IPAddress, PeerAttemptWindow> _peerAttemptWindows =
         new Dictionary<IPAddress, PeerAttemptWindow>();
+    readonly PeerAttemptWindow _globalAttemptWindow = new PeerAttemptWindow();
     uint _attemptSweepSequence;
 
 
@@ -136,6 +138,12 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         set;
     } = 10518;
 
+    /// <summary>
+    /// Controls whether warehouse initialization opens Esiur's native TCP listener.
+    /// Disable this when an external host, such as ASP.NET Core, supplies connections.
+    /// </summary>
+    public bool EnableTcpListener { get; set; } = true;
+
 
     //[Attribute]
     public ExceptionLevel ExceptionLevel { get; set; }
@@ -157,6 +165,9 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     {
         if (operation == ResourceOperation.Initialize)
         {
+            if (!EnableTcpListener)
+                return new AsyncReply<bool>(true);
+
             TcpSocket listener;
 
             if (IP != null)
@@ -194,15 +205,31 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     }
 
     public override void Add(EpConnection connection)
+        => TryAdd(connection);
+
+    /// <summary>
+    /// Applies admission controls, configures, and tracks an accepted EP connection.
+    /// The connection must already have its socket assigned so peer-based policies can
+    /// inspect the actual remote endpoint.
+    /// </summary>
+    /// <returns><see langword="true"/> when the connection was admitted.</returns>
+    public bool TryAdd(EpConnection connection)
     {
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
+        if (connection.Socket == null)
+            throw new InvalidOperationException(
+                "Assign a socket before adding an EP connection to the server.");
+
         if (!TryAdmitConnection(connection, out var rejectionReason))
         {
             Global.Log(
                 "EpServer:ConnectionLimit",
-                LogType.Warning,
+                LogType.Debug,
                 $"Rejected connection from {connection.RemoteEndPoint?.Address}: {rejectionReason}");
             connection.Close();
-            return;
+            return false;
         }
 
         try
@@ -218,6 +245,7 @@ public class EpServer : NetworkServer<EpConnection>, IResource
             connection.AuthenticationTimeout = AuthenticationTimeout;
             connection.RestartAuthenticationDeadline();
             base.Add(connection);
+            return true;
         }
         catch
         {
@@ -243,13 +271,49 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     {
         rejectionReason = null;
         var address = NormalizeAddress(connection.RemoteEndPoint?.Address);
-        if (address == null)
-            return true;
 
         lock (_peerConnectionsLock)
         {
             var configuration = Instance.Warehouse.Configuration.Connections;
             var now = DateTime.UtcNow;
+
+            if (_admittedConnections.ContainsKey(connection))
+            {
+                rejectionReason = "connection is already admitted";
+                return false;
+            }
+
+            if (configuration.MaximumConnectionAttempts > 0
+                && configuration.ConnectionAttemptWindow > TimeSpan.Zero)
+            {
+                if (now - _globalAttemptWindow.StartedUtc
+                    >= configuration.ConnectionAttemptWindow)
+                {
+                    _globalAttemptWindow.StartedUtc = now;
+                    _globalAttemptWindow.Count = 0;
+                }
+
+                if (_globalAttemptWindow.Count >= configuration.MaximumConnectionAttempts)
+                {
+                    rejectionReason = "global connection-attempt rate reached";
+                    return false;
+                }
+
+                _globalAttemptWindow.Count++;
+            }
+
+            var globalLimit = configuration.MaximumConnections;
+            if (globalLimit > 0 && _admittedConnections.Count >= globalLimit)
+            {
+                rejectionReason = "global concurrent-connection limit reached";
+                return false;
+            }
+
+            if (address == null)
+            {
+                _admittedConnections[connection] = null;
+                return true;
+            }
 
             if (++_attemptSweepSequence % 256 == 0)
             {
@@ -309,6 +373,9 @@ public class EpServer : NetworkServer<EpConnection>, IResource
                 return;
 
             _admittedConnections.Remove(connection);
+
+            if (address == null)
+                return;
 
             if (!_peerConnectionCounts.TryGetValue(address, out var count))
                 return;

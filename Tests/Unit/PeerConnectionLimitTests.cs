@@ -11,6 +11,45 @@ namespace Esiur.Tests.Unit;
 public class PeerConnectionLimitTests
 {
     [Fact]
+    public async Task Server_CanTrackExternallyHostedConnectionsWithoutOpeningTcpListener()
+    {
+        var warehouse = new Warehouse();
+        var server = new EpServer
+        {
+            EnableTcpListener = false,
+        };
+        server.Instance = new Instance(warehouse, 1, "server", server, null);
+
+        Assert.True(await server.Handle(ResourceOperation.Initialize));
+        Assert.False(server.IsRunning);
+        Assert.Empty(server.Connections);
+
+        var socket = new TestSocket(IPAddress.Parse("192.0.2.5"), 10000);
+        var connection = new EpConnection();
+        connection.Assign(socket);
+
+        Assert.True(server.TryAdd(connection));
+        Assert.Single(server.Connections);
+
+        socket.Close();
+        Assert.Empty(server.Connections);
+    }
+
+    [Fact]
+    public void Server_RequiresSocketAssignmentBeforeAdmission()
+    {
+        var warehouse = new Warehouse();
+        var server = new EpServer();
+        server.Instance = new Instance(warehouse, 1, "server", server, null);
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => server.TryAdd(new EpConnection()));
+
+        Assert.Contains("Assign a socket", error.Message, StringComparison.Ordinal);
+        Assert.Empty(server.Connections);
+    }
+
+    [Fact]
     public void Server_RejectsConnectionsAbovePerIpLimit_AndReleasesClosedSlot()
     {
         var warehouse = new Warehouse();
@@ -24,12 +63,12 @@ public class PeerConnectionLimitTests
         var firstSocket = new TestSocket(address, 10001);
         var first = new EpConnection();
         first.Assign(firstSocket);
-        server.Add(first);
+        Assert.True(server.TryAdd(first));
 
         var rejectedSocket = new TestSocket(address, 10002);
         var rejected = new EpConnection();
         rejected.Assign(rejectedSocket);
-        server.Add(rejected);
+        Assert.False(server.TryAdd(rejected));
 
         Assert.Single(server.Connections);
         Assert.Equal(SocketState.Closed, rejectedSocket.State);
@@ -41,12 +80,55 @@ public class PeerConnectionLimitTests
         var replacementSocket = new TestSocket(address, 10003);
         var replacement = new EpConnection();
         replacement.Assign(replacementSocket);
-        server.Add(replacement);
+        Assert.True(server.TryAdd(replacement));
 
         Assert.Equal(SocketState.Established, replacementSocket.State);
         Assert.Equal(1, server.GetConnectionCount(address));
 
         replacementSocket.Close();
+    }
+
+    [Fact]
+    public void Server_RejectsConnectionsAboveGlobalLimitAcrossDifferentAddresses_AndReleasesSlot()
+    {
+        var warehouse = new Warehouse();
+        warehouse.Configuration.Connections.MaximumConnections = 2;
+        warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress = 0;
+        warehouse.Configuration.Connections.MaximumConnectionAttempts = 0;
+        warehouse.Configuration.Connections.MaximumConnectionAttemptsPerIpAddress = 0;
+
+        var server = new EpServer();
+        server.Instance = new Instance(warehouse, 1, "server", server, null);
+
+        var firstSocket = new TestSocket(IPAddress.Parse("192.0.2.10"), 10101);
+        var first = new EpConnection();
+        first.Assign(firstSocket);
+        Assert.True(server.TryAdd(first));
+
+        var secondSocket = new TestSocket(IPAddress.Parse("192.0.2.11"), 10102);
+        var second = new EpConnection();
+        second.Assign(secondSocket);
+        Assert.True(server.TryAdd(second));
+
+        var rejectedSocket = new TestSocket(IPAddress.Parse("192.0.2.12"), 10103);
+        var rejected = new EpConnection();
+        rejected.Assign(rejectedSocket);
+        Assert.False(server.TryAdd(rejected));
+
+        Assert.Equal(2, server.Connections.Count);
+        Assert.Equal(SocketState.Closed, rejectedSocket.State);
+
+        firstSocket.Close();
+
+        var replacementSocket = new TestSocket(IPAddress.Parse("192.0.2.13"), 10104);
+        var replacement = new EpConnection();
+        replacement.Assign(replacementSocket);
+        Assert.True(server.TryAdd(replacement));
+        Assert.Equal(2, server.Connections.Count);
+
+        secondSocket.Close();
+        replacementSocket.Close();
+        Assert.Empty(server.Connections);
     }
 
     [Fact]
@@ -86,6 +168,40 @@ public class PeerConnectionLimitTests
         server.Add(other);
         Assert.Equal(SocketState.Established, otherSocket.State);
         otherSocket.Close();
+    }
+
+    [Fact]
+    public void Server_RejectsRepeatedConnectionsAboveGlobalAttemptRateAcrossDifferentAddresses()
+    {
+        var warehouse = new Warehouse();
+        warehouse.Configuration.Connections.MaximumConnections = 0;
+        warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress = 0;
+        warehouse.Configuration.Connections.MaximumConnectionAttempts = 2;
+        warehouse.Configuration.Connections.MaximumConnectionAttemptsPerIpAddress = 0;
+        warehouse.Configuration.Connections.ConnectionAttemptWindow = TimeSpan.FromMinutes(1);
+
+        var server = new EpServer();
+        server.Instance = new Instance(warehouse, 1, "server", server, null);
+
+        for (var index = 0; index < 2; index++)
+        {
+            var admittedSocket = new TestSocket(
+                IPAddress.Parse($"192.0.2.{20 + index}"),
+                11100 + index);
+            var admitted = new EpConnection();
+            admitted.Assign(admittedSocket);
+
+            Assert.True(server.TryAdd(admitted));
+            admittedSocket.Close();
+        }
+
+        var rejectedSocket = new TestSocket(IPAddress.Parse("192.0.2.22"), 11102);
+        var rejected = new EpConnection();
+        rejected.Assign(rejectedSocket);
+
+        Assert.False(server.TryAdd(rejected));
+        Assert.Equal(SocketState.Closed, rejectedSocket.State);
+        Assert.Empty(server.Connections);
     }
 
     [Fact]

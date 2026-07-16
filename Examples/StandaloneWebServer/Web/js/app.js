@@ -1,7 +1,7 @@
 async function init() {
     try {
 
-        connection = await wh.get(`EP://${window.location.hostname}`, {
+        connection = await wh.get(`ep://${window.location.hostname}`, {
             autoReconnect: true
         });
 
@@ -125,5 +125,3 @@ async function init() {
 
 
 const FORMAT_CONNECTION_STATUS = (x) => ["Offline", "Connecting...", "Online"][x];
-
- 
