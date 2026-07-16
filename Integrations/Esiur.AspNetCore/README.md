@@ -1,5 +1,7 @@
 # Esiur for ASP.NET Core
 
+This package supports ASP.NET Core applications targeting .NET 8 or .NET 10.
+
 `Esiur.AspNetCore` exposes an Esiur EP server through ASP.NET Core endpoint
 routing and WebSockets. ASP.NET Core owns the application lifetime, while Esiur
 continues to own its session authentication, encryption, and resource

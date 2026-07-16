@@ -44,10 +44,16 @@ Esiur has implementations in C#, JavaScript, and Dart, making it highly versatil
 Esiur’s robust, feature-rich approach allows developers to focus on building applications without worrying about the complexities of distributed systems, while its self-describing API and broad data type support enable flexible and scalable application design.
 
 ## Installation
-- Nuget
+- NuGet
 ```Install-Package Esiur```
 - Command-line
 ``` dotnet add package Esiur ```
+
+## Compatibility
+
+The Esiur runtime targets .NET Standard 2.0. Projects that use Esiur's source
+generator require .NET SDK 8.0 or newer, or Visual Studio 2022 version 17.8 or
+newer (Roslyn 4.8+). Newer supported .NET SDKs can consume the same package.
 
 ## Getting Started
 Esiur for C# uses source generator feature of .Net framework to implement the necessary calls for property modification, which means a class must be marked as "partial" so the library automatically creates setters and getters for every property exported to the public.
