@@ -83,6 +83,22 @@ public class AuthHandshakeTests
     // ---- happy path ------------------------------------------------------------------
 
     [Fact]
+    public void ProviderAndHandler_UseVersionedPasswordProtocolName()
+    {
+        var provider = new PasswordAuthenticationProvider();
+        var handler = provider.CreateAuthenticationHandler(new AuthenticationContext
+        {
+            Direction = AuthenticationDirection.Initiator,
+            Mode = AuthenticationMode.InitializerIdentity,
+            Domain = "domain",
+            HostName = "host",
+        });
+
+        Assert.Equal("password-sha3-v1", provider.DefaultName);
+        Assert.Equal(provider.DefaultName, handler.Protocol);
+    }
+
+    [Fact]
     public void InitializerIdentity_Handshake_Derives_Matching_SessionKeys()
     {
         var (init, resp) = NewPair();

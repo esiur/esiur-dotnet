@@ -117,6 +117,16 @@ public partial class EpConnection : NetworkConnection, IStore
     AsyncReply<bool> _openReply;
 
     bool _authenticated;
+    bool _authenticationHandshakeSucceeded;
+    bool _authenticationKeyRotationStarted;
+    bool _authenticationKeyRotationSucceeded;
+
+    IAuthenticationProvider _authenticationProvider;
+    AuthenticationContext _authenticationContext;
+    IAuthenticationHandler _disposedAuthenticationHandler;
+    readonly object _authenticationLifecycleLock = new object();
+    CancellationTokenSource _authenticationDeadlineCancellation;
+    long _authenticationAttemptGeneration;
 
     string _hostname;
     ushort _port;
@@ -360,7 +370,10 @@ public partial class EpConnection : NetworkConnection, IStore
         if (socket.State == SocketState.Established &&
             _authDirection == AuthenticationDirection.Initiator)
         {
-            Declare();
+            // Outbound sockets normally finish connecting before they are assigned a
+            // receiver, so no NetworkConnect callback is delivered. Enter the same
+            // lifecycle path explicitly to start the deadline and generation guard.
+            Connected();
         }
     }
 
@@ -368,6 +381,13 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         if (_authDirection != AuthenticationDirection.Initiator)
             return;
+
+        if (RequiresAuthenticationKeyRotation()
+            && _session.EncryptionMode == EncryptionMode.None)
+        {
+            RejectEncryption("Authentication key rotation requires encrypted transport protection.");
+            return;
+        }
 
         if (_session.EncryptionMode != EncryptionMode.None)
         {
@@ -401,7 +421,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
             if (initAuthResult.Ruling == AuthenticationRuling.Succeeded)
             {
-                SetSessionKey(initAuthResult.SessionKey);
+                AdoptSessionKey(initAuthResult);
                 _session.LocalIdentity = initAuthResult.LocalIdentity;
                 _session.RemoteIdentity = initAuthResult.RemoteIdentity;
             }
@@ -535,6 +555,173 @@ public partial class EpConnection : NetworkConnection, IStore
         return false;
     }
 
+    bool RequiresAuthenticationKeyRotation()
+        => _session?.AuthenticationHandler is IAuthenticationKeyRotationHandler handler
+           && handler.RequiresKeyRotation;
+
+    void MarkAuthenticationHandshakeSucceeded()
+    {
+        _authenticationHandshakeSucceeded = true;
+
+        // A required protected post-authentication exchange is part of session
+        // authentication, not an optional follow-up. Keep the public session state
+        // false until that exchange has committed and readiness is published.
+        _session.Authenticated = !RequiresAuthenticationKeyRotation();
+    }
+
+    void BeginAuthenticationKeyRotation()
+    {
+        if (_authDirection != AuthenticationDirection.Initiator)
+        {
+            FailAuthenticationKeyRotation("Only the connection initiator can begin authentication key rotation.");
+            return;
+        }
+
+        if (_session?.AuthenticationHandler is not IAuthenticationKeyRotationHandler handler
+            || !handler.RequiresKeyRotation)
+        {
+            FailAuthenticationKeyRotation("The authentication handler does not support required key rotation.");
+            return;
+        }
+
+        if (_session.EncryptionMode == EncryptionMode.None || !_session.EncryptionActive)
+        {
+            FailAuthenticationKeyRotation("Authentication key rotation requires active encrypted transport protection.");
+            return;
+        }
+
+        if (_authenticationKeyRotationStarted)
+        {
+            FailAuthenticationKeyRotation("Authentication key rotation was started more than once.");
+            return;
+        }
+
+        _authenticationKeyRotationStarted = true;
+
+        AuthenticationKeyRotationResult result;
+        try
+        {
+            result = handler.BeginKeyRotation();
+        }
+        catch (Exception ex)
+        {
+            FailAuthenticationKeyRotation(ex.Message);
+            return;
+        }
+
+        HandleAuthenticationKeyRotationResult(result);
+    }
+
+    void ProcessAuthenticationKeyRotation(object data)
+    {
+        if (_session?.AuthenticationHandler is not IAuthenticationKeyRotationHandler handler
+            || !handler.RequiresKeyRotation)
+        {
+            FailAuthenticationKeyRotation("Unexpected authentication key-rotation message.");
+            return;
+        }
+
+        if (_session.EncryptionMode == EncryptionMode.None || !_session.EncryptionActive)
+        {
+            FailAuthenticationKeyRotation("Authentication key rotation was received outside encrypted transport protection.");
+            return;
+        }
+
+        if (_authDirection == AuthenticationDirection.Initiator
+            && !_authenticationKeyRotationStarted)
+        {
+            FailAuthenticationKeyRotation("Authentication key rotation was not initiated locally.");
+            return;
+        }
+
+        _authenticationKeyRotationStarted = true;
+
+        AuthenticationKeyRotationResult result;
+        try
+        {
+            result = handler.ProcessKeyRotation(data);
+        }
+        catch (Exception ex)
+        {
+            FailAuthenticationKeyRotation(ex.Message);
+            return;
+        }
+
+        HandleAuthenticationKeyRotationResult(result);
+    }
+
+    void HandleAuthenticationKeyRotationResult(AuthenticationKeyRotationResult result)
+    {
+        if (result == null)
+        {
+            FailAuthenticationKeyRotation("The authentication key-rotation handler returned no result.");
+            return;
+        }
+
+        if (result.Ruling == AuthenticationKeyRotationRuling.Failed)
+        {
+            FailAuthenticationKeyRotation(result.Error);
+            return;
+        }
+
+        if (result.Ruling == AuthenticationKeyRotationRuling.InProgress)
+        {
+            _authenticationKeyRotationSucceeded = false;
+            SendAuthData(EpAuthPacketMethod.KeyRotation, result.Data);
+            return;
+        }
+
+        if (result.Ruling != AuthenticationKeyRotationRuling.Succeeded)
+        {
+            FailAuthenticationKeyRotation("The authentication key-rotation handler returned an invalid ruling.");
+            return;
+        }
+
+        _authenticationKeyRotationSucceeded = true;
+
+        if (_authDirection == AuthenticationDirection.Initiator)
+        {
+            // A final action is required even when it carries no data. It tells the
+            // responder to commit its side of the rotation and acknowledge readiness.
+            SendAuthData(EpAuthPacketMethod.KeyRotation, result.Data);
+        }
+        else
+        {
+            AuthenticatonCompleted(() =>
+                SendAuthData(EpAuthPacketMethod.KeyRotationEstablished, result.Data));
+        }
+    }
+
+    void FailAuthenticationKeyRotation(string error)
+    {
+        var localMessage = string.IsNullOrWhiteSpace(error)
+            ? "Authentication key rotation failed."
+            : error;
+        const string peerMessage = "Authentication key rotation failed.";
+
+        // Handler failures can contain store, account, or concurrency details. Keep
+        // those details in local diagnostics while returning a uniform error to the
+        // peer so this trust-boundary failure cannot become an information oracle.
+        Global.Log("EpConnection:AuthenticationKeyRotation", LogType.Warning, localMessage);
+
+        _invalidCredentials = true;
+        _authenticationHandshakeSucceeded = false;
+        if (_session != null)
+            _session.Authenticated = false;
+
+        try
+        {
+            SendAuthMessage(EpAuthPacketMethod.ErrorTerminate, peerMessage);
+        }
+        catch (Exception ex)
+        {
+            Global.Log("EpConnection:AuthenticationKeyRotation", LogType.Warning, ex.Message);
+        }
+
+        FailPendingOpen(new AsyncException(ErrorType.Management, 0, localMessage));
+        Task.Delay(100).ContinueWith(_ => Close());
+    }
+
     void PrepareSessionEncryption()
     {
         if (_session.EncryptionMode == EncryptionMode.None || _session.SymetricCipher != null)
@@ -636,6 +823,21 @@ public partial class EpConnection : NetworkConnection, IStore
         _session.Key = replacement;
     }
 
+    void AdoptSessionKey(AuthenticationResult result)
+    {
+        if (result == null)
+            throw new ArgumentNullException(nameof(result));
+
+        try
+        {
+            SetSessionKey(result.SessionKey);
+        }
+        finally
+        {
+            result.ClearSessionKey();
+        }
+    }
+
     void CompletePendingOpen()
     {
         var pending = Interlocked.Exchange(ref _openReply, null);
@@ -675,8 +877,182 @@ public partial class EpConnection : NetworkConnection, IStore
             _outboundProtectionState = OutboundProtectionState.Plaintext;
             _decryptInbound = false;
             _decryptedReceiveBuffer = new NetworkBuffer();
+            _authenticationHandshakeSucceeded = false;
+            _authenticationKeyRotationStarted = false;
+            _authenticationKeyRotationSucceeded = false;
             if (_session != null)
                 _session.EncryptionActive = false;
+        }
+    }
+
+    void DisposeAuthenticationHandler()
+    {
+        var handler = _session?.AuthenticationHandler;
+        if (handler == null || ReferenceEquals(handler, _disposedAuthenticationHandler)
+            || handler is not IDisposable disposable)
+            return;
+
+        _disposedAuthenticationHandler = handler;
+        try
+        {
+            disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Global.Log("EpConnection:AuthenticationHandler", LogType.Warning, ex.Message);
+        }
+    }
+
+    internal void RestartAuthenticationDeadline()
+    {
+        CancellationTokenSource previous;
+        CancellationTokenSource cancellation = null;
+        long generation = 0;
+        TimeSpan timeout = default;
+
+        lock (_authenticationLifecycleLock)
+        {
+            previous = _authenticationDeadlineCancellation;
+            _authenticationDeadlineCancellation = null;
+
+            if (AuthenticationTimeout > TimeSpan.Zero && !_authenticated)
+            {
+                cancellation = new CancellationTokenSource();
+                _authenticationDeadlineCancellation = cancellation;
+                generation = Volatile.Read(ref _authenticationAttemptGeneration);
+                timeout = AuthenticationTimeout;
+            }
+        }
+
+        CancelAndDispose(previous);
+        if (cancellation != null)
+            _ = EnforceAuthenticationDeadlineAsync(cancellation, generation, timeout);
+    }
+
+    async Task EnforceAuthenticationDeadlineAsync(
+        CancellationTokenSource cancellation,
+        long generation,
+        TimeSpan timeout)
+    {
+        try
+        {
+            await Task.Delay(timeout, cancellation.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        var ownsCancellation = false;
+        var timedOut = false;
+        lock (_authenticationLifecycleLock)
+        {
+            if (ReferenceEquals(_authenticationDeadlineCancellation, cancellation))
+            {
+                ownsCancellation = true;
+                _authenticationDeadlineCancellation = null;
+                timedOut = generation == Volatile.Read(ref _authenticationAttemptGeneration)
+                    && !_authenticated;
+
+                // Winning the deadline makes this attempt terminal before the lock is
+                // released. A delayed Warehouse callback can no longer publish it ready.
+                if (timedOut)
+                    Interlocked.Increment(ref _authenticationAttemptGeneration);
+            }
+        }
+
+        // Only the path that atomically removed the source owns disposal. Restart
+        // and cancellation paths dispose sources they removed themselves.
+        if (ownsCancellation)
+            cancellation.Dispose();
+
+        if (!timedOut)
+            return;
+
+        const string message = "Authentication did not complete before the configured deadline.";
+        Global.Log("EpConnection:AuthenticationTimeout", LogType.Warning, message);
+        FailPendingOpen(new AsyncException(ErrorType.Management, 0, message));
+        Close();
+    }
+
+    void CancelAuthenticationDeadline()
+    {
+        CancellationTokenSource cancellation;
+        lock (_authenticationLifecycleLock)
+        {
+            cancellation = _authenticationDeadlineCancellation;
+            _authenticationDeadlineCancellation = null;
+        }
+
+        CancelAndDispose(cancellation);
+    }
+
+    void EndAuthenticationAttempt()
+    {
+        CancellationTokenSource cancellation;
+        lock (_authenticationLifecycleLock)
+        {
+            cancellation = _authenticationDeadlineCancellation;
+            _authenticationDeadlineCancellation = null;
+            Interlocked.Increment(ref _authenticationAttemptGeneration);
+        }
+
+        CancelAndDispose(cancellation);
+    }
+
+    static void CancelAndDispose(CancellationTokenSource cancellation)
+    {
+        if (cancellation == null)
+            return;
+        try
+        {
+            cancellation.Cancel();
+        }
+        finally
+        {
+            cancellation.Dispose();
+        }
+    }
+
+    bool TryPublishAuthenticationReady(
+        long generation,
+        Action beforeReady,
+        out Exception publicationError)
+    {
+        publicationError = null;
+
+        lock (_authenticationLifecycleLock)
+        {
+            if (generation != Volatile.Read(ref _authenticationAttemptGeneration)
+                || !IsConnected
+                || _authenticated)
+                return false;
+
+            try
+            {
+                // The protected completion frame must be queued before application
+                // traffic is accepted. Holding the lifecycle lock also arbitrates it
+                // atomically against the authentication deadline.
+                beforeReady?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                publicationError = ex;
+                Interlocked.Increment(ref _authenticationAttemptGeneration);
+                return false;
+            }
+
+            // Some sockets report closure synchronously from Send. The lifecycle lock
+            // is re-entrant, so that callback may have invalidated this generation.
+            if (generation != Volatile.Read(ref _authenticationAttemptGeneration)
+                || !IsConnected)
+                return false;
+
+            _session.Authenticated = true;
+            _authenticationHandshakeSucceeded = false;
+            _authenticated = true;
+            return true;
         }
     }
 
@@ -849,10 +1225,18 @@ public partial class EpConnection : NetworkConnection, IStore
 
     public uint KeepAliveInterval { get; set; } = 30;
 
+    /// <summary>
+    /// Maximum time allowed for authentication, encryption setup, and any required
+    /// protected key rotation. A non-positive value disables the deadline.
+    /// </summary>
+    public TimeSpan AuthenticationTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
     public override void Destroy()
     {
         TerminateInvocations();
         UnsubscribeAll();
+        EndAuthenticationAttempt();
+        DisposeAuthenticationHandler();
         DisposeSessionEncryption();
         this.OnReady = null;
         this.OnError = null;
@@ -1240,6 +1624,13 @@ public partial class EpConnection : NetworkConnection, IStore
                     // set auth handler for the session
                     _session.AuthenticationHandler = handler;
 
+                    if (RequiresAuthenticationKeyRotation()
+                        && _session.EncryptionMode == EncryptionMode.None)
+                    {
+                        RejectEncryption("Authentication key rotation requires encrypted transport protection.");
+                        return offset;
+                    }
+
                     var authResult = handler.Process(remoteAuthData);
 
 
@@ -1260,10 +1651,10 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
                     else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                     {
-                        _session.Authenticated = true;
+                        MarkAuthenticationHandshakeSucceeded();
                         _session.LocalIdentity = authResult.LocalIdentity;
                         _session.RemoteIdentity = authResult.RemoteIdentity;
-                        SetSessionKey(authResult.SessionKey);
+                        AdoptSessionKey(authResult);
 
                         try
                         {
@@ -1275,7 +1666,7 @@ public partial class EpConnection : NetworkConnection, IStore
                             return offset;
                         }
 
-                        AuthenticatonCompleted(() =>
+                        Action establishSession = () =>
                         {
                             // The initiator needs the selected provider and responder nonce
                             // before it can construct its cipher, so this acknowledgement is
@@ -1288,7 +1679,12 @@ public partial class EpConnection : NetworkConnection, IStore
                             }
                             else
                                 SendAuthHeaders(EpAuthPacketMethod.SessionEstablished, localHeaders);
-                        });
+                        };
+
+                        if (RequiresAuthenticationKeyRotation())
+                            establishSession();
+                        else
+                            AuthenticatonCompleted(establishSession);
                     }
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Acknowledge)
@@ -1341,12 +1737,12 @@ public partial class EpConnection : NetworkConnection, IStore
                                 return offset;
                             }
 
-                            SetSessionKey(authResult.SessionKey);
+                            AdoptSessionKey(authResult);
                             _session.LocalIdentity = authResult.LocalIdentity;
                             _session.RemoteIdentity = authResult.RemoteIdentity;
                         }
 
-                        _session.Authenticated = true;
+                        MarkAuthenticationHandshakeSucceeded();
 
                         try
                         {
@@ -1428,14 +1824,22 @@ public partial class EpConnection : NetworkConnection, IStore
                         }
                         else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                         {
-                            _session.Authenticated = true;
-                            SetSessionKey(authResult.SessionKey);
+                            MarkAuthenticationHandshakeSucceeded();
+                            AdoptSessionKey(authResult);
                             _session.LocalIdentity = authResult.LocalIdentity;
                             _session.RemoteIdentity = authResult.RemoteIdentity;
 
                             try
                             {
                                 PrepareSessionEncryption();
+
+                                // The final handshake is the initiator's last plaintext
+                                // packet. Arm inbound protection first so a fast responder
+                                // cannot race its encrypted Established response ahead of
+                                // this state transition. Outbound protection remains
+                                // plaintext until Established is received.
+                                if (_session.EncryptionMode != EncryptionMode.None)
+                                    EnableInboundEncryption();
                             }
                             catch (Exception ex)
                             {
@@ -1446,9 +1850,6 @@ public partial class EpConnection : NetworkConnection, IStore
                             // send final handshake with data
                             SendAuthData(EpAuthPacketMethod.FinalHandshake,
                                         authResult.AuthenticationData);
-
-                            if (_session.EncryptionMode != EncryptionMode.None)
-                                EnableInboundEncryption();
 
                             //if (_authPacket.Method == EpAuthPacketMethod.SessionEstablished)
                             //{
@@ -1470,7 +1871,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         var errorMessage = "Authentication error.";
                         if (_authPacket.Tdu != null)
                         {
-                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, _serverWarehouse);
+                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, ParsingWarehouse);
                             if (parsed is string parsedErrorMsg)
                                 errorMessage = parsedErrorMsg;
                         }
@@ -1491,7 +1892,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     if (_authPacket.Tdu != null)
                     {
-                        var parsed = Codec.ParseSync(_authPacket.Tdu.Value, _serverWarehouse);
+                        var parsed = Codec.ParseSync(_authPacket.Tdu.Value, ParsingWarehouse);
                         authData = parsed;
                     }
 
@@ -1512,8 +1913,8 @@ public partial class EpConnection : NetworkConnection, IStore
                         }
                         else if (authResult.Ruling == AuthenticationRuling.Succeeded)
                         {
-                            _session.Authenticated = true;
-                            SetSessionKey(authResult.SessionKey);
+                            MarkAuthenticationHandshakeSucceeded();
+                            AdoptSessionKey(authResult);
                             _session.LocalIdentity = authResult.LocalIdentity;
                             _session.RemoteIdentity = authResult.RemoteIdentity;
 
@@ -1530,9 +1931,7 @@ public partial class EpConnection : NetworkConnection, IStore
                                     return offset;
                                 }
 
-                                // Registration and receive readiness must complete before the
-                                // initiator is allowed to send its first application request.
-                                AuthenticatonCompleted(() =>
+                                Action establishSession = () =>
                                 {
                                     if (_session.EncryptionMode != EncryptionMode.None)
                                     {
@@ -1554,7 +1953,41 @@ public partial class EpConnection : NetworkConnection, IStore
                                                          authResult.AuthenticationData);
                                         SendAuth(EpAuthPacketMethod.Established);
                                     }
-                                });
+                                };
+
+                                if (RequiresAuthenticationKeyRotation())
+                                    establishSession();
+                                else
+                                {
+                                    // Registration and receive readiness must complete before the
+                                    // initiator is allowed to send its first application request.
+                                    AuthenticatonCompleted(establishSession);
+                                }
+                            }
+                            else if (_authDirection == AuthenticationDirection.Initiator)
+                            {
+                                try
+                                {
+                                    PrepareSessionEncryption();
+
+                                    // An arbitrary-round handler may reach success on an
+                                    // Action packet rather than an Acknowledge packet. This
+                                    // final action is still the last plaintext initiator
+                                    // packet, so inbound decryption must be armed before it
+                                    // is sent to avoid racing the protected response.
+                                    if (_session.EncryptionMode != EncryptionMode.None)
+                                        EnableInboundEncryption();
+                                }
+                                catch (Exception ex)
+                                {
+                                    RejectEncryption(ex.Message);
+                                    return offset;
+                                }
+
+                                // Send the terminal action even when it carries no data;
+                                // it is the responder's signal to finalize authentication.
+                                SendAuthData(EpAuthPacketMethod.FinalHandshake,
+                                             authResult.AuthenticationData);
                             }
                             else if (authResult.AuthenticationData != null)
                             {
@@ -1563,6 +1996,10 @@ public partial class EpConnection : NetworkConnection, IStore
                             }
 
                         }
+                    }
+                    else if (_authPacket.Method == EpAuthPacketMethod.KeyRotation)
+                    {
+                        ProcessAuthenticationKeyRotation(authData);
                     }
                 }
                 else if (_authPacket.Command == EpAuthPacketCommand.Event)
@@ -1574,7 +2011,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         var errorMessage = "Authentication error.";
                         if (_authPacket.Tdu != null)
                         {
-                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, _serverWarehouse);
+                            var parsed = Codec.ParseSync(_authPacket.Tdu.Value, ParsingWarehouse);
                             if (parsed is string parsedErrorMsg)
                                 errorMessage = parsedErrorMsg;
                         }
@@ -1590,12 +2027,15 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
                     else if (_authPacket.Method == EpAuthPacketMethod.Established)
                     {
-                        if (_session.Authenticated)
+                        if (_authenticationHandshakeSucceeded)
                         {
                             if (_session.EncryptionMode != EncryptionMode.None)
                                 EnableEncryption();
 
-                            AuthenticatonCompleted();
+                            if (RequiresAuthenticationKeyRotation())
+                                BeginAuthenticationKeyRotation();
+                            else
+                                AuthenticatonCompleted();
                         }
                         else
                         {
@@ -1603,6 +2043,23 @@ public partial class EpConnection : NetworkConnection, IStore
                             OnError?.Invoke(this, _authPacket.ErrorCode, "Authentication error.");
                             FailPendingOpen(new AsyncException(ErrorType.Management, _authPacket.ErrorCode, "Authentication error."));
                             Task.Delay(100).ContinueWith(x => Close());
+                        }
+                    }
+                    else if (_authPacket.Method == EpAuthPacketMethod.KeyRotationEstablished)
+                    {
+                        if (_authDirection != AuthenticationDirection.Initiator
+                            || !RequiresAuthenticationKeyRotation()
+                            || _session.EncryptionMode == EncryptionMode.None
+                            || !_session.EncryptionActive
+                            || !_authenticationKeyRotationStarted
+                            || !_authenticationKeyRotationSucceeded)
+                        {
+                            FailAuthenticationKeyRotation(
+                                "Unexpected authentication key-rotation completion event.");
+                        }
+                        else
+                        {
+                            AuthenticatonCompleted();
                         }
                     }
                     else if (_authPacket.Method == EpAuthPacketMethod.IndicationEstablished)
@@ -1622,6 +2079,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
     void AuthenticatonCompleted(Action beforeReady = null)
     {
+        var generation = Volatile.Read(ref _authenticationAttemptGeneration);
 
         if (this.Instance == null)
         {
@@ -1629,10 +2087,31 @@ public partial class EpConnection : NetworkConnection, IStore
                 Server.Instance.Link + "/" + this.GetHashCode().ToString().Replace("/", "_"), this)
                 .Then(x =>
                 {
+                    if (!TryPublishAuthenticationReady(
+                            generation,
+                            beforeReady,
+                            out var publicationError))
+                    {
+                        // Warehouse.Put assigns Instance before its asynchronous work
+                        // completes. Remove a connection whose attempt expired or was
+                        // disconnected so the late completion cannot retain it.
+                        if (generation != Volatile.Read(ref _authenticationAttemptGeneration)
+                            || !IsConnected)
+                            Instance?.Warehouse?.Remove(this);
 
-                    _authenticated = true;
+                        if (publicationError != null)
+                        {
+                            Instance?.Warehouse?.Remove(this);
+                            Global.Log("EpConnection:AuthenticationReady", LogType.Warning,
+                                publicationError.ToString());
+                            FailPendingOpen(publicationError);
+                            Close();
+                        }
 
-                    beforeReady?.Invoke();
+                        return;
+                    }
+
+                    CancelAuthenticationDeadline();
                     Status = EpConnectionStatus.Connected;
                     CompletePendingOpen();
                     OnReady?.Invoke(this);
@@ -1643,13 +2122,32 @@ public partial class EpConnection : NetworkConnection, IStore
 
                 }).Error(x =>
                 {
-                    FailPendingOpen(x);
+                    if (generation == Volatile.Read(ref _authenticationAttemptGeneration))
+                    {
+                        FailPendingOpen(x);
+                        Close();
+                    }
                 });
         }
         else
         {
-            _authenticated = true;
-            beforeReady?.Invoke();
+            if (!TryPublishAuthenticationReady(
+                    generation,
+                    beforeReady,
+                    out var publicationError))
+            {
+                if (publicationError != null)
+                {
+                    Global.Log("EpConnection:AuthenticationReady", LogType.Warning,
+                        publicationError.ToString());
+                    FailPendingOpen(publicationError);
+                    Close();
+                }
+
+                return;
+            }
+
+            CancelAuthenticationDeadline();
             Status = EpConnectionStatus.Connected;
 
             _session.AuthenticationHandler?.Provider?.Login(_session);
@@ -2583,27 +3081,28 @@ public partial class EpConnection : NetworkConnection, IStore
 
                 _remoteDomain = epContext.Domain ?? address;
 
-                if (provider != null)
-                {
-                    _session.AuthenticationHandler = provider.CreateAuthenticationHandler(new AuthenticationContext()
+                _authenticationProvider = provider;
+                _authenticationContext = provider == null
+                    ? null
+                    : new AuthenticationContext()
                     {
                         Direction = AuthenticationDirection.Initiator,
                         Domain = _remoteDomain,
                         HostName = address,
                         InitiatorIdentity = epContext.Identity,
+                        ResponderIdentity = epContext.ResponderIdentity,
                         Mode = epContext.AuthenticationMode,
-                    });
-                }
+                    };
 
                 _session.AuthenticationMode = epContext.AuthenticationMode;
                 _session.EncryptionMode = epContext.EncryptionMode;
                 _offeredEncryptionProviders = epContext.EncryptionProviders ?? Array.Empty<string>();
                 _session.LocalIdentity = epContext.Identity;
                 ReconnectInterval = epContext.ReconnectInterval;
+                AuthenticationTimeout = epContext.AuthenticationTimeout;
                 ExceptionLevel = epContext.ExceptionLevel;
                 UseWebSocket = epContext.UseWebSocket;
                 SecureWebSocket = epContext.SecureWebSocket;
-                _remoteDomain = epContext.Domain;
                 AutoReconnect = epContext.AutoReconnect;
                 _hostname = address;
                 _port = port;
@@ -2653,6 +3152,13 @@ public partial class EpConnection : NetworkConnection, IStore
         if (_session == null)
             throw new AsyncException(ErrorType.Exception, 0, "Session not initialized");
 
+        if (_authenticationProvider != null && _authenticationContext != null)
+        {
+            DisposeAuthenticationHandler();
+            _session.AuthenticationHandler =
+                _authenticationProvider.CreateAuthenticationHandler(_authenticationContext);
+        }
+
         BeginPlaintextHandshake();
 
         if (socket == null)
@@ -2680,7 +3186,8 @@ public partial class EpConnection : NetworkConnection, IStore
             if (AutoReconnect)
             {
                 Global.Log("EpConnection", LogType.Debug, "Reconnecting socket...");
-                Task.Delay((int)ReconnectInterval).ContinueWith((x) => connectSocket(socket));
+                Task.Delay(TimeSpan.FromSeconds(ReconnectInterval))
+                    .ContinueWith((x) => connectSocket(socket));
             }
             else
             {
@@ -2800,6 +3307,10 @@ public partial class EpConnection : NetworkConnection, IStore
 
     protected override void Connected()
     {
+        lock (_authenticationLifecycleLock)
+            Interlocked.Increment(ref _authenticationAttemptGeneration);
+
+        RestartAuthenticationDeadline();
         if (_authDirection == AuthenticationDirection.Initiator)
             Declare();
     }
@@ -2808,9 +3319,11 @@ public partial class EpConnection : NetworkConnection, IStore
     {
         // clean up
         var wasAuthenticated = _authenticated || (_session?.Authenticated ?? false);
+        EndAuthenticationAttempt();
         TerminateInvocations();
         DisposeSessionEncryption();
         _authenticated = false;
+        _authenticationHandshakeSucceeded = false;
         if (_session != null)
             _session.Authenticated = false;
         Status = EpConnectionStatus.Closed;
@@ -2890,15 +3403,24 @@ public partial class EpConnection : NetworkConnection, IStore
                 //Server.Membership?.Logout(_session);
             }
 
-        }
-        else if (AutoReconnect && !_invalidCredentials)
-        {
-            // reconnect
-            Task.Delay((int)ReconnectInterval).ContinueWith((x) => Reconnect());
+            DisposeAuthenticationHandler();
+
         }
         else
         {
-            _suspendedResources.Clear();
+            // Dispose the handler from the completed/aborted attempt before a fast
+            // reconnect can install a replacement handler on the same Session.
+            DisposeAuthenticationHandler();
+
+            if (AutoReconnect && !_invalidCredentials)
+            {
+                Task.Delay(TimeSpan.FromSeconds(ReconnectInterval))
+                    .ContinueWith((x) => Reconnect());
+            }
+            else
+            {
+                _suspendedResources.Clear();
+            }
         }
 
 

@@ -1,4 +1,6 @@
 using System;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Esiur.Core;
@@ -11,7 +13,7 @@ using Esiur.Stores;
 
 namespace Esiur.Tests.Unit.Integration;
 
-// ---- hash auth providers (self-consistent: client password {1..5} || server salt {6..10}
+// ---- password auth providers (self-consistent: client password {1..5} || server salt {6..10}
 //      == {1..10}, which is what the server stores the hash of) ------------------------------
 
 internal class TestServerAuthProvider : PasswordAuthenticationProvider
@@ -38,33 +40,53 @@ internal class TestClientAuthProvider : PasswordAuthenticationProvider
 internal sealed class OneStepAuthenticationProvider : IAuthenticationProvider
 {
     readonly byte _keyMarker;
+    readonly bool _requiresKeyRotation;
 
-    public OneStepAuthenticationProvider(byte keyMarker = 0)
-        => _keyMarker = keyMarker;
+    public OneStepAuthenticationProvider(byte keyMarker = 0, bool requiresKeyRotation = false)
+    {
+        _keyMarker = keyMarker;
+        _requiresKeyRotation = requiresKeyRotation;
+    }
 
     public string DefaultName => "one-step";
 
     public IAuthenticationHandler CreateAuthenticationHandler(AuthenticationContext context)
-        => new OneStepAuthenticationHandler(this, _keyMarker);
+        => new OneStepAuthenticationHandler(
+            this,
+            _keyMarker,
+            context.Direction,
+            _requiresKeyRotation);
 
     public AsyncReply<bool> Login(Session session) => new AsyncReply<bool>(true);
     public AsyncReply<bool> Logout(Session session) => new AsyncReply<bool>(true);
 }
 
-internal sealed class OneStepAuthenticationHandler : IAuthenticationHandler
+internal sealed class OneStepAuthenticationHandler :
+    IAuthenticationHandler,
+    IAuthenticationKeyRotationHandler
 {
     static readonly byte[] SharedKey = Enumerable.Range(1, 64).Select(x => (byte)x).ToArray();
     readonly OneStepAuthenticationProvider _provider;
     readonly byte _keyMarker;
+    readonly AuthenticationDirection _direction;
+    int _keyRotationStep;
 
-    public OneStepAuthenticationHandler(OneStepAuthenticationProvider provider, byte keyMarker)
+    public OneStepAuthenticationHandler(
+        OneStepAuthenticationProvider provider,
+        byte keyMarker,
+        AuthenticationDirection direction,
+        bool requiresKeyRotation)
     {
         _provider = provider;
         _keyMarker = keyMarker;
+        _direction = direction;
+        RequiresKeyRotation = requiresKeyRotation;
     }
 
     public IAuthenticationProvider Provider => _provider;
     public string Protocol => _provider.DefaultName;
+    public bool RequiresKeyRotation { get; }
+    public bool KeyRotationCompleted { get; private set; }
 
     public AuthenticationResult Process(object authData)
     {
@@ -77,6 +99,49 @@ internal sealed class OneStepAuthenticationHandler : IAuthenticationHandler
             "server",
             key);
     }
+
+    public AuthenticationKeyRotationResult BeginKeyRotation()
+    {
+        if (!RequiresKeyRotation || _direction != AuthenticationDirection.Initiator)
+            return new(AuthenticationKeyRotationRuling.Failed, error: "Invalid key-rotation initiator.");
+
+        _keyRotationStep = 1;
+        return new(AuthenticationKeyRotationRuling.InProgress, new byte[] { 0xA1 });
+    }
+
+    public AuthenticationKeyRotationResult ProcessKeyRotation(object data)
+    {
+        if (!RequiresKeyRotation || data is not byte[] message || message.Length != 1)
+            return new(AuthenticationKeyRotationRuling.Failed, error: "Invalid key-rotation data.");
+
+        if (_direction == AuthenticationDirection.Responder
+            && _keyRotationStep == 0
+            && message[0] == 0xA1)
+        {
+            _keyRotationStep = 1;
+            return new(AuthenticationKeyRotationRuling.InProgress, new byte[] { 0xB2 });
+        }
+
+        if (_direction == AuthenticationDirection.Initiator
+            && _keyRotationStep == 1
+            && message[0] == 0xB2)
+        {
+            _keyRotationStep = 2;
+            KeyRotationCompleted = true;
+            return new(AuthenticationKeyRotationRuling.Succeeded, new byte[] { 0xC3 });
+        }
+
+        if (_direction == AuthenticationDirection.Responder
+            && _keyRotationStep == 1
+            && message[0] == 0xC3)
+        {
+            _keyRotationStep = 2;
+            KeyRotationCompleted = true;
+            return new(AuthenticationKeyRotationRuling.Succeeded);
+        }
+
+        return new(AuthenticationKeyRotationRuling.Failed, error: "Invalid key-rotation sequence.");
+    }
 }
 
 /// <summary>
@@ -87,6 +152,29 @@ internal sealed class OneStepAuthenticationHandler : IAuthenticationHandler
 internal sealed class IntegrationCluster : IAsyncDisposable
 {
     static int _portCounter = 14400;
+
+    static int NextAvailablePort()
+    {
+        while (true)
+        {
+            var candidate = Interlocked.Increment(ref _portCounter);
+            using var probe = new Socket(
+                AddressFamily.InterNetwork,
+                SocketType.Stream,
+                ProtocolType.Tcp);
+
+            try
+            {
+                probe.Bind(new IPEndPoint(IPAddress.Any, candidate));
+                return candidate;
+            }
+            catch (SocketException)
+            {
+                // Tests share the host with other applications. Skip ports already
+                // bound or reserved instead of making the suite environment-dependent.
+            }
+        }
+    }
 
     public Warehouse ServerWarehouse { get; }
     public Warehouse ClientWarehouse { get; }
@@ -115,15 +203,16 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         bool oneStepAuthentication = false,
         bool useWebSocket = false,
         bool mismatchedSessionKeys = false,
+        bool requireKeyRotation = false,
         bool allowAuthentication = true,
         bool registerServerAuthenticationProvider = true)
     {
-        var port = Interlocked.Increment(ref _portCounter);
+        var port = NextAvailablePort();
 
         var serverWh = new Warehouse();
         if (registerServerAuthenticationProvider)
             serverWh.RegisterAuthenticationProvider(oneStepAuthentication
-                ? new OneStepAuthenticationProvider()
+                ? new OneStepAuthenticationProvider(requiresKeyRotation: requireKeyRotation)
                 : new TestServerAuthProvider());
         if (encrypted || requireEncryption)
             serverWh.RegisterEncryptionProvider(new AesEncryptionProvider());
@@ -133,7 +222,12 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         {
             Port = (ushort)port,
             AllowedAuthenticationProviders = allowAuthentication
-                ? new[] { oneStepAuthentication ? "one-step" : "hash" }
+                ? new[]
+                {
+                    oneStepAuthentication
+                        ? "one-step"
+                        : PasswordAuthenticationProvider.ProtocolName,
+                }
                 : Array.Empty<string>(),
             AllowedEncryptionProviders = (encrypted || requireEncryption) && allowEncryption
                 ? new[] { AesEncryptionProvider.Name }
@@ -148,7 +242,9 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         var cluster = new IntegrationCluster(serverWh, server, port);
 
         cluster.ClientWarehouse.RegisterAuthenticationProvider(oneStepAuthentication
-            ? new OneStepAuthenticationProvider(mismatchedSessionKeys ? (byte)0x80 : (byte)0)
+            ? new OneStepAuthenticationProvider(
+                mismatchedSessionKeys ? (byte)0x80 : (byte)0,
+                requireKeyRotation)
             : new TestClientAuthProvider());
         if (encrypted)
             cluster.ClientWarehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
@@ -161,7 +257,9 @@ internal sealed class IntegrationCluster : IAsyncDisposable
                 {
                     AuthenticationMode = AuthenticationMode.InitializerIdentity,
                     Identity = "tester",
-                    AuthenticationProtocol = oneStepAuthentication ? "one-step" : "hash",
+                    AuthenticationProtocol = oneStepAuthentication
+                        ? "one-step"
+                        : PasswordAuthenticationProvider.ProtocolName,
                     Domain = "test",
                     EncryptionMode = encrypted
                         ? encryptionMode

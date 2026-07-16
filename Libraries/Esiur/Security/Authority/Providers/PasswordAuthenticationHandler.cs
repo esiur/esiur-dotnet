@@ -10,7 +10,8 @@ using Esiur.Data.Types;
 namespace Esiur.Security.Authority.Providers
 {
     /// <summary>
-    /// Implements the "hash" authentication protocol: a SHA3 nonce/challenge-response
+    /// Implements the "password-sha3-v1" authentication protocol: a SHA3
+    /// nonce/challenge-response
     /// handshake that mutually proves knowledge of a salted password hash without sending
     /// the password, and derives a 512-bit session key. Supports initiator-only, responder-only
     /// and dual identity modes. All challenge comparisons are constant-time and remote material
@@ -18,7 +19,7 @@ namespace Esiur.Security.Authority.Providers
     /// </summary>
     public class PasswordAuthenticationHandler : IAuthenticationHandler
     {
-        public string Protocol => "hash";
+        public string Protocol => PasswordAuthenticationProvider.ProtocolName;
 
         // Length, in bytes, of the random nonces exchanged during the handshake.
         // Remote nonces are validated against this to reject malformed or weak input.

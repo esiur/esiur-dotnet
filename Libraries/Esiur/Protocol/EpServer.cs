@@ -44,9 +44,18 @@ namespace Esiur.Protocol;
 
 public class EpServer : NetworkServer<EpConnection>, IResource
 {
+    sealed class PeerAttemptWindow
+    {
+        public DateTime StartedUtc;
+        public int Count;
+    }
+
     readonly object _peerConnectionsLock = new object();
     readonly Dictionary<IPAddress, int> _peerConnectionCounts = new Dictionary<IPAddress, int>();
     readonly Dictionary<EpConnection, IPAddress> _admittedConnections = new Dictionary<EpConnection, IPAddress>();
+    readonly Dictionary<IPAddress, PeerAttemptWindow> _peerAttemptWindows =
+        new Dictionary<IPAddress, PeerAttemptWindow>();
+    uint _attemptSweepSequence;
 
 
     //[Attribute]
@@ -74,6 +83,12 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     /// Rejects incoming sessions that do not request authenticated encryption.
     /// </summary>
     public bool RequireEncryption { get; set; }
+
+    /// <summary>
+    /// Maximum time an incoming connection may spend authenticating, negotiating
+    /// encryption, and completing required protected key rotation.
+    /// </summary>
+    public TimeSpan AuthenticationTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     //[Attribute]
     public bool AllowUnauthorizedAccess { get; set; }
@@ -180,12 +195,12 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     public override void Add(EpConnection connection)
     {
-        if (!TryAdmitConnection(connection))
+        if (!TryAdmitConnection(connection, out var rejectionReason))
         {
             Global.Log(
                 "EpServer:ConnectionLimit",
                 LogType.Warning,
-                $"Rejected connection from {connection.RemoteEndPoint?.Address}: per-IP limit reached.");
+                $"Rejected connection from {connection.RemoteEndPoint?.Address}: {rejectionReason}");
             connection.Close();
             return;
         }
@@ -200,6 +215,8 @@ public class EpServer : NetworkServer<EpConnection>, IResource
                             });
 
             connection.ExceptionLevel = ExceptionLevel;
+            connection.AuthenticationTimeout = AuthenticationTimeout;
+            connection.RestartAuthenticationDeadline();
             base.Add(connection);
         }
         catch
@@ -222,21 +239,61 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         }
     }
 
-    private bool TryAdmitConnection(EpConnection connection)
+    private bool TryAdmitConnection(EpConnection connection, out string rejectionReason)
     {
+        rejectionReason = null;
         var address = NormalizeAddress(connection.RemoteEndPoint?.Address);
         if (address == null)
             return true;
 
         lock (_peerConnectionsLock)
         {
+            var configuration = Instance.Warehouse.Configuration.Connections;
+            var now = DateTime.UtcNow;
+
+            if (++_attemptSweepSequence % 256 == 0)
+            {
+                foreach (var expired in _peerAttemptWindows
+                    .Where(entry => now - entry.Value.StartedUtc
+                        >= configuration.ConnectionAttemptWindow)
+                    .Select(entry => entry.Key)
+                    .ToArray())
+                    _peerAttemptWindows.Remove(expired);
+            }
+
+            if (configuration.MaximumConnectionAttemptsPerIpAddress > 0
+                && configuration.ConnectionAttemptWindow > TimeSpan.Zero)
+            {
+                if (!_peerAttemptWindows.TryGetValue(address, out var attempts)
+                    || now - attempts.StartedUtc >= configuration.ConnectionAttemptWindow)
+                {
+                    attempts = new PeerAttemptWindow
+                    {
+                        StartedUtc = now,
+                    };
+                    _peerAttemptWindows[address] = attempts;
+                }
+
+                if (attempts.Count
+                    >= configuration.MaximumConnectionAttemptsPerIpAddress)
+                {
+                    rejectionReason = "per-IP connection-attempt rate reached";
+                    return false;
+                }
+
+                attempts.Count++;
+            }
+
             var count = _peerConnectionCounts.TryGetValue(address, out var current)
                 ? current
                 : 0;
-            var limit = Instance.Warehouse.Configuration.Connections.MaximumConnectionsPerIpAddress;
+            var limit = configuration.MaximumConnectionsPerIpAddress;
 
             if (limit > 0 && count >= limit)
+            {
+                rejectionReason = "per-IP concurrent-connection limit reached";
                 return false;
+            }
 
             _peerConnectionCounts[address] = count + 1;
             _admittedConnections[connection] = address;

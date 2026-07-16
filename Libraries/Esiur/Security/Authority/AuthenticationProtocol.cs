@@ -6,7 +6,11 @@ namespace Esiur.Security.Authority
 {
     public enum AuthenticationProtocol
     {
-        Hash = 0,
+        Password = 0,
+
+        [Obsolete("Use Password instead.")]
+        Hash = Password,
+
         PPAP = 1,
     }
 }

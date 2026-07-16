@@ -7,7 +7,19 @@ namespace Esiur.Security.Authority.Providers
 {
     public class PasswordAuthenticationProvider : IAuthenticationProvider
     {
-        public string DefaultName => "hash";
+        /// <summary>
+        /// Canonical protocol name used for registration and EP negotiation.
+        /// </summary>
+        public const string ProtocolName = "password-sha3-v1";
+
+        /// <summary>
+        /// Previous protocol name, retained only to make explicit migration aliases possible.
+        /// New connections should use <see cref="ProtocolName"/>.
+        /// </summary>
+        [Obsolete("Use ProtocolName (`password-sha3-v1`) for new connections.")]
+        public const string LegacyProtocolName = "hash";
+
+        public string DefaultName => ProtocolName;
 
         public IAuthenticationHandler CreateAuthenticationHandler(AuthenticationContext context)
         {

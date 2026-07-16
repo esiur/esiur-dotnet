@@ -3,6 +3,7 @@ namespace Esiur.Tests.Unit.Integration;
 using Esiur.Data;
 using Esiur.Net.Sockets;
 using Esiur.Protocol;
+using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
 
 [Collection("Integration")]
@@ -21,7 +22,8 @@ public class SessionHeadersIntegrationTests
         Assert.Null(cluster.Connection.Session.RemoteHeaders.AuthenticationData);
 
         Assert.Equal("test", serverConnection.Session.RemoteHeaders.Domain);
-        Assert.Equal("hash", serverConnection.Session.RemoteHeaders.AuthenticationProtocol);
+        Assert.Equal(PasswordAuthenticationProvider.ProtocolName,
+            serverConnection.Session.RemoteHeaders.AuthenticationProtocol);
         Assert.Null(serverConnection.Session.RemoteHeaders.AuthenticationData);
     }
 
@@ -157,6 +159,50 @@ public class SessionHeadersIntegrationTests
         Assert.True(serverConnection.Session.Authenticated);
         Assert.True(serverConnection.IsEncrypted);
         Assert.Equal(117, Convert.ToInt32(result));
+    }
+
+    [Fact]
+    public async Task RequiredAuthenticationKeyRotation_CompletesBeforeConnectionsBecomeReady()
+    {
+        await using var cluster = await IntegrationCluster
+            .StartAsync(
+                async warehouse =>
+                {
+                    await warehouse.Put("sys/key-rotation", new EncryptedEchoResource());
+                },
+                encrypted: true,
+                oneStepAuthentication: true,
+                requireKeyRotation: true)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        var clientHandler = Assert.IsType<OneStepAuthenticationHandler>(
+            cluster.Connection.Session.AuthenticationHandler);
+        var serverConnection = Assert.Single(cluster.Server.Connections);
+        var serverHandler = Assert.IsType<OneStepAuthenticationHandler>(
+            serverConnection.Session.AuthenticationHandler);
+
+        Assert.True(clientHandler.KeyRotationCompleted);
+        Assert.True(serverHandler.KeyRotationCompleted);
+        Assert.True(cluster.Connection.IsEncrypted);
+        Assert.True(serverConnection.IsEncrypted);
+
+        Assert.NotNull(await Task.Run(async () =>
+            await cluster.Connection.Get("sys/key-rotation"))
+            .WaitAsync(TimeSpan.FromSeconds(10)));
+    }
+
+    [Fact]
+    public async Task RequiredAuthenticationKeyRotation_RejectsUnencryptedSession()
+    {
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await IntegrationCluster.StartAsync(
+                    _ => Task.CompletedTask,
+                    encrypted: false,
+                    oneStepAuthentication: true,
+                    requireKeyRotation: true)
+                .WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.IsNotType<TimeoutException>(exception);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Cryptography;
 using Esiur.Security.Authority;
+using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
 
 namespace Esiur.Tests.Unit;
@@ -26,7 +27,7 @@ public class AesEncryptionProviderTests
         var record = initiator.Encrypt("Esiur AES-GCM vector"u8.ToArray());
 
         Assert.Equal(
-            "0000000000000000BF5D9D7DA3D6D5232578F966450E5B96B89172D4F186A5C45299C42D8ABB732A07B1E092",
+            "0000000000000000D9538F565DFB97D51FE9AA53316A1FE2D5EEF3361A8958E4439C0BE21A6FC840A3DF42F9",
             Convert.ToHexString(record));
     }
 
@@ -145,8 +146,8 @@ public class AesEncryptionProviderTests
     }
 
     [Theory]
-    [InlineData(AuthenticationMode.DualIdentity, "hash")]
-    [InlineData(AuthenticationMode.InitializerIdentity, "hash-v2")]
+    [InlineData(AuthenticationMode.DualIdentity, "password-sha3-v1")]
+    [InlineData(AuthenticationMode.InitializerIdentity, "password-sha3-v2")]
     public void AuthenticationNegotiation_IsBoundIntoKeyDerivation(
         AuthenticationMode responderMode,
         string responderProtocol)
@@ -242,7 +243,7 @@ public class AesEncryptionProviderTests
         string protocol = AesEncryptionProvider.Name,
         string[]? offeredProtocols = null,
         AuthenticationMode authenticationMode = AuthenticationMode.InitializerIdentity,
-        string authenticationProtocol = "hash",
+        string authenticationProtocol = PasswordAuthenticationProvider.ProtocolName,
         string domain = "example.test")
         => (AesGcmSymetricCipher)_provider.CreateCipher(new EncryptionContext
         {

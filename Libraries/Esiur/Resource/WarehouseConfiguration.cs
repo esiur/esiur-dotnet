@@ -66,6 +66,15 @@ public sealed class ResourceAttachmentConfiguration
 public sealed class ConnectionConfiguration
 {
     public int MaximumConnectionsPerIpAddress { get; set; } = 64;
+
+    /// <summary>
+    /// Maximum connection attempts admitted from one IP during
+    /// <see cref="ConnectionAttemptWindow"/>. This limits repeated pre-authentication
+    /// cryptographic and identity-lookup work. A value of zero disables the limit.
+    /// </summary>
+    public int MaximumConnectionAttemptsPerIpAddress { get; set; } = 120;
+
+    public TimeSpan ConnectionAttemptWindow { get; set; } = TimeSpan.FromMinutes(1);
 }
 
 /// <summary>

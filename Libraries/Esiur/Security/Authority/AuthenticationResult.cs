@@ -26,7 +26,17 @@ namespace Esiur.Security.Authority
             LocalIdentity = localIdentity;
             RemoteIdentity = remoteIdentity;
             AuthenticationData = authenticationData;
-            SessionKey = sessionKey;
+            // AuthenticationResult owns its key buffer. This lets transports erase the
+            // short-lived handoff copy after adopting their own session key without
+            // mutating provider-wide or cached key material.
+            SessionKey = sessionKey == null ? null : (byte[])sessionKey.Clone();
+        }
+
+        internal void ClearSessionKey()
+        {
+            if (SessionKey != null)
+                Array.Clear(SessionKey, 0, SessionKey.Length);
+            SessionKey = null;
         }
     }
 }

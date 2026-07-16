@@ -4,6 +4,7 @@ using Esiur.Data;
 using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Authority.Providers;
 
 namespace Esiur.Tests.Unit;
 
@@ -93,7 +94,7 @@ public class IndexedStructureTests
             SupportedCiphers = new[] { "aes-gcm" },
             CipherType = "aes-gcm",
             IPAddress = new byte[] { 127, 0, 0, 1 },
-            AuthenticationProtocol = "hash",
+            AuthenticationProtocol = PasswordAuthenticationProvider.ProtocolName,
             AuthenticationData = new byte[] { 1, 2, 3 },
             CipherNonce = Enumerable.Range(0, 32).Select(x => (byte)x).ToArray(),
         };
@@ -116,7 +117,8 @@ public class IndexedStructureTests
 
         Assert.Equal(legacyBytes, bytes);
         Assert.Equal("example.test", map[(byte)EpAuthPacketHeader.Domain]);
-        Assert.Equal("hash", map[(byte)EpAuthPacketHeader.AuthenticationProtocol]);
+        Assert.Equal(PasswordAuthenticationProvider.ProtocolName,
+            map[(byte)EpAuthPacketHeader.AuthenticationProtocol]);
         Assert.False(map.ContainsKey((byte)EpAuthPacketHeader.ErrorMessage));
         Assert.Equal(source.Domain, parsed.Domain);
         Assert.Equal(source.IPAddress, parsed.IPAddress);

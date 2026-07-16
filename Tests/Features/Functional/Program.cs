@@ -27,6 +27,7 @@ using Esiur.Data;
 using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
 using Esiur.Security.Management;
 using Esiur.Security.RateLimiting;
@@ -120,7 +121,10 @@ internal static class Program
         var server = await warehouse.Put("sys/server", new EpServer
         {
             Port = port,
-            AllowedAuthenticationProviders = new[] { "hash" },
+            AllowedAuthenticationProviders = new[]
+            {
+                PasswordAuthenticationProvider.ProtocolName,
+            },
             AllowedEncryptionProviders = new[] { AesEncryptionProvider.Name },
             RequireEncryption = true,
         });
@@ -185,7 +189,7 @@ internal static class Program
             AuthenticationMode = AuthenticationMode.InitializerIdentity,
             AutoReconnect = false,
             Identity = "tester",
-            AuthenticationProtocol = "hash",
+            AuthenticationProtocol = PasswordAuthenticationProvider.ProtocolName,
             Domain = "test",
             EncryptionMode = EncryptionMode.EncryptWithSessionKey,
             EncryptionProviders = new[] { AesEncryptionProvider.Name },

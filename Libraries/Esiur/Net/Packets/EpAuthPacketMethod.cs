@@ -15,6 +15,7 @@ namespace Esiur.Net.Packets
         // Actions
         Handshake = 0x80,
         FinalHandshake = 0x81,
+        KeyRotation = 0x82,
 
         // Acks
         Denied = 0x40, // no reason, terminate connection
@@ -33,6 +34,7 @@ namespace Esiur.Net.Packets
         ErrorRetry = 0xC3,
 
         IndicationEstablished = 0xC8,
+        KeyRotationEstablished = 0xC9,
 
         IAuthPlain = 0xD0,
         IAuthHashed = 0xD1,

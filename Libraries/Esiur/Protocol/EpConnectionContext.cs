@@ -3,6 +3,7 @@ using Esiur.Data;
 using Esiur.Net.Packets;
 using Esiur.Resource;
 using Esiur.Security.Authority;
+using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
 using Esiur.Security.Membership;
 using Esiur.Security.Permissions;
@@ -39,7 +40,16 @@ public class EpConnectionContext : IResourceContext
 
     public AuthenticationMode AuthenticationMode { get; set; } = AuthenticationMode.None;
     public string Identity { get; set; }
-    public string AuthenticationProtocol { get; set; } = "hash";
+
+    /// <summary>
+    /// Expected responder identity for responder-authenticated and dual-identity
+    /// protocols. Leaving this unset accepts any responder identity trusted by the
+    /// selected authentication provider for the requested domain.
+    /// </summary>
+    public string ResponderIdentity { get; set; }
+
+    public string AuthenticationProtocol { get; set; }
+        = PasswordAuthenticationProvider.ProtocolName;
 
     /// <summary>
     /// Controls whether the authenticated session key must protect EP traffic.
@@ -53,7 +63,14 @@ public class EpConnectionContext : IResourceContext
 
     public bool AutoReconnect { get; set; } = false;
 
+    /// <summary>Delay between reconnect attempts, in seconds.</summary>
     public uint ReconnectInterval { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum time allowed for authentication, encryption setup, and any required
+    /// protected key rotation. A non-positive value disables the deadline.
+    /// </summary>
+    public TimeSpan AuthenticationTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     //public string Username { get; set; }
 
