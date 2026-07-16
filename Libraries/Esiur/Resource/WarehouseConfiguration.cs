@@ -29,6 +29,9 @@ public sealed class EncryptionConfiguration
 /// </summary>
 public sealed class ParserConfiguration
 {
+    /// <summary>Default maximum nesting depth for TRU type metadata.</summary>
+    public const int DefaultMaximumTypeMetadataDepth = 64;
+
     /// <summary>Maximum declared TDU payload retained for one packet.</summary>
     public uint MaximumPacketSize { get; set; } = 8 * 1024 * 1024;
 
@@ -37,6 +40,12 @@ public sealed class ParserConfiguration
 
     /// <summary>Maximum number of values decoded into one collection.</summary>
     public int MaximumCollectionItems { get; set; } = 65_536;
+
+    /// <summary>
+    /// Maximum number of nested TRU type-metadata nodes, including the root node.
+    /// A value of zero disables the limit.
+    /// </summary>
+    public int MaximumTypeMetadataDepth { get; set; } = DefaultMaximumTypeMetadataDepth;
 }
 
 /// <summary>

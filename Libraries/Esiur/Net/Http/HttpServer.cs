@@ -41,11 +41,13 @@ using System.Text.RegularExpressions;
 using System.Linq;
 using System.Reflection;
 using Esiur.Net.Packets.Http;
+using Esiur.Net.Packets.WebSocket;
 
 namespace Esiur.Net.Http;
 public class HttpServer : NetworkServer<HttpConnection>, IResource
 {
     Dictionary<string, HttpSession> sessions = new Dictionary<string, HttpSession>();
+    readonly object sessionsLock = new object();
     HttpFilter[] filters = new HttpFilter[0];
 
     Dictionary<Packets.Http.HttpMethod, List<RouteInfo>> routes = new()
@@ -159,6 +161,72 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
     {
         get;
         set;
+    } = HttpPacketHelpers.DefaultMaximumContentLength;
+
+    public virtual uint MaximumHeaderLength
+    {
+        get;
+        set;
+    } = HttpPacketHelpers.DefaultMaximumHeaderLength;
+
+    public virtual int MaximumHeaderCount
+    {
+        get;
+        set;
+    } = HttpPacketHelpers.DefaultMaximumHeaderCount;
+
+    public virtual int MaximumFormFields
+    {
+        get;
+        set;
+    } = HttpPacketHelpers.DefaultMaximumFormFields;
+
+    public virtual int MaximumFormKeyLength
+    {
+        get;
+        set;
+    } = HttpPacketHelpers.DefaultMaximumFormKeyLength;
+
+    public virtual int MaximumFormValueLength
+    {
+        get;
+        set;
+    } = HttpPacketHelpers.DefaultMaximumFormValueLength;
+
+    public virtual int MaximumMultipartPartLength
+    {
+        get;
+        set;
+    } = HttpPacketHelpers.DefaultMaximumMultipartPartLength;
+
+    /// <summary>
+    /// Maximum payload accumulated for one WebSocket application message, including
+    /// all of its fragments. Set to zero to disable the configured limit.
+    /// </summary>
+    public virtual ulong MaximumWebSocketMessageLength
+    {
+        get;
+        set;
+    } = WebsocketPacket.DefaultMaximumPayloadLength;
+
+    /// <summary>
+    /// WebSocket subprotocols supported by this server, in server preference order.
+    /// A protocol is returned to the client only when it was also requested.
+    /// </summary>
+    public virtual string[] WebSocketSubprotocols
+    {
+        get;
+        set;
+    } = Array.Empty<string>();
+
+    /// <summary>
+    /// Whether HTTP 500 responses may include exception messages. Disabled by default
+    /// to avoid disclosing implementation details to remote clients.
+    /// </summary>
+    public virtual bool ExposeExceptionDetails
+    {
+        get;
+        set;
     }
 
     //[Attribute]
@@ -179,39 +247,99 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
     public HttpSession CreateSession(string id, int timeout)
     {
         var s = new HttpSession();
+        s.OnEnd += SessionEnded;
+        s.OnDestroy += SessionDestroyed;
 
-        s.Set(id, timeout);
+        lock (sessionsLock)
+            sessions.Add(id, s);
 
-
-        sessions.Add(id, s);
+        try
+        {
+            s.Set(id, timeout);
+        }
+        catch
+        {
+            lock (sessionsLock)
+                sessions.Remove(id);
+            s.Destroy();
+            throw;
+        }
 
         return s;
     }
 
-    public static string MakeCookie(string Item, string Value, DateTime Expires, string Domain, string Path, bool HttpOnly)
+    /// <summary>
+    /// Looks up a live HTTP session by its cookie identifier.
+    /// </summary>
+    public bool TryGetSession(string id, out HttpSession session)
     {
+        session = null;
+        if (string.IsNullOrEmpty(id))
+            return false;
 
-        //Set-Cookie: ckGeneric=CookieBody; expires=Sun, 30-Dec-2001 21:00:00 GMT; domain=.com.au; path=/
-        //Set-Cookie: SessionID=another; expires=Fri, 29 Jun 2006 20:47:11 UTC; path=/
-        string Cookie = Item + "=" + Value;
+        lock (sessionsLock)
+        {
+            if (!sessions.TryGetValue(id, out var candidate) || candidate.IsDestroyed)
+                return false;
 
-        if (Expires.Ticks != 0)
-        {
-            Cookie += "; expires=" + Expires.ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
+            session = candidate;
+            return true;
         }
-        if (Domain != null)
+    }
+
+    private void SessionEnded(HttpSession session)
+    {
+        RemoveSession(session);
+        session.Destroy();
+    }
+
+    private void SessionDestroyed(object sender)
+    {
+        if (sender is HttpSession session)
+            RemoveSession(session);
+    }
+
+    private void RemoveSession(HttpSession session)
+    {
+        lock (sessionsLock)
         {
-            Cookie += "; domain=" + Domain;
+            if (session.Id != null &&
+                sessions.TryGetValue(session.Id, out var current) &&
+                ReferenceEquals(current, session))
+                sessions.Remove(session.Id);
         }
-        if (Path != null)
+    }
+
+    public static string MakeCookie(string Item, string Value, DateTime Expires, string Domain, string Path, bool HttpOnly)
+        => MakeCookie(
+            Item,
+            Value,
+            Expires,
+            Domain,
+            Path,
+            HttpOnly,
+            false,
+            HttpCookieSameSite.Unspecified);
+
+    public static string MakeCookie(
+        string Item,
+        string Value,
+        DateTime Expires,
+        string Domain,
+        string Path,
+        bool HttpOnly,
+        bool Secure,
+        HttpCookieSameSite SameSite)
+    {
+        return new HttpCookie(Item, Value)
         {
-            Cookie += "; path=" + Path;
-        }
-        if (HttpOnly)
-        {
-            Cookie += "; HttpOnly";
-        }
-        return Cookie;
+            Expires = Expires,
+            Domain = Domain,
+            Path = Path,
+            HttpOnly = HttpOnly,
+            Secure = Secure,
+            SameSite = SameSite,
+        }.ToString();
     }
 
     protected override void ClientDisconnected(HttpConnection connection)
@@ -321,6 +449,7 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
         else if (operation == ResourceOperation.Terminate)
         {
             Stop();
+            DisposeSessions();
         }
         else if (operation == ResourceOperation.SystemReloading)
         {
@@ -334,6 +463,19 @@ public class HttpServer : NetworkServer<HttpConnection>, IResource
 
         return true;
 
+    }
+
+    private void DisposeSessions()
+    {
+        HttpSession[] activeSessions;
+        lock (sessionsLock)
+        {
+            activeSessions = sessions.Values.ToArray();
+            sessions.Clear();
+        }
+
+        foreach (var activeSession in activeSessions)
+            activeSession.Destroy();
     }
 
 

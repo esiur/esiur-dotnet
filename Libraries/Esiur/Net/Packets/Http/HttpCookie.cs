@@ -1,9 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 
 namespace Esiur.Net.Packets.Http
 {
+    public enum HttpCookieSameSite
+    {
+        Unspecified,
+        Lax,
+        Strict,
+        None,
+    }
+
     public struct HttpCookie
     {
         public string Name;
@@ -11,6 +20,8 @@ namespace Esiur.Net.Packets.Http
         public DateTime Expires;
         public string Path;
         public bool HttpOnly;
+        public bool Secure;
+        public HttpCookieSameSite SameSite;
         public string Domain;
 
         public HttpCookie(string name, string value)
@@ -20,6 +31,8 @@ namespace Esiur.Net.Packets.Http
             Path = null;
             Expires = DateTime.MinValue;
             HttpOnly = false;
+            Secure = false;
+            SameSite = HttpCookieSameSite.Unspecified;
             Domain = null;
         }
 
@@ -29,6 +42,8 @@ namespace Esiur.Net.Packets.Http
             Value = value;
             Expires = expires;
             HttpOnly = false;
+            Secure = false;
+            SameSite = HttpCookieSameSite.Unspecified;
             Domain = null;
             Path = null;
         }
@@ -40,7 +55,7 @@ namespace Esiur.Net.Packets.Http
             var cookie = Name + "=" + Value;
 
             if (Expires.Ticks != 0)
-                cookie += "; expires=" + Expires.ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
+                cookie += "; expires=" + Expires.ToUniversalTime().ToString("r", CultureInfo.InvariantCulture);
 
             if (Domain != null)
                 cookie += "; domain=" + Domain;
@@ -50,6 +65,12 @@ namespace Esiur.Net.Packets.Http
 
             if (HttpOnly)
                 cookie += "; HttpOnly";
+
+            if (Secure)
+                cookie += "; Secure";
+
+            if (SameSite != HttpCookieSameSite.Unspecified)
+                cookie += "; SameSite=" + SameSite;
 
             return cookie;
         }

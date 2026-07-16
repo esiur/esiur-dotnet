@@ -44,6 +44,9 @@ public class HttpSession : IDestructible //<T> where T : TClient
     private string id;
     private Timer timer;
     private int timeout;
+    private readonly object timerLock = new object();
+    private long timerGeneration;
+    private bool destroyed;
     DateTime creation;
     DateTime lastAction;
 
@@ -63,25 +66,44 @@ public class HttpSession : IDestructible //<T> where T : TClient
         variables = new KeyList<string, object>();
         variables.OnModified += new KeyList<string, object>.Modified(VariablesModified);
         creation = DateTime.Now;
+        lastAction = creation;
     }
 
     internal void Set(string id, int timeout)
     {
         //modified = sessionModifiedEvent;
         //ended = sessionEndEvent;
-        this.id = id;
+        if (timeout < 0)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
 
-        if (this.timeout != 0)
+        lock (timerLock)
         {
+            if (destroyed)
+                throw new ObjectDisposedException(nameof(HttpSession));
+
+            this.id = id;
             this.timeout = timeout;
-            timer = new Timer(OnSessionEndTimerCallback, null, TimeSpan.FromSeconds(timeout), TimeSpan.FromSeconds(0));
             creation = DateTime.Now;
+            lastAction = creation;
+            ScheduleTimerLocked();
         }
     }
 
     private void OnSessionEndTimerCallback(object o)
     {
-        OnEnd?.Invoke(this);
+        SessionEndedEvent onEnd;
+
+        lock (timerLock)
+        {
+            if (destroyed || !(o is long generation) || generation != timerGeneration)
+                return;
+
+            timer?.Dispose();
+            timer = null;
+            onEnd = OnEnd;
+        }
+
+        onEnd?.Invoke(this);
     }
 
     void VariablesModified(string key, object oldValue, object newValue, KeyList<string, object> sender)
@@ -91,15 +113,54 @@ public class HttpSession : IDestructible //<T> where T : TClient
 
     public void Destroy()
     {
-        OnDestroy?.Invoke(this);
-        timer.Dispose();
-        timer = null;
+        DestroyedEvent onDestroy;
+
+        lock (timerLock)
+        {
+            if (destroyed)
+                return;
+
+            destroyed = true;
+            timerGeneration++;
+            timer?.Dispose();
+            timer = null;
+            variables.OnModified -= VariablesModified;
+            onDestroy = OnDestroy;
+            OnDestroy = null;
+            OnEnd = null;
+            OnModify = null;
+        }
+
+        onDestroy?.Invoke(this);
     }
 
     internal void Refresh()
     {
-        lastAction = DateTime.Now;
-        timer.Change(TimeSpan.FromSeconds(timeout), TimeSpan.FromSeconds(0));
+        lock (timerLock)
+        {
+            if (destroyed)
+                return;
+
+            lastAction = DateTime.Now;
+            ScheduleTimerLocked();
+        }
+    }
+
+    private void ScheduleTimerLocked()
+    {
+        timerGeneration++;
+        timer?.Dispose();
+        timer = null;
+
+        if (timeout <= 0)
+            return;
+
+        var generation = timerGeneration;
+        timer = new Timer(
+            OnSessionEndTimerCallback,
+            generation,
+            TimeSpan.FromSeconds(timeout),
+            System.Threading.Timeout.InfiniteTimeSpan);
     }
 
     public int Timeout // Seconds
@@ -110,8 +171,18 @@ public class HttpSession : IDestructible //<T> where T : TClient
         }
         set
         {
-            timeout = value;
-            Refresh();
+            if (value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
+
+            lock (timerLock)
+            {
+                if (destroyed)
+                    return;
+
+                timeout = value;
+                lastAction = DateTime.Now;
+                ScheduleTimerLocked();
+            }
         }
     }
 
@@ -123,6 +194,15 @@ public class HttpSession : IDestructible //<T> where T : TClient
     public DateTime LastAction
     {
         get { return lastAction; }
+    }
+
+    internal bool IsDestroyed
+    {
+        get
+        {
+            lock (timerLock)
+                return destroyed;
+        }
     }
 }
 

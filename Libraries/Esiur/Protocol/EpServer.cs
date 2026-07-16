@@ -56,8 +56,13 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         set;
     }
 
-    //[Attribute]
-    public string[] AllowedAuthenticationProviders { get; set; }
+    /// <summary>
+    /// Authentication provider protocol names that incoming connections may negotiate.
+    /// Providers must also be registered with the server Warehouse. An empty list denies
+    /// authenticated negotiation; anonymous access remains controlled separately by
+    /// <see cref="AllowUnauthorizedAccess"/>.
+    /// </summary>
+    public string[] AllowedAuthenticationProviders { get; set; } = Array.Empty<string>();
 
     /// <summary>
     /// Encryption provider protocol names that incoming connections may negotiate.
@@ -124,12 +129,6 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         | ExceptionLevel.Message
         | ExceptionLevel.Trace;
 
-
-
-    public void RegisterAuthenticationHandler<T>(string[] domains, AuthenticationMode[] modes) where T : class, IAuthenticationHandler
-    {
-
-    }
     
     public Instance Instance
     {

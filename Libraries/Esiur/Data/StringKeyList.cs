@@ -37,7 +37,7 @@ namespace Esiur.Data;
 public class StringKeyList : IEnumerable<KeyValuePair<string, string>>
 {
 
-    private List<KeyValuePair<string, string>> m_Variables = new List<KeyValuePair<string, string>>();
+    private readonly List<KeyValuePair<string, string>> m_Variables = new List<KeyValuePair<string, string>>();
 
     private bool allowMultiple;
 
@@ -54,44 +54,32 @@ public class StringKeyList : IEnumerable<KeyValuePair<string, string>>
         if (OnModified != null)
             OnModified(key, value);
 
-        key = key.ToLower();
-
         if (!allowMultiple)
         {
-            foreach (var kv in m_Variables)
-            {
-                if (kv.Key.ToLower() == key)
-                {
-                    m_Variables.Remove(kv);
-                    break;
-                }
-            }
+            var index = m_Variables.FindIndex(
+                item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+                m_Variables.RemoveAt(index);
         }
 
-        m_Variables.Add(new KeyValuePair<string, string>(key, value));
+        m_Variables.Add(new KeyValuePair<string, string>(key.ToLowerInvariant(), value));
     }
 
     public string this[string key]
     {
         get
         {
-            key = key.ToLower();
             foreach (var kv in m_Variables)
-                if (kv.Key.ToLower() == key)
+                if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
                     return kv.Value;
 
             return null;
         }
         set
         {
-            key = key.ToLower();
-
-            var toRemove = m_Variables.Where(x => x.Key.ToLower() == key).ToArray();
-
-            foreach (var item in toRemove)
-                m_Variables.Remove(item);
-
-
+            key = key.ToLowerInvariant();
+            m_Variables.RemoveAll(
+                item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
             m_Variables.Add(new KeyValuePair<string, string>(key, value));
 
             OnModified?.Invoke(key, value);
@@ -121,12 +109,10 @@ public class StringKeyList : IEnumerable<KeyValuePair<string, string>>
 
     public List<string> GetValues(string Key)
     {
-        var key = Key.ToLower();
-
         List<string> values = new List<string>();
 
         foreach (var kv in m_Variables)
-            if (kv.Key.ToLower() == key)
+            if (string.Equals(kv.Key, Key, StringComparison.OrdinalIgnoreCase))
                 values.Add(kv.Value);
 
         return values;
@@ -134,22 +120,26 @@ public class StringKeyList : IEnumerable<KeyValuePair<string, string>>
 
     public void RemoveAll(string key)
     {
-        while (Remove(key)) { }
+        for (var i = m_Variables.Count - 1; i >= 0; i--)
+        {
+            if (!string.Equals(m_Variables[i].Key, key, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            m_Variables.RemoveAt(i);
+            OnModified?.Invoke(key, null);
+        }
     }
 
     public bool Remove(string key)
     {
-        key = key.ToLower();
-
-        foreach (var kv in m_Variables)
+        for (var i = 0; i < m_Variables.Count; i++)
         {
-            if (kv.Key.ToLower() == key)
-            {
-                if (OnModified != null)
-                    OnModified(key, null);
-                m_Variables.Remove(kv);
-                return true;
-            }
+            if (!string.Equals(m_Variables[i].Key, key, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            m_Variables.RemoveAt(i);
+            OnModified?.Invoke(key, null);
+            return true;
         }
 
         return false;
@@ -162,9 +152,8 @@ public class StringKeyList : IEnumerable<KeyValuePair<string, string>>
 
     public bool ContainsKey(string key)
     {
-        key = key.ToLower();
         foreach (var kv in m_Variables)
-            if (kv.Key.ToLower() == key)
+            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
                 return true;
         return false;
     }
@@ -172,9 +161,8 @@ public class StringKeyList : IEnumerable<KeyValuePair<string, string>>
 
     public bool ContainsValue(string value)
     {
-        value = value.ToLower();
         foreach (var kv in m_Variables)
-            if (kv.Value.ToLower() == value)
+            if (string.Equals(kv.Value, value, StringComparison.OrdinalIgnoreCase))
                 return true;
         return false;
     }

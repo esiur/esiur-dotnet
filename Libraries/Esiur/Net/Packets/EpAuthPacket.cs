@@ -125,19 +125,6 @@ public class EpAuthPacket : Packet
         set;
     }
 
-    private uint dataLengthNeeded;
-
-    bool NotEnough(uint offset, uint ends, uint needed)
-    {
-        if (offset + needed > ends)
-        {
-            dataLengthNeeded = needed - (ends - offset);
-            return true;
-        }
-        else
-            return false;
-    }
-
     public override string ToString()
     {
         return Command.ToString() + " " + Method.ToString();
@@ -145,12 +132,13 @@ public class EpAuthPacket : Packet
 
     public override long Parse(byte[] data, uint offset, uint ends)
     {
+        ValidateBounds(data, offset, ends);
         Tdu = null;
 
         var oOffset = offset;
 
-        if (NotEnough(offset, ends, 1))
-            return -dataLengthNeeded;
+        if (TryGetMissingBytes(offset, ends, 1, out var incomplete))
+            return incomplete;
 
         Command = (EpAuthPacketCommand)(data[offset] >> 6);
         var hasTdu = (data[offset] & 0x20) != 0;
@@ -183,18 +171,21 @@ public class EpAuthPacket : Packet
 
         if (hasTdu)
         {
-            if (NotEnough(offset, ends, 1))
-                return -dataLengthNeeded;
+            if (TryGetMissingBytes(offset, ends, 1, out incomplete))
+                return incomplete;
 
             var maximumPacketSize = _warehouse.Configuration.Parser.MaximumPacketSize;
+            var maximumPayloadLength = maximumPacketSize == 0
+                ? (ulong)int.MaxValue
+                : Math.Min(maximumPacketSize, (ulong)int.MaxValue);
             Tdu = PlainTdu.Parse(
                 data,
                 offset,
                 ends,
-                maximumPacketSize == 0 ? ulong.MaxValue : maximumPacketSize);
+                maximumPayloadLength);
 
             if (Tdu.Value.Class == TduClass.Invalid)
-                return -(int)Tdu.Value.TotalLength;
+                return -(long)Tdu.Value.TotalLength;
 
             offset += (uint)Tdu.Value.TotalLength;
 

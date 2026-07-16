@@ -56,6 +56,18 @@ internal static class ParserGuard
                 "collection");
     }
 
+    internal static void EnsureTypeMetadataDepth(Warehouse? warehouse, int depth)
+    {
+        // Some compatibility entry points accept a null Warehouse. Keep those safe by
+        // applying the built-in default rather than silently disabling this stack guard.
+        var limit = warehouse?.Configuration.Parser.MaximumTypeMetadataDepth
+                    ?? ParserConfiguration.DefaultMaximumTypeMetadataDepth;
+
+        if (limit > 0 && depth > limit)
+            throw new ParserLimitException(
+                $"TRU type metadata depth of {depth} exceeds the configured limit of {limit}.");
+    }
+
     internal static ulong MultiplySaturated(ulong value, ulong multiplier)
         => value > ulong.MaxValue / multiplier ? ulong.MaxValue : value * multiplier;
 }

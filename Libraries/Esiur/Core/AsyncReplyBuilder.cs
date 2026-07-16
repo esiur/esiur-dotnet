@@ -3,12 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 
 namespace Esiur.Core;
 
 public class AsyncReplyBuilder
 {
     AsyncReply reply;
+    int hasSuspended;
 
     AsyncReplyBuilder(AsyncReply reply)
     {
@@ -33,7 +35,9 @@ public class AsyncReplyBuilder
 
     public void SetException(Exception exception)
     {
-        reply.TriggerError(exception);
+        reply.TriggerErrorFromBuilder(
+            exception,
+            preserveSourceForAwait: Volatile.Read(ref hasSuspended) == 0);
     }
 
     public void SetResult()
@@ -46,6 +50,7 @@ public class AsyncReplyBuilder
         where TAwaiter : INotifyCompletion
         where TStateMachine : IAsyncStateMachine
     {
+        Volatile.Write(ref hasSuspended, 1);
         awaiter.OnCompleted(stateMachine.MoveNext);
     }
 
@@ -54,6 +59,7 @@ public class AsyncReplyBuilder
         where TAwaiter : ICriticalNotifyCompletion
         where TStateMachine : IAsyncStateMachine
     {
+        Volatile.Write(ref hasSuspended, 1);
         awaiter.UnsafeOnCompleted(stateMachine.MoveNext);
     }
 

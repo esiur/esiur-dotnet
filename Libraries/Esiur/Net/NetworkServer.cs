@@ -37,12 +37,19 @@ namespace Esiur.Net;
 
 public abstract class NetworkServer<TConnection> : IDestructible where TConnection : NetworkConnection, new()
 {
-    private Sockets.ISocket listener;
+    private volatile Sockets.ISocket listener;
+    private readonly object lifecycleLock = new object();
     public AutoList<TConnection, NetworkServer<TConnection>> Connections { get; internal set; }
 
     private Thread thread;
 
     private Timer timer;
+
+    /// <summary>
+    /// Maximum time allowed for an accepted socket to finish protocol initialization
+    /// (for example, a TLS handshake). A zero or negative value disables the deadline.
+    /// </summary>
+    public TimeSpan ConnectionInitializationTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     public event DestroyedEvent OnDestroy;
 
@@ -78,67 +85,141 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
 
     public void Start(Sockets.ISocket socket)//, uint timeout, uint clock)
     {
-        if (listener != null)
-            return;
+        if (socket == null)
+            throw new ArgumentNullException(nameof(socket));
 
-
-        Connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
-
-
-        if (Timeout > 0 & Clock > 0)
+        lock (lifecycleLock)
         {
-            timer = new Timer(MinuteThread, null, TimeSpan.FromMinutes(0), TimeSpan.FromSeconds(Clock));
-        }
+            if (listener != null)
+                return;
 
+            Connections = new AutoList<TConnection, NetworkServer<TConnection>>(this);
 
-        listener = socket;
-
-        thread = new Thread(new ThreadStart(() =>
-        {
-            while (true)
+            if (Timeout > 0 && Clock > 0)
             {
+                timer = new Timer(MinuteThread, null, TimeSpan.FromMinutes(0), TimeSpan.FromSeconds(Clock));
+            }
+
+            listener = socket;
+
+            // Bind this thread to this particular Start invocation. If the server is
+            // stopped and restarted before the old Accept call unwinds, the old thread
+            // must not begin accepting from the replacement listener.
+            thread = new Thread(() => AcceptLoop(socket))
+            {
+                IsBackground = true
+            };
+            thread.Start();
+        }
+    }
+
+    private void AcceptLoop(ISocket activeListener)
+    {
+        while (ReferenceEquals(listener, activeListener))
+        {
+            try
+            {
+                var acceptedSocket = activeListener.Accept();
+
+                if (acceptedSocket == null)
+                    return;
+
+                TConnection connection = null;
+                var stopped = false;
+
+                // Admission and Stop's connection snapshot share this gate. Therefore
+                // either the connection is added before Stop snapshots it, or Stop wins
+                // and this accepted socket is closed without being exposed to the server.
+                lock (lifecycleLock)
+                {
+                    if (!ReferenceEquals(listener, activeListener))
+                    {
+                        stopped = true;
+                    }
+                    else
+                    {
+                        connection = new TConnection();
+                        connection.Assign(acceptedSocket);
+                        Add(connection);
+                        stopped = !ReferenceEquals(listener, activeListener);
+                    }
+                }
+
+                if (stopped)
+                {
+                    try { acceptedSocket.Close(); } catch { }
+                    return;
+                }
+
+                // A derived server can reject admission (for example, due to a per-peer
+                // connection quota) by not adding the connection and closing its socket.
+                if (!Connections.Contains(connection))
+                    continue;
+
                 try
                 {
-                    var s = listener.Accept();
-
-                    if (s == null)
-                    {
-                        //Global.Log("NetworkServer", LogType.Error, "sock == null");
-                        return;
-                    }
-
-                    var c = new TConnection();
-
-                    c.Assign(s);
-                    Add(c);
-
-                    // A derived server can reject admission (for example, due to a per-peer
-                    // connection quota) by not adding the connection and closing its socket.
-                    if (!Connections.Contains(c))
-                        continue;
-
-                    try
-                    {
-                        ClientConnected(c);
-                    }
-                    catch
-                    {
-                        // something wrong with the child.
-                    }
-
-                    s.Begin();
-
+                    ClientConnected(connection);
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Global.Log(ex);
+                    // something wrong with the child.
+                }
+
+                if (!ReferenceEquals(listener, activeListener))
+                {
+                    try { connection.Close(); } catch { }
+                    return;
+                }
+
+                // Some socket implementations perform a protocol handshake in Begin
+                // (notably SSLSocket). Never run that handshake on the single accept
+                // thread: a peer that stops mid-handshake would otherwise prevent all
+                // subsequent clients from being accepted.
+                _ = BeginAcceptedSocketAsync(acceptedSocket);
+            }
+            catch (Exception ex)
+            {
+                if (!ReferenceEquals(listener, activeListener))
+                    return;
+
+                Global.Log(ex);
+            }
+        }
+    }
+
+    private async Task BeginAcceptedSocketAsync(ISocket socket)
+    {
+        try
+        {
+            var beginTask = AwaitSocketBeginAsync(socket);
+            var timeout = ConnectionInitializationTimeout;
+
+            if (timeout > TimeSpan.Zero)
+            {
+                var completed = await Task.WhenAny(beginTask, Task.Delay(timeout)).ConfigureAwait(false);
+                if (!ReferenceEquals(completed, beginTask))
+                {
+                    try { socket.Close(); } catch { }
+                    _ = beginTask.ContinueWith(
+                        completedTask => _ = completedTask.Exception,
+                        TaskContinuationOptions.OnlyOnFaulted);
+                    return;
                 }
             }
-        }));
 
-        thread.Start();
-
+            if (!await beginTask.ConfigureAwait(false))
+                try { socket.Close(); } catch { }
+        }
+        catch (Exception ex)
+        {
+            Global.Log("NetworkServer", LogType.Warning,
+                $"Accepted socket initialization failed: {ex.Message}");
+            try { socket.Close(); } catch { }
+        }
     }
+
+    private static async Task<bool> AwaitSocketBeginAsync(ISocket socket)
+        => await socket.BeginAsync();
 
 
     //[Attribute]
@@ -160,25 +241,39 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
     public void Stop()
     {
         var port = 0;
+        ISocket currentListener = null;
+        TConnection[] connections = null;
+        Timer currentTimer = null;
 
         try
         {
-            var currentListener = listener;
+            lock (lifecycleLock)
+            {
+                currentListener = listener;
+                listener = null;
+                connections = Connections?.ToArray();
+                currentTimer = timer;
+                timer = null;
+            }
+
             if (currentListener != null)
             {
                 // Reading the endpoint can throw if the socket is already disposed (e.g. a second
                 // Stop or the finalizer after Destroy), so it is best-effort and only used for logging.
                 try { port = currentListener.LocalEndPoint.Port; } catch { }
                 try { currentListener.Close(); } catch { }
-                listener = null; // make Stop idempotent
             }
 
-            foreach (TConnection con in Connections.ToArray())
-                try { con.Close(); } catch { }
+            if (connections != null)
+            {
+                foreach (TConnection con in connections)
+                    try { con.Close(); } catch { }
+            }
         }
         finally
         {
-            Global.Log("NetworkServer", LogType.Warning, $"Server@{port} is down.");
+            try { currentTimer?.Dispose(); } catch { }
+            Global.Log("NetworkServer", LogType.Warning, $"Server on port {port} is down.");
         }
     }
 
@@ -200,7 +295,8 @@ public abstract class NetworkServer<TConnection> : IDestructible where TConnecti
     {
         get
         {
-            return listener.State == SocketState.Listening;
+            var currentListener = listener;
+            return currentListener != null && currentListener.State == SocketState.Listening;
         }
     }
 

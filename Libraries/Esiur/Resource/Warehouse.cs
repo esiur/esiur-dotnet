@@ -847,10 +847,10 @@ public class Warehouse
                     else
                         return (T)store;
                 }
-                catch (Exception ex)
+                catch
                 {
                     Remove(store);
-                    throw ex;
+                    throw;
                 }
             }
         }
@@ -946,10 +946,10 @@ public class Warehouse
                 StoreConnected?.Invoke(resource as IStore);
 
         }
-        catch (Exception ex)
+        catch
         {
             Remove(resource);
-            throw ex;
+            throw;
         }
 
         return resource;

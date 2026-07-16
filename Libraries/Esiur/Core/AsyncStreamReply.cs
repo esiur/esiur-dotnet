@@ -204,9 +204,7 @@ public class AsyncStreamReply : AsyncReply
         }
 
         OnStreamError(exception);
-
-        if (errorCallbacks != null)
-            base.TriggerError(exception);
+        base.TriggerError(exception);
     }
 
     /// <inheritdoc />

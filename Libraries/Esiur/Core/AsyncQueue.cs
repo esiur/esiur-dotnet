@@ -108,21 +108,22 @@ public class AsyncQueue<T> : AsyncReply<T>
                 Arrival = DateTime.Now,
                 HasResource = hasResource
             });
+            resultReady = false;
         }
 
-        resultReady = false;
         if (reply.Ready)
             processQueue(default(T));
         else
-            reply.Then(processQueue);
+            reply.Then(processQueue).Error(TriggerError);
     }
 
     public void Remove(AsyncReply<T> reply)
     {
         lock (queueLock)
         {
-            var item = list.FirstOrDefault(i => i.Reply == reply);
-            list.Remove(item);
+            var index = list.FindIndex(item => ReferenceEquals(item.Reply, reply));
+            if (index >= 0)
+                list.RemoveAt(index);
         }
 
         processQueue(default(T));
@@ -145,34 +146,34 @@ public class AsyncQueue<T> : AsyncReply<T>
                 }
             }
 
-            var flushId = currentFlushId++;
+            if (batchSize > 0)
+            {
+                var flushId = currentFlushId++;
+                var readyItems = list.GetRange(0, batchSize);
 
-            for (var i = 0; i < list.Count; i++)
-                if (list[i].Reply.Ready)
+                // Shift the remaining list once. The previous RemoveAt(0) loop shifted
+                // it once per delivered item and became quadratic for large batches.
+                list.RemoveRange(0, batchSize);
+
+                foreach (var item in readyItems)
                 {
-                    Trigger(list[i].Reply.Result);
+                    Trigger(item.Reply.Result);
                     resultReady = false;
 
                     if (captureProcessedItems)
                     {
-                        var p = list[i];
-                        p.Delivered = DateTime.Now;
-                        p.Ready = p.Reply.ReadyTime;
-                        p.BatchSize = batchSize;
-                        p.FlushId = flushId;
-                        //p.HasResource = p.Reply. (p.Ready - p.Arrival).TotalMilliseconds > 5;
-                        processed.Add(p);
+                        var processedItem = item;
+                        processedItem.Delivered = DateTime.Now;
+                        processedItem.Ready = processedItem.Reply.ReadyTime;
+                        processedItem.BatchSize = batchSize;
+                        processedItem.FlushId = flushId;
+                        processed.Add(processedItem);
                     }
-
-                    list.RemoveAt(i);
-
-                    i--;
                 }
-                else
-                    break;
-        }
+            }
 
-        resultReady = (list.Count == 0);
+            resultReady = list.Count == 0;
+        }
     }
 
     public AsyncQueue()

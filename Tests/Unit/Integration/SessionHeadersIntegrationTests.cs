@@ -71,6 +71,32 @@ public class SessionHeadersIntegrationTests
     }
 
     [Fact]
+    public async Task DisallowedAuthenticationProvider_FailsClosedPromptly()
+    {
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await IntegrationCluster
+                .StartAsync(
+                    _ => Task.CompletedTask,
+                    allowAuthentication: false)
+                .WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.IsNotType<TimeoutException>(exception);
+    }
+
+    [Fact]
+    public async Task AllowlistedButUnregisteredAuthenticationProvider_FailsClosedPromptly()
+    {
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await IntegrationCluster
+                .StartAsync(
+                    _ => Task.CompletedTask,
+                    registerServerAuthenticationProvider: false)
+                .WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.IsNotType<TimeoutException>(exception);
+    }
+
+    [Fact]
     public async Task AddressBoundEncryption_DerivesMatchingCiphersAcrossPeers()
     {
         await using var cluster = await IntegrationCluster

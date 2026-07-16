@@ -1053,13 +1053,38 @@ public partial class EpConnection : NetworkConnection, IStore
             // check if the request through Websockets
             if (_initialPacket)
             {
+                var available = ends - offset;
+                var matchesGetPrefix = available > 0 && msg[offset] == 'G' &&
+                                       (available < 2 || msg[offset + 1] == 'E') &&
+                                       (available < 3 || msg[offset + 2] == 'T');
+
+                if (matchesGetPrefix && available < 3)
+                {
+                    data.HoldFor(msg, offset, available, 3);
+                    return ends;
+                }
+
                 _initialPacket = false;
 
-                if (msg.Length > 3 && Encoding.Default.GetString(msg, 0, 3) == "GET")
+                if (available >= 3 &&
+                    msg[offset] == 'G' && msg[offset + 1] == 'E' && msg[offset + 2] == 'T')
                 {
                     // Parse with http packet
                     var req = new HttpRequestPacket();
-                    var pSize = req.Parse(msg, 0, (uint)msg.Length);
+                    long pSize;
+                    try
+                    {
+                        pSize = req.Parse(msg, offset, ends);
+                    }
+                    catch (Exception exception) when (
+                        exception is InvalidDataException ||
+                        exception is ParserLimitException ||
+                        exception is ArgumentException)
+                    {
+                        Global.Log(exception);
+                        pSize = 0;
+                    }
+
                     if (pSize > 0)
                     {
                         // check for WS upgrade
@@ -1090,10 +1115,24 @@ public partial class EpConnection : NetworkConnection, IStore
                             //@TODO: kill the connection
                         }
                     }
+                    else if (pSize < 0)
+                    {
+                        _initialPacket = true;
+                        var requiredLength = (ulong)available + (ulong)(-pSize);
+                        if (requiredLength > uint.MaxValue)
+                            throw new ParserLimitException("HTTP upgrade request is too large.");
+
+                        data.HoldFor(msg, offset, available, (uint)requiredLength);
+                        return ends;
+                    }
                     else
                     {
-                        // packet incomplete
-                        return (uint)pSize;
+                        var res = new HttpResponsePacket
+                        {
+                            Number = HttpResponseCode.BadRequest
+                        };
+                        res.Compose(HttpComposeOption.AllCalculateLength);
+                        Send(res.Data);
                     }
 
                     // switching completed
@@ -1130,7 +1169,9 @@ public partial class EpConnection : NetworkConnection, IStore
 
                     if (_authPacket.Tdu != null)
                     {
-                        remoteHeaders = Codec.ParseIndexedType<SessionHeaders>(_authPacket.Tdu.Value, null);
+                        remoteHeaders = Codec.ParseIndexedType<SessionHeaders>(
+                            _authPacket.Tdu.Value,
+                            _serverWarehouse);
                         remoteAuthData = remoteHeaders.AuthenticationData;
                         remoteHeaders.AuthenticationData = null;
                     }
@@ -1162,15 +1203,23 @@ public partial class EpConnection : NetworkConnection, IStore
                         return offset;
                     }
 
-                    if (_session.RemoteHeaders.AuthenticationProtocol == null)
+                    var authenticationProtocol = _session.RemoteHeaders.AuthenticationProtocol;
+                    var allowedAuthenticationProviders =
+                        Server?.AllowedAuthenticationProviders ?? Array.Empty<string>();
+                    var provider = !string.IsNullOrWhiteSpace(authenticationProtocol)
+                                   && allowedAuthenticationProviders.Contains(
+                                       authenticationProtocol,
+                                       StringComparer.Ordinal)
+                        ? _serverWarehouse?.TryGetAuthenticationProvider(authenticationProtocol)
+                        : null;
+
+                    if (provider == null)
                     {
                         SendAuthHeaders(EpAuthPacketMethod.NotSupported, localHeaders);
                         _invalidCredentials = true;
                         Close();
                         return offset;
                     }
-
-                    var provider = _serverWarehouse.GetAuthenticationProvider(_session.RemoteHeaders.AuthenticationProtocol);
 
                     var handler = provider.CreateAuthenticationHandler(new AuthenticationContext()
                     {

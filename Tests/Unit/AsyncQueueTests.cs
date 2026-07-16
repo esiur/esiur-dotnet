@@ -94,4 +94,27 @@ public class AsyncQueueTests
 
         Assert.Equal(Enumerable.Range(1, itemCount), sequences.OrderBy(x => x));
     }
+
+    [Fact]
+    public void LargeReadyBatch_IsDeliveredInOrder()
+    {
+        const int itemCount = 5_000;
+        var queue = new AsyncQueue<int>();
+        var replies = Enumerable.Range(0, itemCount)
+            .Select(_ => new AsyncReply<int>())
+            .ToArray();
+        var delivered = new List<int>(itemCount);
+        queue.Then(delivered.Add);
+
+        foreach (var reply in replies)
+            queue.Add(reply);
+
+        // Keep the head pending while every later item becomes ready, then release
+        // the whole batch at once. This exercises the bulk-removal path.
+        for (var i = 1; i < replies.Length; i++)
+            replies[i].Trigger(i);
+        replies[0].Trigger(0);
+
+        Assert.Equal(Enumerable.Range(0, itemCount), delivered);
+    }
 }

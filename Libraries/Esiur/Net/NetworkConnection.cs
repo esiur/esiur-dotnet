@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -39,13 +40,27 @@ namespace Esiur.Net;
 /// </summary>
 public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocket>
 {
-    private ISocket sock;
+    private volatile ISocket sock;
     private DateTime lastAction;
 
-    // Re-entrancy guard for NetworkReceive. 0 = idle, 1 = a thread is draining the buffer.
-    // Interlocked is used instead of a plain bool so concurrent receive callbacks cannot
-    // both enter the drain loop (which is not safe to run from two threads at once).
-    private int receiving;
+    private readonly object receiveLock = new object();
+    private readonly Queue<PendingReceive> pendingReceives = new Queue<PendingReceive>();
+    private bool receiving;
+    private long socketGeneration;
+
+    private readonly struct PendingReceive
+    {
+        public PendingReceive(ISocket sender, NetworkBuffer buffer, long generation)
+        {
+            Sender = sender;
+            Buffer = buffer;
+            Generation = generation;
+        }
+
+        public ISocket Sender { get; }
+        public NetworkBuffer Buffer { get; }
+        public long Generation { get; }
+    }
 
     public delegate void NetworkConnectionEvent(NetworkConnection connection);
 
@@ -69,9 +84,19 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
 
     public virtual void Assign(ISocket socket)
     {
-        lastAction = DateTime.Now;
-        sock = socket;
-        sock.Receiver = this;
+        lock (receiveLock)
+        {
+            lastAction = DateTime.Now;
+
+            if (!ReferenceEquals(sock, socket))
+            {
+                socketGeneration++;
+                pendingReceives.Clear();
+            }
+
+            sock = socket;
+            sock.Receiver = this;
+        }
     }
 
     /// <summary>
@@ -80,14 +105,19 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
     /// </summary>
     public ISocket Unassign()
     {
-        if (sock == null)
-            return null;
+        lock (receiveLock)
+        {
+            if (sock == null)
+                return null;
 
-        sock.Receiver = null;
+            sock.Receiver = null;
 
-        var detached = sock;
-        sock = null;
-        return detached;
+            var detached = sock;
+            sock = null;
+            socketGeneration++;
+            pendingReceives.Clear();
+            return detached;
+        }
     }
 
     public void Close()
@@ -163,12 +193,24 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
 
     public void NetworkClose(ISocket socket)
     {
+        lock (receiveLock)
+        {
+            if (!ReferenceEquals(socket, sock))
+                return;
+
+            pendingReceives.Clear();
+        }
+
         Disconnected();
         OnClose?.Invoke(this);
     }
 
     public void NetworkConnect(ISocket socket)
     {
+        lock (receiveLock)
+            if (!ReferenceEquals(socket, sock))
+                return;
+
         Connected();
         OnConnect?.Invoke(this);
     }
@@ -181,30 +223,95 @@ public abstract class NetworkConnection : IDestructible, INetworkReceiver<ISocke
     {
         try
         {
-            // Ignore callbacks once the socket is unassigned or closed.
-            if (sock == null || sock.State == SocketState.Closed)
-                return;
-
-            lastAction = DateTime.Now;
-
-            // Only one thread drains the buffer at a time; others return immediately and
-            // rely on the active drainer to pick up the newly appended data.
-            if (Interlocked.CompareExchange(ref receiving, 1, 0) != 0)
-                return;
-
-            try
+            bool drain;
+            lock (receiveLock)
             {
-                while (buffer.Available > 0 && !buffer.Protected)
-                    DataReceived(buffer);
+                // A callback can outlive Unassign/Assign. Only the socket that currently
+                // owns this connection may enqueue work for its protocol parser.
+                if (!ReferenceEquals(sender, sock) || sender.State == SocketState.Closed)
+                    return;
+
+                lastAction = DateTime.Now;
+                pendingReceives.Enqueue(new PendingReceive(sender, buffer, socketGeneration));
+
+                if (receiving)
+                    return;
+
+                receiving = true;
+                drain = true;
             }
-            finally
-            {
-                Interlocked.Exchange(ref receiving, 0);
-            }
+
+            if (drain)
+                DrainReceiveQueue();
         }
         catch (Exception ex)
         {
             Global.Log("NetworkConnection:NetworkReceive", LogType.Warning, ex.ToString());
+        }
+    }
+
+    private void DrainReceiveQueue()
+    {
+        while (true)
+        {
+            PendingReceive pending = default;
+            var found = false;
+
+            lock (receiveLock)
+            {
+                while (pendingReceives.Count > 0)
+                {
+                    var candidate = pendingReceives.Dequeue();
+                    if (ReferenceEquals(candidate.Sender, sock)
+                        && candidate.Generation == socketGeneration)
+                    {
+                        pending = candidate;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    receiving = false;
+                    return;
+                }
+            }
+
+            try
+            {
+                while (IsCurrentReceive(pending)
+                    && pending.Buffer.Available > 0
+                    && !pending.Buffer.Protected)
+                {
+                    DataReceived(pending.Buffer);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Keep the queue usable after a protocol parser fails. Any work already
+                // queued for a replacement socket can still be drained safely.
+                Global.Log("NetworkConnection:NetworkReceive", LogType.Warning, ex.ToString());
+            }
+        }
+    }
+
+    private bool IsCurrentReceive(PendingReceive pending)
+    {
+        lock (receiveLock)
+        {
+            if (!ReferenceEquals(pending.Sender, sock)
+                || pending.Generation != socketGeneration)
+                return false;
+
+            try
+            {
+                return pending.Sender.State != SocketState.Closed;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

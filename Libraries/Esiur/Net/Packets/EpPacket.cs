@@ -51,19 +51,11 @@ class EpPacket : Packet
 
     public PlainTdu? Tdu { get; set;  }
 
-    private uint dataLengthNeeded;
-    private uint originalOffset;
-
     Warehouse _warehouse;
 
     public EpPacket(Warehouse warehouse)
     {
         _warehouse = warehouse;
-    }
-
-    public override bool Compose()
-    {
-        return base.Compose();
     }
 
     public override string ToString()
@@ -78,24 +70,13 @@ class EpPacket : Packet
         };
     }
 
-    bool NotEnough(uint offset, uint ends, uint needed)
-    {
-        if (offset + needed > ends)
-        {
-            dataLengthNeeded = needed - (ends - offset);
-
-            return true;
-        }
-        else
-            return false;
-    }
-
     public override long Parse(byte[] data, uint offset, uint ends)
     {
-        originalOffset = offset;
+        ValidateBounds(data, offset, ends);
+        var originalOffset = offset;
 
-        if (NotEnough(offset, ends, 1))
-            return -dataLengthNeeded;
+        if (TryGetMissingBytes(offset, ends, 1, out var incomplete))
+            return incomplete;
 
         var hasDTU = (data[offset] & 0x20) == 0x20;
 
@@ -109,8 +90,8 @@ class EpPacket : Packet
         {
             Request = (EpPacketRequest)(data[offset++] & 0x1f);
 
-            if (NotEnough(offset, ends, 4))
-                return -dataLengthNeeded;
+            if (TryGetMissingBytes(offset, ends, 4, out incomplete))
+                return incomplete;
 
             CallbackId = data.GetUInt32(offset, Endian.Little);
             offset += 4;
@@ -119,8 +100,8 @@ class EpPacket : Packet
         {
             Reply = (EpPacketReply)(data[offset++] & 0x1f);
 
-            if (NotEnough(offset, ends, 4))
-                return -dataLengthNeeded;
+            if (TryGetMissingBytes(offset, ends, 4, out incomplete))
+                return incomplete;
 
             CallbackId = data.GetUInt32(offset, Endian.Little);
             offset += 4;
@@ -132,30 +113,26 @@ class EpPacket : Packet
 
         if (hasDTU)
         {
-            if (NotEnough(offset, ends, 1))
-                return -dataLengthNeeded;
+            if (TryGetMissingBytes(offset, ends, 1, out incomplete))
+                return incomplete;
 
             var maximumPacketSize = _warehouse.Configuration.Parser.MaximumPacketSize;
+            var maximumPayloadLength = maximumPacketSize == 0
+                ? (ulong)int.MaxValue
+                : Math.Min(maximumPacketSize, (ulong)int.MaxValue);
             Tdu = PlainTdu.Parse(
                 data,
                 offset,
                 ends,
-                maximumPacketSize == 0 ? ulong.MaxValue : maximumPacketSize);
+                maximumPayloadLength);
 
             if (Tdu.Value.Class == TduClass.Invalid)
-                return -(int)Tdu.Value.TotalLength;
+                return -(long)Tdu.Value.TotalLength;
 
-            //Tdu = ParsedTdu.ParseSync(data, offset, ends, _warehouse);
-
-            //if (Tdu.Value.Class == TduClass.Invalid)
-            //    return -(int)Tdu.Value.TotalLength;
-
-            //offset += (uint)Tdu.Value.TotalLength;
             offset += (uint)Tdu.Value.TotalLength;
         }
         else
         {
-            //Tdu = null;
             Tdu = null;
         }
 

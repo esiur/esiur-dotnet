@@ -1,56 +1,26 @@
-﻿/*
- 
-Copyright (c) 2017 Ahmed Kh. Zamil
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-*/
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Esiur.Misc;
 using Esiur.Data;
+using System;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Esiur.Net.Packets.WebSocket;
+
 public class WebsocketPacket : Packet
 {
+    private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+
     public enum WSOpcode : byte
     {
-        ContinuationFrame = 0x0, //  %x0 denotes a continuation frame
-
-        TextFrame = 0x1, // %x1 denotes a text frame
-
-        BinaryFrame = 0x2,            // %x2 denotes a binary frame
-
-        // %x3-7 are reserved for further non-control frames
-
-        ConnectionClose = 0x8,    // %x8 denotes a connection close
-
-        Ping = 0x9, // %x9 denotes a ping
-
-        Pong = 0xA,            // %xA denotes a pong
-
-        //*  %xB-F are reserved for further control frames
+        ContinuationFrame = 0x0,
+        TextFrame = 0x1,
+        BinaryFrame = 0x2,
+        ConnectionClose = 0x8,
+        Ping = 0x9,
+        Pong = 0xA,
     }
 
+    public const ulong DefaultMaximumPayloadLength = 8 * 1024 * 1024;
 
     public bool FIN;
     public bool RSV1;
@@ -59,157 +29,243 @@ public class WebsocketPacket : Packet
     public WSOpcode Opcode;
     public bool Mask;
     public long PayloadLength;
-    //        public UInt32 MaskKey;
     public byte[] MaskKey;
-
     public byte[] Message;
 
+    /// <summary>
+    /// Maximum accepted or composed payload. Set to zero to disable the limit.
+    /// </summary>
+    public ulong MaximumPayloadLength { get; set; } = DefaultMaximumPayloadLength;
+
+    /// <summary>
+    /// Expected mask bit for an incoming frame. Servers set this to <c>true</c>,
+    /// clients set it to <c>false</c>, and standalone packet parsing can leave it
+    /// <c>null</c> to accept either direction.
+    /// </summary>
+    public bool? ExpectedMask { get; set; }
+
     public override string ToString()
-    {
-        return "WebsocketPacket"
-            + "\n\tFIN: " + FIN
-            + "\n\tOpcode: " + Opcode
-            + "\n\tPayload: " + PayloadLength
-            + "\n\tMaskKey: " + MaskKey
-            + "\n\tMessage: " + (Message != null ? Message.Length.ToString() : "NULL");
-    }
+        => $"WebsocketPacket\n\tFIN: {FIN}\n\tOpcode: {Opcode}\n\tPayload: {PayloadLength}" +
+           $"\n\tMaskKey: {MaskKey}\n\tMessage: {(Message == null ? "NULL" : Message.Length.ToString())}";
 
     public override bool Compose()
     {
-        var pkt = new List<byte>();
-        pkt.Add((byte)((FIN ? 0x80 : 0x0) |
-            (RSV1 ? 0x40 : 0x0) |
-            (RSV2 ? 0x20 : 0x0) |
-            (RSV3 ? 0x10 : 0x0) |
-            (byte)Opcode));
+        var message = Message ?? Array.Empty<byte>();
+        ValidateFrame(Opcode, FIN, (ulong)message.LongLength);
+        ValidateApplicationPayload(Opcode, FIN, message);
+        EnsureWithinLimit((ulong)message.LongLength);
 
-        // calculate length
-        if (Message.Length > ushort.MaxValue)
-        // 4 bytes
+        var extendedLengthSize = message.Length <= 125
+            ? 0
+            : message.Length <= ushort.MaxValue ? 2 : 8;
+        var headerLength = 2 + extendedLengthSize + (Mask ? 4 : 0);
+        Data = new byte[checked(headerLength + message.Length)];
+
+        var offset = 0;
+        Data[offset++] = (byte)((FIN ? 0x80 : 0) |
+                                (RSV1 ? 0x40 : 0) |
+                                (RSV2 ? 0x20 : 0) |
+                                (RSV3 ? 0x10 : 0) |
+                                (byte)Opcode);
+
+        if (extendedLengthSize == 0)
         {
-            pkt.Add((byte)((Mask ? 0x80 : 0x0) | 127));
-            pkt.AddRange(((ulong)Message.LongCount()).ToBytes(Endian.Big));
+            Data[offset++] = (byte)((Mask ? 0x80 : 0) | message.Length);
         }
-        else if (Message.Length > 125)
-        // 2 bytes
+        else if (extendedLengthSize == 2)
         {
-            pkt.Add((byte)((Mask ? 0x80 : 0x0) | 126));
-            pkt.AddRange(((ushort)Message.Length).ToBytes(Endian.Big));
+            Data[offset++] = (byte)((Mask ? 0x80 : 0) | 126);
+            Data[offset++] = (byte)(message.Length >> 8);
+            Data[offset++] = (byte)message.Length;
         }
         else
         {
-            pkt.Add((byte)((Mask ? 0x80 : 0x0) | Message.Length));
+            Data[offset++] = (byte)((Mask ? 0x80 : 0) | 127);
+            var length = (ulong)message.LongLength;
+            for (var shift = 56; shift >= 0; shift -= 8)
+                Data[offset++] = (byte)(length >> shift);
         }
 
         if (Mask)
         {
-            pkt.AddRange(MaskKey);
+            if (MaskKey == null || MaskKey.Length != 4)
+            {
+                MaskKey = new byte[4];
+                using (var random = RandomNumberGenerator.Create())
+                    random.GetBytes(MaskKey);
+            }
+
+            Buffer.BlockCopy(MaskKey, 0, Data, offset, MaskKey.Length);
+            offset += MaskKey.Length;
+
+            for (var i = 0; i < message.Length; i++)
+                Data[offset + i] = (byte)(message[i] ^ MaskKey[i & 3]);
+        }
+        else if (message.Length > 0)
+        {
+            Buffer.BlockCopy(message, 0, Data, offset, message.Length);
         }
 
-        pkt.AddRange(Message);
-
-        Data = pkt.ToArray();
-
+        PayloadLength = message.LongLength;
         return true;
     }
 
     public override long Parse(byte[] data, uint offset, uint ends)
     {
+        ValidateBounds(data, offset, ends);
+        var originalOffset = offset;
+
+        if (TryGetMissingBytes(offset, ends, 2, out var incomplete))
+            return incomplete;
+
+        var first = data[offset++];
+        var second = data[offset++];
+
+        FIN = (first & 0x80) != 0;
+        RSV1 = (first & 0x40) != 0;
+        RSV2 = (first & 0x20) != 0;
+        RSV3 = (first & 0x10) != 0;
+        Opcode = (WSOpcode)(first & 0x0F);
+        Mask = (second & 0x80) != 0;
+
+        if (ExpectedMask.HasValue && Mask != ExpectedMask.Value)
+            throw new InvalidDataException(ExpectedMask.Value
+                ? "WebSocket clients must mask every frame sent to a server."
+                : "WebSocket servers must not mask frames sent to a client.");
+
+        if (RSV1 || RSV2 || RSV3)
+            throw new InvalidDataException("WebSocket extensions are not enabled for this connection.");
+
+        ulong payloadLength = (byte)(second & 0x7F);
+        if (payloadLength == 126)
+        {
+            if (TryGetMissingBytes(offset, ends, 2, out incomplete))
+                return incomplete;
+
+            payloadLength = (uint)(data[offset] << 8 | data[offset + 1]);
+            offset += 2;
+
+            if (payloadLength < 126)
+                throw new InvalidDataException("WebSocket payload length is not minimally encoded.");
+        }
+        else if (payloadLength == 127)
+        {
+            if (TryGetMissingBytes(offset, ends, 8, out incomplete))
+                return incomplete;
+            if ((data[offset] & 0x80) != 0)
+                throw new InvalidDataException("WebSocket payload length exceeds the protocol limit.");
+
+            payloadLength = 0;
+            for (var i = 0; i < 8; i++)
+                payloadLength = payloadLength << 8 | data[offset++];
+
+            if (payloadLength <= ushort.MaxValue)
+                throw new InvalidDataException("WebSocket payload length is not minimally encoded.");
+        }
+
+        ValidateFrame(Opcode, FIN, payloadLength);
+        EnsureWithinLimit(payloadLength);
+        if (payloadLength > int.MaxValue)
+            throw new ParserLimitException("WebSocket payload cannot fit in a managed byte array.");
+
+        if (Mask)
+        {
+            if (TryGetMissingBytes(offset, ends, 4, out incomplete))
+                return incomplete;
+
+            MaskKey = new byte[4];
+            Buffer.BlockCopy(data, (int)offset, MaskKey, 0, MaskKey.Length);
+            offset += 4;
+        }
+        else
+        {
+            MaskKey = null;
+        }
+
+        var availablePayload = ends - offset;
+        if ((ulong)availablePayload < payloadLength)
+            return -(long)(payloadLength - availablePayload);
+
+        Message = new byte[(int)payloadLength];
+        if (Mask)
+        {
+            for (var i = 0; i < Message.Length; i++)
+                Message[i] = (byte)(data[offset + i] ^ MaskKey[i & 3]);
+        }
+        else if (Message.Length > 0)
+        {
+            Buffer.BlockCopy(data, (int)offset, Message, 0, Message.Length);
+        }
+
+        offset += (uint)payloadLength;
+        PayloadLength = (long)payloadLength;
+        ValidateApplicationPayload(Opcode, FIN, Message);
+        return offset - originalOffset;
+    }
+
+    private void EnsureWithinLimit(ulong payloadLength)
+    {
+        if (MaximumPayloadLength > 0 && payloadLength > MaximumPayloadLength)
+            throw new ParserLimitException(
+                $"WebSocket payload of {payloadLength} bytes exceeds the {MaximumPayloadLength}-byte limit.");
+    }
+
+    private static void ValidateFrame(WSOpcode opcode, bool final, ulong payloadLength)
+    {
+        var isControl = opcode == WSOpcode.ConnectionClose ||
+                        opcode == WSOpcode.Ping ||
+                        opcode == WSOpcode.Pong;
+        var isData = opcode == WSOpcode.ContinuationFrame ||
+                     opcode == WSOpcode.TextFrame ||
+                     opcode == WSOpcode.BinaryFrame;
+
+        if (!isControl && !isData)
+            throw new InvalidDataException($"Unsupported WebSocket opcode: 0x{(byte)opcode:X}.");
+        if (isControl && (!final || payloadLength > 125))
+            throw new InvalidDataException("WebSocket control frames must be final and at most 125 bytes.");
+        if (opcode == WSOpcode.ConnectionClose && payloadLength == 1)
+            throw new InvalidDataException("A WebSocket close frame cannot contain a one-byte payload.");
+    }
+
+    private static void ValidateApplicationPayload(WSOpcode opcode, bool final, byte[] payload)
+    {
+        if (opcode == WSOpcode.TextFrame && final)
+            ValidateTextPayload(payload);
+        else if (opcode == WSOpcode.ConnectionClose)
+            ValidateClosePayload(payload);
+    }
+
+    internal static void ValidateTextPayload(byte[] payload)
+        => ValidateTextPayload(payload ?? Array.Empty<byte>(), 0, payload?.Length ?? 0);
+
+    private static void ValidateTextPayload(byte[] payload, int offset, int count)
+    {
         try
         {
-            long needed = 2;
-            var length = ends - offset;
-            if (length < needed)
-            {
-                //Console.WriteLine("stage 1 " + needed);
-                return length - needed;
-            }
-
-            uint oOffset = offset;
-            FIN = (data[offset] & 0x80) == 0x80;
-            RSV1 = (data[offset] & 0x40) == 0x40;
-            RSV2 = (data[offset] & 0x20) == 0x20;
-            RSV3 = (data[offset] & 0x10) == 0x10;
-            Opcode = (WSOpcode)(data[offset++] & 0xF);
-            Mask = (data[offset] & 0x80) == 0x80;
-            PayloadLength = data[offset++] & 0x7F;
-
-            if (Mask)
-                needed += 4;
-
-            if (PayloadLength == 126)
-            {
-                needed += 2;
-                if (length < needed)
-                {
-                    //Console.WriteLine("stage 2 " + needed);
-                    return length - needed;
-                }
-                PayloadLength = data.GetUInt16(offset, Endian.Big);
-                offset += 2;
-            }
-            else if (PayloadLength == 127)
-            {
-                needed += 8;
-                if (length < needed)
-                {
-                    //Console.WriteLine("stage 3 " + needed);
-                    return length - needed;
-                }
-
-                PayloadLength = data.GetInt64(offset, Endian.Big);
-                offset += 8;
-            }
-
-            /*
-            if (Mask)
-            {
-                                MaskKey = new byte[4];
-                MaskKey[0] = data[offset++];
-                MaskKey[1] = data[offset++];
-                MaskKey[2] = data[offset++];
-                MaskKey[3] = data[offset++];
-
-                //MaskKey = DC.GetUInt32(data, offset);
-                //offset += 4;
-            }
-            */
-
-            needed += PayloadLength;
-            if (length < needed)
-            {
-                //Console.WriteLine("stage 4");
-                return length - needed;
-            }
-            else
-            {
-
-                if (Mask)
-                {
-                    MaskKey = new byte[4];
-                    MaskKey[0] = data[offset++];
-                    MaskKey[1] = data[offset++];
-                    MaskKey[2] = data[offset++];
-                    MaskKey[3] = data[offset++];
-
-                    Message = data.Clip(offset, (uint)PayloadLength);
-
-                    //var aMask = BitConverter.GetBytes(MaskKey);
-                    for (int i = 0; i < Message.Length; i++)
-                        Message[i] = (byte)(Message[i] ^ MaskKey[i % 4]);
-                }
-                else
-                    Message = data.Clip(offset, (uint)PayloadLength);
-
-
-                return offset - oOffset + (int)PayloadLength;
-            }
+            _ = StrictUtf8.GetCharCount(payload, offset, count);
         }
-        catch (Exception ex)
+        catch (DecoderFallbackException exception)
         {
-            Global.Log(ex);
-            Global.Log("WebsocketPacket", Core.LogType.Debug, offset + "::" + data.ToHex());
-            throw ex;
+            throw new InvalidDataException("WebSocket text payload is not valid UTF-8.", exception);
         }
+    }
+
+    private static void ValidateClosePayload(byte[] payload)
+    {
+        if (payload == null || payload.Length < 2)
+            return;
+
+        var statusCode = payload[0] << 8 | payload[1];
+        var isDefinedProtocolCode = statusCode >= 1000 && statusCode <= 1014
+            && statusCode != 1004
+            && statusCode != 1005
+            && statusCode != 1006;
+        var isApplicationCode = statusCode >= 3000 && statusCode <= 4999;
+
+        if (!isDefinedProtocolCode && !isApplicationCode)
+            throw new InvalidDataException($"Invalid WebSocket close status code: {statusCode}.");
+
+        if (payload.Length > 2)
+            ValidateTextPayload(payload, 2, payload.Length - 2);
     }
 }

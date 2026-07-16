@@ -45,9 +45,16 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
     ISocket sock;
     NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
     NetworkBuffer sendNetworkBuffer = new NetworkBuffer();
+    NetworkBuffer fragmentedMessageBuffer = new NetworkBuffer();
+
+    bool fragmentedMessage;
+    WebsocketPacket.WSOpcode fragmentedMessageOpcode;
+    ulong fragmentedMessageLength;
 
     object sendLock = new object();
     bool held;
+    bool destroyed;
+    ulong maximumMessageLength = WebsocketPacket.DefaultMaximumPayloadLength;
 
     //public event ISocketReceiveEvent OnReceive;
     //public event ISocketConnectEvent OnConnect;
@@ -79,11 +86,32 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
     public INetworkReceiver<ISocket> Receiver { get; set; }
 
-    public WSocket(ISocket socket)
+    /// <summary>Whether this endpoint receives client frames and sends server frames.</summary>
+    public bool IsServer { get; }
+
+    /// <summary>Maximum payload accepted for one complete message.</summary>
+    public ulong MaximumMessageLength
     {
+        get => maximumMessageLength;
+        set
+        {
+            maximumMessageLength = value;
+            pkt_receive.MaximumPayloadLength = value;
+        }
+    }
+
+    public WSocket(ISocket socket)
+        : this(socket, true)
+    {
+    }
+
+    public WSocket(ISocket socket, bool isServer)
+    {
+        IsServer = isServer;
         pkt_send.FIN = true;
-        pkt_send.Mask = false;
+        pkt_send.Mask = !isServer;
         pkt_send.Opcode = WebsocketPacket.WSOpcode.BinaryFrame;
+        pkt_receive.ExpectedMask = isServer;
         sock = socket;
 
         sock.Receiver = this;
@@ -111,8 +139,11 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
     public void Send(WebsocketPacket packet)
     {
         lock (sendLock)
+        {
+            PrepareOutboundPacket(packet);
             if (packet.Compose())
                 sock.Send(packet.Data);
+        }
     }
 
     public void Send(byte[] message)
@@ -131,6 +162,7 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
                 pkt_send.Message = message;
 
+                PrepareOutboundPacket(pkt_send);
                 if (pkt_send.Compose())
                     sock?.Send(pkt_send.Data);
 
@@ -154,6 +186,7 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
                 pkt_send.Message = new byte[size];
                 Buffer.BlockCopy(message, offset, pkt_send.Message, 0, size);
+                PrepareOutboundPacket(pkt_send);
                 if (pkt_send.Compose())
                     sock.Send(pkt_send.Data);
             }
@@ -184,18 +217,36 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
     public void Destroy()
     {
-        Close();
-        //OnClose = null;
-        //OnConnect = null;
-        //OnReceive = null;
-        receiveNetworkBuffer = null;
-        //sock.OnReceive -= Sock_OnReceive;
-        //sock.OnClose -= Sock_OnClose;
-        //sock.OnConnect -= Sock_OnConnect;
-        sock.Receiver = null;
-        sock = null;
-        OnDestroy?.Invoke(this);
-        OnDestroy = null;
+        ISocket socket;
+        DestroyedEvent onDestroy;
+
+        lock (sendLock)
+        {
+            if (destroyed)
+                return;
+
+            destroyed = true;
+            socket = sock;
+            onDestroy = OnDestroy;
+            OnDestroy = null;
+        }
+
+        // Close can synchronously re-enter Destroy through NetworkClose. The
+        // guard above keeps that path idempotent while the captured socket is
+        // still valid for the outer cleanup.
+        try { socket?.Close(); } catch (Exception ex) { Global.Log(ex); }
+
+        lock (sendLock)
+        {
+            if (socket != null && ReferenceEquals(socket.Receiver, this))
+                socket.Receiver = null;
+
+            sock = null;
+            receiveNetworkBuffer = null;
+            fragmentedMessageBuffer = null;
+        }
+
+        onDestroy?.Invoke(this);
     }
 
     public AsyncReply<ISocket> AcceptAsync()
@@ -205,8 +256,8 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
     public void Hold()
     {
-        //Console.WriteLine("WS Hold  ");
-        held = true;
+        lock (sendLock)
+            held = true;
     }
 
     public void Unhold()
@@ -225,6 +276,7 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
             totalSent += message.Length;
 
             pkt_send.Message = message;
+            PrepareOutboundPacket(pkt_send);
             if (pkt_send.Compose())
                 sock.Send(pkt_send.Data);
 
@@ -248,7 +300,7 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
     public void NetworkClose(ISocket sender)
     {
-        Receiver?.NetworkClose(sender);
+        Receiver?.NetworkClose(this);
     }
 
     public void NetworkReceive(ISocket sender, NetworkBuffer buffer)
@@ -267,7 +319,8 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
         if (msg == null)
             return;
 
-        var wsPacketLength = pkt_receive.Parse(msg, 0, (uint)msg.Length);
+        if (!TryParseFrame(msg, 0, out var wsPacketLength))
+            return;
 
         if (wsPacketLength < 0)
         {
@@ -289,45 +342,33 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
                 var pkt_pong = new WebsocketPacket()
                 {
                     FIN = true,
-                    Mask = false,
+                    Mask = !IsServer,
                     Opcode = WebsocketPacket.WSOpcode.Pong,
                     Message = pkt_receive.Message
                 };
-
-                offset += (uint)wsPacketLength;
-
                 Send(pkt_pong);
-            }
-            else if (pkt_receive.Opcode == WebsocketPacket.WSOpcode.Pong)
-            {
-                offset += (uint)wsPacketLength;
             }
             else if (pkt_receive.Opcode == WebsocketPacket.WSOpcode.BinaryFrame
                     || pkt_receive.Opcode == WebsocketPacket.WSOpcode.TextFrame
                     || pkt_receive.Opcode == WebsocketPacket.WSOpcode.ContinuationFrame)
             {
                 totalReceived += pkt_receive.Message.Length;
-                //Console.WriteLine("RX " + pkt_receive.Message.Length + "/" + totalReceived);// + " " + DC.ToHex(message, 0, (uint)size));
-
-                receiveNetworkBuffer.Write(pkt_receive.Message);
-                offset += (uint)wsPacketLength;
-
-                //Console.WriteLine("WS IN: " + pkt_receive.Opcode.ToString() + " " + pkt_receive.Message.Length + " | " + offset + " " + string.Join(" ", pkt_receive.Message));//  DC.ToHex(pkt_receive.Message));
-
+                if (!ProcessDataFrame(pkt_receive))
+                    return;
             }
-            else
-            {
-                Global.Log("WSocket", LogType.Debug, "Unknown WS opcode:" + pkt_receive.Opcode);
-            }
+
+            // Pong frames need no further processing. All successfully handled frames
+            // advance by the same parsed length.
+            offset += (uint)wsPacketLength;
 
             if (offset == msg.Length)
             {
-
-                Receiver?.NetworkReceive(this, receiveNetworkBuffer);
+                DeliverReceivedData();
                 return;
             }
 
-            wsPacketLength = pkt_receive.Parse(msg, offset, (uint)msg.Length);
+            if (!TryParseFrame(msg, offset, out wsPacketLength))
+                return;
         }
 
         if (wsPacketLength < 0)
@@ -339,11 +380,126 @@ public class WSocket : ISocket, INetworkReceiver<ISocket>
 
         //Console.WriteLine("WS IN: " + receiveNetworkBuffer.Available);
 
-        Receiver?.NetworkReceive(this, receiveNetworkBuffer);
+        DeliverReceivedData();
 
 
         if (buffer.Available > 0 && !buffer.Protected)
             NetworkReceive(this, buffer);
+    }
+
+    private bool ProcessDataFrame(WebsocketPacket packet)
+    {
+        var payload = packet.Message ?? Array.Empty<byte>();
+
+        if (MaximumMessageLength > 0 && (ulong)payload.LongLength > MaximumMessageLength)
+            return RejectProtocol($"WebSocket message exceeds the {MaximumMessageLength}-byte limit.");
+
+        if (packet.Opcode == WebsocketPacket.WSOpcode.TextFrame
+            || packet.Opcode == WebsocketPacket.WSOpcode.BinaryFrame)
+        {
+            if (fragmentedMessage)
+                return RejectProtocol("A new WebSocket data frame arrived before the fragmented message completed.");
+
+            if (packet.FIN)
+            {
+                receiveNetworkBuffer.Write(payload);
+                return true;
+            }
+
+            fragmentedMessage = true;
+            fragmentedMessageOpcode = packet.Opcode;
+            fragmentedMessageLength = 0;
+            fragmentedMessageBuffer.Read();
+            return AppendFragment(payload);
+        }
+
+        if (!fragmentedMessage)
+            return RejectProtocol("A WebSocket continuation frame arrived without an active fragmented message.");
+
+        if (!AppendFragment(payload))
+            return false;
+
+        if (!packet.FIN)
+            return true;
+
+        var message = fragmentedMessageBuffer.Read() ?? Array.Empty<byte>();
+        try
+        {
+            if (fragmentedMessageOpcode == WebsocketPacket.WSOpcode.TextFrame)
+                WebsocketPacket.ValidateTextPayload(message);
+        }
+        catch (InvalidDataException exception)
+        {
+            return RejectProtocol(exception.Message);
+        }
+
+        receiveNetworkBuffer.Write(message);
+        ResetFragmentedMessage();
+        return true;
+    }
+
+    private bool AppendFragment(byte[] payload)
+    {
+        var nextLength = fragmentedMessageLength + (ulong)payload.LongLength;
+        if (nextLength < fragmentedMessageLength
+            || nextLength > int.MaxValue
+            || (MaximumMessageLength > 0 && nextLength > MaximumMessageLength))
+            return RejectProtocol($"WebSocket fragmented message exceeds the {MaximumMessageLength}-byte limit.");
+
+        fragmentedMessageBuffer.Write(payload);
+        fragmentedMessageLength = nextLength;
+        return true;
+    }
+
+    private void DeliverReceivedData()
+    {
+        if (receiveNetworkBuffer != null && receiveNetworkBuffer.Available > 0)
+            Receiver?.NetworkReceive(this, receiveNetworkBuffer);
+    }
+
+    private bool RejectProtocol(string message)
+    {
+        Global.Log("WSocket", LogType.Warning, message);
+        ResetFragmentedMessage();
+        Close();
+        return false;
+    }
+
+    private void ResetFragmentedMessage()
+    {
+        fragmentedMessage = false;
+        fragmentedMessageLength = 0;
+        fragmentedMessageOpcode = default;
+        fragmentedMessageBuffer?.Read();
+    }
+
+    private void PrepareOutboundPacket(WebsocketPacket packet)
+    {
+        packet.Mask = !IsServer;
+
+        // RFC 6455 requires a fresh unpredictable masking key for every client
+        // frame. pkt_send is intentionally reused, so discard its previous key.
+        if (packet.Mask)
+            packet.MaskKey = null;
+    }
+
+    private bool TryParseFrame(byte[] message, uint offset, out long packetLength)
+    {
+        try
+        {
+            packetLength = pkt_receive.Parse(message, offset, (uint)message.Length);
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is InvalidDataException ||
+            exception is ParserLimitException ||
+            exception is ArgumentException)
+        {
+            Global.Log(exception);
+            packetLength = 0;
+            Close();
+            return false;
+        }
     }
 
 

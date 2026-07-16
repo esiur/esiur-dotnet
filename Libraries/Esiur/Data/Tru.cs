@@ -666,7 +666,16 @@ namespace Esiur.Data
         //}
 
         public static IParseResult<Tru> Parse(byte[] data, uint offset, Warehouse warehouse)
+            => Parse(data, offset, warehouse, 1);
+
+        private static IParseResult<Tru> Parse(
+            byte[] data,
+            uint offset,
+            Warehouse warehouse,
+            int depth)
         {
+            ParserGuard.EnsureTypeMetadataDepth(warehouse, depth);
+
             var oOffset = offset;
 
             var header = data[offset++];
@@ -753,7 +762,7 @@ namespace Esiur.Data
                     var subTypes = new Tru[subsCount];
                     for (var i = 0; i < subsCount; i++)
                     {
-                        var pr = Tru.Parse(data, offset, warehouse);
+                        var pr = Parse(data, offset, warehouse, depth + 1);
                         subTypes[i] = pr.Value;
                         offset += pr.Size;
                     }
@@ -793,8 +802,18 @@ namespace Esiur.Data
 
 
 
-        public static async AsyncReply<IParseResult<Tru>> ParseAsync(byte[] data, uint offset, EpConnection connection, ulong[] requestSequence)
+        public static AsyncReply<IParseResult<Tru>> ParseAsync(byte[] data, uint offset, EpConnection connection, ulong[] requestSequence)
+            => ParseAsync(data, offset, connection, requestSequence, 1);
+
+        private static async AsyncReply<IParseResult<Tru>> ParseAsync(
+            byte[] data,
+            uint offset,
+            EpConnection connection,
+            ulong[] requestSequence,
+            int depth)
         {
+            ParserGuard.EnsureTypeMetadataDepth(ParserGuard.GetWarehouse(connection), depth);
+
             var oOffset = offset;
 
             var header = data[offset++];
@@ -891,7 +910,7 @@ namespace Esiur.Data
                     var subTypes = new Tru[subsCount];
                     for (var i = 0; i < subsCount; i++)
                     {
-                        var pr = await Tru.ParseAsync(data, offset, connection, requestSequence);
+                        var pr = await ParseAsync(data, offset, connection, requestSequence, depth + 1);
                         subTypes[i] = pr.Value;
                         offset += pr.Size;
                     }

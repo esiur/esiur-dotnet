@@ -114,14 +114,17 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         bool allowEncryption = true,
         bool oneStepAuthentication = false,
         bool useWebSocket = false,
-        bool mismatchedSessionKeys = false)
+        bool mismatchedSessionKeys = false,
+        bool allowAuthentication = true,
+        bool registerServerAuthenticationProvider = true)
     {
         var port = Interlocked.Increment(ref _portCounter);
 
         var serverWh = new Warehouse();
-        serverWh.RegisterAuthenticationProvider(oneStepAuthentication
-            ? new OneStepAuthenticationProvider()
-            : new TestServerAuthProvider());
+        if (registerServerAuthenticationProvider)
+            serverWh.RegisterAuthenticationProvider(oneStepAuthentication
+                ? new OneStepAuthenticationProvider()
+                : new TestServerAuthProvider());
         if (encrypted || requireEncryption)
             serverWh.RegisterEncryptionProvider(new AesEncryptionProvider());
 
@@ -129,10 +132,9 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         var server = await serverWh.Put("sys/server", new EpServer
         {
             Port = (ushort)port,
-            AllowedAuthenticationProviders = new[]
-            {
-                oneStepAuthentication ? "one-step" : "hash",
-            },
+            AllowedAuthenticationProviders = allowAuthentication
+                ? new[] { oneStepAuthentication ? "one-step" : "hash" }
+                : Array.Empty<string>(),
             AllowedEncryptionProviders = (encrypted || requireEncryption) && allowEncryption
                 ? new[] { AesEncryptionProvider.Name }
                 : Array.Empty<string>(),

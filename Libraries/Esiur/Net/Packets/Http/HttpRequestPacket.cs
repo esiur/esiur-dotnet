@@ -1,303 +1,358 @@
-﻿
-/*
- 
-Copyright (c) 2017 Ahmed Kh. Zamil
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-*/
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Esiur.Misc;
 using Esiur.Data;
+using Esiur.Misc;
+using System;
+using System.Globalization;
 using System.Net;
-using System.Text.Json.Serialization;
+using System.Text;
 
 namespace Esiur.Net.Packets.Http;
+
 public class HttpRequestPacket : Packet
 {
-
-
     public StringKeyList Query;
     public HttpMethod Method;
+    public string RawMethod;
     public StringKeyList Headers;
-
     public bool WSMode;
-
     public string Version;
-    public StringKeyList Cookies; // String
-    public string URL; /// With query
-    public string Filename; /// Without query
-
+    public StringKeyList Cookies;
+    public string URL;
+    public string Filename;
     public KeyList<string, object> PostForms;
     public byte[] Message;
 
-
-    private HttpMethod GetMethod(string method)
-    {
-        switch (method.ToLower())
-        {
-            case "get":
-                return HttpMethod.GET;
-            case "post":
-                return HttpMethod.POST;
-            case "head":
-                return HttpMethod.HEAD;
-            case "put":
-                return HttpMethod.PUT;
-            case "delete":
-                return HttpMethod.DELETE;
-            case "options":
-                return HttpMethod.OPTIONS;
-            case "trace":
-                return HttpMethod.TRACE;
-            case "connect":
-                return HttpMethod.CONNECT;
-            default:
-                return HttpMethod.UNKNOWN;
-        }
-    }
+    public uint MaximumHeaderLength { get; set; } = HttpPacketHelpers.DefaultMaximumHeaderLength;
+    public uint MaximumContentLength { get; set; } = HttpPacketHelpers.DefaultMaximumContentLength;
+    public int MaximumHeaderCount { get; set; } = HttpPacketHelpers.DefaultMaximumHeaderCount;
+    public int MaximumFormFields { get; set; } = HttpPacketHelpers.DefaultMaximumFormFields;
+    public int MaximumFormKeyLength { get; set; } = HttpPacketHelpers.DefaultMaximumFormKeyLength;
+    public int MaximumFormValueLength { get; set; } = HttpPacketHelpers.DefaultMaximumFormValueLength;
+    public int MaximumMultipartPartLength { get; set; } = HttpPacketHelpers.DefaultMaximumMultipartPartLength;
 
     public override string ToString()
-    {
-        return "HTTPRequestPacket"
-            + "\n\tVersion: " + Version
-            + "\n\tMethod: " + Method
-            + "\n\tURL: " + URL
-            + "\n\tMessage: " + (Message != null ? Message.Length.ToString() : "NULL");
-    }
+        => $"HTTPRequestPacket\n\tVersion: {Version}\n\tMethod: {Method}\n\tURL: {URL}" +
+           $"\n\tMessage: {(Message == null ? "NULL" : Message.Length.ToString())}";
 
     public override long Parse(byte[] data, uint offset, uint ends)
     {
-        string[] sMethod = null;
-        string[] sLines = null;
+        ValidateBounds(data, offset, ends);
+        var originalOffset = offset;
 
-        uint headerSize = 0;
-
-        for (uint i = offset; i < ends - 3; i++)
-        {
-            if (data[i] == '\r' && data[i + 1] == '\n'
-                && data[i + 2] == '\r' && data[i + 3] == '\n')
-            {
-                sLines = Encoding.ASCII.GetString(data, (int)offset, (int)(i - offset)).Split(new string[] { "\r\n" },
-                    StringSplitOptions.None);
-
-                headerSize = i + 4;
-                break;
-            }
-        }
-
-        if (headerSize == 0)
+        if (!HttpPacketHelpers.TryFindHeaderEnd(
+                data, offset, ends, MaximumHeaderLength, out var bodyOffset))
             return -1;
+
+        var lines = HttpPacketHelpers.ReadHeaderLines(
+            data, offset, bodyOffset, MaximumHeaderCount);
+
+        if (lines.Length == 0)
+            return 0;
 
         Cookies = new StringKeyList();
         PostForms = new KeyList<string, object>();
         Query = new StringKeyList();
         Headers = new StringKeyList();
+        Message = null;
 
-        sMethod = sLines[0].Split(' ');
-        Method = GetMethod(sMethod[0].Trim());
+        var requestLine = lines[0].Split(new[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
+        if (requestLine.Length != 3)
+            return 0;
 
-        if (sMethod.Length == 3)
+        RawMethod = requestLine[0];
+        Method = GetMethod(RawMethod);
+        Version = requestLine[2].Trim();
+
+        var target = requestLine[1].Trim();
+        if (Uri.TryCreate(target, UriKind.Absolute, out var absoluteUri))
+            target = absoluteUri.PathAndQuery;
+
+        var queryIndex = target.IndexOf('?');
+        var rawFilename = queryIndex < 0 ? target : target.Substring(0, queryIndex);
+        Filename = WebUtility.UrlDecode(rawFilename);
+        URL = WebUtility.UrlDecode(target);
+
+        var hasContentLength = false;
+
+        for (var i = 1; i < lines.Length; i++)
         {
-            sMethod[1] = WebUtility.UrlDecode(sMethod[1]);
-            if (sMethod[1].Length >= 7)
+            var separator = lines[i].IndexOf(':');
+            if (separator <= 0)
+                return 0;
+
+            var name = lines[i].Substring(0, separator).Trim();
+            var value = lines[i].Substring(separator + 1).Trim();
+
+            if (string.Equals(name, "transfer-encoding", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("HTTP Transfer-Encoding is not supported.");
+
+            if (string.Equals(name, "content-length", StringComparison.OrdinalIgnoreCase))
             {
-                if (sMethod[1].StartsWith("http://"))
-                {
-                    sMethod[1] = sMethod[1].Substring(sMethod[1].IndexOf("/", 7));
-                }
+                if (hasContentLength)
+                    throw new InvalidDataException("Duplicate HTTP Content-Length headers are not accepted.");
+
+                hasContentLength = true;
             }
 
-            URL = sMethod[1].Trim();
+            Headers[name] = value;
 
-            if (URL.IndexOf("?", 0) != -1)
+            if (string.Equals(name, "cookie", StringComparison.OrdinalIgnoreCase))
+                ParseCookies(value);
+        }
+
+        if (queryIndex >= 0 && queryIndex + 1 < target.Length)
+            ParseQuery(target.Substring(queryIndex + 1));
+
+        var contentLength = 0u;
+        if (hasContentLength && !uint.TryParse(
+                Headers["content-length"],
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out contentLength))
+            throw new InvalidDataException("HTTP Content-Length is invalid.");
+
+        if (MaximumContentLength > 0 && contentLength > MaximumContentLength)
+            throw new ParserLimitException(
+                $"HTTP content length of {contentLength} bytes exceeds the {MaximumContentLength}-byte limit.");
+
+        var availableBody = ends - bodyOffset;
+        if (availableBody < contentLength)
+            return -(long)(contentLength - availableBody);
+
+        var contentType = Headers["content-type"];
+        if (Method == HttpMethod.POST &&
+            (string.IsNullOrEmpty(contentType) ||
+             contentType.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase)))
+        {
+            ParseUrlEncodedForm(Encoding.UTF8.GetString(data, (int)bodyOffset, (int)contentLength));
+        }
+        else if (Method == HttpMethod.POST &&
+                 contentType.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseMultipart(data, bodyOffset, contentLength, contentType))
+                return 0;
+        }
+        else
+        {
+            Message = data.Clip(bodyOffset, contentLength);
+        }
+
+        return bodyOffset - originalOffset + contentLength;
+    }
+
+    private static HttpMethod GetMethod(string method)
+    {
+        if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)) return HttpMethod.GET;
+        if (string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)) return HttpMethod.POST;
+        if (string.Equals(method, "HEAD", StringComparison.OrdinalIgnoreCase)) return HttpMethod.HEAD;
+        if (string.Equals(method, "PUT", StringComparison.OrdinalIgnoreCase)) return HttpMethod.PUT;
+        if (string.Equals(method, "DELETE", StringComparison.OrdinalIgnoreCase)) return HttpMethod.DELETE;
+        if (string.Equals(method, "OPTIONS", StringComparison.OrdinalIgnoreCase)) return HttpMethod.OPTIONS;
+        if (string.Equals(method, "TRACE", StringComparison.OrdinalIgnoreCase)) return HttpMethod.TRACE;
+        if (string.Equals(method, "CONNECT", StringComparison.OrdinalIgnoreCase)) return HttpMethod.CONNECT;
+        return HttpMethod.UNKNOWN;
+    }
+
+    private void ParseCookies(string header)
+    {
+        foreach (var segment in header.Split(';'))
+        {
+            var cookie = segment.Trim();
+            if (cookie.Length == 0)
+                continue;
+
+            var separator = cookie.IndexOf('=');
+            var name = separator < 0 ? cookie : cookie.Substring(0, separator).Trim();
+            var value = separator < 0 ? string.Empty : cookie.Substring(separator + 1).Trim();
+            if (!Cookies.ContainsKey(name))
+                Cookies.Add(name, value);
+        }
+    }
+
+    private void ParseQuery(string query)
+    {
+        foreach (var segment in query.Split('&'))
+        {
+            var separator = segment.IndexOf('=');
+            var name = WebUtility.UrlDecode(separator < 0 ? segment : segment.Substring(0, separator));
+            var value = separator < 0 ? null : WebUtility.UrlDecode(segment.Substring(separator + 1));
+            if (!Query.ContainsKey(name))
+                Query.Add(name, value);
+        }
+    }
+
+    private void ParseUrlEncodedForm(string form)
+    {
+        if (form.Length == 0)
+            return;
+
+        var fieldCount = 0;
+        var start = 0;
+        StringBuilder unknown = null;
+        var hasUnknownValue = false;
+
+        while (start <= form.Length)
+        {
+            fieldCount++;
+            EnsureWithinLimit(fieldCount, MaximumFormFields, "form fields");
+
+            var end = form.IndexOf('&', start);
+            if (end < 0)
+                end = form.Length;
+
+            var separator = form.IndexOf('=', start, end - start);
+            if (separator >= 0)
             {
-                Filename = URL.Split(new char[] { '?' }, 2)[0];
+                var key = DecodeFormComponent(form.Substring(start, separator - start));
+                var value = DecodeFormComponent(form.Substring(separator + 1, end - separator - 1));
+                EnsureStringWithinLimit(key, MaximumFormKeyLength, "form key");
+                EnsureStringWithinLimit(value, MaximumFormValueLength, "form value");
+
+                if (string.Equals(key, "unknown", StringComparison.Ordinal))
+                {
+                    if (unknown == null)
+                        unknown = new StringBuilder(value.Length);
+                    else
+                        unknown.Clear();
+                    unknown.Append(value);
+                    hasUnknownValue = true;
+                }
+
+                PostForms[key] = value;
             }
             else
             {
-                Filename = URL;
+                var value = DecodeFormComponent(form.Substring(start, end - start));
+                EnsureStringWithinLimit(value, MaximumFormValueLength, "form value");
+
+                if (unknown == null)
+                    unknown = new StringBuilder(value.Length);
+
+                EnsureStringWithinLimit(
+                    unknown.Length + (hasUnknownValue ? 1 : 0) + value.Length,
+                    MaximumFormValueLength,
+                    "combined form value");
+
+                if (hasUnknownValue)
+                    unknown.Append('&');
+                unknown.Append(value);
+                hasUnknownValue = true;
             }
 
-            if (Filename.IndexOf("%", 0) != -1)
-            {
-                Filename = WebUtility.UrlDecode(Filename);
-            }
-
-            Version = sMethod[2].Trim();
+            if (end == form.Length)
+                break;
+            start = end + 1;
         }
 
-        // Read all headers
+        if (unknown != null)
+            PostForms["unknown"] = unknown.ToString();
+    }
 
-        for (int i = 1; i < sLines.Length; i++)
+    private bool TryParseMultipart(
+        byte[] data,
+        uint bodyOffset,
+        uint contentLength,
+        string contentType)
+    {
+        if (!TryGetMultipartBoundary(contentType, out var boundary))
+            return false;
+
+        var delimiter = "--" + boundary;
+        var body = Encoding.UTF8.GetString(data, (int)bodyOffset, (int)contentLength);
+        var position = 0;
+        var fieldCount = 0;
+
+        while (position < body.Length)
         {
-            if (sLines[i] == string.Empty)
-            {
-                // Invalid header
-                return 0;
-            }
+            var delimiterStart = body.IndexOf(delimiter, position, StringComparison.Ordinal);
+            if (delimiterStart < 0)
+                return false;
 
-            if (sLines[i].IndexOf(':') == -1)
-            {
-                // Invalid header
-                return 0;
-            }
+            position = delimiterStart + delimiter.Length;
+            if (position + 2 <= body.Length &&
+                string.CompareOrdinal(body, position, "--", 0, 2) == 0)
+                return true;
 
-            string[] header = sLines[i].Split(new char[] { ':' }, 2);
+            if (position + 2 > body.Length ||
+                string.CompareOrdinal(body, position, "\r\n", 0, 2) != 0)
+                return false;
+            position += 2;
 
-            header[0] = header[0].ToLower();
-            Headers[header[0]] = header[1].Trim();
+            var nextDelimiter = body.IndexOf("\r\n" + delimiter, position, StringComparison.Ordinal);
+            if (nextDelimiter < 0)
+                return false;
 
-            if (header[0] == "cookie")
-            {
-                string[] cookies = header[1].Split(';');
+            var partLength = nextDelimiter - position;
+            EnsureWithinLimit(partLength, MaximumMultipartPartLength, "multipart part length");
 
-                foreach (string cookie in cookies)
-                {
-                    if (cookie.IndexOf('=') != -1)
-                    {
-                        string[] splitCookie = cookie.Split('=');
-                        splitCookie[0] = splitCookie[0].Trim();
-                        splitCookie[1] = splitCookie[1].Trim();
-                        if (!Cookies.ContainsKey(splitCookie[0].Trim()))
-                            Cookies.Add(splitCookie[0], splitCookie[1]);
-                    }
-                    else
-                    {
-                        if (!Cookies.ContainsKey(cookie.Trim()))
-                        {
-                            Cookies.Add(cookie.Trim(), string.Empty);
-                        }
-                    }
-                }
-            }
+            var headerEnd = body.IndexOf("\r\n\r\n", position, partLength, StringComparison.Ordinal);
+            if (headerEnd < 0)
+                return false;
+
+            var nameStart = body.IndexOf("name=\"", position, headerEnd - position, StringComparison.OrdinalIgnoreCase);
+            if (nameStart < 0)
+                return false;
+            nameStart += 6;
+
+            var nameEnd = body.IndexOf('"', nameStart, headerEnd - nameStart);
+            if (nameEnd < 0 || nameEnd > headerEnd)
+                return false;
+
+            fieldCount++;
+            EnsureWithinLimit(fieldCount, MaximumFormFields, "form fields");
+
+            var name = body.Substring(nameStart, nameEnd - nameStart);
+            EnsureStringWithinLimit(name, MaximumFormKeyLength, "form key");
+
+            var valueStart = headerEnd + 4;
+            PostForms[name] = body.Substring(valueStart, nextDelimiter - valueStart);
+            position = nextDelimiter + 2;
         }
 
-        // Query String
-        if (URL.IndexOf("?", 0) != -1)
+        return false;
+    }
+
+    private static string DecodeFormComponent(string value)
+        => WebUtility.HtmlDecode(WebUtility.UrlDecode(value));
+
+    private static bool TryGetMultipartBoundary(string contentType, out string boundary)
+    {
+        boundary = null;
+        var parameterStart = contentType.IndexOf(';');
+        while (parameterStart >= 0 && parameterStart + 1 < contentType.Length)
         {
-            string[] SQ = URL.Split(new char[] { '?' }, 2)[1].Split('&');
-            foreach (string S in SQ)
-            {
-                if (S.IndexOf("=", 0) != -1)
-                {
-                    string[] qp = S.Split(new char[] { '=' }, 2);
+            var parameterEnd = contentType.IndexOf(';', parameterStart + 1);
+            if (parameterEnd < 0)
+                parameterEnd = contentType.Length;
 
-                    if (!Query.ContainsKey(WebUtility.UrlDecode(qp[0])))
-                    {
-                        Query.Add(WebUtility.UrlDecode(qp[0]), WebUtility.UrlDecode(qp[1]));
-                    }
-                }
-                else
-                {
-                    if (!Query.ContainsKey(WebUtility.UrlDecode(S)))
-                    {
-                        Query.Add(WebUtility.UrlDecode(S), null);
-                    }
-                }
+            var parameter = contentType.Substring(
+                parameterStart + 1,
+                parameterEnd - parameterStart - 1).Trim();
+            var separator = parameter.IndexOf('=');
+            if (separator > 0 && string.Equals(
+                    parameter.Substring(0, separator).Trim(),
+                    "boundary",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                boundary = parameter.Substring(separator + 1).Trim().Trim('"');
+                return boundary.Length > 0 && boundary.IndexOfAny(new[] { '\r', '\n' }) < 0;
             }
+
+            parameterStart = parameterEnd < contentType.Length ? parameterEnd : -1;
         }
 
-        // Post Content-Length
-        if (Method == HttpMethod.POST)
-        {
-            try
-            {
+        return false;
+    }
 
-                uint postSize = uint.Parse(Headers["content-length"]);
+    private static void EnsureStringWithinLimit(string value, int limit, string kind)
+        => EnsureStringWithinLimit(value?.Length ?? 0, limit, kind);
 
-                // check limit
-                if (postSize > data.Length - headerSize)
-                    return -(postSize - (data.Length - headerSize));
+    private static void EnsureStringWithinLimit(int length, int limit, string kind)
+        => EnsureWithinLimit(length, limit, kind);
 
-
-                if (
-                    Headers["content-type"] == null
-                    || Headers["content-type"] == ""
-                    || Headers["content-type"].StartsWith("application/x-www-form-urlencoded"))
-                {
-                    string[] PostVars = null;
-                    PostVars = Encoding.UTF8.GetString(data, (int)headerSize, (int)postSize).Split('&');
-                    for (int J = 0; J < PostVars.Length; J++)
-                    {
-                        if (PostVars[J].IndexOf("=") != -1)
-                        {
-                            string key = WebUtility.HtmlDecode(
-                                WebUtility.UrlDecode(PostVars[J].Split(new char[] { '=' }, 2)[0]));
-                            if (PostForms.Contains(key))
-                                PostForms[key] = WebUtility.HtmlDecode(
-                                    WebUtility.UrlDecode(PostVars[J].Split(new char[] { '=' }, 2)[1]));
-                            else
-                                PostForms.Add(key, WebUtility.HtmlDecode(
-                                    WebUtility.UrlDecode(PostVars[J].Split(new char[] { '=' }, 2)[1])));
-                        }
-                        else
-                            if (PostForms.Contains("unknown"))
-                            PostForms["unknown"] = PostForms["unknown"]
-                                + "&" + WebUtility.HtmlDecode(WebUtility.UrlDecode(PostVars[J]));
-                        else
-                            PostForms.Add("unknown", WebUtility.HtmlDecode(WebUtility.UrlDecode(PostVars[J])));
-                    }
-                }
-                else if (Headers["content-type"].StartsWith("multipart/form-data"))
-                {
-                    int st = 1;
-                    int ed = 0;
-                    string strBoundry = "--" + Headers["content-type"].Substring(
-                        Headers["content-type"].IndexOf("boundary=", 0) + 9);
-
-                    string[] sc = Encoding.UTF8.GetString(data, (int)headerSize, (int)postSize).Split(
-                                                new string[] { strBoundry }, StringSplitOptions.None);
-
-
-                    for (int j = 1; j < sc.Length - 1; j++)
-                    {
-                        string[] ps = sc[j].Split(new string[] { "\r\n\r\n" }, 2, StringSplitOptions.None);
-                        ps[1] = ps[1].Substring(0, ps[1].Length - 2); // remove the empty line
-                        st = ps[0].IndexOf("name=", 0) + 6;
-                        ed = ps[0].IndexOf("\"", st);
-                        PostForms.Add(ps[0].Substring(st, ed - st), ps[1]);
-                    }
-                }
-                //else if (Headers["content-type"] == "application/json")
-                //{
-                //    var json = DC.Clip(data, headerSize, postSize);
-                //}
-                else
-                {
-                    //PostForms.Add(Headers["content-type"], Encoding.Default.GetString( ));
-                    Message = data.Clip(headerSize, postSize);
-                }
-
-                return headerSize + postSize;
-
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-
-        return headerSize;
+    private static void EnsureWithinLimit(int value, int limit, string kind)
+    {
+        if (limit > 0 && value > limit)
+            throw new ParserLimitException(
+                $"HTTP {kind} of {value} exceeds the configured limit of {limit}.");
     }
 }

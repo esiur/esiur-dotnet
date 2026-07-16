@@ -41,6 +41,12 @@ namespace Esiur.Net.Sockets;
 public class SSLSocket : ISocket
 {
 
+    private sealed class PendingSend
+    {
+        public AsyncReply<bool> Reply;
+        public byte[] Buffer;
+    }
+
     public INetworkReceiver<ISocket> Receiver { get; set; }
 
     Socket sock;
@@ -54,7 +60,10 @@ public class SSLSocket : ISocket
 
     readonly object sendLock = new object();
 
-    Queue<KeyValuePair<AsyncReply<bool>, byte[]>> sendBufferQueue = new Queue<KeyValuePair<AsyncReply<bool>, byte[]>>();// Queue<byte[]>();
+    readonly Queue<PendingSend> sendBufferQueue = new Queue<PendingSend>();
+    PendingSend currentSend;
+    long pendingSendBytes;
+    long maximumPendingSendBytes = 16 * 1024 * 1024;
 
     bool asyncSending;
     bool began = false;
@@ -72,33 +81,50 @@ public class SSLSocket : ISocket
     bool server;
     string hostname;
 
+    public long PendingSendBytes => Interlocked.Read(ref pendingSendBytes);
+
+    /// <summary>Maximum number of unsent plaintext bytes retained for a slow TLS peer.</summary>
+    public long MaximumPendingSendBytes
+    {
+        get => Interlocked.Read(ref maximumPendingSendBytes);
+        set
+        {
+            if (value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
+
+            Interlocked.Exchange(ref maximumPendingSendBytes, value);
+        }
+    }
+
 
     public async AsyncReply<bool> Connect(string hostname, ushort port)
     {
-        var rt = new AsyncReply<bool>();
-
         this.hostname = hostname;
         this.server = false;
 
         state = SocketState.Connecting;
-        await sock.ConnectAsync(hostname, port);
-
-
         try
         {
-            await BeginAsync();
+            await sock.ConnectAsync(hostname, port);
+            ssl = new SslStream(new NetworkStream(sock));
             state = SocketState.Established;
+
+            if (!await BeginAsync())
+            {
+                Close();
+                return false;
+            }
+
             //OnConnect?.Invoke();
             Receiver?.NetworkConnect(this);
+            return true;
         }
         catch (Exception ex)
         {
-            state = SocketState.Closed;// .Terminated;
             Close();
             Global.Log(ex);
+            return false;
         }
-
-        return true;
     }
 
     //private void DataSent(Task task)
@@ -132,64 +158,55 @@ public class SSLSocket : ISocket
     //}
 
 
-    private void SendCallback(IAsyncResult ar)
+    private async Task ProcessSendQueueAsync()
     {
-        if (ar != null)
+        while (true)
         {
-            try
+            PendingSend pending;
+
+            lock (sendLock)
             {
-                ssl.EndWrite(ar);
-
-                if (ar.AsyncState != null)
-                    ((AsyncReply<bool>)ar.AsyncState).Trigger(true);
-            }
-            catch
-            {
-                if (state != SocketState.Closed && !sock.Connected)
-                {
-                    //state = SocketState.Closed;//.Terminated;
-                    Close();
-                }
-            }
-        }
-
-        lock (sendLock)
-        {
-
-            if (sendBufferQueue.Count > 0)
-            {
-                var kv = sendBufferQueue.Dequeue();
-
-                try
-                {
-                    ssl.BeginWrite(kv.Value, 0, kv.Value.Length, SendCallback, kv.Key);
-                }
-                catch //(Exception ex)
+                if (held || state == SocketState.Closed || sendBufferQueue.Count == 0)
                 {
                     asyncSending = false;
-                    try
-                    {
-                        if (kv.Key != null)
-                            kv.Key.Trigger(false);
-
-                        if (state != SocketState.Closed && !sock.Connected)
-                        {
-                            //state = SocketState.Terminated;
-                            Close();
-                        }
-                    }
-                    catch //(Exception ex2)
-                    {
-                        //state = SocketState.Closed;// .Terminated;
-                        Close();
-                    }
-
-                    //Global.Log("TCPSocket", LogType.Error, ex.ToString());
+                    return;
                 }
+
+                pending = sendBufferQueue.Dequeue();
+                currentSend = pending;
             }
-            else
+
+            try
             {
-                asyncSending = false;
+                await ssl.WriteAsync(pending.Buffer, 0, pending.Buffer.Length).ConfigureAwait(false);
+
+                lock (sendLock)
+                {
+                    if (ReferenceEquals(currentSend, pending))
+                    {
+                        currentSend = null;
+                        Interlocked.Add(ref pendingSendBytes, -pending.Buffer.Length);
+                    }
+                }
+
+                TryCompleteSend(pending, true, null);
+            }
+            catch (Exception exception)
+            {
+                lock (sendLock)
+                {
+                    if (ReferenceEquals(currentSend, pending))
+                    {
+                        currentSend = null;
+                        Interlocked.Add(ref pendingSendBytes, -pending.Buffer.Length);
+                    }
+
+                    asyncSending = false;
+                }
+
+                TryCompleteSend(pending, false, exception);
+                Close();
+                return;
             }
         }
     }
@@ -257,25 +274,52 @@ public class SSLSocket : ISocket
 
     public void Close()
     {
-        if (state != SocketState.Closed)// && state != SocketState.Terminated)
+        List<PendingSend> abandoned;
+        lock (sendLock)
         {
-            state = SocketState.Closed;
+            if (state == SocketState.Closed)
+                return;
 
-            if (sock.Connected)
+            state = SocketState.Closed;
+            abandoned = sendBufferQueue.ToList();
+            sendBufferQueue.Clear();
+            if (currentSend != null)
             {
-                try
-                {
-                    sock.Shutdown(SocketShutdown.Both);
-                }
-                catch
-                {
-                    //state = SocketState.Terminated;
-                }
+                abandoned.Insert(0, currentSend);
+                currentSend = null;
             }
 
-            Receiver?.NetworkClose(this);
-            //OnClose?.Invoke();
+            foreach (var pending in abandoned)
+                Interlocked.Add(ref pendingSendBytes, -pending.Buffer.Length);
+            asyncSending = false;
         }
+
+        if (sock != null)
+        {
+            try
+            {
+                if (sock.Connected)
+                    sock.Shutdown(SocketShutdown.Both);
+            }
+            catch
+            {
+                //state = SocketState.Terminated;
+            }
+
+            // Closing the underlying socket is what aborts an in-progress TLS
+            // handshake. Shutdown alone can leave AuthenticateAsServerAsync waiting
+            // forever for a peer that never sends a ClientHello.
+            try { sock.Close(); } catch { }
+        }
+
+        try { ssl?.Dispose(); } catch { }
+
+        foreach (var pending in abandoned)
+            TryCompleteSend(pending, false, null);
+
+        try { Receiver?.NetworkClose(this); }
+        catch (Exception exception) { Global.Log(exception); }
+        //OnClose?.Invoke();
     }
 
 
@@ -287,35 +331,26 @@ public class SSLSocket : ISocket
 
     public void Send(byte[] message, int offset, int size)
     {
+        ValidateRange(message, offset, size);
+        if (size == 0)
+            return;
 
-
-        var msg = message.Clip((uint)offset, (uint)size);
-
+        bool startPump = false;
         lock (sendLock)
         {
-
-            if (!sock.Connected)
+            if (state != SocketState.Established)
                 return;
 
-            if (asyncSending || held)
-            {
-                sendBufferQueue.Enqueue(new KeyValuePair<AsyncReply<bool>, byte[]>(null, msg));// message.Clip((uint)offset, (uint)size));
-            }
-            else
-            {
-                asyncSending = true;
-                try
-                {
-                    ssl.BeginWrite(msg, 0, msg.Length, SendCallback, null);
-                }
-                catch
-                {
-                    asyncSending = false;
-                    //state = SocketState.Terminated;
-                    Close();
-                }
-            }
+            EnsureSendCapacity_NoLock(size);
+            var msg = new byte[size];
+            Buffer.BlockCopy(message, offset, msg, 0, size);
+            sendBufferQueue.Enqueue(new PendingSend { Buffer = msg });
+            Interlocked.Add(ref pendingSendBytes, size);
+            startPump = TryStartSendPump_NoLock();
         }
+
+        if (startPump)
+            _ = ProcessSendQueueAsync();
     }
 
     //public void Send(byte[] message)
@@ -438,15 +473,16 @@ public class SSLSocket : ISocket
             ssl.BeginRead(receiveBuffer, 0, receiveBuffer.Length, ReceiveCallback, this);
 
         }
-        catch //(Exception ex)
+        catch (Exception ex)
         {
-            if (state != SocketState.Closed && !sock.Connected)
-            {
-                //state = SocketState.Terminated;
+            // Socket.Connected reports the state of the last operation and can
+            // remain true after a TLS read failure. Any read exception ends this
+            // receive loop, so close deterministically instead of leaving a
+            // half-open connection that will never read again.
+            if (state != SocketState.Closed)
                 Close();
-            }
 
-            //Global.Log("SSLSocket", LogType.Error, ex.ToString());
+            Global.Log("SSLSocket", LogType.Warning, ex.ToString());
         }
     }
 
@@ -489,59 +525,101 @@ public class SSLSocket : ISocket
 
     public void Hold()
     {
-        held = true;
+        lock (sendLock)
+            held = true;
     }
 
     public void Unhold()
     {
-        try
-        {
-            SendCallback(null);
-        }
-        catch (Exception ex)
-        {
-            Global.Log(ex);
-        }
-        finally
+        bool startPump;
+        lock (sendLock)
         {
             held = false;
+            startPump = TryStartSendPump_NoLock();
         }
+
+        if (startPump)
+            _ = ProcessSendQueueAsync();
     }
 
 
     public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
     {
+        ValidateRange(message, offset, length);
+        if (length == 0)
+            return new AsyncReply<bool>(true);
 
-        var msg = message.Clip((uint)offset, (uint)length);
-
+        var rt = new AsyncReply<bool>();
+        bool startPump = false;
+        Exception capacityError = null;
         lock (sendLock)
         {
-            if (!sock.Connected)
+            if (state != SocketState.Established)
                 return new AsyncReply<bool>(false);
 
-            var rt = new AsyncReply<bool>();
-
-            if (asyncSending || held)
+            try
             {
-                sendBufferQueue.Enqueue(new KeyValuePair<AsyncReply<bool>, byte[]>(rt, msg));
+                EnsureSendCapacity_NoLock(length);
+                var msg = new byte[length];
+                Buffer.BlockCopy(message, offset, msg, 0, length);
+                sendBufferQueue.Enqueue(new PendingSend { Reply = rt, Buffer = msg });
+                Interlocked.Add(ref pendingSendBytes, length);
+                startPump = TryStartSendPump_NoLock();
             }
+            catch (Exception exception)
+            {
+                capacityError = exception;
+            }
+        }
+
+        if (capacityError != null)
+            rt.TriggerError(capacityError);
+        else if (startPump)
+            _ = ProcessSendQueueAsync();
+
+        return rt;
+    }
+
+    private bool TryStartSendPump_NoLock()
+    {
+        if (asyncSending || held || state != SocketState.Established || sendBufferQueue.Count == 0)
+            return false;
+
+        asyncSending = true;
+        return true;
+    }
+
+    private void EnsureSendCapacity_NoLock(int length)
+    {
+        var limit = Interlocked.Read(ref maximumPendingSendBytes);
+        var pending = Interlocked.Read(ref pendingSendBytes);
+        if (length > limit - pending)
+            throw new InvalidOperationException($"The TLS send queue exceeded its {limit}-byte limit.");
+    }
+
+    private static void ValidateRange(byte[] message, int offset, int length)
+    {
+        if (message == null)
+            throw new ArgumentNullException(nameof(message));
+        if (offset < 0 || length < 0 || offset > message.Length - length)
+            throw new ArgumentOutOfRangeException();
+    }
+
+    private static void TryCompleteSend(PendingSend pending, bool succeeded, Exception exception)
+    {
+        if (pending?.Reply == null)
+            return;
+
+        try
+        {
+            if (exception != null)
+                pending.Reply.TriggerError(exception);
             else
-            {
-                asyncSending = true;
-                try
-                {
-                    ssl.BeginWrite(msg, 0, msg.Length, SendCallback, rt);// null);
-                }
-                catch (Exception ex)
-                {
-                    rt.TriggerError(ex);
-                    asyncSending = false;
-                    //state = SocketState.Terminated;
-                    Close();
-                }
-            }
-
-            return rt;
+                pending.Reply.Trigger(succeeded);
+        }
+        catch (Exception callbackException)
+        {
+            Global.Log(callbackException);
         }
     }
 

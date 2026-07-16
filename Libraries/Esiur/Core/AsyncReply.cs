@@ -1,4 +1,4 @@
-﻿/*
+/*
  
 Copyright (c) 2017 Ahmed Kh. Zamil
 
@@ -22,408 +22,368 @@ SOFTWARE.
 
 */
 
+using Esiur.Resource;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Esiur.Resource;
-using System.Reflection;
-using System.Threading;
 using System.Runtime.CompilerServices;
-using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Esiur.Core;
 
 [AsyncMethodBuilder(typeof(AsyncReplyBuilder))]
 public class AsyncReply
 {
-
     public DateTime ReadyTime;
 
-    protected List<Action<object>> callbacks = new List<Action<object>>();
-    protected object result;
+    // These lists are intentionally lazy. Completed replies are common and should not
+    // allocate callback storage or a kernel-backed wait primitive unless it is needed.
+    protected List<Action<object>> callbacks;
+    protected List<Action<AsyncException>> errorCallbacks;
+    protected List<Action<ProgressType, uint, uint>> progressCallbacks;
+    protected List<Action<object>> chunkCallbacks;
+    protected List<Action<object>> propagationCallbacks;
+    protected List<Action<byte, string>> warningCallbacks;
 
-    protected List<Action<AsyncException>> errorCallbacks = null;
+    protected volatile object result;
+    protected volatile bool resultReady;
 
-    protected List<Action<ProgressType, uint, uint>> progressCallbacks = null;
-
-    protected List<Action<object>> chunkCallbacks = null;
-
-    protected List<Action<object>> propagationCallbacks = null;
-    protected List<Action<byte, string>> warningCallbacks = null;
-
-
-    object asyncLock = new object();
-
-    //public Timer timeout;// = new Timer()
-    protected bool resultReady = false;
-    AsyncException exception;
-    // StackTrace trace;
-    AutoResetEvent mutex = new AutoResetEvent(false);
+    private readonly object asyncLock = new object();
+    private volatile AsyncException exception;
+    private Exception observedException;
+    private ManualResetEventSlim completionEvent;
 
     public static int MaxId;
-
     public int Id;
 
-    public bool Ready
-    {
-        get { return resultReady; }
-    }
+    protected string codePath, codeMethod;
+    protected int codeLine;
+
+    public bool Ready => resultReady;
 
     public bool Failed => exception != null;
 
     public Exception Exception => exception;
 
+    public object Result => result;
+
     public static AsyncReply<T> FromResult<T>(T result) => new AsyncReply<T>(result);
 
     public object Wait()
     {
-        if (resultReady)
-            return result;
+        ManualResetEventSlim waiter;
 
-        mutex.WaitOne();
-
-        if (exception != null)
-            throw exception;
-
-        return result;
-    }
-
-    //int timeoutMilliseconds = 0;
-    public void Timeout(int milliseconds, Action callback = null)
-    {
-
-        //timeoutMilliseconds = milliseconds;
-
-        Task.Delay(milliseconds).ContinueWith(x =>
+        lock (asyncLock)
         {
-            if (!resultReady && exception == null)
-            {
-                TriggerError(new AsyncException(ErrorType.Management,
-                   (ushort)ExceptionCode.Timeout, "Execution timeout expired."));
+            if (resultReady)
+                return result;
+            if (exception != null)
+                throw observedException ?? exception;
 
-                callback?.Invoke();
-            }
-        });
+            waiter = completionEvent ?? (completionEvent = new ManualResetEventSlim(false));
+        }
 
+        waiter.Wait();
+        return GetWaitResult();
     }
 
     public object Wait(int millisecondsTimeout)
     {
-        if (resultReady)
-            return result;
+        ManualResetEventSlim waiter;
 
-        //if (Debug)
-        //    Console.WriteLine($"AsyncReply: {Id} Wait");
-
-        if (!mutex.WaitOne(millisecondsTimeout))
-        {
-            var e = new Exception("AsyncReply timeout");
-            TriggerError(e);
-            throw e;
-        }
-
-        //if (Debug)
-        //    Console.WriteLine($"AsyncReply: {Id} Wait ended");
-
-        return result;
-    }
-
-    public object Result
-    {
-        get { return result; }
-    }
-
-
-    protected string codePath, codeMethod;
-    protected int codeLine;
-
-    public AsyncReply Then(Action<object> callback, [CallerMemberName] string methodName = null, [CallerFilePath] string filePath = null, [CallerLineNumber] int lineNumber = 0)
-    {
-        if (codeLine == 0)
-        {
-            codeLine = lineNumber; codeMethod = methodName; codePath = filePath;
-        }
-        //lock (callbacksLock)
-        //{
         lock (asyncLock)
         {
-            //  trace = new StackTrace();
+            if (resultReady)
+                return result;
+            if (exception != null)
+                throw observedException ?? exception;
+
+            waiter = completionEvent ?? (completionEvent = new ManualResetEventSlim(false));
+        }
+
+        if (!waiter.Wait(millisecondsTimeout))
+        {
+            var timeoutException = new Exception("AsyncReply timeout");
+
+            // If completion won the timeout race, return that terminal state. Otherwise
+            // retain the timeout on the reply and preserve Wait's historical exception.
+            if (TrySetException(timeoutException))
+                throw timeoutException;
+        }
+
+        return GetWaitResult();
+    }
+
+    public void Timeout(int milliseconds, Action callback = null)
+    {
+        _ = Task.Delay(milliseconds).ContinueWith(_ =>
+        {
+            var timeoutException = new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.Timeout,
+                "Execution timeout expired.");
+
+            if (TrySetException(timeoutException))
+                callback?.Invoke();
+        });
+    }
+
+    public AsyncReply Then(
+        Action<object> callback,
+        [CallerMemberName] string methodName = null,
+        [CallerFilePath] string filePath = null,
+        [CallerLineNumber] int lineNumber = 0)
+    {
+        object completedResult = null;
+        var invokeImmediately = false;
+
+        lock (asyncLock)
+        {
+            if (codeLine == 0)
+            {
+                codeLine = lineNumber;
+                codeMethod = methodName;
+                codePath = filePath;
+            }
 
             if (resultReady)
             {
-                //if (Debug)
-                //    Console.WriteLine($"AsyncReply: {Id} Then ready");
-
-                callback(result);
-                return this;
+                completedResult = result;
+                invokeImmediately = true;
             }
-
-
-            //timeout = new Timer(x =>
-            //{
-            //    // Get calling method name
-            //    Console.WriteLine(trace.GetFrame(1).GetMethod().Name);
-
-            //    var tr = String.Join("\r\n", trace.GetFrames().Select(f => f.GetMethod().Name));
-            //    timeout.Dispose();
-
-            //    tr = trace.ToString();
-            //    throw new Exception("Request timeout " + Id);
-            //}, null, 15000, 0);
-
-
-            //if (Debug)
-            //    Console.WriteLine($"AsyncReply: {Id} Then pending");
-
-            callbacks.Add(callback);
-
-            return this;
+            else if (exception == null)
+            {
+                (callbacks ?? (callbacks = new List<Action<object>>())).Add(callback);
+            }
         }
+
+        if (invokeImmediately)
+            callback(completedResult);
+
+        return this;
     }
-
-
 
     public AsyncReply Error(Action<AsyncException> callback)
     {
+        AsyncException completedException = null;
 
-        if (errorCallbacks == null)
-            errorCallbacks = new List<Action<AsyncException>>();
+        lock (asyncLock)
+        {
+            if (exception != null)
+            {
+                completedException = exception;
+            }
+            else if (!resultReady)
+            {
+                (errorCallbacks ?? (errorCallbacks = new List<Action<AsyncException>>())).Add(callback);
+            }
+        }
 
-        errorCallbacks.Add(callback);
-
-        if (exception != null)
-            callback(exception);
+        if (completedException != null)
+            callback(completedException);
 
         return this;
     }
 
     public AsyncReply Progress(Action<ProgressType, uint, uint> callback)
     {
-        if (progressCallbacks == null)
-            progressCallbacks = new List<Action<ProgressType, uint, uint>>();
+        lock (asyncLock)
+            (progressCallbacks ?? (progressCallbacks = new List<Action<ProgressType, uint, uint>>())).Add(callback);
 
-        progressCallbacks.Add(callback);
         return this;
     }
 
     public AsyncReply Warning(Action<byte, string> callback)
     {
-        if (warningCallbacks == null)
-            warningCallbacks = new List<Action<byte, string>>();
+        lock (asyncLock)
+            (warningCallbacks ?? (warningCallbacks = new List<Action<byte, string>>())).Add(callback);
 
-        warningCallbacks.Add(callback);
         return this;
     }
 
     public AsyncReply Chunk(Action<object> callback)
     {
-        if (chunkCallbacks == null)
-            chunkCallbacks = new List<Action<object>>();
+        lock (asyncLock)
+            (chunkCallbacks ?? (chunkCallbacks = new List<Action<object>>())).Add(callback);
 
-        chunkCallbacks.Add(callback);
         return this;
     }
 
     public AsyncReply Propagation(Action<object> callback)
     {
-        if (propagationCallbacks == null)
-            propagationCallbacks = new List<Action<object>>();
+        lock (asyncLock)
+            (propagationCallbacks ?? (propagationCallbacks = new List<Action<object>>())).Add(callback);
 
-        propagationCallbacks.Add(callback);
         return this;
     }
 
     public void Trigger(object result)
     {
+        Action<object> singleCallback = null;
+        Action<object>[] registeredCallbacks = null;
+        var callbackCount = 0;
+        ManualResetEventSlim waiter;
+
         lock (asyncLock)
         {
+            if (exception != null || resultReady)
+                return;
+
             ReadyTime = DateTime.Now;
-
-            //timeout?.Dispose();
-
-            if (exception != null)
-                return;
-
-            //if (Debug)
-            //    Console.WriteLine($"AsyncReply: {Id} Trigger");
-
-            if (resultReady)
-                return;
-
             this.result = result;
-
             resultReady = true;
 
-            //if (mutex != null)
-            mutex.Set();
+            // AsyncQueue deliberately resets resultReady between deliveries. Snapshot a
+            // multi-callback list before unlocking, while keeping its usual one-callback
+            // delivery path allocation-free.
+            if (callbacks != null)
+            {
+                callbackCount = callbacks.Count;
+                if (callbackCount == 1)
+                    singleCallback = callbacks[0];
+                else if (callbackCount > 1)
+                    registeredCallbacks = callbacks.ToArray();
+            }
 
-            foreach (var cb in callbacks)
-                cb(result);
-
-
-            //if (Debug)
-            //    Console.WriteLine($"AsyncReply: {Id} Trigger ended");
-
+            waiter = completionEvent;
         }
 
-        return;
+        waiter?.Set();
+
+        if (callbackCount == 1)
+            singleCallback(result);
+        else if (registeredCallbacks != null)
+            foreach (var callback in registeredCallbacks)
+                callback(result);
     }
 
     public virtual void TriggerError(Exception exception)
     {
-        //timeout?.Dispose();
+        TrySetException(exception);
+    }
 
-        if (resultReady)
-            return;
+    internal void TriggerErrorFromBuilder(Exception exception, bool preserveSourceForAwait)
+    {
+        TrySetException(exception, preserveSourceForAwait);
+    }
 
-        if (exception is AsyncException)
-            this.exception = exception as AsyncException;
-        else
-            this.exception = new AsyncException(exception);
-
-        if (errorCallbacks != null)
-        {
-            foreach (var cb in errorCallbacks)
-                cb(this.exception);
-        }
-        else
-        {
-            // no error handlers found
-            throw exception;
-        }
-
-        mutex?.Set();
-
+    internal Exception GetExceptionForAwait()
+    {
+        lock (asyncLock)
+            return observedException ?? exception;
     }
 
     public void TriggerProgress(ProgressType type, uint value, uint max)
     {
-        //timeout?.Dispose();
+        Action<ProgressType, uint, uint>[] registeredCallbacks;
 
-        if (progressCallbacks != null)
-            foreach (var cb in progressCallbacks)
-                cb(type, value, max);
+        lock (asyncLock)
+            registeredCallbacks = progressCallbacks?.ToArray();
 
-        return;
+        if (registeredCallbacks != null)
+            foreach (var callback in registeredCallbacks)
+                callback(type, value, max);
     }
 
     public void TriggerWarning(byte level, string message)
     {
-        //timeout?.Dispose();
+        Action<byte, string>[] registeredCallbacks;
 
-        if (warningCallbacks != null)
-            foreach (var cb in warningCallbacks)
-                cb(level, message);
+        lock (asyncLock)
+            registeredCallbacks = warningCallbacks?.ToArray();
 
-        return ;
+        if (registeredCallbacks != null)
+            foreach (var callback in registeredCallbacks)
+                callback(level, message);
     }
-
 
     public void TriggerPropagation(object value)
     {
-        //timeout?.Dispose();
+        Action<object>[] registeredCallbacks;
 
-        if (propagationCallbacks != null)
-            foreach (var cb in propagationCallbacks)
-                cb(value);
+        lock (asyncLock)
+            registeredCallbacks = propagationCallbacks?.ToArray();
 
-        return;
+        if (registeredCallbacks != null)
+            foreach (var callback in registeredCallbacks)
+                callback(value);
     }
-
-
 
     public void TriggerChunk(object value)
     {
+        Action<object>[] registeredCallbacks;
 
-        //timeout?.Dispose();
+        lock (asyncLock)
+            registeredCallbacks = chunkCallbacks?.ToArray();
 
-
-        if (chunkCallbacks != null)
-            foreach (var cb in chunkCallbacks)
-                cb(value);
-
-
+        if (registeredCallbacks != null)
+            foreach (var callback in registeredCallbacks)
+                callback(value);
     }
 
-    public AsyncAwaiter GetAwaiter()
-    {
-        return new AsyncAwaiter(this);
-    }
-
-
+    public AsyncAwaiter GetAwaiter() => new AsyncAwaiter(this);
 
     public AsyncReply()
     {
-        //   this.Debug = true;
-        Id = MaxId++;
+        Id = Interlocked.Increment(ref MaxId) - 1;
     }
 
     public AsyncReply(object result)
     {
-        //   this.Debug = true;
-
         ReadyTime = DateTime.Now;
-
         resultReady = true;
         this.result = result;
-
-        Id = MaxId++;
+        Id = Interlocked.Increment(ref MaxId) - 1;
     }
 
-    /*
-public AsyncReply<T> Then(Action<T> callback)
+    private object GetWaitResult()
     {
-       base.Then(new Action<object>(o => callback((T)o)));
-        return this;
-    }
-
-    public void Trigger(T result)
-    {
-        Trigger((object)result);
-    }
-
-    public Task<bool> MoveNext(CancellationToken cancellationToken)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void Dispose()
-    {
-     }
-
-    public AsyncReply()
-    {
-
-    }
-
-    public new Task<T> Task
-    {
-        get
+        lock (asyncLock)
         {
-            return base.Task.ContinueWith<T>((t) =>
-            {
+            if (exception != null)
+                throw observedException ?? exception;
 
-#if NETSTANDARD
-                return (T)t.GetType().GetTypeInfo().GetProperty("Result").GetValue(t);
-#else
-                return (T)t.GetType().GetProperty("Result").GetValue(t);
-#endif
-            });
+            return result;
         }
     }
 
-    public T Current => throw new NotImplementedException();
-
-    public AsyncReply(T result)
-        : base(result)
+    private bool TrySetException(Exception sourceException, bool preserveSourceForAwait = false)
     {
+        AsyncException asyncException;
+        Action<AsyncException> singleCallback = null;
+        Action<AsyncException>[] registeredCallbacks = null;
+        var callbackCount = 0;
+        ManualResetEventSlim waiter;
 
+        lock (asyncLock)
+        {
+            if (resultReady || exception != null)
+                return false;
+
+            asyncException = sourceException as AsyncException ?? new AsyncException(sourceException);
+            observedException = preserveSourceForAwait ? sourceException : asyncException;
+            exception = asyncException;
+
+            if (errorCallbacks != null)
+            {
+                callbackCount = errorCallbacks.Count;
+                if (callbackCount == 1)
+                    singleCallback = errorCallbacks[0];
+                else if (callbackCount > 1)
+                    registeredCallbacks = errorCallbacks.ToArray();
+            }
+
+            waiter = completionEvent;
+        }
+
+        waiter?.Set();
+
+        if (callbackCount == 1)
+            singleCallback(asyncException);
+        else if (registeredCallbacks != null)
+            foreach (var callback in registeredCallbacks)
+                callback(asyncException);
+
+        return true;
     }
-
-*/
-
-
-
 }

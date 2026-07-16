@@ -21,6 +21,20 @@ public class TcpSocket : ISocket
         public AsyncReply<bool> Reply;
     }
 
+    private readonly struct SendReplyCompletion
+    {
+        public SendReplyCompletion(AsyncReply<bool> reply, bool result, Exception error)
+        {
+            Reply = reply;
+            Result = result;
+            Error = error;
+        }
+
+        public AsyncReply<bool> Reply { get; }
+        public bool Result { get; }
+        public Exception Error { get; }
+    }
+
     public INetworkReceiver<ISocket> Receiver { get; set; }
     public event DestroyedEvent OnDestroy;
 
@@ -37,6 +51,8 @@ public class TcpSocket : ISocket
     private SocketAsyncEventArgs sendArgs;
 
     private PendingSend currentSend;
+    private long pendingSendBytes;
+    private long maximumPendingSendBytes = 16 * 1024 * 1024;
     private bool sendInProgress;
     private bool began;
     private bool held;
@@ -52,6 +68,24 @@ public class TcpSocket : ISocket
     public SocketState State => state;
     public int BytesSent => bytesSent;
     public int BytesReceived => bytesReceived;
+    public long PendingSendBytes => Interlocked.Read(ref pendingSendBytes);
+
+    /// <summary>
+    /// Maximum number of unsent bytes retained by this socket. This bounds the
+    /// copies made by <see cref="Send(byte[], int, int)"/> and
+    /// <see cref="SendAsync(byte[], int, int)"/> when a peer is slow.
+    /// </summary>
+    public long MaximumPendingSendBytes
+    {
+        get => Interlocked.Read(ref maximumPendingSendBytes);
+        set
+        {
+            if (value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
+
+            Interlocked.Exchange(ref maximumPendingSendBytes, value);
+        }
+    }
 
     public IPEndPoint LocalEndPoint => sock.LocalEndPoint as IPEndPoint;
     public IPEndPoint RemoteEndPoint => sock.RemoteEndPoint as IPEndPoint;
@@ -227,13 +261,18 @@ public class TcpSocket : ISocket
         if (destroyed || state != SocketState.Established)
             return;
 
-        var copy = new byte[length];
-        Buffer.BlockCopy(message, offset, copy, 0, length);
+        List<SendReplyCompletion> completions = null;
+        Exception sendError = null;
 
         lock (sendLock)
         {
             if (destroyed || state != SocketState.Established)
                 return;
+
+            EnsureSendCapacity_NoLock(length);
+
+            var copy = new byte[length];
+            Buffer.BlockCopy(message, offset, copy, 0, length);
 
             sendQueue.Enqueue(new PendingSend
             {
@@ -242,9 +281,12 @@ public class TcpSocket : ISocket
                 Count = copy.Length,
                 Reply = null
             });
+            Interlocked.Add(ref pendingSendBytes, length);
 
-            TryStartNextSend_NoLock();
+            TryStartNextSend_NoLock(ref completions, ref sendError);
         }
+
+        FinishSendWork(completions, sendError);
     }
 
     public AsyncReply<bool> SendAsync(byte[] message, int offset, int length)
@@ -268,8 +310,8 @@ public class TcpSocket : ISocket
             return rt;
         }
 
-        var copy = new byte[length];
-        Buffer.BlockCopy(message, offset, copy, 0, length);
+        List<SendReplyCompletion> completions = null;
+        Exception sendError = null;
 
         lock (sendLock)
         {
@@ -279,6 +321,19 @@ public class TcpSocket : ISocket
                 return rt;
             }
 
+            try
+            {
+                EnsureSendCapacity_NoLock(length);
+            }
+            catch (Exception ex)
+            {
+                rt.TriggerError(ex);
+                return rt;
+            }
+
+            var copy = new byte[length];
+            Buffer.BlockCopy(message, offset, copy, 0, length);
+
             sendQueue.Enqueue(new PendingSend
             {
                 Buffer = copy,
@@ -286,9 +341,12 @@ public class TcpSocket : ISocket
                 Count = copy.Length,
                 Reply = rt
             });
+            Interlocked.Add(ref pendingSendBytes, length);
 
-            TryStartNextSend_NoLock();
+            TryStartNextSend_NoLock(ref completions, ref sendError);
         }
+
+        FinishSendWork(completions, sendError);
 
         return rt;
     }
@@ -323,15 +381,22 @@ public class TcpSocket : ISocket
 
     public void Hold()
     {
-        held = true;
+        lock (sendLock)
+            held = true;
     }
 
     public void Unhold()
     {
-        held = false;
+        List<SendReplyCompletion> completions = null;
+        Exception sendError = null;
 
         lock (sendLock)
-            TryStartNextSend_NoLock();
+        {
+            held = false;
+            TryStartNextSend_NoLock(ref completions, ref sendError);
+        }
+
+        FinishSendWork(completions, sendError);
     }
 
     public void Close()
@@ -444,16 +509,20 @@ public class TcpSocket : ISocket
         }
     }
 
-    private void TryStartNextSend_NoLock()
+    private void TryStartNextSend_NoLock(
+        ref List<SendReplyCompletion> completions,
+        ref Exception sendError)
     {
         if (held || destroyed || state != SocketState.Established || sendInProgress)
             return;
 
         sendInProgress = true;
-        PumpSendQueue_NoLock();
+        PumpSendQueue_NoLock(ref completions, ref sendError);
     }
 
-    private void PumpSendQueue_NoLock()
+    private void PumpSendQueue_NoLock(
+        ref List<SendReplyCompletion> completions,
+        ref Exception sendError)
     {
         while (true)
         {
@@ -492,9 +561,9 @@ public class TcpSocket : ISocket
                 var reply = currentSend?.Reply;
                 currentSend = null;
                 sendInProgress = false;
-                reply?.TriggerError(ex);
-                FailPendingSends_NoLock(ex);
-                CloseDueToSendError_NoLock(ex);
+                QueueSendCompletion(ref completions, reply, false, ex);
+                FailPendingSends_NoLock(ex, ref completions);
+                sendError = ex;
                 return;
             }
 
@@ -503,23 +572,35 @@ public class TcpSocket : ISocket
                 return;
             }
 
-            if (!ProcessSendCompletion_NoLock(sendArgs))
+            if (!ProcessSendCompletion_NoLock(
+                    sendArgs,
+                    ref completions,
+                    ref sendError))
                 return;
         }
     }
 
     private void ProcessSend(SocketAsyncEventArgs e)
     {
+        List<SendReplyCompletion> completions = null;
+        Exception sendError = null;
+
         lock (sendLock)
         {
-            if (!ProcessSendCompletion_NoLock(e))
-                return;
-
-            PumpSendQueue_NoLock();
+            if (ProcessSendCompletion_NoLock(
+                    e,
+                    ref completions,
+                    ref sendError))
+                PumpSendQueue_NoLock(ref completions, ref sendError);
         }
+
+        FinishSendWork(completions, sendError);
     }
 
-    private bool ProcessSendCompletion_NoLock(SocketAsyncEventArgs e)
+    private bool ProcessSendCompletion_NoLock(
+        SocketAsyncEventArgs e,
+        ref List<SendReplyCompletion> completions,
+        ref Exception sendError)
     {
         try
         {
@@ -532,26 +613,27 @@ public class TcpSocket : ISocket
             if (e.SocketError != SocketError.Success)
             {
                 var ex = new SocketException((int)e.SocketError);
-                currentSend.Reply?.TriggerError(ex);
+                QueueSendCompletion(ref completions, currentSend.Reply, false, ex);
                 currentSend = null;
                 sendInProgress = false;
-                FailPendingSends_NoLock(ex);
-                CloseDueToSendError_NoLock(ex);
+                FailPendingSends_NoLock(ex, ref completions);
+                sendError = ex;
                 return false;
             }
 
             if (e.BytesTransferred <= 0)
             {
                 var ex = new SocketException((int)SocketError.ConnectionReset);
-                currentSend.Reply?.TriggerError(ex);
+                QueueSendCompletion(ref completions, currentSend.Reply, false, ex);
                 currentSend = null;
                 sendInProgress = false;
-                FailPendingSends_NoLock(ex);
-                CloseDueToSendError_NoLock(ex);
+                FailPendingSends_NoLock(ex, ref completions);
+                sendError = ex;
                 return false;
             }
 
             Interlocked.Add(ref bytesSent, e.BytesTransferred);
+            Interlocked.Add(ref pendingSendBytes, -e.BytesTransferred);
 
             currentSend.Offset += e.BytesTransferred;
             currentSend.Count -= e.BytesTransferred;
@@ -561,42 +643,42 @@ public class TcpSocket : ISocket
                 return true;
             }
 
-            currentSend.Reply?.Trigger(true);
+            QueueSendCompletion(ref completions, currentSend.Reply, true, null);
             currentSend = null;
             return true;
         }
         catch (Exception ex)
         {
-            currentSend?.Reply?.TriggerError(ex);
+            QueueSendCompletion(ref completions, currentSend?.Reply, false, ex);
             currentSend = null;
             sendInProgress = false;
-            FailPendingSends_NoLock(ex);
-            CloseDueToSendError_NoLock(ex);
+            FailPendingSends_NoLock(ex, ref completions);
+            sendError = ex;
             return false;
         }
     }
 
-    private void FailPendingSends_NoLock(Exception ex)
+    private void FailPendingSends_NoLock(
+        Exception ex,
+        ref List<SendReplyCompletion> completions)
     {
         while (sendQueue.Count > 0)
         {
             var item = sendQueue.Dequeue();
-            try
-            {
-                item.Reply?.TriggerError(ex);
-            }
-            catch { }
+            QueueSendCompletion(ref completions, item.Reply, false, ex);
         }
+
+        Interlocked.Exchange(ref pendingSendBytes, 0);
     }
 
-    private void CloseDueToSendError_NoLock(Exception ex)
+    private bool CloseDueToSendError(Exception ex)
     {
         bool notify = false;
 
         lock (stateLock)
         {
             if (state == SocketState.Closed)
-                return;
+                return false;
 
             state = SocketState.Closed;
             notify = !closeNotified;
@@ -609,6 +691,17 @@ public class TcpSocket : ISocket
 
         Global.Log(ex);
 
+        return notify;
+    }
+
+    private void FinishSendWork(
+        List<SendReplyCompletion> completions,
+        Exception sendError)
+    {
+        var notify = sendError != null && CloseDueToSendError(sendError);
+
+        CompleteSendReplies(completions);
+
         if (notify)
         {
             try { Receiver?.NetworkClose(this); }
@@ -616,9 +709,44 @@ public class TcpSocket : ISocket
         }
     }
 
+    private static void QueueSendCompletion(
+        ref List<SendReplyCompletion> completions,
+        AsyncReply<bool> reply,
+        bool result,
+        Exception error)
+    {
+        if (reply == null)
+            return;
+
+        completions ??= new List<SendReplyCompletion>();
+        completions.Add(new SendReplyCompletion(reply, result, error));
+    }
+
+    private static void CompleteSendReplies(List<SendReplyCompletion> completions)
+    {
+        if (completions == null)
+            return;
+
+        foreach (var completion in completions)
+        {
+            try
+            {
+                if (completion.Error != null)
+                    completion.Reply.TriggerError(completion.Error);
+                else
+                    completion.Reply.Trigger(completion.Result);
+            }
+            catch (Exception ex)
+            {
+                Global.Log(ex);
+            }
+        }
+    }
+
     private void SafeClose(Exception ex, bool notifyReceiver)
     {
         bool notify = false;
+        List<SendReplyCompletion> completions = null;
 
         lock (stateLock)
         {
@@ -636,24 +764,29 @@ public class TcpSocket : ISocket
 
             if (ex != null)
             {
-                try { currentSend?.Reply?.TriggerError(ex); } catch { }
+                QueueSendCompletion(ref completions, currentSend?.Reply, false, ex);
                 currentSend = null;
-                FailPendingSends_NoLock(ex);
+                FailPendingSends_NoLock(ex, ref completions);
             }
             else
             {
+                QueueSendCompletion(ref completions, currentSend?.Reply, false, null);
                 currentSend = null;
                 while (sendQueue.Count > 0)
                 {
                     var item = sendQueue.Dequeue();
-                    try { item.Reply?.Trigger(false); } catch { }
+                    QueueSendCompletion(ref completions, item.Reply, false, null);
                 }
             }
+
+            Interlocked.Exchange(ref pendingSendBytes, 0);
         }
 
         try { sock.Shutdown(SocketShutdown.Both); } catch { }
         try { sock.Close(); } catch { }
         try { sock.Dispose(); } catch { }
+
+        CompleteSendReplies(completions);
 
         if (ex != null)
             Global.Log(ex);
@@ -667,7 +800,19 @@ public class TcpSocket : ISocket
 
     private static void ValidateRange(byte[] message, int offset, int length)
     {
-        if (offset < 0 || length < 0 || offset + length > message.Length)
+        if (offset < 0 || length < 0 || offset > message.Length - length)
             throw new ArgumentOutOfRangeException();
+    }
+
+    private void EnsureSendCapacity_NoLock(int length)
+    {
+        var limit = Interlocked.Read(ref maximumPendingSendBytes);
+        var pending = Interlocked.Read(ref pendingSendBytes);
+
+        if (length > limit - pending)
+        {
+            throw new InvalidOperationException(
+                $"The socket send queue exceeded its {limit}-byte limit.");
+        }
     }
 }

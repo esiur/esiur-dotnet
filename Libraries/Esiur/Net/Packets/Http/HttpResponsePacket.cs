@@ -1,217 +1,210 @@
-﻿/*
- 
-Copyright (c) 2017 Ahmed Kh. Zamil
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-*/
+using Esiur.Data;
+using Esiur.Misc;
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
 using System.Text;
-using Esiur.Misc;
-using Esiur.Data;
 
 namespace Esiur.Net.Packets.Http;
+
 public class HttpResponsePacket : Packet
 {
-
     public StringKeyList Headers { get; } = new StringKeyList(true);
     public string Version { get; set; } = "HTTP/1.1";
-
     public byte[] Message;
     public HttpResponseCode Number { get; set; } = HttpResponseCode.OK;
     public string Text;
-
     public List<HttpCookie> Cookies { get; } = new List<HttpCookie>();
     public bool Handled;
 
+    public uint MaximumHeaderLength { get; set; } = HttpPacketHelpers.DefaultMaximumHeaderLength;
+    public uint MaximumContentLength { get; set; } = HttpPacketHelpers.DefaultMaximumContentLength;
+    public int MaximumHeaderCount { get; set; } = HttpPacketHelpers.DefaultMaximumHeaderCount;
+
+    /// <summary>
+    /// Maximum response body accepted by <see cref="Compose(HttpComposeOption)"/>.
+    /// Zero preserves the legacy behavior of allowing any body that fits in a managed array.
+    /// </summary>
+    public uint MaximumComposedContentLength { get; set; }
+
     public override string ToString()
-    {
-        return "HTTPResponsePacket"
-            + "\n\tVersion: " + Version
-            //+ "\n\tMethod: " + Method
-            //+ "\n\tURL: " + URL
-            + "\n\tMessage: " + (Message != null ? Message.Length.ToString() : "NULL");
-    }
+        => $"HTTPResponsePacket\n\tVersion: {Version}" +
+           $"\n\tMessage: {(Message == null ? "NULL" : Message.Length.ToString())}";
 
-    private string MakeHeader(HttpComposeOption options)
+    private byte[] ComposeHeader(HttpComposeOption options)
     {
-        string header = $"{Version} {(int)Number} {Text}\r\nServer: Esiur {Global.Version}\r\nDate: {DateTime.Now.ToUniversalTime().ToString("r")}\r\n";
-
         if (options == HttpComposeOption.AllCalculateLength)
-            Headers["Content-Length"] = Message?.Length.ToString() ?? "0";
+            Headers["Content-Length"] = Message?.Length.ToString(CultureInfo.InvariantCulture) ?? "0";
 
-        foreach (var kv in Headers)
-            header += kv.Key + ": " + kv.Value + "\r\n";
+        var header = new StringBuilder(256);
+        header.Append(Version)
+              .Append(' ')
+              .Append((int)Number)
+              .Append(' ')
+              .Append(Text ?? string.Empty)
+              .Append("\r\nServer: Esiur ")
+              .Append(Global.Version)
+              .Append("\r\nDate: ")
+              .Append(DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture))
+              .Append("\r\n");
 
+        foreach (var entry in Headers)
+            header.Append(entry.Key).Append(": ").Append(entry.Value).Append("\r\n");
+        foreach (var cookie in Cookies)
+            header.Append("Set-Cookie: ").Append(cookie).Append("\r\n");
 
-        // Set-Cookie: ckGeneric=CookieBody; expires=Sun, 30-Dec-2007 21:00:00 GMT; path=/
-        // Set-Cookie: ASPSESSIONIDQABBDSQA=IPDPMMMALDGFLMICEJIOCIPM; path=/
-
-        foreach (var Cookie in Cookies)
-            header += "Set-Cookie: " + Cookie.ToString() + "\r\n";
-
-
-        header += "\r\n";
-
-        return header;
+        header.Append("\r\n");
+        return Encoding.ASCII.GetBytes(header.ToString());
     }
-
 
     public bool Compose(HttpComposeOption options)
     {
-        List<byte> msg = new List<byte>();
+        var header = options == HttpComposeOption.DataOnly
+            ? Array.Empty<byte>()
+            : ComposeHeader(options);
+        var body = options == HttpComposeOption.SpecifiedHeadersOnly || Message == null
+            ? Array.Empty<byte>()
+            : Message;
 
-        if (options != HttpComposeOption.DataOnly)
-        {
-            msg.AddRange(Encoding.UTF8.GetBytes(MakeHeader(options)));
-        }
+        if (MaximumComposedContentLength > 0 && body.LongLength > MaximumComposedContentLength)
+            throw new ParserLimitException(
+                $"HTTP content length of {body.LongLength} bytes exceeds the {MaximumComposedContentLength}-byte limit.");
 
-        if (options != HttpComposeOption.SpecifiedHeadersOnly)
-        {
-            if (Message != null)
-                msg.AddRange(Message);
-        }
-
-        Data = msg.ToArray();
+        Data = new byte[checked(header.Length + body.Length)];
+        if (header.Length > 0)
+            Buffer.BlockCopy(header, 0, Data, 0, header.Length);
+        if (body.Length > 0)
+            Buffer.BlockCopy(body, 0, Data, header.Length, body.Length);
 
         return true;
     }
 
-    public override bool Compose()
-    {
-        return Compose(HttpComposeOption.AllDontCalculateLength);
-    }
+    public override bool Compose() => Compose(HttpComposeOption.AllDontCalculateLength);
 
     public override long Parse(byte[] data, uint offset, uint ends)
     {
-        string[] sMethod = null;
-        string[] sLines = null;
+        ValidateBounds(data, offset, ends);
+        var originalOffset = offset;
 
-        uint headerSize = 0;
-
-        for (uint i = offset; i < ends - 3; i++)
-        {
-            if (data[i] == '\r' && data[i + 1] == '\n'
-                && data[i + 2] == '\r' && data[i + 3] == '\n')
-            {
-                sLines = Encoding.ASCII.GetString(data, (int)offset, (int)(i - offset)).Split(new string[] { "\r\n" },
-                    StringSplitOptions.None);
-
-                headerSize = i + 4;
-                break;
-            }
-        }
-
-        if (headerSize == 0)
+        if (!HttpPacketHelpers.TryFindHeaderEnd(
+                data, offset, ends, MaximumHeaderLength, out var bodyOffset))
             return -1;
 
+        var lines = HttpPacketHelpers.ReadHeaderLines(
+            data, offset, bodyOffset, MaximumHeaderCount);
 
-        sMethod = sLines[0].Split(' ');
-
-        if (sMethod.Length == 3)
-        {
-            Version = sMethod[0].Trim();
-            Number = (HttpResponseCode)Convert.ToInt32(sMethod[1].Trim());
-            Text = sMethod[2];
-        }
-
-        // Read all headers
-
-        for (int i = 1; i < sLines.Length; i++)
-        {
-            if (sLines[i] == string.Empty)
-            {
-                // Invalid header
-                return 0;
-            }
-
-            if (sLines[i].IndexOf(':') == -1)
-            {
-                // Invalid header
-                return 0;
-            }
-
-            string[] header = sLines[i].Split(new char[] { ':' }, 2);
-
-            header[0] = header[0].ToLower();
-            Headers[header[0]] = header[1].Trim();
-
-            //Set-Cookie: NAME=VALUE; expires=DATE;
-
-            if (header[0] == "set-cookie")
-            {
-                string[] cookie = header[1].Split(';');
-
-                if (cookie.Length >= 1)
-                {
-                    string[] splitCookie = cookie[0].Split('=');
-                    HttpCookie c = new HttpCookie(splitCookie[0], splitCookie[1]);
-
-                    for (int j = 1; j < cookie.Length; j++)
-                    {
-                        splitCookie = cookie[j].Split('=');
-                        switch (splitCookie[0].ToLower())
-                        {
-                            case "domain":
-                                c.Domain = splitCookie[1];
-                                break;
-                            case "path":
-                                c.Path = splitCookie[1];
-                                break;
-                            case "httponly":
-                                c.HttpOnly = true;
-                                break;
-                            case "expires":
-                                // Wed, 13-Jan-2021 22:23:01 GMT
-                                c.Expires = DateTime.Parse(splitCookie[1]);
-                                break;
-                        }
-                    }
-
-                }
-
-            }
-        }
-
-        // Content-Length
-
-        try
-        {
-
-            uint contentLength = uint.Parse(Headers["content-length"]);
-
-            // check limit
-            if (contentLength > data.Length - headerSize)
-            {
-                return contentLength - (data.Length - headerSize);
-            }
-
-            Message = data.Clip(offset, contentLength);
-
-            return headerSize + contentLength;
-
-        }
-        catch
-        {
+        if (lines.Length == 0)
             return 0;
+
+        var statusLine = lines[0].Split(new[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
+        if (statusLine.Length < 2 ||
+            !int.TryParse(statusLine[1], NumberStyles.None, CultureInfo.InvariantCulture, out var statusCode))
+            return 0;
+
+        Version = statusLine[0];
+        Number = (HttpResponseCode)statusCode;
+        Text = statusLine.Length == 3 ? statusLine[2] : string.Empty;
+        Headers.Clear();
+        Cookies.Clear();
+        Message = null;
+
+        var hasContentLength = false;
+
+        for (var i = 1; i < lines.Length; i++)
+        {
+            var separator = lines[i].IndexOf(':');
+            if (separator <= 0)
+                return 0;
+
+            var name = lines[i].Substring(0, separator).Trim();
+            var value = lines[i].Substring(separator + 1).Trim();
+
+            if (string.Equals(name, "transfer-encoding", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("HTTP Transfer-Encoding is not supported.");
+
+            if (string.Equals(name, "content-length", StringComparison.OrdinalIgnoreCase))
+            {
+                if (hasContentLength)
+                    throw new InvalidDataException("Duplicate HTTP Content-Length headers are not accepted.");
+
+                hasContentLength = true;
+            }
+
+            Headers.Add(name, value);
+
+            if (string.Equals(name, "set-cookie", StringComparison.OrdinalIgnoreCase) &&
+                TryParseCookie(value, out var cookie))
+                Cookies.Add(cookie);
         }
+
+        var contentLengthHeader = Headers["content-length"];
+        if (contentLengthHeader == null)
+        {
+            Message = Array.Empty<byte>();
+            return bodyOffset - originalOffset;
+        }
+
+        if (!uint.TryParse(
+                contentLengthHeader,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var contentLength))
+            return 0;
+
+        if (MaximumContentLength > 0 && contentLength > MaximumContentLength)
+            throw new ParserLimitException(
+                $"HTTP content length of {contentLength} bytes exceeds the {MaximumContentLength}-byte limit.");
+
+        var availableBody = ends - bodyOffset;
+        if (availableBody < contentLength)
+            return -(long)(contentLength - availableBody);
+
+        Message = data.Clip(bodyOffset, contentLength);
+        return bodyOffset - originalOffset + contentLength;
+    }
+
+    private static bool TryParseCookie(string header, out HttpCookie cookie)
+    {
+        cookie = default;
+        var segments = header.Split(';');
+        if (segments.Length == 0)
+            return false;
+
+        var nameValueSeparator = segments[0].IndexOf('=');
+        if (nameValueSeparator <= 0)
+            return false;
+
+        cookie = new HttpCookie(
+            segments[0].Substring(0, nameValueSeparator).Trim(),
+            segments[0].Substring(nameValueSeparator + 1).Trim());
+
+        for (var i = 1; i < segments.Length; i++)
+        {
+            var segment = segments[i].Trim();
+            var separator = segment.IndexOf('=');
+            var name = separator < 0 ? segment : segment.Substring(0, separator).Trim();
+            var value = separator < 0 ? string.Empty : segment.Substring(separator + 1).Trim();
+
+            if (string.Equals(name, "domain", StringComparison.OrdinalIgnoreCase))
+                cookie.Domain = value;
+            else if (string.Equals(name, "path", StringComparison.OrdinalIgnoreCase))
+                cookie.Path = value;
+            else if (string.Equals(name, "httponly", StringComparison.OrdinalIgnoreCase))
+                cookie.HttpOnly = true;
+            else if (string.Equals(name, "secure", StringComparison.OrdinalIgnoreCase))
+                cookie.Secure = true;
+            else if (string.Equals(name, "samesite", StringComparison.OrdinalIgnoreCase) &&
+                     Enum.TryParse(value, true, out HttpCookieSameSite sameSite))
+                cookie.SameSite = sameSite;
+            else if (string.Equals(name, "expires", StringComparison.OrdinalIgnoreCase) &&
+                     DateTime.TryParse(
+                         value,
+                         CultureInfo.InvariantCulture,
+                         DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                         out var expires))
+                cookie.Expires = expires;
+        }
+
+        return true;
     }
 }

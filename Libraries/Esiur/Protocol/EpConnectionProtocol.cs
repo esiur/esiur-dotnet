@@ -56,6 +56,20 @@ partial class EpConnection
 
     internal bool IsRateControlBlocked => Volatile.Read(ref _rateControlBlocked) != 0;
 
+    IEnumerable<IResourceManager> ResolveTypeDefManagers(TypeDef typeDef)
+    {
+        var definedType = typeDef switch
+        {
+            LocalTypeDef localTypeDef => localTypeDef.DefinedType,
+            RemoteTypeDef remoteTypeDef => remoteTypeDef.ProxyType,
+            _ => null
+        };
+
+        return definedType == null
+            ? Array.Empty<IResourceManager>()
+            : Instance.Warehouse.ResolveResourceManagers(definedType, null);
+    }
+
     bool TryApplyManagers(
         MemberDef member,
         IResource? resource,
@@ -1359,7 +1373,7 @@ partial class EpConnection
 
         var classNames = (string[])value;
 
-        var typeDefs = new List<LocalTypeDef>();
+        var typeDefs = new List<TypeDef>();
 
         foreach (var className in classNames)
         {
@@ -1372,7 +1386,7 @@ partial class EpConnection
         if (typeDefs.Count > 0)
         {
             var managers = typeDefs
-                .SelectMany(typeDef => Instance.Warehouse.ResolveResourceManagers(typeDef.DefinedType, null));
+                .SelectMany(ResolveTypeDefManagers);
 
             if (!TryApplyManagers(
                     null,
@@ -1405,7 +1419,7 @@ partial class EpConnection
 
         if (t != null)
         {
-            var managers = Instance.Warehouse.ResolveResourceManagers(t.DefinedType, null);
+            var managers = ResolveTypeDefManagers(t);
             if (!TryApplyManagers(
                     null,
                     null,
@@ -1670,7 +1684,6 @@ partial class EpConnection
                 ErrorType.Management,
                 ExceptionCode.InvokeDenied,
                 out var managerDelay,
-                managers: Instance.Warehouse.ResolveResourceManagers(typeDef.DefinedType, null),
                 supportsDelay: true))
             return;
 

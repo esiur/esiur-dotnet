@@ -24,11 +24,43 @@ internal class Program
         var service = await wh.Put("sys/demo", new Demo());
 
         var http = await wh.Put<HttpServer>("sys/http", new HttpServer() { Port = 8888 });
+        var webRoot = Path.GetFullPath("Web");
+        var webRootPrefix = webRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                            + Path.DirectorySeparatorChar;
+        var pathComparison = Path.DirectorySeparatorChar == '\\'
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
 
 
         http.MapGet("{url}", (string url, HttpConnection sender) =>
         {
-            var fn = "Web/" + (sender.Request.Filename == "/" ? "/index.html" : sender.Request.Filename);
+            var requestedPath = sender.Request.Filename == "/"
+                ? "index.html"
+                : sender.Request.Filename.TrimStart('/', '\\');
+            string fn;
+
+            try
+            {
+                fn = Path.GetFullPath(Path.Combine(webRoot, requestedPath));
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException ||
+                exception is NotSupportedException ||
+                exception is PathTooLongException)
+            {
+                sender.Response.Number = HttpResponseCode.BadRequest;
+                sender.Send("Invalid path");
+                sender.Close();
+                return;
+            }
+
+            if (!fn.StartsWith(webRootPrefix, pathComparison))
+            {
+                sender.Response.Number = HttpResponseCode.Forbidden;
+                sender.Send("Forbidden");
+                sender.Close();
+                return;
+            }
 
             if (File.Exists(fn))
             {
@@ -44,7 +76,7 @@ internal class Program
             else
             {
                 sender.Response.Number = HttpResponseCode.NotFound;
-                sender.Send("`" + fn + "` Not Found");
+                sender.Send("Not Found");
                 sender.Close();
             }
 

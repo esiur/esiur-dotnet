@@ -35,6 +35,23 @@ namespace Esiur.Security.Permissions;
 
 public class UserPermissionsManager : IPermissionsManager
 {
+    private static readonly IReadOnlyDictionary<ActionType, string> ResourcePermissionKeys =
+        new Dictionary<ActionType, string>
+        {
+            [ActionType.Attach] = "_attach",
+            [ActionType.Detach] = "_detach",
+            [ActionType.Delete] = "_delete",
+            [ActionType.CreateResource] = "_create_resource",
+            [ActionType.InquireAttributes] = "_get_attributes",
+            [ActionType.UpdateAttributes] = "_set_attributes",
+            [ActionType.AddChild] = "_add_child",
+            [ActionType.RemoveChild] = "_remove_child",
+            [ActionType.AddParent] = "_add_parent",
+            [ActionType.RemoveParent] = "_remove_parent",
+            [ActionType.Rename] = "_rename",
+            [ActionType.ViewTypeDef] = "_view_typedef"
+        };
+
     IResource resource;
     Map<string, object> settings;
 
@@ -42,69 +59,38 @@ public class UserPermissionsManager : IPermissionsManager
 
     public Ruling Applicable(IResource resource, Session session, ActionType action, MemberDef member, object inquirer)
     {
-        Map<string,object> userPermissions = null;
-
-        if (settings.ContainsKey(session.RemoteIdentity))
-            userPermissions = settings[session.RemoteIdentity] as Map<string, object>;
-        else if (settings.ContainsKey("public"))
-            userPermissions = settings["public"] as Map<string,object>;
-        else
+        if (settings == null || session == null)
             return Ruling.Denied;
 
-        if (action == ActionType.Attach)// || action == ActionType.Delete)
-        {
-            if ((string)userPermissions["_attach"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.Delete)
-        {
-            if ((string)userPermissions["_delete"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.InquireAttributes)
-        {
-            if ((string)userPermissions["_get_attributes"] == "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.UpdateAttributes)
-        {
-            if ((string)userPermissions["_set_attributes"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.AddChild)
-        {
-            if ((string)userPermissions["_add_child"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.RemoveChild)
-        {
-            if ((string)userPermissions["_remove_child"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.AddParent)
-        {
-            if ((string)userPermissions["_add_parent"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.RemoveParent)
-        {
-            if ((string)userPermissions["_remove_parent"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (action == ActionType.Rename)
-        {
-            if ((string)userPermissions["_rename"] != "yes")
-                return Ruling.Denied;
-        }
-        else if (userPermissions.ContainsKey(member?.Name))
-        {
-            Map<string,object> methodPermissions = userPermissions[member.Name] as Map<string,object>;
-            if ((string)methodPermissions[action.ToString()] != "yes")
-                return Ruling.Denied;
-        }
+        Map<string, object> userPermissions = null;
+        if (!string.IsNullOrEmpty(session.RemoteIdentity)
+            && settings.TryGetValue(session.RemoteIdentity, out var identityPermissions))
+            userPermissions = identityPermissions as Map<string, object>;
+        else if (settings.TryGetValue("public", out var publicPermissions))
+            userPermissions = publicPermissions as Map<string, object>;
 
-        return Ruling.DontCare;
+        if (userPermissions == null)
+            return Ruling.Denied;
+
+        if (ResourcePermissionKeys.TryGetValue(action, out var resourcePermissionKey))
+            return IsAllowed(userPermissions, resourcePermissionKey);
+
+        // Member-level access is fail closed: an absent member/action entry must
+        // never fall through to Warehouse's compatibility defaults.
+        if (member == null
+            || !userPermissions.TryGetValue(member.Name, out var rawMemberPermissions)
+            || rawMemberPermissions is not Map<string, object> memberPermissions)
+            return Ruling.Denied;
+
+        return IsAllowed(memberPermissions, action.ToString());
     }
+
+    private static Ruling IsAllowed(Map<string, object> permissions, string key)
+        => permissions.TryGetValue(key, out var value)
+           && value is string text
+           && string.Equals(text, "yes", StringComparison.Ordinal)
+            ? Ruling.Allowed
+            : Ruling.Denied;
 
     public UserPermissionsManager()
     {

@@ -27,6 +27,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Esiur.Core;
@@ -44,6 +45,7 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
 
     int count = 0;
     bool sealedBag = false;
+    readonly object bagLock = new object();
 
 
     public virtual Type ArrayType { get; set; } = typeof(T);
@@ -79,24 +81,28 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
 
     public void Seal()
     {
-        if (sealedBag)
-            return;
+        object[] pending;
+        lock (bagLock)
+        {
+            if (sealedBag)
+                return;
 
-        sealedBag = true;
+            sealedBag = true;
+            pending = replies.ToArray();
+        }
 
-        var results = ArrayType == null ? new T[replies.Count]
-                                        : Array.CreateInstance(ArrayType, replies.Count);
+        var results = ArrayType == null ? new T[pending.Length]
+                                        : Array.CreateInstance(ArrayType, pending.Length);
 
-        if (replies.Count == 0)
+        if (pending.Length == 0)
         {
             Trigger(results);
             return;
         }
 
-        for (var i = 0; i < replies.Count; i++)
+        for (var i = 0; i < pending.Length; i++)
         {
-
-            var k = replies[i];
+            var k = pending[i];
             var index = i;
 
             if (k is AsyncReply reply)
@@ -104,19 +110,17 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
                 reply.Then((r) =>
                 {
                     results.SetValue(r, index);
-                    count++;
-                    if (count == replies.Count)
+                    if (Interlocked.Increment(ref count) == pending.Length)
                         Trigger(results);
                 }).Error(e => TriggerError(e));
             }
             else
             {
                 if (ArrayType != null)
-                    replies[i] = RuntimeCaster.Cast(replies[i], ArrayType);
-                
-                results.SetValue(replies[i], index);
-                count++;
-                if (count == replies.Count)
+                    k = RuntimeCaster.Cast(k, ArrayType);
+
+                results.SetValue(k, index);
+                if (Interlocked.Increment(ref count) == pending.Length)
                     Trigger(results);
             }
         }
@@ -125,20 +129,24 @@ public class AsyncBag<T> : AsyncReply, IAsyncBag
 
     public void Add(object valueOrReply)
     {
-        if (!sealedBag)
+        lock (bagLock)
         {
-            //if (valueOrReply is AsyncReply)
-            //{
-            // results.Add(default(T));
-            replies.Add(valueOrReply);
-            //}
+            if (!sealedBag)
+                replies.Add(valueOrReply);
         }
     }
 
 
     public void AddBag(AsyncBag<T> bag)
     {
-        foreach (var r in bag.replies)
+        if (bag == null)
+            throw new ArgumentNullException(nameof(bag));
+
+        object[] source;
+        lock (bag.bagLock)
+            source = bag.replies.ToArray();
+
+        foreach (var r in source)
             Add(r);
     }
 

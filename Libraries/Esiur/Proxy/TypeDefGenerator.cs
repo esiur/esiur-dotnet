@@ -14,6 +14,7 @@ namespace Esiur.Proxy;
 
 public static class TypeDefGenerator
 {
+    private const string GeneratedFilesManifestName = ".esiur-generated-files";
     internal static Regex urlRegex = new Regex(@"^(?:([\S]*)://([^/]*)/?)");
 
     //public static string ToLiteral(string valueTextForCompiler)
@@ -238,16 +239,25 @@ public static class TypeDefGenerator
             // no longer needed
             Warehouse.Default.Remove(con);
 
+            var generatedFiles = typeDefs
+                .Where(td => td.Kind == TypeDefKind.Resource
+                    || td.Kind == TypeDefKind.Record
+                    || td.Kind == TypeDefKind.Enum)
+                .Select(td => GetGeneratedFileName(td.Name))
+                .Append("Initialization.g.cs")
+                .ToArray();
+
+            if (generatedFiles.Distinct(StringComparer.OrdinalIgnoreCase).Count()
+                != generatedFiles.Length)
+                throw new InvalidDataException("The remote type definitions produce duplicate filenames.");
+
             var dstDir = new DirectoryInfo(tempDir ? Path.GetTempPath() + Path.DirectorySeparatorChar
                             + Misc.Global.GenerateCode(20) + Path.DirectorySeparatorChar + dir : dir);
 
             if (!dstDir.Exists)
                 dstDir.Create();
             else
-            {
-                foreach (FileInfo file in dstDir.GetFiles())
-                    file.Delete();
-            }
+                DeletePreviouslyGeneratedFiles(dstDir);
 
             // make sources
             foreach (var td in typeDefs)
@@ -255,17 +265,23 @@ public static class TypeDefGenerator
                 if (td.Kind == TypeDefKind.Resource)
                 {
                     var source = GenerateClass(td, typeDefs, asyncSetters);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + td.Name + ".g.cs", source);
+                    File.WriteAllText(
+                        Path.Combine(dstDir.FullName, GetGeneratedFileName(td.Name)),
+                        source);
                 }
                 else if (td.Kind == TypeDefKind.Record)
                 {
                     var source = GenerateRecord(td, typeDefs);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + td.Name + ".g.cs", source);
+                    File.WriteAllText(
+                        Path.Combine(dstDir.FullName, GetGeneratedFileName(td.Name)),
+                        source);
                 }
                 else if (td.Kind == TypeDefKind.Enum)
                 {
                     var source = GenerateEnum(td, typeDefs);
-                    File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + td.Name + ".g.cs", source);
+                    File.WriteAllText(
+                        Path.Combine(dstDir.FullName, GetGeneratedFileName(td.Name)),
+                        source);
                 }
             }
 
@@ -301,15 +317,52 @@ public static class TypeDefGenerator
                 \r\n } \r\n}";
 
 
-            File.WriteAllText(dstDir.FullName + Path.DirectorySeparatorChar + "Initialization.g.cs", typesFile);
+            File.WriteAllText(Path.Combine(dstDir.FullName, "Initialization.g.cs"), typesFile);
+            File.WriteAllLines(
+                Path.Combine(dstDir.FullName, GeneratedFilesManifestName),
+                generatedFiles);
 
 
             return dstDir.FullName;
 
         }
-        catch (Exception ex)
+        catch
         {
-            throw ex;
+            throw;
+        }
+    }
+
+    internal static string GetGeneratedFileName(string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName))
+            throw new InvalidDataException("A remote type has no name.");
+
+        var fileName = typeName + ".g.cs";
+        if (!string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal)
+            || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            throw new InvalidDataException(
+                $"Remote type name '{typeName}' cannot be used as a safe generated filename.");
+
+        return fileName;
+    }
+
+    internal static void DeletePreviouslyGeneratedFiles(DirectoryInfo destination)
+    {
+        var manifestPath = Path.Combine(destination.FullName, GeneratedFilesManifestName);
+        if (!File.Exists(manifestPath))
+            return;
+
+        foreach (var entry in File.ReadAllLines(manifestPath))
+        {
+            var fileName = entry.Trim();
+            if (!fileName.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal)
+                || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                continue;
+
+            var generatedPath = Path.Combine(destination.FullName, fileName);
+            if (File.Exists(generatedPath))
+                File.Delete(generatedPath);
         }
     }
 
