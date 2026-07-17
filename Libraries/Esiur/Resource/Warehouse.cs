@@ -1012,9 +1012,20 @@ public class Warehouse
             var parent = await Get<IResource>(string.Join("/", location.Take(location.Length - 1)));
 
             if (parent == null)
-                throw new Exception("Can't find parent");
+            {
+                // Stores may expose hierarchical links without materializing every
+                // intermediate path segment (for example, database/Type/42).
+                // In that case the root store still owns the complete relative path.
+                var root = await Get<IResource>(location[0]);
+                if (root is not IStore rootStore)
+                    throw new Exception("Can't find parent or root store.");
 
-            store = parent.Instance.Store;// GetStore(location[0]);
+                store = rootStore;
+            }
+            else
+            {
+                store = parent.Instance.Store;// GetStore(location[0]);
+            }
 
             //if (store == null)
             //    throw new Exception("Store not found.");

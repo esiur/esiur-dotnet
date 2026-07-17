@@ -1,0 +1,6 @@
+<Project>
+  <!-- Test and example executables are repository assets, not NuGet products. -->
+  <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)Tests')) Or $([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)Examples'))">
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

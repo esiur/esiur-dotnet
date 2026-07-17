@@ -60,9 +60,20 @@ public class EntityStore : IStore
 
     public AsyncReply<IResource> Get(string path)
     {
-        var p = path.Split('/');
-        var ti = TypesByName[p[0]];
-        var id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);
+        var p = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (p.Length != 2 || !TypesByName.TryGetValue(p[0], out var ti))
+            return new AsyncReply<IResource>(null);
+
+        object id;
+        try
+        {
+            id = Convert.ChangeType(p[1], ti.PrimaryKey.PropertyType);
+        }
+        catch (Exception) when (
+            ti.PrimaryKey.PropertyType != typeof(string))
+        {
+            return new AsyncReply<IResource>(null);
+        }
 
         // Get db
         using (var db = Getter())
@@ -96,8 +107,6 @@ public class EntityStore : IStore
             }
 
             //var refs = ent.References.ToList();
-
-            db.Dispose();
 
             return new AsyncReply<IResource>(res);
         }
@@ -223,7 +232,7 @@ public class EntityStore : IStore
 
     internal DbContextOptions Options { get; set; }
 
-    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext? context = null)
+    public AsyncReply<bool> Handle(ResourceOperation operation, IResourceContext context = null)
     {
         if (operation == ResourceOperation.Initialize)// SystemInitialized && DbContext != null)
         {
@@ -247,7 +256,7 @@ public class EntityStore : IStore
         TypesByName.Clear();
         TypesByType.Clear();
 
-        var context = Getter();
+        using var context = Getter();
 
         var types = context.Model.GetEntityTypes();
         foreach (var t in types)

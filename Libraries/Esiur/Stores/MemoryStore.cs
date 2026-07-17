@@ -119,12 +119,25 @@ public class MemoryStore : IStore
 
     public AsyncBag<T> Children<T>(IResource resource, string name) where T : IResource
     {
+        var parentLink = ReferenceEquals(resource, this)
+            ? string.Empty
+            : (Link(resource) ?? string.Empty).Trim('/');
+        var prefix = parentLink.Length == 0 ? string.Empty : parentLink + "/";
 
-        var rt = new AsyncBag<T>();
+        var children = resources
+            .Where(entry => entry.Value is T)
+            .Select(entry => new { Resource = (T)entry.Value, Link = Link(entry.Value)?.Trim('/') })
+            .Where(entry => entry.Link is not null && entry.Link.StartsWith(prefix, StringComparison.Ordinal))
+            .Where(entry =>
+            {
+                var relative = entry.Link!.Substring(prefix.Length);
+                return relative.Length > 0 && !relative.Contains('/');
+            })
+            .Where(entry => name is null || entry.Resource.Instance.Name == name)
+            .Select(entry => entry.Resource)
+            .ToArray();
 
-        var location = Link(resource) + "/";
-
-        return new AsyncBag<T>(resources.Where(r => r.Value is T && Link(r.Value).StartsWith(location)).Select(r => (T)r.Value).ToArray());
+        return new AsyncBag<T>(children);
  
         //var children = (resource.Instance.Variables["children"] as AutoList<IResource, Instance>);
 

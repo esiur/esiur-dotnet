@@ -1,174 +1,421 @@
-# Esiur
+# Esiur for .NET
 
-Esiur is a distributed object and resource library that facilitates real-time property modification, asynchronous function invocation, and event handling across different languages, primarily in C#, JavaScript, and Dart. It’s designed for flexible, scalable, and efficient communication between client and server, suitable for applications that need rapid, bidirectional data updates and complex data handling.
+[![CI](https://github.com/esiur/esiur-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/esiur/esiur-dotnet/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/Esiur.svg)](https://www.nuget.org/packages/Esiur)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Key Features
-### Real-Time Property Modification:
+Esiur is a distributed resource framework for building real-time services without
+maintaining a separate RPC contract. A resource can expose properties, methods,
+events, records, and related resources over the self-describing EP protocol.
 
-Allows resources to update properties in real-time across distributed environments, ensuring that changes on one side are immediately reflected on the other.
+Version 3 focuses on a smaller public API, first-class ASP.NET Core hosting,
+extensible authentication, authenticated encryption, bounded resource usage, and
+predictable lifecycle behavior. The protocol remains designed for multiple
+language implementations: wire concepts and protocol names stay consistent,
+while each implementation can present idiomatic awaitables such as .NET
+`AsyncReply<T>`, Dart `Future`, or JavaScript `Promise`.
 
-### Asynchronous Function Invocation:
+## Highlights
 
-Supports async instance and static functions that are triggered across distributed nodes, allowing non-blocking operations and efficient resource management.
+- Live distributed properties, method calls, and events.
+- Self-describing resource, record, enum, and type metadata.
+- C# source generation with `[Resource]` and `[Export]`.
+- Native TCP and ASP.NET Core WebSocket transports.
+- Isolated `Warehouse` runtimes with memory, Entity Framework Core, and MongoDB stores.
+- Multi-step authentication providers with initializer, responder, and dual identities.
+- Password challenge-response and PPAP ML-KEM-768 authentication.
+- AES-256-GCM encrypted records and protected post-authentication key rotation.
+- Permissions, rate-control, auditing, parser limits, connection limits, and attachment limits.
+- Graceful startup and shutdown that settle resource lifecycle operations.
 
+## Packages
 
-### Event Handling:
+All first-party v3 packages share major version `3` to make compatibility clear.
 
-Built-in event system enables objects to raise events and propagate them across the network, making it easy to subscribe to or respond to specific events as they happen.
+| Package | Purpose | Target framework |
+| --- | --- | --- |
+| [`Esiur`](https://www.nuget.org/packages/Esiur) | Core runtime, EP protocol, stores, security, and source generator | .NET Standard 2.0 |
+| [`Esiur.AspNetCore`](https://www.nuget.org/packages/Esiur.AspNetCore) | ASP.NET Core hosting, dependency injection, endpoint routing, and WebSockets | .NET 8 / .NET 10 |
+| [`Esiur.Stores.EntityCore`](https://www.nuget.org/packages/Esiur.Stores.EntityCore) | Entity Framework Core 10 resource store | .NET 10 |
+| [`Esiur.Stores.MongoDB`](https://www.nuget.org/packages/Esiur.Stores.MongoDB) | MongoDB resource store | .NET 10 |
+| [`Esiur.CLI`](https://www.nuget.org/packages/Esiur.CLI) | Generate typed C# models from a remote EP resource | .NET 10 tool |
 
+The core runtime can be consumed by any compatible .NET Standard 2.0
+application. Projects using the bundled source generator need a Roslyn 4.8 or
+newer toolchain, such as .NET SDK 8 or newer. Building this repository requires
+.NET SDK 10.
 
-### Wide Range of Data Types:
+## Install
 
-Esiur supports extensive data types for transmission and representation, including primitive types, lists, maps, enums, tuples and nullable types.
+For an ASP.NET Core service:
 
-The library allows complex data structures to be transferred seamlessly, ensuring consistency and compatibility across different systems.
+```shell
+dotnet add package Esiur.AspNetCore --version 3.0.0
+```
 
-### Inheritance and Generic Types:
+For the standalone runtime or a client:
 
-Enables inheritance, so you can define base types and extend them, enhancing code reuse and flexibility.
+```shell
+dotnet add package Esiur --version 3.0.0
+```
 
-Supports generics, allowing for strong type definitions and collections, ensuring data integrity and reducing errors.
+## Define a resource
 
-### Self-Describing API:
+Mark the class `partial` so Esiur's source generator can implement the resource
+lifecycle and generate exported properties from fields.
 
-Esiur provides a self-describing API that allows the client to introspect services and resources, discovering properties, methods, and events at runtime. This feature enables dynamic and versatile usage patterns, as the client can adjust based on available functionalities without precompiled knowledge of them.
+```csharp
+using Esiur.Resource;
 
-### Multi-Language Support
-Esiur has implementations in C#, JavaScript, and Dart, making it highly versatile for different platforms, including desktop, web, and mobile environments. This cross-platform compatibility enables developers to use it in various client-server and P2P distributed systems where real-time data handling is essential.
+[Resource]
+public partial class CounterResource
+{
+    [Export]
+    int count;
 
-## Example Use Cases
-* IoT Networks: Seamlessly update and control device properties across a network, with real-time monitoring and updates.
-* Game Development: Enable multiplayer synchronization of game states and events, ensuring real-time feedback for interactive experiences.
-* Financial Services: Support real-time, distributed data sharing for trading platforms or monitoring systems where latency is critical.
+    [Export]
+    public event ResourceEventHandler<int>? Changed;
 
-Esiur’s robust, feature-rich approach allows developers to focus on building applications without worrying about the complexities of distributed systems, while its self-describing API and broad data type support enable flexible and scalable application design.
+    [Export]
+    public string Hello(string name) => $"Hello, {name}!";
 
-## Installation
-- Nuget
-```Install-Package Esiur```
-- Command-line
-``` dotnet add package Esiur ```
+    [Export]
+    public int Increment()
+    {
+        Count++;
+        Changed?.Invoke(Count);
+        return Count;
+    }
+}
+```
 
-## Getting Started
-Esiur for C# uses source generator feature of .Net framework to implement the necessary calls for property modification, which means a class must be marked as "partial" so the library automatically creates setters and getters for every property exported to the public.
+The private `count` field becomes the exported `Count` property. Assigning it
+after the resource is attached publishes the modification to subscribed peers.
+Methods and events explicitly marked with `[Export]` become part of the remote
+definition.
 
->***MyResource.cs***
->```C#
->[Resource]
->public partial class HelloResource {
->    // Esiur will generate a property with name `Counts` 
->    [Export] int counts; 
->    [Export] public string SayHi(string msg) {
->        Counts++;
->        GreetingReceived?.Invoke(msg);
->        return $"Welcome, current time {DateTime.Now}";
->    }
->    [Export] public ResourceEventHandler<string> GreetingReceived;
->}
->```
+## ASP.NET Core quick start
 
-### Setting up the server
-Esiur resources are arranged into stores (`IStore`) and accessed using paths similar to a Unix file system. Each store is responsible for keeping its resources in memory, files, or a database.
+`Esiur.AspNetCore` is the recommended way to host Esiur in a web application.
+The host owns startup and shutdown, while Esiur owns session authentication,
+encryption, resource authorization, and the resource graph.
 
-This example creates a Warehouse and uses the built-in `MemoryStore`, which keeps its resources in RAM.
+```csharp
+using Esiur.AspNetCore;
 
-```C#
+var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls("http://localhost:8080");
+
+builder.Services.AddEsiur(esiur =>
+{
+    esiur
+        .AddMemoryStore("sys")
+        .AddResource<CounterResource>("sys/counter")
+        .AllowAnonymous()             // Development only.
+        .IncludeExceptionMessages();  // Development only.
+});
+
+var app = builder.Build();
+
+var webSockets = new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(30),
+};
+webSockets.AllowedOrigins.Add("http://localhost:8080");
+
+app.UseWebSockets(webSockets);
+app.MapEsiur("/esiur");
+
+await app.RunAsync();
+```
+
+`AddEsiur` registers one host-managed `Warehouse` and `EpServer`. Resources are
+constructed through dependency injection, configuration is validated at host
+startup, and active WebSockets are drained or aborted before resources are
+terminated during shutdown.
+
+The endpoint returned by `MapEsiur` supports normal ASP.NET Core conventions:
+
+```csharp
+app.MapEsiur("/esiur")
+    .RequireAuthorization("EsiurUpgrade")
+    .RequireRateLimiting("EsiurHandshakes");
+```
+
+ASP.NET Core authorization protects the HTTP upgrade only. It does not replace
+Esiur authentication or per-resource authorization.
+
+## Connect a .NET client
+
+Use the logical `ep://` resource URL and select the WebSocket transport with an
+`EpConnectionContext`:
+
+```csharp
+using Esiur.Protocol;
+using Esiur.Resource;
+
+var client = new Warehouse();
+
+dynamic counter = await client.Get<IResource>(
+    "ep://localhost/sys/counter",
+    new EpConnectionContext
+    {
+        WebSocketUri = new Uri("ws://localhost:8080/esiur"),
+    });
+
+Console.WriteLine(await counter.Hello("Ada"));
+Console.WriteLine(await counter.Increment());
+
+await client.Close();
+```
+
+The `ep://` URL identifies the logical connection and resource path;
+`WebSocketUri` identifies the transport endpoint. Esiur automatically requests
+the case-sensitive `EP` WebSocket subprotocol.
+
+For native TCP, omit `WebSocketUri` and include the EP port in the logical URL:
+
+```csharp
+dynamic counter = await client.Get<IResource>(
+    "ep://localhost:10518/sys/counter");
+```
+
+## Standalone hosting
+
+Applications that do not use ASP.NET Core can compose the runtime directly.
+`Warehouse` is the root container for stores, resources, protocol handlers,
+security providers, policies, and lifecycle state.
+
+```csharp
+using Esiur.Protocol;
+using Esiur.Resource;
+using Esiur.Stores;
+
 var warehouse = new Warehouse();
+
 await warehouse.Put("sys", new MemoryStore());
-```
-
-Now we can add our resource to the memory store using `warehouse.Put`.
-
-```C#
-await warehouse.Put("sys/hello", new HelloResource());
-```
-
-Add an `EpServer` to expose the resource through the Esiur EP protocol. Anonymous access is enabled here only to make the development example easy to run; production applications should configure an authentication provider.
-
-
-```C#
+await warehouse.Put("sys/counter", new CounterResource());
 await warehouse.Put("sys/server", new EpServer
 {
+    Port = 10518,
     AllowUnauthorizedAccess = true, // Development only.
+});
+
+await warehouse.Open();
+
+try
+{
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
+finally
+{
+    await warehouse.Close();
+}
+```
+
+Use a separate `Warehouse` for each isolated server or client runtime. Avoid
+relying on the static default Warehouse in applications that host more than one
+Esiur environment.
+
+## Authentication and encryption
+
+Anonymous access is opt-in. Production services should omit `AllowAnonymous`,
+register an authentication provider, register an encryption provider, and
+require encryption.
+
+The ASP.NET Core password shortcut accepts precomputed Esiur credentials from
+an application-owned cache or account store:
+
+```csharp
+using Esiur.AspNetCore;
+using Esiur.Security.Authority.Providers;
+using Esiur.Security.Cryptography;
+
+var credentials =
+    new Dictionary<(string Domain, string Identity), PasswordHash>();
+
+builder.Services.AddEsiur(esiur =>
+{
+    esiur
+        .AddMemoryStore("sys")
+        .AddResource<CounterResource>("sys/counter")
+        .UsePasswordAuthentication((identity, domain) =>
+            credentials.TryGetValue((domain, identity), out var credential)
+                ? credential
+                : null)
+        .UseEncryption(new AesEncryptionProvider())
+        .RequireEncryption()
+        .AllowWebSocketOrigins("https://app.example.com");
 });
 ```
 
-Finally, open the Warehouse to initialize the system.
+Create a `PasswordHash` once during enrollment with
+`PasswordAuthenticationProvider.CreateCredential(passwordBytes)`. Clear the
+plaintext bytes after use and protect the stored verifier like a password: it
+is sufficient to authenticate through the `password-sha3-v1` protocol if
+stolen.
 
-```C#
+Esiur v3 currently includes these canonical protocol names:
+
+| Protocol | Role |
+| --- | --- |
+| `password-sha3-v1` | Simple password challenge-response for initializer, responder, or dual identity authentication |
+| `ppap-mlkem768-v1` | ML-KEM-768 authentication with password-derived or static identities |
+| `aes-gcm` | AES-256-GCM record protection derived from the authenticated session key |
+
+The authentication provider abstraction supports multi-message handshakes.
+PPAP uses that pipeline for initializer, responder, or dual identity
+authentication and supports password-derived Argon2id identities as well as
+static ML-KEM identities. Password registrations use a versioned nonce and
+encapsulation key. Successful rotation is performed only through a dedicated
+exchange after encryption is active, preventing the registration nonce from
+becoming a permanent network identifier. Persistent PPAP registration stores
+must implement atomic compare-and-rotate behavior.
+
+Applications with custom protocols can implement `IAuthenticationProvider` and
+register the provider through `UseAuthentication`. Protocol names are exact and
+case-sensitive; v3 does not negotiate legacy aliases.
+
+## Entity Framework Core 10
+
+`Esiur.Stores.EntityCore` integrates Esiur resource materialization and paths
+with EF Core 10.
+
+```shell
+dotnet add package Esiur.Stores.EntityCore --version 3.0.0
+dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.10
+```
+
+Configure the database provider first, then attach the `EntityStore` with the
+typed `UseEsiur` extension:
+
+```csharp
+using Esiur.Resource;
+using Esiur.Stores.EntityCore;
+using Microsoft.EntityFrameworkCore;
+
+var warehouse = new Warehouse();
+var store = await warehouse.Put("database", new EntityStore());
+
+DbContextOptions<AppDbContext>? options = null;
+options = new DbContextOptionsBuilder<AppDbContext>()
+    .UseSqlite("Data Source=app.db")
+    .UseEsiur(store, () => new AppDbContext(options!))
+    .Options;
+
 await warehouse.Open();
+
+await using var db = new AppDbContext(options);
+await db.Database.EnsureCreatedAsync();
+var device = await db.Devices.AddResourceAsync(new Device { Name = "sensor-1" });
 ```
 
-To sum up
+```csharp
+using System.ComponentModel.DataAnnotations;
+using Esiur.Resource;
+using Microsoft.EntityFrameworkCore;
 
->***Program.cs***
->```C#
->using Esiur.Protocol;
->using Esiur.Resource;
->using Esiur.Stores;
->
->var warehouse = new Warehouse();
->await warehouse.Put("sys", new MemoryStore());
->await warehouse.Put("sys/hello", new HelloResource());
->await warehouse.Put("sys/server", new EpServer
->{
->    AllowUnauthorizedAccess = true, // Development only.
->});
->await warehouse.Open();
->```
+[Resource]
+public partial class Device
+{
+    [Key, Export]
+    int id;
 
+    [Export]
+    string name = string.Empty;
+}
 
-### Setting up the client
-To access our resource remotely, we need to use it's full path including the protocol, host and instance link.
-
-```C#
-var warehouse = new Warehouse();
-dynamic res = await warehouse.Get<IResource>("ep://localhost/sys/hello");
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
+    : DbContext(options)
+{
+    public DbSet<Device> Devices => Set<Device>();
+}
 ```
 
-Now we can invoke the exported functions and read/write properties;
+The repository test suite runs a complete SQLite schema, insert,
+materialization, and Warehouse lookup cycle. PostgreSQL through Npgsql and
+MySQL through Oracle's EF provider are also checked for model creation and SQL
+translation without requiring external database servers.
 
-```C#
-    var reply = await res.SayHi("Hi, I'm calling you from dotnet");
-    Console.WriteLine(reply);
-    Console.WriteLine($"Number of people said hi {res.Counts}");
+## Generate typed client models
+
+EP is self-describing, so clients can work dynamically or generate strongly
+typed models. Install the v3 CLI as a .NET tool:
+
+```shell
+dotnet tool install --global Esiur.CLI --version 3.0.0
+esiur get-template ep://localhost:10518/sys/counter --dir Generated
 ```
 
-Summing up
+Use `--async-setters` to generate asynchronous property setters. The CLI also
+accepts `--username` and `--password`, but command-line secrets may be visible
+to other processes or shell history; prefer a safer credential workflow when
+the environment is shared.
 
->***Program.cs***
->```C#
->using Esiur.Resource;
->
->var warehouse = new Warehouse();
->dynamic res = await warehouse.Get<IResource>("ep://localhost/sys/hello");
->
->var reply = await res.SayHi("Hi, I'm calling you from dotnet");
->
->Console.WriteLine(reply);
->Console.WriteLine($"Number of people said hi {res.Counts}");
->
->```
+## Runtime limits and security defaults
 
-## Getting Types
+`WarehouseConfiguration` bounds work performed on untrusted input. The default
+configuration includes limits for:
 
-In the above client example, we relied on Esiur support for dynamic objects, but this way the developer would need to know the functions, properties and events available given to them as API docs or inspect it in debugging mode. 
+- Packet size, decoded allocation size, collection items, and type-metadata depth.
+- Attached and pending resources per connection.
+- Concurrent connections and connection attempts globally and per IP address.
+- Encrypted record size.
+- Repeated rate-control denials.
 
-Esiur has a self describing feature which comes with every language it supports, allowing the developer to fetch and generate classes that match the ones on the other side (i.e. server).
+ASP.NET Core hosting also provides per-connection and host-wide pending
+WebSocket send limits. Configure these for the expected workload rather than
+disabling them:
 
-After installing the Esiur NuGet package, a new command named ***Get-Types*** is added to the Visual Studio Package Manager Console. It generates client-side classes for robust static typing.
-
-```ps 
-Get-Types ep://localhost/sys/hello
+```csharp
+builder.Services.AddEsiur(esiur => esiur
+    .AddMemoryStore("sys")
+    .AddResource<CounterResource>("sys/counter")
+    .LimitPendingWebSocketSendBytes(2 * 1024 * 1024)
+    .LimitTotalPendingWebSocketSendBytes(256L * 1024 * 1024)
+    .ConfigureWarehouse(configuration =>
+    {
+        configuration.Connections.MaximumConnections = 500;
+        configuration.Connections.MaximumConnectionsPerIpAddress = 20;
+        configuration.Connections.MaximumConnectionAttempts = 2_000;
+    }));
 ```
 
-This will generate and add wrappers for all types needed by our resource.
+When deploying behind a reverse proxy, trust only known proxy addresses and
+apply forwarded headers before `UseWebSockets` and `MapEsiur`. Browser origin
+checks, ASP.NET Core endpoint authorization, Esiur session authentication, and
+resource permissions are separate layers and should be configured together.
 
-Allowing us to use
-```C#
-var warehouse = new Warehouse();
-var res = await warehouse.Get<MyResource>("ep://localhost/sys/hello");
-var reply = await res.SayHi("Static typing is better");
-Console.WriteLine(reply);
+## Build and test
+
+The repository is pinned to .NET SDK 10:
+
+```shell
+dotnet restore Esiur.sln
+dotnet build Esiur.sln --configuration Release
+dotnet test Esiur.sln --configuration Release
+dotnet list Esiur.sln package --vulnerable --include-transitive
 ```
 
+The main automated suite covers packet parsing, serialization, authentication,
+PPAP registration rotation, encrypted records, resource attachment limits,
+connection admission, WebSockets, ASP.NET Core hosting, Warehouse lifecycle,
+and EF Core provider integration.
+
+## Version 3 compatibility
+
+Version 3 is an intentional compatibility boundary:
+
+- All distributed first-party packages use major version `3`.
+- ASP.NET Core applications use `AddEsiur` and `MapEsiur` instead of the legacy integration.
+- Authentication and encryption providers negotiate canonical protocol names without aliases.
+- EntityCore targets .NET 10 and EF Core 10.
+- Legacy packet and hosting APIs removed during the v3 cleanup are not retained as compatibility shims.
+
+Within the v3 family, minor and patch package versions may advance
+independently. Consumers should keep the same major version across Esiur
+packages.
+
+## License
+
+Esiur is available under the [MIT License](LICENSE).

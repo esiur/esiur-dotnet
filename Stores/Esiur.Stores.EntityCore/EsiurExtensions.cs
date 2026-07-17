@@ -129,7 +129,7 @@ public static class EsiurExtensions
         var entity = dbSet.Add((T)res);
         await entity.Context.SaveChangesAsync();
 
-        var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(resource);
+        var id = store.TypesByType[typeof(T)].PrimaryKey.GetValue(res);
 
         var resourceContext = manager == null
             ? null
@@ -178,10 +178,23 @@ public static class EsiurExtensions
             extension = new EsiurExtensionOptions(store);
         }
 
+        if (getter != null)
+            extension.Store.Getter = getter;
+
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
         return optionsBuilder;
 
+    }
+
+    public static DbContextOptionsBuilder<TContext> UseEsiur<TContext>(
+        this DbContextOptionsBuilder<TContext> optionsBuilder,
+        EntityStore store,
+        Func<DbContext> getter = null)
+        where TContext : DbContext
+    {
+        UseEsiur((DbContextOptionsBuilder)optionsBuilder, store, getter);
+        return optionsBuilder;
     }
 
     //public static DbContextOptionsBuilder<TContext> UseEsiur<TContext>(
