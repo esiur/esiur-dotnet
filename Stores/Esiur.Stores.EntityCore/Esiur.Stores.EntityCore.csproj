@@ -10,6 +10,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Esiur.Stores.EntityCore</PackageId>
     <Version>3.0.0</Version>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<LangVersion>latest</LangVersion>
 	<PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
@@ -20,6 +21,7 @@
 
   <ItemGroup>
     <None Include="EntityResource.cs" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

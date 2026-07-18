@@ -27,6 +27,17 @@ jobs:
       - name: Build and run unit tests
         run: dotnet test Tests/Unit/Esiur.Tests.Unit.csproj --configuration Release --no-restore --verbosity minimal
 
+      - name: Build and run CLI tests
+        run: dotnet test Tests/Esiur.CLI.Tests/Esiur.CLI.Tests.csproj --configuration Release --no-restore --verbosity minimal
+
+      - name: Pack and install CLI tool
+        shell: pwsh
+        run: |
+          dotnet pack Tools/Esiur.CLI/Esiur.CLI.csproj --configuration Release --no-build --no-restore --output artifacts/nuget
+          dotnet tool install Esiur.CLI --version 3.0.0 --tool-path artifacts/tool --add-source artifacts/nuget
+          & ./artifacts/tool/esiur.exe version
+          & ./artifacts/tool/esiur.exe --help
+
       - name: Build standalone web example
         run: dotnet build Examples/StandaloneWebServer/Esiur.Examples.StandaloneWebServer.csproj --configuration Release --no-restore --verbosity minimal
 

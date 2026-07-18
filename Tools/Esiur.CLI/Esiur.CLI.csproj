@@ -3,13 +3,12 @@
   <PropertyGroup>
 	<Description>Esiur command-line tool</Description>
 	<Copyright>Ahmed Kh. Zamil</Copyright>
-	<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
-	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	<Version>3.0.0</Version>
+	<PackageId>Esiur.CLI</PackageId>
 	<Authors>Ahmed Kh. Zamil</Authors>
 	<Company>Esiur Foundation</Company>
 
-	<PackageProjectUrl>http://www.esiur.com</PackageProjectUrl>
+	<PackageProjectUrl>https://www.esiur.com/</PackageProjectUrl>
 	<RepositoryUrl>https://github.com/esiur/esiur-dotnet/</RepositoryUrl>
 
 	<PackageReadmeFile>README.md</PackageReadmeFile>
@@ -19,10 +18,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-	<AssemblyName>Esiur.Cli</AssemblyName>
+	<AssemblyName>Esiur.CLI</AssemblyName>
 	<RootNamespace>Esiur.CLI</RootNamespace>
-	<PublishSingleFile>true</PublishSingleFile>
-	<SelfContained>true</SelfContained>
+	<PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
+	<SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
 	<PublishTrimmed>false</PublishTrimmed>
 	<PublishAot>false</PublishAot>
 

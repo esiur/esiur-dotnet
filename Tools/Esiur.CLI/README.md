@@ -9,10 +9,10 @@ The project targets .NET 10:
 ```console
 dotnet build Tools/Esiur.CLI/Esiur.CLI.csproj
 dotnet pack Tools/Esiur.CLI/Esiur.CLI.csproj -c Release
-dotnet tool install --global --add-source Tools/Esiur.CLI/nupkg Esiur.Cli
+dotnet tool install --global --add-source Tools/Esiur.CLI/nupkg Esiur.CLI
 ```
 
-The project is configured for self-contained, single-file, non-trimmed publishing. Platform release archives and installers are planned for the packaging phase.
+Runtime-specific publishes are configured as self-contained, single-file, and non-trimmed. The NuGet tool remains framework-dependent and requires .NET 10.
 
 ## Login and profiles
 
