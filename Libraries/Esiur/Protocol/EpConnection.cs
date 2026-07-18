@@ -3549,29 +3549,22 @@ public partial class EpConnection : NetworkConnection, IStore
                 foreach (var r in toBeRestored)
                 {
 
-                    var link = DC.ToBytes(r.ResourceLink);
-
                     Global.Log("EpConnection", LogType.Debug, "Restoreing " + r.ResourceLink);
 
                     try
                     {
-                        var id = (uint)await SendRequest(EpPacketRequest.GetResourceIdByLink, link);
-
-
-                        // remove from suspended.
+                        // remove from suspended — Reattach(link, ...) below re-resolves
+                        // and re-registers it under whatever id the server currently
+                        // has (not necessarily the one we last knew — see Reattach's
+                        // doc comment: the remote node's instance id is not permanent,
+                        // only the link is), in a single round trip.
                         _suspendedResources.Remove(r.ResourceInstanceId);
-
-                        // id changed ?
-                        if (id != r.ResourceInstanceId)
-                            r.ResourceInstanceId = id;
-
-                        _neededResources[id] = r;
 
                         // Reattach using the last-known age so only properties modified while
                         // disconnected are transferred and merged, instead of re-fetching all.
-                        await Reattach(id, r.Instance.Age, r);
+                        await Reattach(r.ResourceLink, r.Instance.Age, r);
 
-                        Global.Log("EpConnection", LogType.Debug, "Restored " + id);
+                        Global.Log("EpConnection", LogType.Debug, "Restored " + r.ResourceInstanceId);
 
                     }
                     catch (AsyncException ex)
@@ -3720,6 +3713,14 @@ public partial class EpConnection : NetworkConnection, IStore
                 _suspendedResources[r.ResourceInstanceId] = x;
             }
         }
+        // Every entry just moved to _suspendedResources — clear the old map too,
+        // otherwise Reattach()'s "already attached" fast path
+        // (`_attachedResources[id]?.TryGetTarget(...)`) finds the still-live
+        // weak reference to the now-suspended resource and returns it
+        // immediately, short-circuiting before _Reattach() ever runs — so a
+        // reconnect never actually resets Status back to Attached/Published
+        // or resubscribes events.
+        _attachedResources.Clear();
 
         if (Server != null)
         {

@@ -80,6 +80,18 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
 
     EpResourceEvent[] _events;
 
+    // `On`/`Off` listener bags, keyed by property/event index — separate from
+    // the single-slot `_events[]` dynamic-member mechanism (`resource.Foo +=
+    // handler`) above, which only ever holds one delegate per event.
+    readonly Dictionary<byte, List<Action<object>>> _propertyListeners = new();
+    readonly Dictionary<byte, List<Action<object>>> _eventListeners = new();
+    // Events we believe the server currently has us subscribed to — checked
+    // before sending a Subscribe/Unsubscribe request, since the server errors
+    // (AlreadyListened/AlreadyUnsubscribed) on a redundant one.
+    readonly HashSet<byte> _subscribedEvents = new();
+    // Event indices with a subscription-reconciliation loop currently running.
+    readonly HashSet<byte> _reconciling = new();
+
 
 
     /// <summary>
@@ -260,6 +272,12 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         }
 
         _status = Resource.ResourceStatus.Attached;
+        // A reattach can follow an unexpected disconnect + automatic
+        // reconnect: the server-side subscription state keyed to the old,
+        // now-dead connection is gone, but our local listeners (On()/+=)
+        // are untouched, so without this we'd wrongly believe we're still
+        // subscribed and never resend the wire Subscribe request.
+        ReconcileAllSubscriptions();
         return true;
     }
 
@@ -269,6 +287,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         var et = Instance.Definition.GetEventDefByIndex(index);
         _events[index]?.Invoke(this, args);
         Instance.EmitResourceEvent(et, args);
+        DispatchListeners(_eventListeners, index, args);
     }
 
     public AsyncReply _Invoke(byte index, object args)
@@ -369,6 +388,164 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         var et = Instance.Definition.GetEventDefByName(eventName);
 
         return Unsubscribe(et);
+    }
+
+    /// <summary>
+    /// Listen for a property change (<c>On(":propName", cb)</c>) or an
+    /// exported event (<c>On("eventName", cb)</c>). For events where the
+    /// TypeDef marks <see cref="EventDef.Subscribable"/> (i.e. not
+    /// <c>[AutoDelivery]</c>), the first listener triggers a Subscribe
+    /// request and the last <see cref="Off"/> triggers Unsubscribe —
+    /// ref-counted by listener count, so redundant wire requests aren't sent
+    /// for a second/third listener on the same already-subscribed event.
+    /// </summary>
+    public EpResource On(string name, Action<object> callback)
+    {
+        if (name.StartsWith(":"))
+        {
+            var propertyName = name.Substring(1);
+            var pt = Instance.Definition.GetPropertyDefByName(propertyName)
+                ?? throw new Exception($"Unknown property \"{propertyName}\".");
+            AddListener(_propertyListeners, pt.Index, callback);
+            return this;
+        }
+
+        var et = Instance.Definition.GetEventDefByName(name)
+            ?? throw new Exception($"Unknown event \"{name}\".");
+        AddListener(_eventListeners, et.Index, callback);
+        if (et.Subscribable) ReconcileSubscription(et);
+        return this;
+    }
+
+    /// <summary>Remove a listener registered with <see cref="On"/>.</summary>
+    public EpResource Off(string name, Action<object> callback)
+    {
+        if (name.StartsWith(":"))
+        {
+            var pt = Instance.Definition.GetPropertyDefByName(name.Substring(1));
+            if (pt != null) RemoveListener(_propertyListeners, pt.Index, callback);
+            return this;
+        }
+
+        var et = Instance.Definition.GetEventDefByName(name);
+        if (et == null) return this;
+        RemoveListener(_eventListeners, et.Index, callback);
+        if (et.Subscribable) ReconcileSubscription(et);
+        return this;
+    }
+
+    static void AddListener(Dictionary<byte, List<Action<object>>> map, byte index, Action<object> callback)
+    {
+        lock (map)
+        {
+            if (!map.TryGetValue(index, out var list))
+            {
+                list = new List<Action<object>>();
+                map[index] = list;
+            }
+            list.Add(callback);
+        }
+    }
+
+    static void RemoveListener(Dictionary<byte, List<Action<object>>> map, byte index, Action<object> callback)
+    {
+        lock (map)
+            if (map.TryGetValue(index, out var list))
+                list.Remove(callback);
+    }
+
+    static int ListenerCount(Dictionary<byte, List<Action<object>>> map, byte index)
+    {
+        lock (map)
+            return map.TryGetValue(index, out var list) ? list.Count : 0;
+    }
+
+    static void DispatchListeners(Dictionary<byte, List<Action<object>>> map, byte index, object value)
+    {
+        Action<object>[] callbacks;
+        lock (map)
+        {
+            if (!map.TryGetValue(index, out var list) || list.Count == 0) return;
+            callbacks = list.ToArray();
+        }
+        foreach (var callback in callbacks)
+            callback(value);
+    }
+
+    /// <summary>
+    /// Called from <see cref="_Reattach"/>: reset our belief about server-side
+    /// subscription state (a fresh connection starts with none) and re-run
+    /// reconciliation for every subscribable event that still has active
+    /// listeners, so subscriptions survive an unexpected disconnect +
+    /// automatic reconnect transparently.
+    /// </summary>
+    void ReconcileAllSubscriptions()
+    {
+        lock (_subscribedEvents) _subscribedEvents.Clear();
+        lock (_reconciling) _reconciling.Clear();
+
+        foreach (var et in Instance.Definition.Events)
+        {
+            if (!et.Subscribable) continue;
+            var hasListeners = ListenerCount(_eventListeners, et.Index) > 0 || _events[et.Index] != null;
+            if (hasListeners) ReconcileSubscription(et);
+        }
+    }
+
+    /// <summary>
+    /// Settle the wire subscription state for <paramref name="et"/> toward
+    /// whatever the current listener count implies, rechecking the *current*
+    /// desired state on each step — so a burst of On()/Off() calls while a
+    /// request is in flight is coalesced into whatever the state actually is
+    /// once the in-flight request settles, rather than replaying every
+    /// transition.
+    /// </summary>
+    void ReconcileSubscription(EventDef et)
+    {
+        lock (_reconciling)
+        {
+            if (!_reconciling.Add(et.Index)) return;
+        }
+        StepSubscription(et);
+    }
+
+    void StepSubscription(EventDef et)
+    {
+        bool desired;
+        bool actual;
+        lock (_subscribedEvents)
+        {
+            // Either subscription mechanism wanting delivery is enough:
+            // `On()`/`Off()`'s ref-counted list, or a native `+=`/`-=`
+            // multicast delegate assigned via TrySetMember.
+            desired = ListenerCount(_eventListeners, et.Index) > 0 || _events[et.Index] != null;
+            actual = _subscribedEvents.Contains(et.Index);
+        }
+
+        if (desired == actual)
+        {
+            lock (_reconciling) _reconciling.Remove(et.Index);
+            return;
+        }
+
+        var request = desired ? Subscribe(et) : Unsubscribe(et);
+        request.Then((_) =>
+        {
+            lock (_subscribedEvents)
+            {
+                if (desired) _subscribedEvents.Add(et.Index);
+                else _subscribedEvents.Remove(et.Index);
+            }
+            // Re-check: the desired state may have changed while this request
+            // was in flight (another On()/Off() call came in meanwhile).
+            StepSubscription(et);
+        }).Error((_) =>
+        {
+            // Leave `_subscribedEvents` as-is; the next On()/Off() call that
+            // changes the listener count re-triggers reconciliation, so a
+            // transient failure here just needs another transition to retry.
+            lock (_reconciling) _reconciling.Remove(et.Index);
+        });
     }
 
 
@@ -492,6 +669,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         var pt = Instance.Definition.GetPropertyDefByIndex(index);
         _properties[index] = value;
         Instance.EmitModification(pt, value);
+        DispatchListeners(_propertyListeners, index, value);
     }
 
     /// <summary>
@@ -538,7 +716,17 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             if (et == null)
                 return false;
 
+            // `r.Milestone += handler` desugars to a get (TryGetMember) + a
+            // DLR-computed `Delegate.Combine` + this set — so this slot is
+            // already a proper multicast delegate across multiple `+=`
+            // subscribers. What's new is noticing the null <-> non-null
+            // transition to (un)subscribe on the wire, matching `On`/`Off`.
+            var wasEmpty = _events[et.Index] == null;
             _events[et.Index] = (EpResourceEvent)value;
+            var isEmpty = _events[et.Index] == null;
+
+            if (wasEmpty != isEmpty && et.Subscribable)
+                ReconcileSubscription(et);
 
             return true;
         }

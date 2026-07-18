@@ -136,6 +136,16 @@ public static class TypeScriptStubGenerator
             sb.AppendLine($"  {function.Name}({args}): PromiseLike<{returnType}>;");
         }
 
+        // Events aren't interface members in TypeScript (no static member shape
+        // for `.on()`/`.off()` to type-check against yet) — documented as a
+        // comment instead so the event name/argument type are still discoverable.
+        foreach (var evt in typeDef.Events.OrderBy(e => e.Index))
+        {
+            var argType = TypeScriptTypeMapper.Map(evt.ArgumentType, names);
+            var wire = evt.Subscribable ? "subscribable" : "auto-delivered";
+            sb.AppendLine($"  // event {evt.Name}: on(\"{evt.Name}\", (value: {argType}) => void) — {wire}");
+        }
+
         sb.AppendLine("}");
         sb.AppendLine();
     }

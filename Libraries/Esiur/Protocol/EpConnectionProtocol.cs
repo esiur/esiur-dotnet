@@ -1053,71 +1053,85 @@ partial class EpConnection
 
     void EpRequestReattachResource(uint callback, PlainTdu tdu)
     {
-        // resourceId, index, value
+        // resourceLinkOrId (string link, or uint id — a link is resolved by
+        // query since a remote node's instance id is not permanent: the
+        // resource may have been cleared from memory and recreated under a
+        // different id while the peer was disconnected), age
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset,
                                                     tdu.PayloadLength, Instance.Warehouse, 2);
 
-        var resourceId = Convert.ToUInt32(args[0]);
-
         var age = Convert.ToUInt64(args[1]);
 
-        if (!TryBeginPeerAttachment(resourceId, out var exceptionCode, out var exceptionMessage))
+        void Resolved(IResource res)
         {
-            SendError(ErrorType.Management, callback, (ushort)exceptionCode, exceptionMessage);
-            return;
-        }
+            if (res == null)
+            {
+                Global.Log("EpConnection", LogType.Debug, "Not found (reattach) " + args[0]);
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                return;
+            }
 
-        Instance.Warehouse.GetById(resourceId).Then((res) =>
-        {
+            var resourceId = res.Instance.Id;
+
+            if (!TryBeginPeerAttachment(resourceId, out var exceptionCode, out var exceptionMessage))
+            {
+                SendError(ErrorType.Management, callback, (ushort)exceptionCode, exceptionMessage);
+                return;
+            }
+
             try
             {
-                if (res != null)
-                {
-                    if (!TryApplyManagers(
-                            null,
-                            res,
-                            ActionType.Attach,
-                            callback,
-                            ErrorType.Management,
-                            ExceptionCode.AttachDenied,
-                            out _))
-                        return;
+                if (!TryApplyManagers(
+                        null,
+                        res,
+                        ActionType.Attach,
+                        callback,
+                        ErrorType.Management,
+                        ExceptionCode.AttachDenied,
+                        out _))
+                    return;
 
-                    var r = res as IResource;
+                var r = res;
 
-                    // unsubscribe
-                    Unsubscribe(r);
+                // unsubscribe
+                Unsubscribe(r);
 
+                // reply ok — the resolved id comes first so the caller can
+                // detect and apply an id change (link-based reattach, or the
+                // remote node recreated the resource with a new id).
+                SendReply(EpPacketReply.Completed, callback,
+                    r.Instance.Id,
+                    r.Instance.Definition.Id,
+                    r.Instance.Age,
+                    r.Instance.Link,
+                    r.Instance.Hops,
+                    r.Instance.SerializeAfter(age));
 
-                    // reply ok
-                    SendReply(EpPacketReply.Completed, callback,
-                        r.Instance.Definition.Id,
-                        r.Instance.Age,
-                        r.Instance.Link,
-                        r.Instance.Hops,
-                        r.Instance.SerializeAfter(age));
-
-
-                    // subscribe
-                    Subscribe(r);
-                }
-                else
-                {
-                    // reply failed
-                    Global.Log("EpConnection", LogType.Debug, "Not found " + resourceId);
-                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
-                }
+                // subscribe
+                Subscribe(r);
             }
             finally
             {
                 EndPeerAttachment(resourceId);
             }
-        }).Error(ex =>
-        {
-            EndPeerAttachment(resourceId);
+        }
+
+        void Failed(Exception ex) =>
             SendError(ErrorType.Management, callback, (ushort)ExceptionCode.GeneralFailure, ex.Message);
-        });
+
+        if (args[0] is string link)
+        {
+            if (Server?.EntryPoint != null)
+                Server.EntryPoint.Query(link, this).Then(Resolved).Error(Failed);
+            else
+                Instance.Warehouse.Query(link).Then(Resolved).Error(Failed);
+        }
+        else
+        {
+            var resourceId = Convert.ToUInt32(args[0]);
+            Instance.Warehouse.GetById(resourceId).Then(Resolved).Error(Failed);
+        }
     }
 
     void EpRequestDetachResource(uint callback, PlainTdu tdu)
@@ -1496,7 +1510,11 @@ partial class EpConnection
                         out _))
                     return;
 
-                SendReply(EpPacketReply.Completed, callback, r);
+                // Only the id — this opcode resolves a link to an identity,
+                // it does not attach. (A resource reference in a reply would
+                // auto-attach on decode, which is not what a bare id lookup
+                // should do — see Get(string) for the real attach step.)
+                SendReply(EpPacketReply.Completed, callback, r.Instance.Id);
             }
         };
 
@@ -2742,36 +2760,24 @@ partial class EpConnection
     /// <returns>Resource</returns>
     public AsyncReply<IResource> Get(string path)
     {
-
         var rt = new AsyncReply<IResource>();
 
-        var req = SendRequest(EpPacketRequest.GetResourceIdByLink, path);
-
-
-        req.Then(result =>
+        // Two steps, deliberately: resolve the link to its (not permanent —
+        // the remote node may recreate the resource under a different id)
+        // current instance id, then attach by that id. GetResourceIdByLink
+        // returns a bare id, not a resource — it must not have the side
+        // effect of attaching anything on its own.
+        SendRequest(EpPacketRequest.GetResourceIdByLink, path).Then(result =>
+        {
+            var id = Convert.ToUInt32(result);
+            FetchResource(id, null).Then(resource =>
             {
-                // The resource is being handed to the application: remember it and publish its graph
-                // once all reachable dependencies have attached.
-                if (result is EpResource resource)
-                    TrackDeliveredRoot(resource);
-
-                rt.Trigger(result);
+                // The resource is being handed to the application: remember it and publish its
+                // graph once all reachable dependencies have attached.
+                TrackDeliveredRoot(resource);
+                rt.Trigger(resource);
             }).Error(ex => rt.TriggerError(ex));
-
-
-        //Query(path).Then(ar =>
-        //{
-
-        //    //if (filter != null)
-        //    //  ar = ar?.Where(filter).ToArray();
-
-        //    // MISSING: should dispatch the unused resources. 
-        //    if (ar?.Length > 0)
-        //        rt.Trigger(ar[0]);
-        //    else
-        //        rt.Trigger(null);
-        //}).Error(ex => rt.TriggerError(ex));
-
+        }).Error(ex => rt.TriggerError(ex));
 
         return rt;
     }
@@ -3265,62 +3271,123 @@ partial class EpConnection
     /// merged into the existing instance instead of re-fetching everything. Falls back to a full
     /// <see cref="FetchResource"/> if there is no prior state to merge into.
     /// </summary>
-    public AsyncReply<EpResource> Reattach(uint id, ulong age, EpResource resource)
+    /// <param name="resourceLinkOrId">
+    /// A <see cref="string"/> link or a <see cref="uint"/> id. Prefer the link: the remote node's
+    /// instance id is not permanent (the resource may have been cleared from memory and recreated
+    /// under a different id while disconnected), but the link is — passing it resolves the current
+    /// id and reattaches in a single round trip instead of a separate GetResourceIdByLink first.
+    /// </param>
+    public AsyncReply<EpResource> Reattach(object resourceLinkOrId, ulong age, EpResource resource)
     {
-        EpResource attachedResource = null;
-        _attachedResources[id]?.TryGetTarget(out attachedResource);
-        if (attachedResource != null)
-            return new AsyncReply<EpResource>(attachedResource);
+        // The already-attached / already-in-flight fast paths only apply when we
+        // already know a specific id — a link's current id isn't known until the
+        // server resolves it. (Concurrent duplicate reattach-by-link calls for the
+        // same resource aren't deduplicated the way FetchResource dedupes concurrent
+        // attach-by-id calls; the sole caller today — the reconnect loop — only ever
+        // calls this once per resource per reconnect, so this is a deliberate
+        // simplification, not an oversight.)
+        if (resourceLinkOrId is uint knownId)
+        {
+            EpResource attachedResource = null;
+            _attachedResources[knownId]?.TryGetTarget(out attachedResource);
+            if (attachedResource != null)
+                return new AsyncReply<EpResource>(attachedResource);
 
-        var existing = _resourceRequests[id];
-        if (existing != null)
-            return existing.Reply;
+            var existing = _resourceRequests[knownId];
+            if (existing != null)
+                return existing.Reply;
+        }
 
         var reply = new AsyncReply<EpResource>();
-        var sequence = new uint[] { id };
-        if (!TryReserveResourceAttachment(id, reply, sequence, out var alternative))
-            return alternative;
-
         ResourceAttachRequestCount++;
-        SendRequest(EpPacketRequest.ReattachResource, id, age).Then(result =>
+        SendRequest(EpPacketRequest.ReattachResource, resourceLinkOrId, age).Then(result =>
         {
             if (result == null)
             {
-                _resourceRequests.Remove(id);
                 reply.TriggerError(new AsyncException(ErrorType.Management,
                         (ushort)ExceptionCode.ResourceNotFound, "Null response"));
                 return;
             }
 
-            // typeId, age, link, hops, delta(index -> PropertyValue)
+            // resolvedId, typeId, age, link, hops, delta(index -> PropertyValue)
             var args = (object[])result;
-            var deltaData = (byte[])args[4];
+            var resolvedId = Convert.ToUInt32(args[0]);
+            var deltaData = (byte[])args[5];
+            var sequence = new uint[] { resolvedId };
+            var oldId = resource.ResourceInstanceId;
 
             DataDeserializer.PropertyValueMapParserAsync(deltaData, 0, (uint)deltaData.Length, this, sequence)
                 .Then(delta =>
                 {
+                    if (resolvedId != oldId)
+                    {
+                        // Re-key our own tracking to the id the server actually
+                        // resolved the link to — see the id-is-not-permanent note above.
+                        resource.ResourceInstanceId = resolvedId;
+
+                        // Only evict oldId's entries if they still point to THIS
+                        // resource. If the remote node reused oldId for a different
+                        // resource (freed, then reassigned) and something else
+                        // concurrently attached it while this reattach was in
+                        // flight, a blind Remove(oldId) would wrongly evict that
+                        // unrelated resource's own valid tracking.
+                        var oldAttachedRef = _attachedResources[oldId];
+                        if (oldAttachedRef != null
+                            && oldAttachedRef.TryGetTarget(out var oldAttached)
+                            && ReferenceEquals(oldAttached, resource))
+                            _attachedResources.Remove(oldId);
+
+                        if (ReferenceEquals(_neededResources[oldId], resource))
+                            _neededResources.Remove(oldId);
+
+                        // Safe unconditionally: this dictionary just marks "still
+                        // suspended, needs restoring", which is false either way now
+                        // that we're mid-reattach — no risk of evicting something
+                        // unrelated's meaningful state. (Already removed by the
+                        // reconnect loop's own pre-cleanup in the common case.)
+                        _suspendedResources.Remove(oldId);
+
+                        // Reattach() never reserves a _resourceRequests entry before
+                        // sending the request (see the fast-path comment above), so
+                        // there is nothing of ours to remove here — left out
+                        // entirely rather than risk canceling an unrelated in-flight
+                        // request that happens to share the reused oldId.
+                    }
+
                     if (!resource._Reattach(delta))
                     {
                         // No prior state to merge into — perform a full attach instead.
-                        _resourceRequests.Remove(id);
-                        FetchResource(id, null).Then(r => reply.Trigger(r)).Error(ex => reply.TriggerError(ex));
+                        _resourceRequests.Remove(resolvedId);
+                        FetchResource(resolvedId, null).Then(r => reply.Trigger(r)).Error(ex => reply.TriggerError(ex));
                         return;
                     }
 
-                    _resourceRequests.Remove(id);
-                    _neededResources.Remove(id);
-                    _attachedResources[id] = new WeakReference<EpResource>(resource);
-                    ClearResourceFetchNode(id);
+                    _resourceRequests.Remove(resolvedId);
+                    _neededResources.Remove(resolvedId);
+                    _attachedResources[resolvedId] = new WeakReference<EpResource>(resource);
+                    ClearResourceFetchNode(resolvedId);
+                    // TryPublishDeliveredRoots() alone isn't enough here: it only
+                    // re-checks resources tracked in _deliveredRoots, which a
+                    // resource that attached cleanly on its *first* attempt
+                    // (the common case) never enters — see TrackDeliveredRoot's
+                    // early return. Without this, a reattached resource stays
+                    // stuck at ResourceStatus.Attached forever after a
+                    // reconnect, since nothing else ever calls Publish() on it.
+                    PublishGraph(resource);
                     TryPublishDeliveredRoots();
                     reply.Trigger(resource);
                 })
-                .Error(ex => { _resourceRequests.Remove(id); ClearResourceFetchNode(id); reply.TriggerError(ex); });
-        }).Error(ex =>
-        {
-            _resourceRequests.Remove(id);
-            ClearResourceFetchNode(id);
-            reply.TriggerError(ex);
-        });
+                .Error(ex =>
+                {
+                    _resourceRequests.Remove(resolvedId);
+                    ClearResourceFetchNode(resolvedId);
+                    reply.TriggerError(ex);
+                });
+        }).Error(ex => reply.TriggerError(ex));
+        // No _resourceRequests/fetch-node cleanup needed here: unlike
+        // FetchResource's id-based path, this method never reserves an
+        // entry before the request is sent (see the fast-path comment
+        // above), so there is nothing to unwind if the request itself fails.
 
         return reply;
     }
