@@ -60,13 +60,22 @@ public static class ConfigurationResolver
             profile);
     }
 
+    static readonly string[] ValidSchemes = ["ep", "eps", "ws", "wss"];
+
+    /// <summary>
+    /// Accepts <c>ep(s)://host:port</c> (a bare Esiur endpoint, connects at the
+    /// WebSocket root) as well as <c>ws(s)://host:port/path</c> (for hosts like
+    /// ASP.NET Core's <c>MapEsiur("/esiur")</c> that mount the WebSocket route
+    /// somewhere other than root) — see <see cref="EndpointParser"/> for how
+    /// the two forms are dialed.
+    /// </summary>
     public static void ValidateEndpoint(string endpoint)
     {
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Scheme, "ep", StringComparison.OrdinalIgnoreCase)
+            || !ValidSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(uri.Host)
             || !string.IsNullOrEmpty(uri.UserInfo))
-            throw new CliException($"Endpoint \"{endpoint}\" is not a valid ep:// endpoint.", ExitCodes.InvalidArguments);
+            throw new CliException($"Endpoint \"{endpoint}\" is not a valid ep:// or ws:// endpoint.", ExitCodes.InvalidArguments);
     }
 }
 

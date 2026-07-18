@@ -60,7 +60,8 @@ public sealed class EsiurSessionFactory(ICredentialService credentials) : IEsiur
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             if (settings.Timeout > TimeSpan.Zero) timeout.CancelAfter(settings.Timeout);
-            var endpoint = EndpointParser.ConnectionEndpoint(settings.Endpoint);
+            var (endpoint, webSocketUri) = EndpointParser.Parse(settings.Endpoint);
+            if (webSocketUri is not null) context.WebSocketUri = webSocketUri;
             var connectTask = AwaitReply(warehouse.Get<EpConnection>(endpoint, context), timeout.Token);
             var connection = await connectTask;
             if (connection is null)
@@ -126,10 +127,21 @@ public sealed class EsiurSession : IAsyncDisposable
 
 public static class EndpointParser
 {
-    public static string ConnectionEndpoint(string endpoint)
+    /// <summary>
+    /// Splits an endpoint into the <c>ep://host:port</c> string used to identify
+    /// the connection to <see cref="Warehouse.Get{T}"/>, and — for <c>ws(s)://</c>
+    /// endpoints with a path — the literal <see cref="Uri"/> to dial as
+    /// <see cref="Esiur.Protocol.EpConnectionContext.WebSocketUri"/> instead of
+    /// deriving the socket URL from host/port alone.
+    /// </summary>
+    public static (string ConnectEndpoint, Uri? WebSocketUri) Parse(string endpoint)
     {
         ConfigurationResolver.ValidateEndpoint(endpoint);
         var uri = new Uri(endpoint);
-        return $"ep://{uri.Authority}";
+        var connectEndpoint = $"ep://{uri.Authority}";
+        var isWebSocketScheme = uri.Scheme is "ws" or "wss";
+        return isWebSocketScheme ? (connectEndpoint, uri) : (connectEndpoint, null);
     }
+
+    public static string ConnectionEndpoint(string endpoint) => Parse(endpoint).ConnectEndpoint;
 }

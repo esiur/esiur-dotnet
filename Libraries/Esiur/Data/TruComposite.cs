@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Esiur.Data
 {
-    internal class TruComposite : Tru
+    public class TruComposite : Tru
     {
         public Tru[] SubTypes;
 

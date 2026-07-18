@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Esiur.CLI.Authentication;
 using Esiur.CLI.Client;
 using Esiur.CLI.Configuration;
+using Esiur.CLI.Generation;
 using Esiur.CLI.Rendering;
 
 namespace Esiur.CLI;
@@ -76,6 +77,7 @@ public sealed class CliApplication
                 "query" => await QueryAsync(tokens, configuration, global, cancellation.Token),
                 "describe" => await DescribeAsync(tokens, configuration, global, cancellation.Token),
                 "get" => await GetAsync(tokens, configuration, global, cancellation.Token),
+                "generate" => await GenerateAsync(tokens, configuration, global, cancellation.Token),
                 _ => throw new CliException($"Unknown command \"{command}\".", ExitCodes.InvalidArguments),
             };
         }
@@ -302,6 +304,44 @@ public sealed class CliApplication
         return ExitCodes.Success;
     }
 
+    async Task<int> GenerateAsync(
+        List<string> tokens, CliConfiguration configuration, GlobalOptions global,
+        CancellationToken cancellationToken)
+    {
+        if (tokens.Count < 2)
+            throw new CliException("Usage: esiur generate typescript <path> [--out <file>]", ExitCodes.InvalidArguments);
+        var language = Take(tokens).ToLowerInvariant();
+        if (language != "typescript")
+            throw new CliException($"Unsupported target language \"{language}\". Supported: typescript.", ExitCodes.InvalidArguments);
+        var path = Take(tokens);
+        var outFile = TakeOption(tokens, "--out");
+        EnsureEmpty(tokens);
+        var settings = ConfigurationResolver.Resolve(configuration, global);
+        using var timeout = CreateTimeout(settings.Timeout, cancellationToken);
+        try
+        {
+            await using var session = await sessions.ConnectAsync(settings, false, input, error, timeout.Token);
+            var resource = await resources.ResolveAsync(session, path, timeout.Token);
+            var source = TypeScriptStubGenerator.Generate(resource.Instance.Definition, ResourceInspectionService.NormalizePath(path));
+            if (outFile is null)
+            {
+                await output.WriteAsync(source);
+            }
+            else
+            {
+                var directory = Path.GetDirectoryName(Path.GetFullPath(outFile));
+                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                await File.WriteAllTextAsync(outFile, source, timeout.Token);
+                await output.WriteLineAsync($"Wrote {outFile}");
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new CliException("The operation timed out.", ExitCodes.Timeout);
+        }
+        return ExitCodes.Success;
+    }
+
     static CancellationTokenSource CreateTimeout(TimeSpan duration, CancellationToken parent)
     {
         var source = CancellationTokenSource.CreateLinkedTokenSource(parent);
@@ -386,6 +426,7 @@ public sealed class CliApplication
           query <path> [--recursive|--depth <number>] [--type <name>]
           describe <path> [--values|--schema-only]
           get <path> <property> [property...]
+          generate typescript <path> [--out <file>]
 
         Global options:
           --profile <name>       Use a saved profile
