@@ -38,9 +38,9 @@ public class TcpSocket : ISocket
     public INetworkReceiver<ISocket> Receiver { get; set; }
     public event DestroyedEvent OnDestroy;
 
-    private readonly Socket sock;
-    private readonly byte[] receiveBuffer;
-    private readonly NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
+    private Socket sock;
+    private byte[] receiveBuffer;
+    private NetworkBuffer receiveNetworkBuffer = new NetworkBuffer();
 
     private readonly object stateLock = new object();
     private readonly object sendLock = new object();
@@ -142,13 +142,19 @@ public class TcpSocket : ISocket
     public AsyncReply<bool> Connect(string hostname, ushort port)
     {
         var rt = new AsyncReply<bool>();
+        Socket connectingSocket;
 
         lock (stateLock)
         {
-            if (destroyed || state == SocketState.Closed)
+            if (destroyed  || state == SocketState.Closed)
             {
-                rt.Trigger(false);
-                return rt;
+                if (destroyed)
+                {
+                    rt.Trigger(false);
+                    return rt;
+                }
+
+                ResetForReconnect_NoLock();
             }
 
             if (state == SocketState.Established)
@@ -157,23 +163,30 @@ public class TcpSocket : ISocket
                 return rt;
             }
 
+            if (state == SocketState.Connecting)
+            {
+                rt.Trigger(false);
+                return rt;
+            }
+
             state = SocketState.Connecting;
+            connectingSocket = sock;
         }
 
         try
         {
             var args = new SocketAsyncEventArgs();
             args.RemoteEndPoint = new DnsEndPoint(hostname, port);
-            args.UserToken = rt;
+            args.UserToken = new KeyValuePair<Socket, AsyncReply<bool>>(connectingSocket, rt);
             args.Completed += ConnectCompleted;
 
-            bool pending = sock.ConnectAsync(args);
+            bool pending = connectingSocket.ConnectAsync(args);
             if (!pending)
                 ProcessConnect(args);
         }
         catch (Exception ex)
         {
-            SafeClose(ex, false);
+            SafeClose(ex, false, connectingSocket);
             rt.TriggerError(ex);
         }
 
@@ -187,15 +200,27 @@ public class TcpSocket : ISocket
 
     private void ProcessConnect(SocketAsyncEventArgs e)
     {
-        var rt = e.UserToken as AsyncReply<bool>;
+        var context = (KeyValuePair<Socket, AsyncReply<bool>>)e.UserToken;
+        var connectingSocket = context.Key;
+        var rt = context.Value;
 
         try
         {
+            lock (stateLock)
+            {
+                if (!ReferenceEquals(sock, connectingSocket))
+                {
+                    rt.Trigger(false);
+                    return;
+                }
+            }
+
             if (e.SocketError == SocketError.Success)
             {
                 lock (stateLock)
                 {
-                    if (destroyed || state == SocketState.Closed)
+                    if (destroyed || state == SocketState.Closed ||
+                        !ReferenceEquals(sock, connectingSocket))
                     {
                         rt?.Trigger(false);
                         return;
@@ -211,7 +236,7 @@ public class TcpSocket : ISocket
             else
             {
                 var ex = new SocketException((int)e.SocketError);
-                SafeClose(ex, false);
+                SafeClose(ex, false, connectingSocket);
                 rt?.TriggerError(ex);
             }
         }
@@ -445,6 +470,7 @@ public class TcpSocket : ISocket
 
         receiveArgs = new SocketAsyncEventArgs();
         receiveArgs.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
+        receiveArgs.UserToken = sock;
         receiveArgs.Completed += IOCompleted;
 
         StartReceive();
@@ -452,23 +478,28 @@ public class TcpSocket : ISocket
 
     private void StartReceive()
     {
+        var receivingSocket = sock;
+
         try
         {
             if (destroyed || state != SocketState.Established)
                 return;
 
-            bool pending = sock.ReceiveAsync(receiveArgs);
+            bool pending = receivingSocket.ReceiveAsync(receiveArgs);
             if (!pending)
                 ProcessReceive(receiveArgs);
         }
         catch (Exception ex)
         {
-            SafeClose(ex, true);
+            SafeClose(ex, true, receivingSocket);
         }
     }
 
     private void IOCompleted(object sender, SocketAsyncEventArgs e)
     {
+        if (!ReferenceEquals(e.UserToken, sock))
+            return;
+
         switch (e.LastOperation)
         {
             case SocketAsyncOperation.Receive:
@@ -487,13 +518,13 @@ public class TcpSocket : ISocket
         {
             if (e.SocketError != SocketError.Success)
             {
-                SafeClose(new SocketException((int)e.SocketError), true);
+                SafeClose(new SocketException((int)e.SocketError), true, e.UserToken as Socket);
                 return;
             }
 
             if (e.BytesTransferred <= 0)
             {
-                SafeClose(null, true);
+                SafeClose(null, true, e.UserToken as Socket);
                 return;
             }
 
@@ -505,7 +536,7 @@ public class TcpSocket : ISocket
         }
         catch (Exception ex)
         {
-            SafeClose(ex, true);
+            SafeClose(ex, true, e.UserToken as Socket);
         }
     }
 
@@ -546,6 +577,7 @@ public class TcpSocket : ISocket
             if (sendArgs == null)
             {
                 sendArgs = new SocketAsyncEventArgs();
+                sendArgs.UserToken = sock;
                 sendArgs.Completed += IOCompleted;
             }
 
@@ -743,19 +775,24 @@ public class TcpSocket : ISocket
         }
     }
 
-    private void SafeClose(Exception ex, bool notifyReceiver)
+    private void SafeClose(Exception ex, bool notifyReceiver, Socket expectedSocket = null)
     {
         bool notify = false;
         List<SendReplyCompletion> completions = null;
+        Socket socketToClose;
 
         lock (stateLock)
         {
+            if (expectedSocket != null && !ReferenceEquals(sock, expectedSocket))
+                return;
+
             if (state == SocketState.Closed)
                 return;
 
             state = SocketState.Closed;
             notify = notifyReceiver && !closeNotified;
             closeNotified = true;
+            socketToClose = sock;
         }
 
         lock (sendLock)
@@ -782,9 +819,9 @@ public class TcpSocket : ISocket
             Interlocked.Exchange(ref pendingSendBytes, 0);
         }
 
-        try { sock.Shutdown(SocketShutdown.Both); } catch { }
-        try { sock.Close(); } catch { }
-        try { sock.Dispose(); } catch { }
+        try { socketToClose.Shutdown(SocketShutdown.Both); } catch { }
+        try { socketToClose.Close(); } catch { }
+        try { socketToClose.Dispose(); } catch { }
 
         CompleteSendReplies(completions);
 
@@ -796,6 +833,38 @@ public class TcpSocket : ISocket
             try { Receiver?.NetworkClose(this); }
             catch (Exception e) { Global.Log(e); }
         }
+    }
+
+    /// <summary>
+    /// Esiur 2 allowed callers to invoke Connect after Close. Recreate all
+    /// per-connection state so that existing clients retain that behavior.
+    /// </summary>
+    private void ResetForReconnect_NoLock()
+    {
+        DisposeEventArgs(ref receiveArgs);
+        DisposeEventArgs(ref sendArgs);
+
+        sock = CreateSocket();
+        receiveBuffer = new byte[Math.Max(sock.ReceiveBufferSize, 8192)];
+        receiveNetworkBuffer = new NetworkBuffer();
+        began = false;
+        held = false;
+        closeNotified = false;
+    }
+
+    private void DisposeEventArgs(ref SocketAsyncEventArgs args)
+    {
+        if (args == null)
+            return;
+
+        try
+        {
+            args.Completed -= IOCompleted;
+            args.Dispose();
+        }
+        catch { }
+
+        args = null;
     }
 
     private static void ValidateRange(byte[] message, int offset, int length)
