@@ -118,6 +118,10 @@ public class AuthHandshakeTests
         Assert.NotNull(r3.SessionKey);
         Assert.Equal(64, r3.SessionKey.Length);      // 512-bit derived key
         Assert.Equal(r3.SessionKey, r4.SessionKey);  // both ends agree
+        Assert.Equal("alice", r3.LocalIdentity);
+        Assert.Null(r3.RemoteIdentity);
+        Assert.Null(r4.LocalIdentity);
+        Assert.Equal("alice", r4.RemoteIdentity);
     }
 
     [Fact]

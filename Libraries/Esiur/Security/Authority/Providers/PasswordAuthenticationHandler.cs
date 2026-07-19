@@ -459,7 +459,10 @@ namespace Esiur.Security.Authority.Providers
                                                            .ToArray(), 512);
 
                         _step = -1;
-                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, _initiatorIdentity, _responderIdentity, sessionKey);
+                        // From the responder's perspective the authenticated initiator is
+                        // the remote identity. Keeping it in LocalIdentity makes a valid
+                        // client appear anonymous to server-side permission managers.
+                        return new AuthenticationResult(AuthenticationRuling.Succeeded, null, _responderIdentity, _initiatorIdentity, sessionKey);
 
                     }
                     else
