@@ -127,4 +127,70 @@ public class TypeDefInfoSerializationTests
         Assert.Equal(TruIdentifier.String, Assert.Single(parsed.Events!).ArgumentType.Identifier);
         Assert.Equal(100, Convert.ToInt32(Assert.Single(parsed.Constants!).Value));
     }
+
+    [Theory]
+    [InlineData(0ul, TruIdentifier.LocalType8, 1)]
+    [InlineData(255ul, TruIdentifier.LocalType8, 1)]
+    [InlineData(256ul, TruIdentifier.LocalType16, 2)]
+    [InlineData(65535ul, TruIdentifier.LocalType16, 2)]
+    [InlineData(65536ul, TruIdentifier.LocalType32, 4)]
+    [InlineData(4294967295ul, TruIdentifier.LocalType32, 4)]
+    [InlineData(4294967296ul, TruIdentifier.LocalType64, 8)]
+    public void WriteTypeReference_SelectsNarrowestSufficientWidth(ulong id, TruIdentifier expectedIdentifier, int expectedIdBytes)
+    {
+        var rt = new BinaryList();
+        TruTypeDef.WriteTypeReference(rt, isLocal: true, nullable: false, id);
+        var bytes = rt.ToArray();
+
+        Assert.Equal(1 + expectedIdBytes, bytes.Length);
+        Assert.Equal((byte)expectedIdentifier, bytes[0]);
+
+        ulong roundTripped = expectedIdBytes switch
+        {
+            1 => bytes[1],
+            2 => bytes.GetUInt16(1, Endian.Little),
+            4 => bytes.GetUInt32(1, Endian.Little),
+            _ => bytes.GetUInt64(1, Endian.Little),
+        };
+        Assert.Equal(id, roundTripped);
+    }
+
+    [Fact]
+    public void WriteTypeReference_NullableAndRemote_SetHeaderBitsCorrectly()
+    {
+        var rt = new BinaryList();
+        TruTypeDef.WriteTypeReference(rt, isLocal: false, nullable: true, 42ul);
+        var bytes = rt.ToArray();
+
+        Assert.Equal((byte)(0x80 | (byte)TruIdentifier.RemoteType8), bytes[0]);
+        Assert.Equal(42, bytes[1]);
+    }
+
+    [Fact]
+    public void TypeDefInfo_FromTypeDef_PopulatesNamespaceFromDefinedType()
+    {
+        var typeDef = new LocalTypeDef(typeof(TruTypeDefTestRecord), Warehouse.Default);
+        var info = TypeDefInfo.FromTypeDef(typeDef);
+
+        Assert.Equal(typeof(TruTypeDefTestRecord).Namespace, info.Namespace);
+        Assert.False(string.IsNullOrEmpty(info.Namespace));
+    }
+
+    [Fact]
+    public void TruTypeDef_Compose_LocalTypeDefWithoutConnection_RoundTrips()
+    {
+        var typeDef = new LocalTypeDef(typeof(TruTypeDefTestRecord), Warehouse.Default);
+        var tru = new TruTypeDef(false, typeDef);
+
+        var bytes = tru.Compose(null);
+        var result = Tru.Parse(bytes, 0, Warehouse.Default);
+
+        Assert.Equal((uint)bytes.Length, result.Size);
+        var parsed = Assert.IsType<TruTypeDef>(result.Value);
+        Assert.Equal(typeDef.Id, parsed.TypeDef!.Id);
+    }
+}
+
+public sealed class TruTypeDefTestRecord : IRecord
+{
 }

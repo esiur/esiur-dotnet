@@ -64,6 +64,7 @@ public class TypeDefInfo : IndexedStructure
             Version = definition.Version,
             Id = definition.Id,
             Name = definition.Name,
+            Namespace = (definition as LocalTypeDef)?.DefinedType?.Namespace,
             Kind = definition.Kind,
             Parent = definition.ParentTypeId,
             Usage = definition.Usage,

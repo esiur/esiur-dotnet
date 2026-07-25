@@ -89,53 +89,64 @@ namespace Esiur.Data
             if (TypeDef is RemoteTypeDef remoteTypeDef)
             {
                 if (connection.RemoteDomain == remoteTypeDef.Domain)
-                {
                     // this is local in respect to the connection, send the remote typdef id.
-                    if (Nullable)
-                        rt.AddUInt8(0x80 | (byte)TruIdentifier.LocalType8);
-                    else
-                        rt.AddUInt8((byte)TruIdentifier.LocalType8);
-
-                    rt.AddUInt8((byte)remoteTypeDef.Id);
-                }
+                    WriteTypeReference(rt, isLocal: true, Nullable, remoteTypeDef.Id);
                 else
-                {
                     // this is remote in respect to the connection and the local typedef id is used.
-                    if (Nullable)
-                        rt.AddUInt8(0x80 | (byte)TruIdentifier.RemoteType8);
-                    else
-                        rt.AddUInt8((byte)TruIdentifier.RemoteType8);
-
-                    rt.AddUInt8((byte)remoteTypeDef.LocalTypeDefId);
-                }
+                    WriteTypeReference(rt, isLocal: false, Nullable, remoteTypeDef.LocalTypeDefId);
             }
             else if (TypeDef is LocalTypeDef localTypeDef)
             {
                 if (connection == null)
-                {
                     // if there is no connection, we assume it's local.
-                    if (Nullable)
-                        rt.AddUInt8(0x80 | (byte)TruIdentifier.LocalType8);
-                    else
-                        rt.AddUInt8((byte)TruIdentifier.LocalType8);
-
-                    rt.AddUInt8((byte)localTypeDef.Id);
-                }
+                    WriteTypeReference(rt, isLocal: true, Nullable, localTypeDef.Id);
                 else
-                {
                     // this is remote, unless the connection is to self @TODO: solve for this state.
-                    if (Nullable)
-                        rt.AddUInt8(0x80 | (byte)TruIdentifier.RemoteType8);
-                    else
-                        rt.AddUInt8((byte)TruIdentifier.RemoteType8);
-
-                    rt.AddUInt8((byte)localTypeDef.Id);
-                }
+                    WriteTypeReference(rt, isLocal: false, Nullable, localTypeDef.Id);
             }
             else
                 throw new NotImplementedException();
 
             return rt.ToArray();
+        }
+
+        // Picks the narrowest Local/RemoteType{8,16,32,64} identifier that fits `id`,
+        // matching the widths Tru.Parse already knows how to read.
+        // Internal (rather than private) so it can be unit-tested directly without
+        // needing a real LocalTypeDef/Warehouse registration for every width tier.
+        internal static void WriteTypeReference(BinaryList rt, bool isLocal, bool nullable, ulong id)
+        {
+            TruIdentifier identifier;
+
+            if (id <= byte.MaxValue)
+                identifier = isLocal ? TruIdentifier.LocalType8 : TruIdentifier.RemoteType8;
+            else if (id <= ushort.MaxValue)
+                identifier = isLocal ? TruIdentifier.LocalType16 : TruIdentifier.RemoteType16;
+            else if (id <= uint.MaxValue)
+                identifier = isLocal ? TruIdentifier.LocalType32 : TruIdentifier.RemoteType32;
+            else
+                identifier = isLocal ? TruIdentifier.LocalType64 : TruIdentifier.RemoteType64;
+
+            rt.AddUInt8((byte)((nullable ? 0x80 : 0) | (byte)identifier));
+
+            switch (identifier)
+            {
+                case TruIdentifier.LocalType8:
+                case TruIdentifier.RemoteType8:
+                    rt.AddUInt8((byte)id);
+                    break;
+                case TruIdentifier.LocalType16:
+                case TruIdentifier.RemoteType16:
+                    rt.AddUInt16((ushort)id);
+                    break;
+                case TruIdentifier.LocalType32:
+                case TruIdentifier.RemoteType32:
+                    rt.AddUInt32((uint)id);
+                    break;
+                default:
+                    rt.AddUInt64(id);
+                    break;
+            }
         }
 
         public override Tru ToNullable()
