@@ -27,7 +27,7 @@ public sealed class EpConnectionReconnectTests
 
         var open = connection.Connect(
             hostname: "localhost",
-            port: 10518,
+            port: IPEndPoint.MaxPort,
             domain: "test");
 
         var completed = await Task.WhenAny(
@@ -62,7 +62,7 @@ public sealed class EpConnectionReconnectTests
 
         var open = connection.Connect(
             hostname: "localhost",
-            port: 10518,
+            port: IPEndPoint.MaxPort,
             domain: "test");
 
         await delayedSocket.ConnectInvoked.WaitAsync(TimeSpan.FromSeconds(2));
@@ -95,7 +95,7 @@ public sealed class EpConnectionReconnectTests
 
         var open = connection.Connect(
             hostname: "localhost",
-            port: 10518,
+            port: IPEndPoint.MaxPort,
             domain: "test");
 
         connection.AutoReconnect = false;
@@ -133,7 +133,7 @@ public sealed class EpConnectionReconnectTests
         _ = connection.Connect(
             initialSocket,
             hostname: "localhost",
-            port: 10518,
+            port: IPEndPoint.MaxPort,
             domain: "test");
         initialSocket.Disconnect();
         connection.AutoReconnect = false;
@@ -160,7 +160,7 @@ public sealed class EpConnectionReconnectTests
         public SocketState State => state;
         public INetworkReceiver<ISocket> Receiver { get; set; } = null!;
         public IPEndPoint RemoteEndPoint { get; } =
-            new(IPAddress.Loopback, 10518);
+            new(IPAddress.Loopback, IPEndPoint.MaxPort);
         public IPEndPoint LocalEndPoint { get; } =
             new(IPAddress.Loopback, 50000);
         public int ConnectCount { get; private set; }

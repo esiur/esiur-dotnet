@@ -260,10 +260,10 @@ using Esiur.Resource;
 var clientWarehouse = new Warehouse();
 
 var service = await clientWarehouse.Get<IResource>(
-    "ep://api.example.com/sys/service",
+    "ep://api.example.com:443/sys/service",
     new EpConnectionContext
     {
-        WebSocketUri = new Uri("wss://api.example.com/esiur"),
+        WebSocketUri = new Uri("wss://api.example.com:443/esiur"),
         // Add the authentication mode, identity, and protocol required by the server.
     });
 ```

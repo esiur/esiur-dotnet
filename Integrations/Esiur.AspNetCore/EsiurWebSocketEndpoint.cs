@@ -217,7 +217,7 @@ internal sealed class EsiurWebSocketEndpoint
     {
         endPoint = null!;
         if (address is null
-            || port is <= IPEndPoint.MinPort or > IPEndPoint.MaxPort
+            || port is < IPEndPoint.MinPort or > IPEndPoint.MaxPort
             || address.Equals(IPAddress.Any)
             || address.Equals(IPAddress.IPv6Any)
             || address.Equals(IPAddress.None)

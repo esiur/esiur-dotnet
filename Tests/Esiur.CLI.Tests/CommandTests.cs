@@ -20,7 +20,7 @@ public sealed class CommandTests
                 {
                     ["production"] = new ConnectionProfile
                     {
-                        Name = "production", Endpoint = "ep://host",
+                        Name = "production", Endpoint = "ep://host:65535",
                     },
                 },
             }, default);

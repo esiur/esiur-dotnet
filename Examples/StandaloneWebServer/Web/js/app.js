@@ -1,7 +1,10 @@
 async function init() {
     try {
+        const epPort = new URLSearchParams(window.location.search).get("epPort");
+        if (!epPort)
+            throw new Error("Open this example with the application-defined epPort query parameter.");
 
-        connection = await wh.get(`ep://${window.location.hostname}`, {
+        connection = await wh.get(`ep://${window.location.hostname}:${epPort}`, {
             autoReconnect: true
         });
 

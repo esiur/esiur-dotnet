@@ -3143,10 +3143,16 @@ public partial class EpConnection : NetworkConnection, IStore
                 return new AsyncReply<bool>(true);
 
 
-            var host = Instance.Name.Split(':');
+            if (!Uri.TryCreate($"ep://{Instance.Name}", UriKind.Absolute, out var endpoint)
+                || string.IsNullOrWhiteSpace(endpoint.Host)
+                || endpoint.Port <= 0
+                || endpoint.Port > ushort.MaxValue)
+                throw new FormatException(
+                    "EP endpoints must include an explicit port (for example, ep://host:port)."
+                );
 
-            var address = host[0];
-            var port = host.Length > 1 ? ushort.Parse(host[1]) : (ushort)10518;
+            var address = endpoint.Host;
+            var port = checked((ushort)endpoint.Port);
 
             // assign domain from hostname if not provided
             if (context is EpConnectionContext epContext)

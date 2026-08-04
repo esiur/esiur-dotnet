@@ -251,7 +251,7 @@ public class PeerConnectionLimitTests
             connection,
             null);
 
-        _ = connection.Connect(socket, "example.test", 10518, "example.test");
+        _ = connection.Connect(socket, "example.test", IPEndPoint.MaxPort, "example.test");
 
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
         while (socket.State != SocketState.Closed && DateTime.UtcNow < deadline)
@@ -269,7 +269,7 @@ public class PeerConnectionLimitTests
         public SocketState State { get; private set; } = SocketState.Established;
         public INetworkReceiver<ISocket> Receiver { get; set; } = null!;
         public IPEndPoint RemoteEndPoint { get; }
-        public IPEndPoint LocalEndPoint { get; } = new(IPAddress.Loopback, 10518);
+        public IPEndPoint LocalEndPoint { get; } = new(IPAddress.Loopback, IPEndPoint.MaxPort);
 
         public TestSocket(IPAddress address, int port)
             => RemoteEndPoint = new IPEndPoint(address, port);

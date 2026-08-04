@@ -74,8 +74,37 @@ public static class ConfigurationResolver
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
             || !ValidSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(uri.Host)
-            || !string.IsNullOrEmpty(uri.UserInfo))
-            throw new CliException($"Endpoint \"{endpoint}\" is not a valid ep:// or ws:// endpoint.", ExitCodes.InvalidArguments);
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !HasExplicitPort(endpoint))
+            throw new CliException(
+                $"Endpoint \"{endpoint}\" is not a valid ep:// or ws:// endpoint with an explicit port.",
+                ExitCodes.InvalidArguments);
+    }
+
+    static bool HasExplicitPort(string endpoint)
+    {
+        var schemeEnd = endpoint.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd < 0)
+            return false;
+
+        var authorityStart = schemeEnd + 3;
+        var authorityEnd = endpoint.IndexOfAny(['/', '?', '#'], authorityStart);
+        if (authorityEnd < 0)
+            authorityEnd = endpoint.Length;
+
+        var authority = endpoint[authorityStart..authorityEnd];
+        var at = authority.LastIndexOf('@');
+        if (at >= 0)
+            authority = authority[(at + 1)..];
+
+        var colon = authority.StartsWith('[')
+            ? authority.IndexOf(']') + 1
+            : authority.LastIndexOf(':');
+        return colon > 0
+            && colon < authority.Length - 1
+            && authority[colon] == ':'
+            && ushort.TryParse(authority[(colon + 1)..], out var port)
+            && port > 0;
     }
 }
 

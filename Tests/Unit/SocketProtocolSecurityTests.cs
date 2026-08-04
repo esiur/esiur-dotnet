@@ -382,7 +382,7 @@ public class SocketProtocolSecurityTests
         public SocketState State { get; private set; } = SocketState.Listening;
         public INetworkReceiver<ISocket> Receiver { get; set; } = null!;
         public IPEndPoint RemoteEndPoint => null!;
-        public IPEndPoint LocalEndPoint { get; } = new(IPAddress.Loopback, 10518);
+        public IPEndPoint LocalEndPoint { get; } = new(IPAddress.Loopback, IPEndPoint.MaxPort);
 
         public ISocket Accept()
         {

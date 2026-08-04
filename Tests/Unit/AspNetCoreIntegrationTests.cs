@@ -362,6 +362,31 @@ public sealed class AspNetCoreIntegrationTests
     }
 
     [Fact]
+    public async Task FrameworkWebSocket_AcceptsProxyEndpointWithUnspecifiedRemotePort()
+    {
+        await using var host = await StartApplicationAsync(
+            configureApplication: application => application.Use(
+                async (context, next) =>
+                {
+                    context.Connection.RemotePort = IPEndPoint.MinPort;
+                    await next(context);
+                }));
+        using var cancellation = new CancellationTokenSource(TestTimeout);
+        using var socket = new ClientWebSocket();
+        socket.Options.AddSubProtocol(FrameworkWebSocket.SubProtocol);
+
+        await socket.ConnectAsync(host.WebSocketAddress, cancellation.Token);
+
+        Assert.Equal(WebSocketState.Open, socket.State);
+        Assert.Equal(FrameworkWebSocket.SubProtocol, socket.SubProtocol);
+        await WaitUntilAsync(
+            () => host.Server.Connections.Count == 1,
+            cancellation.Token);
+
+        socket.Abort();
+    }
+
+    [Fact]
     public async Task HostShutdown_CancelsWebSocketAndCleansUpAdmission()
     {
         await using var host = await StartApplicationAsync();
@@ -640,7 +665,8 @@ public sealed class AspNetCoreIntegrationTests
     private static WebApplication BuildApplication(
         Action<EsiurBuilder>? configureEsiur = null,
         Action<EpServer>? configureServer = null,
-        Action<WarehouseConfiguration>? configureWarehouse = null)
+        Action<WarehouseConfiguration>? configureWarehouse = null,
+        Action<WebApplication>? configureApplication = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -665,6 +691,7 @@ public sealed class AspNetCoreIntegrationTests
 
         var application = builder.Build();
         application.UseWebSockets();
+        configureApplication?.Invoke(application);
         application.MapGet("/health", () => Results.Text("healthy"));
         application.MapEsiur("/esiur");
         return application;
@@ -673,7 +700,8 @@ public sealed class AspNetCoreIntegrationTests
     private static async Task<TestApplication> StartApplicationAsync(
         Action<EpServer>? configureServer = null,
         Action<WarehouseConfiguration>? configureWarehouse = null,
-        Action<EsiurBuilder>? configureEsiur = null)
+        Action<EsiurBuilder>? configureEsiur = null,
+        Action<WebApplication>? configureApplication = null)
     {
         var application = BuildApplication(
             esiur =>
@@ -682,7 +710,8 @@ public sealed class AspNetCoreIntegrationTests
                 configureEsiur?.Invoke(esiur);
             },
             configureServer,
-            configureWarehouse);
+            configureWarehouse,
+            configureApplication);
 
         using var cancellation = new CancellationTokenSource(TestTimeout);
         await application.StartAsync(cancellation.Token);

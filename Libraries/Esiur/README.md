@@ -93,8 +93,13 @@ Add an `EpServer` to expose the resource through the Esiur EP protocol. Anonymou
 
 
 ```C#
+var epPort = ushort.Parse(
+    Environment.GetEnvironmentVariable("ESIUR_PORT")
+    ?? throw new InvalidOperationException("Set ESIUR_PORT."));
+
 await warehouse.Put("sys/server", new EpServer
 {
+    Port = epPort,
     AllowUnauthorizedAccess = true, // Development only.
 });
 ```
@@ -113,11 +118,15 @@ To sum up
 >using Esiur.Resource;
 >using Esiur.Stores;
 >
+>var epPort = ushort.Parse(
+>    Environment.GetEnvironmentVariable("ESIUR_PORT")
+>    ?? throw new InvalidOperationException("Set ESIUR_PORT."));
 >var warehouse = new Warehouse();
 >await warehouse.Put("sys", new MemoryStore());
 >await warehouse.Put("sys/hello", new HelloResource());
 >await warehouse.Put("sys/server", new EpServer
 >{
+>    Port = epPort,
 >    AllowUnauthorizedAccess = true, // Development only.
 >});
 >await warehouse.Open();
@@ -129,7 +138,8 @@ To access our resource remotely, we need to use it's full path including the pro
 
 ```C#
 var warehouse = new Warehouse();
-dynamic res = await warehouse.Get<IResource>("ep://localhost/sys/hello");
+var epPort = ushort.Parse(Environment.GetEnvironmentVariable("ESIUR_PORT")!);
+dynamic res = await warehouse.Get<IResource>($"ep://localhost:{epPort}/sys/hello");
 ```
 
 Now we can invoke the exported functions and read/write properties;
@@ -147,7 +157,8 @@ Summing up
 >using Esiur.Resource;
 >
 >var warehouse = new Warehouse();
->dynamic res = await warehouse.Get<IResource>("ep://localhost/sys/hello");
+>var epPort = ushort.Parse(Environment.GetEnvironmentVariable("ESIUR_PORT")!);
+>dynamic res = await warehouse.Get<IResource>($"ep://localhost:{epPort}/sys/hello");
 >
 >var reply = await res.SayHi("Hi, I'm calling you from dotnet");
 >
@@ -165,7 +176,7 @@ Esiur has a self describing feature which comes with every language it supports,
 After installing the Esiur NuGet package, a new command named ***Get-Types*** is added to the Visual Studio Package Manager Console. It generates client-side classes for robust static typing.
 
 ```ps 
-Get-Types ep://localhost/sys/hello
+Get-Types "ep://localhost:$env:ESIUR_PORT/sys/hello"
 ```
 
 This will generate and add wrappers for all types needed by our resource.
@@ -173,7 +184,8 @@ This will generate and add wrappers for all types needed by our resource.
 Allowing us to use
 ```C#
 var warehouse = new Warehouse();
-var res = await warehouse.Get<MyResource>("ep://localhost/sys/hello");
+var epPort = ushort.Parse(Environment.GetEnvironmentVariable("ESIUR_PORT")!);
+var res = await warehouse.Get<MyResource>($"ep://localhost:{epPort}/sys/hello");
 var reply = await res.SayHi("Static typing is better");
 Console.WriteLine(reply);
 ```

@@ -19,13 +19,13 @@ Runtime-specific publishes are configured as self-contained, single-file, and no
 Create and verify a password-authenticated profile:
 
 ```console
-esiur login production ep://host --provider password --identity ahmed
+esiur login production "ep://host:${ESIUR_PORT}" --provider password --identity ahmed
 ```
 
 The password prompt does not echo input. For automation, supply it on standard input:
 
 ```console
-printf '%s' "$ESIUR_PASSWORD" | esiur login production ep://host \
+printf '%s' "$ESIUR_PASSWORD" | esiur login production "ep://host:${ESIUR_PORT}" \
   --provider password --identity ahmed --password-stdin
 ```
 
@@ -86,7 +86,7 @@ Every operational command accepts a saved profile or a temporary endpoint:
 
 ```console
 esiur --profile production describe sys/service
-esiur --endpoint ep://host query sys --output json
+esiur --endpoint "ep://host:${ESIUR_PORT}" query sys --output json
 esiur get sys/service Name --timeout 30s
 ```
 

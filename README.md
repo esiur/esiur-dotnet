@@ -56,7 +56,7 @@ dotnet add package Esiur.AspNetCore --version 3.0.0
 For the standalone runtime or a client:
 
 ```shell
-dotnet add package Esiur --version 3.0.0
+dotnet add package Esiur --version 3.0.1
 ```
 
 ## Define a resource
@@ -157,7 +157,7 @@ using Esiur.Resource;
 var client = new Warehouse();
 
 dynamic counter = await client.Get<IResource>(
-    "ep://localhost/sys/counter",
+    "ep://localhost:8080/sys/counter",
     new EpConnectionContext
     {
         WebSocketUri = new Uri("ws://localhost:8080/esiur"),
@@ -176,8 +176,12 @@ the case-sensitive `EP` WebSocket subprotocol.
 For native TCP, omit `WebSocketUri` and include the EP port in the logical URL:
 
 ```csharp
+var epPort = ushort.Parse(
+    Environment.GetEnvironmentVariable("ESIUR_PORT")
+    ?? throw new InvalidOperationException("Set ESIUR_PORT."));
+
 dynamic counter = await client.Get<IResource>(
-    "ep://localhost:10518/sys/counter");
+    $"ep://localhost:{epPort}/sys/counter");
 ```
 
 ## Standalone hosting
@@ -191,13 +195,16 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
 
+var epPort = ushort.Parse(
+    Environment.GetEnvironmentVariable("ESIUR_PORT")
+    ?? throw new InvalidOperationException("Set ESIUR_PORT."));
 var warehouse = new Warehouse();
 
 await warehouse.Put("sys", new MemoryStore());
 await warehouse.Put("sys/counter", new CounterResource());
 await warehouse.Put("sys/server", new EpServer
 {
-    Port = 10518,
+    Port = epPort,
     AllowUnauthorizedAccess = true, // Development only.
 });
 
@@ -344,7 +351,7 @@ typed models. Install the v3 CLI as a .NET tool:
 
 ```shell
 dotnet tool install --global Esiur.CLI --version 3.0.0
-esiur get-template ep://localhost:10518/sys/counter --dir Generated
+esiur get-template "ep://localhost:${ESIUR_PORT}/sys/counter" --dir Generated
 ```
 
 Use `--async-setters` to generate asynchronous property setters. The CLI also

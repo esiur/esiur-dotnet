@@ -8,13 +8,14 @@ namespace Esiur.CLI.Tests;
 public sealed class ConfigurationTests
 {
     [Theory]
-    [InlineData("ep://localhost", "ep://localhost")]
+    [InlineData("ep://localhost:65535", "ep://localhost:65535")]
     [InlineData("ep://example.test:9000/sys/service", "ep://example.test:9000")]
     public void EndpointParserExtractsConnectionEndpoint(string value, string expected) =>
         Assert.Equal(expected, EndpointParser.ConnectionEndpoint(value));
 
     [Theory]
     [InlineData("http://localhost")]
+    [InlineData("ep://localhost")]
     [InlineData("ep:///missing-host")]
     [InlineData("not-an-endpoint")]
     public void EndpointParserRejectsInvalidEndpoints(string value) =>
@@ -43,7 +44,7 @@ public sealed class ConfigurationTests
                     ["production"] = new ConnectionProfile
                     {
                         Name = "production",
-                        Endpoint = "ep://host",
+                        Endpoint = "ep://host:65535",
                         Provider = "password",
                         Identity = "ahmed",
                     },
@@ -55,7 +56,7 @@ public sealed class ConfigurationTests
             Assert.DoesNotContain("secret", text, StringComparison.OrdinalIgnoreCase);
             var loaded = await store.LoadAsync(default);
             Assert.Equal("production", loaded.DefaultProfile);
-            Assert.Equal("ep://host", loaded.Profiles["PRODUCTION"].Endpoint);
+            Assert.Equal("ep://host:65535", loaded.Profiles["PRODUCTION"].Endpoint);
         }
         finally { directory.Delete(true); }
     }
@@ -71,14 +72,14 @@ public sealed class ConfigurationTests
             {
                 ["saved"] = new ConnectionProfile
                 {
-                    Name = "saved", Endpoint = "ep://saved", OutputFormat = "raw",
+                    Name = "saved", Endpoint = "ep://saved:65535", OutputFormat = "raw",
                     Identity = "stored",
                 },
             },
         };
         var result = ConfigurationResolver.Resolve(configuration,
-            new GlobalOptions("saved", "ep://explicit", null, "explicit", "json", TimeSpan.FromSeconds(4), false, false));
-        Assert.Equal("ep://explicit", result.Endpoint);
+            new GlobalOptions("saved", "ep://explicit:65535", null, "explicit", "json", TimeSpan.FromSeconds(4), false, false));
+        Assert.Equal("ep://explicit:65535", result.Endpoint);
         Assert.Equal("explicit", result.Identity);
         Assert.Equal("json", result.OutputFormat);
         Assert.Equal(TimeSpan.FromSeconds(4), result.Timeout);

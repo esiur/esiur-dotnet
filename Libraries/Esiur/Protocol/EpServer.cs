@@ -131,12 +131,14 @@ public class EpServer : NetworkServer<EpConnection>, IResource
         set;
     }
 
-    //[Attribute]
+    /// <summary>
+    /// Application-supplied native TCP port. Zero requests an ephemeral port from the OS.
+    /// </summary>
     public ushort Port
     {
         get;
         set;
-    } = 10518;
+    }
 
     /// <summary>
     /// Controls whether warehouse initialization opens Esiur's native TCP listener.
