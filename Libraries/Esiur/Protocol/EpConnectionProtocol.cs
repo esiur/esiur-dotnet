@@ -530,7 +530,17 @@ partial class EpConnection
 
     internal AsyncReply SendSubscribeRequest(uint instanceId, byte index)
     {
-        return SendRequest(EpPacketRequest.Subscribe, instanceId, index);
+        return SendSubscribeRequest(instanceId, index, new ResourceCursor(Guid.Empty, 0));
+    }
+
+    internal AsyncReply SendSubscribeRequest(uint instanceId, byte index, ResourceCursor after)
+    {
+        return SendRequest(
+            EpPacketRequest.Subscribe,
+            instanceId,
+            index,
+            after.Generation.ToByteArray(),
+            after.Revision);
     }
 
     internal AsyncReply SendUnsubscribeRequest(uint instanceId, byte index)
@@ -877,12 +887,14 @@ partial class EpConnection
 
     void EpNotificationPropertyModified(PlainTdu tdu)
     {
-        // resourceId, index, value
+        // resourceId, generation, revision, recordedAt, index, value
         var (valueOffset, valueSize, args) =
-            DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset, tdu.PayloadLength, Instance.Warehouse, 2);
+            DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset, tdu.PayloadLength, Instance.Warehouse, 5);
 
         var rid = Convert.ToUInt32(args[0]);
-        var index = (byte)args[1];
+        var cursor = new ResourceCursor(new Guid((byte[])args[1]), Convert.ToUInt64(args[2]));
+        var recordedAt = ((DateTime)args[3]).ToUniversalTime();
+        var index = (byte)args[4];
 
         FetchResource(rid, null).Then(r =>
         {
@@ -902,14 +914,14 @@ partial class EpConnection
                     {
                         item.Trigger(new EpResourceQueueItem((EpResource)r,
                                                         EpResourceQueueItem.DistributedResourceQueueItemType.Propery,
-                                                        result, index));
+                                                        result, index, cursor, recordedAt));
                     });
                 }
                 else
                 {
                     _queue.Add(new AsyncReply<EpResourceQueueItem>(new EpResourceQueueItem((EpResource)r,
                                                     EpResourceQueueItem.DistributedResourceQueueItemType.Propery,
-                                                    value, index)), hasResource: false);
+                                                    value, index, cursor, recordedAt)), hasResource: false);
                 }
             }
 
@@ -937,13 +949,15 @@ partial class EpConnection
 
     void EpNotificationEventOccurred(PlainTdu tdu)
     {
-        // resourceId, index, value
+        // resourceId, generation, revision, recordedAt, index, value
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset,
-                                                    tdu.PayloadLength, Instance.Warehouse, 2);
+                                                    tdu.PayloadLength, Instance.Warehouse, 5);
 
         var resourceId = Convert.ToUInt32(args[0]);
-        var index = (byte)args[1];
+        var cursor = new ResourceCursor(new Guid((byte[])args[1]), Convert.ToUInt64(args[2]));
+        var recordedAt = ((DateTime)args[3]).ToUniversalTime();
+        var index = (byte)args[4];
 
         FetchResource(resourceId, null).Then(r =>
         {
@@ -964,13 +978,15 @@ partial class EpConnection
                     asyncReply.Then((result) =>
                     {
                         item.Trigger(new EpResourceQueueItem((EpResource)r,
-                                     EpResourceQueueItem.DistributedResourceQueueItemType.Event, result, index));
+                                     EpResourceQueueItem.DistributedResourceQueueItemType.Event,
+                                     result, index, cursor, recordedAt));
                     });
                 }
                 else
                 {
                     item.Trigger(new EpResourceQueueItem((EpResource)r,
-                                  EpResourceQueueItem.DistributedResourceQueueItemType.Event, pr.Value, index));
+                                  EpResourceQueueItem.DistributedResourceQueueItemType.Event,
+                                  pr.Value, index, cursor, recordedAt));
                 }
 
             }).Error((ex) => throw ex);
@@ -1019,19 +1035,22 @@ partial class EpConnection
 
                     var r = res as IResource;
 
-                    // unsubscribe
-                    Unsubscribe(r);
-
-                    // reply ok
-                    SendReply(EpPacketReply.Completed, callback,
-                        r.Instance.Definition.Id,
-                        r.Instance.Age,
-                        r.Instance.Link,
-                        r.Instance.Hops,
-                        r.Instance.Serialize());
-
-                    // subscribe
-                    Subscribe(r);
+                    r.Instance.SynchronizeJournal(head =>
+                    {
+                        // Register live delivery before capturing/sending the
+                        // snapshot. Emission shares the journal lock, so no
+                        // revision can fall between snapshot and subscription.
+                        Unsubscribe(r);
+                        Subscribe(r);
+                        SendReply(EpPacketReply.Completed, callback,
+                            r.Instance.Definition.Id,
+                            head.Generation.ToByteArray(),
+                            head.Revision,
+                            r.Instance.Link,
+                            r.Instance.Hops,
+                            r.Instance.Serialize());
+                        return true;
+                    });
                 }
                 else
                 {
@@ -1056,12 +1075,14 @@ partial class EpConnection
         // resourceLinkOrId (string link, or uint id — a link is resolved by
         // query since a remote node's instance id is not permanent: the
         // resource may have been cleared from memory and recreated under a
-        // different id while the peer was disconnected), age
+        // different id while the peer was disconnected), generation, revision
         var (valueOffset, valueSize, args) =
             DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset,
-                                                    tdu.PayloadLength, Instance.Warehouse, 2);
+                                                    tdu.PayloadLength, Instance.Warehouse, 3);
 
-        var age = Convert.ToUInt64(args[1]);
+        var requestedCursor = new ResourceCursor(
+            new Guid((byte[])args[1]),
+            Convert.ToUInt64(args[2]));
 
         void Resolved(IResource res)
         {
@@ -1094,22 +1115,28 @@ partial class EpConnection
 
                 var r = res;
 
-                // unsubscribe
-                Unsubscribe(r);
+                r.Instance.SynchronizeJournal(head =>
+                {
+                    var reset = requestedCursor.Generation != head.Generation;
+                    Unsubscribe(r);
+                    Subscribe(r);
 
-                // reply ok — the resolved id comes first so the caller can
-                // detect and apply an id change (link-based reattach, or the
-                // remote node recreated the resource with a new id).
-                SendReply(EpPacketReply.Completed, callback,
-                    r.Instance.Id,
-                    r.Instance.Definition.Id,
-                    r.Instance.Age,
-                    r.Instance.Link,
-                    r.Instance.Hops,
-                    r.Instance.SerializeAfter(age));
-
-                // subscribe
-                Subscribe(r);
+                    // The resolved id comes first so the caller can detect and
+                    // apply an id change. A generation change returns a full
+                    // property snapshot because the old cursor is unrelated.
+                    SendReply(EpPacketReply.Completed, callback,
+                        r.Instance.Id,
+                        r.Instance.Definition.Id,
+                        head.Generation.ToByteArray(),
+                        head.Revision,
+                        r.Instance.Link,
+                        r.Instance.Hops,
+                        reset,
+                        reset
+                            ? r.Instance.SerializeMap()
+                            : r.Instance.SerializeAfter(requestedCursor.Revision));
+                    return true;
+                });
             }
             finally
             {
@@ -1427,7 +1454,10 @@ partial class EpConnection
 
         var value = Codec.ParseSync(tdu, Instance.Warehouse);
 
-        var typeId = Convert.ToUInt32(value);
+        // TypeDef identifiers are 64-bit stable hashes. Generated definitions
+        // often happened to fit in UInt32, which hid this truncation until a
+        // dynamic resource published a full-width identifier.
+        var typeId = Convert.ToUInt64(value);
 
         var t = Instance.Warehouse.GetLocalTypeDefById(typeId);
 
@@ -1665,7 +1695,7 @@ partial class EpConnection
         var (offset, length, args) = DataDeserializer.LimitedCountListParser(tdu.Data, tdu.PayloadOffset,
                                                                      tdu.PayloadLength, Instance.Warehouse, 2);
 
-        var typeId = Convert.ToUInt32(args[0]);
+        var typeId = Convert.ToUInt64(args[0]);
         var index = (byte)args[1];
 
         var typeDef = Instance.Warehouse.GetLocalTypeDefById(typeId);
@@ -1814,6 +1844,10 @@ partial class EpConnection
                                 }
                             });
                         }
+                        else if (r is IDynamicResourceFunctionHandler dynamicHandler)
+                        {
+                            InvokeDynamicFunction(dynamicHandler, r, ft, callback, result, managerDelay);
+                        }
                         else
                         {
                             InvokeFunction(ft, callback, result, EpPacketRequest.InvokeFunction, managerDelay, r);
@@ -1846,13 +1880,61 @@ partial class EpConnection
                             }
                         });
                     }
+                    else if (r is IDynamicResourceFunctionHandler dynamicHandler)
+                    {
+                        InvokeDynamicFunction(dynamicHandler, r, ft, callback, pr.Value, managerDelay);
+                    }
                     else
                     {
                         InvokeFunction(ft, callback, pr.Value, EpPacketRequest.InvokeFunction, managerDelay, r);
                     }
                 }
-            }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError)); ;
-        }).Error(x => SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError)); ;
+            }).Error(x =>
+            {
+                var summary = SummerizeException(x);
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError, summary.Item2);
+            });
+        }).Error(x =>
+        {
+            var summary = SummerizeException(x);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError, summary.Item2);
+        });
+    }
+
+    void InvokeDynamicFunction(
+        IDynamicResourceFunctionHandler handler,
+        IResource resource,
+        FunctionDef function,
+        uint callback,
+        object arguments,
+        TimeSpan managerDelay)
+    {
+        ExecuteRateControlled(callback, managerDelay, () =>
+        {
+            var context = new InvocationContext(this, callback);
+            context.BindOperation(resource, function);
+            try
+            {
+                var reply = handler.InvokeResourceFunctionAsync(function.Index, arguments, context);
+                if (reply == null)
+                {
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.MethodNotFound);
+                    return;
+                }
+
+                reply.Then(result => SendReply(EpPacketReply.Completed, callback, result))
+                    .Error(exception =>
+                    {
+                        var (code, message) = SummerizeException(exception);
+                        SendError(ErrorType.Exception, callback, code, message);
+                    });
+            }
+            catch (Exception exception)
+            {
+                var (code, message) = SummerizeException(exception);
+                SendError(ErrorType.Exception, callback, code, message);
+            }
+        });
     }
 
 
@@ -2389,6 +2471,9 @@ partial class EpConnection
 
         var resourceId = Convert.ToUInt32(args[0]);
         var index = (byte)args[1];
+        var requestedCursor = args.Length >= 4
+            ? new ResourceCursor(new Guid((byte[])args[2]), Convert.ToUInt64(args[3]))
+            : new ResourceCursor(Guid.Empty, 0);
 
         Instance.Warehouse.GetById(resourceId).Then((r) =>
         {
@@ -2418,14 +2503,13 @@ partial class EpConnection
                     out _))
                 return;
 
-            if (r is EpResource)
+            if (!IsOperationAllowed(r, et, ActionType.ReceiveEvent))
             {
-                (r as EpResource).Subscribe(et).Then(x =>
-               {
-                   SendReply(EpPacketReply.Completed, callback);
-               }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAllowed);
+                return;
             }
-            else
+
+            if (r is EpResource)
             {
                 lock (_subscriptionsLock)
                 {
@@ -2434,17 +2518,97 @@ partial class EpConnection
                         SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
                         return;
                     }
-
                     if (_subscriptions[r].Contains(index))
                     {
                         SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyListened);
                         return;
                     }
-
                     _subscriptions[r].Add(index);
-
-                    SendReply(EpPacketReply.Completed, callback);
                 }
+
+                (r as EpResource).Subscribe(et, requestedCursor).Then(x =>
+                {
+                    var head = r.Instance.Cursor;
+                    SendReply(EpPacketReply.Completed, callback,
+                        head.Generation.ToByteArray(), head.Revision);
+                }).Error(x =>
+                {
+                    lock (_subscriptionsLock) _subscriptions[r].Remove(index);
+                    SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure);
+                });
+            }
+            else
+            {
+                r.Instance.SynchronizeJournal(head =>
+                {
+                    lock (_subscriptionsLock)
+                    {
+                        if (!_subscriptions.ContainsKey(r))
+                        {
+                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
+                            return false;
+                        }
+
+                        if (_subscriptions[r].Contains(index))
+                        {
+                            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.AlreadyListened);
+                            return false;
+                        }
+
+                        _subscriptions[r].Add(index);
+                    }
+
+                    var after = requestedCursor.Generation == Guid.Empty
+                        ? head
+                        : requestedCursor;
+
+                    if (et.Historical)
+                    {
+                        var replayAfter = after;
+                        while (true)
+                        {
+                            var page = r.Instance.QueryJournal(new ResourceJournalQuery
+                            {
+                                After = replayAfter,
+                                ThroughRevision = head.Revision,
+                                Kind = ResourceJournalEntryKind.EventOccurred,
+                                MemberIndex = index,
+                                Limit = 10000,
+                            });
+
+                            if (page.CursorExpired)
+                            {
+                                lock (_subscriptionsLock) _subscriptions[r].Remove(index);
+                                SendError(
+                                    ErrorType.Management,
+                                    callback,
+                                    (ushort)ExceptionCode.CursorExpired,
+                                    $"The requested cursor is older than {page.OldestAvailable}.");
+                                return false;
+                            }
+
+                            foreach (var entry in page.Entries)
+                                SendNotification(EpPacketNotification.EventOccurred,
+                                    r.Instance.Id,
+                                    entry.Cursor.Generation.ToByteArray(),
+                                    entry.Cursor.Revision,
+                                    entry.RecordedAt,
+                                    entry.MemberIndex,
+                                    entry.Value);
+
+                            if (!page.HasMore)
+                                break;
+                            if (page.Next == replayAfter)
+                                throw new InvalidOperationException(
+                                    "The resource journal did not advance while replaying a page.");
+                            replayAfter = page.Next;
+                        }
+                    }
+
+                    SendReply(EpPacketReply.Completed, callback,
+                        head.Generation.ToByteArray(), head.Revision);
+                    return true;
+                });
             }
         });
 
@@ -2491,6 +2655,9 @@ partial class EpConnection
             {
                 (r as EpResource).Unsubscribe(et).Then(x =>
                 {
+                    lock (_subscriptionsLock)
+                        if (_subscriptions.ContainsKey(r))
+                            _subscriptions[r].Remove(index);
                     SendReply(EpPacketReply.Completed, callback);
                 }).Error(x => SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure));
             }
@@ -2516,6 +2683,141 @@ partial class EpConnection
                 }
             }
         });
+    }
+
+    void EpRequestQueryResourceJournal(uint callback, PlainTdu tdu)
+    {
+        // resourceId, generation, afterRevision, throughRevision?, fromTime?,
+        // toTime?, kind?, memberIndex?, limit
+        var (_, _, args) = DataDeserializer.LimitedCountListParser(
+            tdu.Data,
+            tdu.PayloadOffset,
+            tdu.PayloadLength,
+            Instance.Warehouse,
+            9);
+
+        var resourceId = Convert.ToUInt32(args[0]);
+        var query = new ResourceJournalQuery
+        {
+            After = new ResourceCursor(new Guid((byte[])args[1]), Convert.ToUInt64(args[2])),
+            ThroughRevision = args[3] == null ? null : Convert.ToUInt64(args[3]),
+            FromTime = args[4] as DateTime?,
+            ToTime = args[5] as DateTime?,
+            Kind = args[6] == null
+                ? null
+                : (ResourceJournalEntryKind?)Convert.ToByte(args[6]),
+            MemberIndex = args[7] == null ? null : (byte?)Convert.ToByte(args[7]),
+            Limit = Convert.ToInt32(args[8]),
+        };
+
+        Instance.Warehouse.GetById(resourceId).Then(resource =>
+        {
+            if (resource == null)
+            {
+                SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ResourceNotFound);
+                return;
+            }
+
+            lock (_subscriptionsLock)
+            {
+                if (!_subscriptions.ContainsKey(resource))
+                {
+                    SendError(ErrorType.Management, callback, (ushort)ExceptionCode.NotAttached);
+                    return;
+                }
+            }
+
+            var page = resource.Instance.QueryJournal(query);
+            var permitted = page.Entries.Where(entry =>
+            {
+                MemberDef member;
+                ActionType action;
+                if (entry.Kind == ResourceJournalEntryKind.PropertyModified)
+                {
+                    member = resource.Instance.Definition.GetPropertyDefByIndex(entry.MemberIndex);
+                    action = ActionType.GetProperty;
+                }
+                else
+                {
+                    member = resource.Instance.Definition.GetEventDefByIndex(entry.MemberIndex);
+                    action = ActionType.ReceiveEvent;
+                }
+
+                return member != null && IsOperationAllowed(resource, member, action);
+            }).Select(entry => (object)new object[]
+            {
+                entry.Cursor.Generation.ToByteArray(),
+                entry.Cursor.Revision,
+                entry.RecordedAt,
+                (byte)entry.Kind,
+                entry.MemberIndex,
+                entry.Value,
+            }).ToArray();
+
+            SendReply(EpPacketReply.Completed, callback,
+                page.OldestAvailable.Generation.ToByteArray(),
+                page.OldestAvailable.Revision,
+                page.HighWatermark.Generation.ToByteArray(),
+                page.HighWatermark.Revision,
+                page.Next.Generation.ToByteArray(),
+                page.Next.Revision,
+                page.CursorExpired,
+                page.HasMore,
+                permitted);
+        }).Error(exception =>
+            SendError(ErrorType.Exception, callback, (ushort)ExceptionCode.GeneralFailure, exception.Message));
+    }
+
+    /// <summary>Queries retained resource changes without changing live subscriptions.</summary>
+    public AsyncReply<ResourceJournalPage> QueryResourceJournal(
+        uint resourceId,
+        ResourceJournalQuery query)
+    {
+        query ??= new ResourceJournalQuery();
+        var reply = new AsyncReply<ResourceJournalPage>();
+        SendRequest(
+            EpPacketRequest.QueryResourceJournal,
+            resourceId,
+            query.After.Generation.ToByteArray(),
+            query.After.Revision,
+            query.ThroughRevision,
+            query.FromTime,
+            query.ToTime,
+            query.Kind.HasValue ? (object)(byte)query.Kind.Value : null,
+            query.MemberIndex,
+            query.Limit).Then(result =>
+        {
+            try
+            {
+                var values = (object[])result;
+                var entries = ((object[])values[8]).Select(raw =>
+                {
+                    var item = (object[])raw;
+                    return new ResourceJournalEntry(
+                        new ResourceCursor(new Guid((byte[])item[0]), Convert.ToUInt64(item[1])),
+                        ((DateTime)item[2]).ToUniversalTime(),
+                        (ResourceJournalEntryKind)Convert.ToByte(item[3]),
+                        Convert.ToByte(item[4]),
+                        item[5]);
+                }).ToArray();
+
+                reply.Trigger(new ResourceJournalPage(
+                    new ResourceCursor(new Guid((byte[])values[0]), Convert.ToUInt64(values[1])),
+                    new ResourceCursor(new Guid((byte[])values[2]), Convert.ToUInt64(values[3])),
+                    new ResourceCursor(new Guid((byte[])values[4]), Convert.ToUInt64(values[5])),
+                    Convert.ToBoolean(values[6]),
+                    Convert.ToBoolean(values[7]),
+                    entries));
+            }
+            catch (Exception exception)
+            {
+                reply.TriggerError(new AsyncException(
+                    ErrorType.Management,
+                    (ushort)ExceptionCode.ParseError,
+                    exception.Message));
+            }
+        }).Error(reply.TriggerError);
+        return reply;
     }
 
 
@@ -3151,13 +3453,15 @@ partial class EpConnection
                             return;
                         }
 
-                        // TypeId, Age, Link, Hops, PropertyValue[]
+                        // TypeId, Generation, Revision, Link, Hops, PropertyValue[]
                         var args = (object[])result;
-                        var typeId = Convert.ToUInt32(args[0]);
-                        var age = Convert.ToUInt64(args[1]);
-                        var link = (string)args[2];
-                        var hops = (byte)args[3];
-                        var pvData = (byte[])args[4];
+                        var typeId = Convert.ToUInt64(args[0]);
+                        var cursor = new ResourceCursor(
+                            new Guid((byte[])args[1]),
+                            Convert.ToUInt64(args[2]));
+                        var link = (string)args[3];
+                        var hops = (byte)args[4];
+                        var pvData = (byte[])args[5];
 
 
                         var typeDef = resource != null ?
@@ -3176,7 +3480,7 @@ partial class EpConnection
                             {
                                 var pvs = results as PropertyValue[];
 
-                                dr._Attach(pvs);
+                                dr._Attach(pvs, cursor);
                                 // Progress signal: a resource has fully attached. Used by tests to
                                 // distinguish a true deadlock (no progress while requests pend) from
                                 // merely slow processing (these counters keep advancing).
@@ -3201,9 +3505,9 @@ partial class EpConnection
                                 if (resource == null)
                                 {
                                     if (td.ProxyType != null)
-                                        resource = Activator.CreateInstance(td.ProxyType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as EpResource;
+                                        resource = Activator.CreateInstance(td.ProxyType, this, id, cursor.Revision, link) as EpResource;
                                     else
-                                        resource = new EpResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
+                                        resource = new EpResource(this, id, cursor.Revision, link);
 
                                     resource.ResourceDefinition = td;
                                     typeDef = td;
@@ -3226,9 +3530,9 @@ partial class EpConnection
                             if (resource == null)
                             {
                                 if (typeDef.ProxyType != null)
-                                    resource = Activator.CreateInstance(typeDef.ProxyType, this, id, Convert.ToUInt64(args[1]), (string)args[2]) as EpResource;
+                                    resource = Activator.CreateInstance(typeDef.ProxyType, this, id, cursor.Revision, link) as EpResource;
                                 else
-                                    resource = new EpResource(this, id, Convert.ToUInt64(args[1]), (string)args[2]);
+                                    resource = new EpResource(this, id, cursor.Revision, link);
 
                                 resource.ResourceDefinition = typeDef;
 
@@ -3266,8 +3570,8 @@ partial class EpConnection
     /// <returns>DistributedResource</returns>
     /// 
     /// <summary>
-    /// Re-attaches an already-known resource after reconnection using its last-known age. The peer
-    /// returns only the properties modified after <paramref name="age"/> (the delta), which are
+    /// Re-attaches an already-known resource after reconnection using its last-known cursor. The peer
+    /// returns only the properties modified after <paramref name="cursor"/> (the delta), which are
     /// merged into the existing instance instead of re-fetching everything. Falls back to a full
     /// <see cref="FetchResource"/> if there is no prior state to merge into.
     /// </summary>
@@ -3277,7 +3581,10 @@ partial class EpConnection
     /// under a different id while disconnected), but the link is — passing it resolves the current
     /// id and reattaches in a single round trip instead of a separate GetResourceIdByLink first.
     /// </param>
-    public AsyncReply<EpResource> Reattach(object resourceLinkOrId, ulong age, EpResource resource)
+    public AsyncReply<EpResource> Reattach(
+        object resourceLinkOrId,
+        ResourceCursor cursor,
+        EpResource resource)
     {
         // The already-attached / already-in-flight fast paths only apply when we
         // already know a specific id — a link's current id isn't known until the
@@ -3300,7 +3607,11 @@ partial class EpConnection
 
         var reply = new AsyncReply<EpResource>();
         ResourceAttachRequestCount++;
-        SendRequest(EpPacketRequest.ReattachResource, resourceLinkOrId, age).Then(result =>
+        SendRequest(
+            EpPacketRequest.ReattachResource,
+            resourceLinkOrId,
+            cursor.Generation.ToByteArray(),
+            cursor.Revision).Then(result =>
         {
             if (result == null)
             {
@@ -3309,10 +3620,13 @@ partial class EpConnection
                 return;
             }
 
-            // resolvedId, typeId, age, link, hops, delta(index -> PropertyValue)
+            // resolvedId, typeId, generation, revision, link, hops, reset, delta
             var args = (object[])result;
             var resolvedId = Convert.ToUInt32(args[0]);
-            var deltaData = (byte[])args[5];
+            var remoteCursor = new ResourceCursor(
+                new Guid((byte[])args[2]),
+                Convert.ToUInt64(args[3]));
+            var deltaData = (byte[])args[7];
             var sequence = new uint[] { resolvedId };
             var oldId = resource.ResourceInstanceId;
 
@@ -3354,7 +3668,7 @@ partial class EpConnection
                         // request that happens to share the reused oldId.
                     }
 
-                    if (!resource._Reattach(delta))
+                    if (!resource._Reattach(delta, remoteCursor))
                     {
                         // No prior state to merge into — perform a full attach instead.
                         _resourceRequests.Remove(resolvedId);
@@ -3660,6 +3974,9 @@ partial class EpConnection
     {
         SendNotification(EpPacketNotification.PropertyModified,
                          info.Resource.Instance.Id,
+                         info.Cursor.Generation.ToByteArray(),
+                         info.Cursor.Revision,
+                         info.RecordedAt,
                          info.PropertyDef.Index,
                          info.Value);
     }
@@ -3689,6 +4006,9 @@ partial class EpConnection
         // compose the packet
         SendNotification(EpPacketNotification.EventOccurred,
                           info.Resource.Instance.Id,
+                          info.Cursor.Generation.ToByteArray(),
+                          info.Cursor.Revision,
+                          info.RecordedAt,
                           info.EventDef.Index,
                           info.Value);
     }
@@ -3714,6 +4034,9 @@ partial class EpConnection
         // compose the packet
         SendNotification(EpPacketNotification.EventOccurred,
             info.Resource.Instance.Id,
+            info.Cursor.Generation.ToByteArray(),
+            info.Cursor.Revision,
+            info.RecordedAt,
             info.Definition.Index,
             info.Value);
     }

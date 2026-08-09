@@ -51,5 +51,6 @@ public enum ExceptionCode : ushort
     ParserLimitExceeded,
     AttachmentLimitExceeded,
     AlreadyAttached,
-    ConnectionLimitExceeded
+    ConnectionLimitExceeded,
+    CursorExpired
 }

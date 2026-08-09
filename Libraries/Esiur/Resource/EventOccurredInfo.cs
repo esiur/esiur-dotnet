@@ -15,12 +15,27 @@ namespace Esiur.Resource
 
         public readonly IResource Resource;
         public readonly object Value;
+        public readonly ResourceCursor Cursor;
+        public ulong Revision => Cursor.Revision;
+        public readonly DateTime RecordedAt;
 
-        public EventOccurredInfo(IResource resource, EventDef eventDef, object value)
+        public EventOccurredInfo(
+            IResource resource,
+            EventDef eventDef,
+            object value,
+            ResourceCursor cursor,
+            DateTime recordedAt)
         {
             Resource = resource;
             Value = value;
             Definition = eventDef;
+            Cursor = cursor;
+            RecordedAt = recordedAt;
+        }
+
+        public EventOccurredInfo(IResource resource, EventDef eventDef, object value)
+            : this(resource, eventDef, value, new ResourceCursor(Guid.Empty, 0), DateTime.UtcNow)
+        {
         }
     }
 }

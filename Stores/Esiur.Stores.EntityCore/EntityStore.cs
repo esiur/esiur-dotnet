@@ -37,7 +37,7 @@ using System.Collections;
 using Esiur.Data.Types;
 
 namespace Esiur.Stores.EntityCore;
-public class EntityStore : IStore
+public class EntityStore : IStore, IResourceJournalStore
 {
     public Instance Instance { get; set; }
 
@@ -50,6 +50,21 @@ public class EntityStore : IStore
 
     Dictionary<Type, Dictionary<object, WeakReference>> DB = new Dictionary<Type, Dictionary<object, WeakReference>>();
     object DBLock = new object();
+    readonly ResourceJournalBuffer journal = new();
+
+    public ResourceCursor OpenJournal(
+        IResource resource,
+        string resourceKey,
+        ResourceCursor proposedCursor) =>
+        journal.OpenJournal(resource, resourceKey, proposedCursor);
+
+    public bool AppendJournalEntry(IResource resource, ResourceJournalEntry entry, bool retain) =>
+        journal.AppendJournalEntry(resource, entry, retain);
+
+    public ResourceJournalPage QueryJournal(IResource resource, ResourceJournalQuery query) =>
+        journal.QueryJournal(resource, query);
+
+    public void RemoveJournal(IResource resource) => journal.RemoveJournal(resource);
 
     Dictionary<string, EntityTypeInfo> TypesByName = new Dictionary<string, EntityTypeInfo>();
     internal Dictionary<Type, EntityTypeInfo> TypesByType = new Dictionary<Type, EntityTypeInfo>();
@@ -293,6 +308,7 @@ public class EntityStore : IStore
             if (DB[type].ContainsKey(eid))
             {
                 DB[type].Remove(eid);
+                journal.RemoveJournal(resource);
                 return new AsyncReply<bool>(true);
             }
         }

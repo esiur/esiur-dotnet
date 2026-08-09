@@ -3,13 +3,77 @@ namespace Esiur.Tests.Unit.Integration;
 using Esiur.Data;
 using Esiur.Net.Sockets;
 using Esiur.Protocol;
+using Esiur.Resource;
 using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
+using Esiur.Stores;
 using System.Net;
 
 [Collection("Integration")]
 public class SessionHeadersIntegrationTests
 {
+    [Fact]
+    public async Task AcceptedConnection_RaisesReadyAndDisconnectedLifecycleEvents()
+    {
+        var ready = new TaskCompletionSource<EpConnection>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var disconnected = new TaskCompletionSource<EpConnection>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var cluster = await IntegrationCluster
+            .StartAsync(
+                _ => Task.CompletedTask,
+                serverCreated: server =>
+                {
+                    server.ConnectionReady += connection => ready.TrySetResult(connection);
+                    server.ConnectionDisconnected += connection => disconnected.TrySetResult(connection);
+                })
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        var accepted = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(accepted.Session.Authenticated);
+        Assert.Equal("tester", accepted.Session.RemoteIdentity);
+
+        accepted.NetworkClose(accepted.Socket);
+        Assert.Same(
+            accepted,
+            await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task AcceptedConnection_CanFetchInitiatorResourceBidirectionally()
+    {
+        var fetched = new TaskCompletionSource<IResource>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var cluster = await IntegrationCluster
+            .StartAsync(
+                _ => Task.CompletedTask,
+                serverCreated: server => server.ConnectionReady += connection =>
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            fetched.TrySetResult(await connection.Get("client/exported"));
+                        }
+                        catch (Exception exception)
+                        {
+                            fetched.TrySetException(exception);
+                        }
+                    }),
+                populateClient: async warehouse =>
+                {
+                    await warehouse.Put("client", new MemoryStore());
+                    await warehouse.Put("client/exported", new Node { Id = 818 });
+                })
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        var proxy = Assert.IsType<EpResource>(
+            await fetched.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        dynamic exported = proxy;
+        Assert.Equal(818, Convert.ToInt32(exported.Id));
+    }
+
     [Fact]
     public async Task AuthenticatedHandshake_StoresTypedHeadersWithoutAuthenticationData()
     {
@@ -232,6 +296,36 @@ public class SessionHeadersIntegrationTests
         Assert.IsType<FrameworkWebSocket>(cluster.Connection.Socket);
         Assert.True(Assert.Single(cluster.Server.Connections).IsEncrypted);
         Assert.Equal(203, Convert.ToInt32(result));
+    }
+
+    [Fact]
+    public async Task AnonymousWebSocketTransport_AssignsSchemaDomain()
+    {
+        await using var cluster = await IntegrationCluster
+            .StartAsync(
+                async warehouse =>
+                {
+                    await warehouse.Put("sys/websocket-anonymous", new EncryptedEchoResource());
+                },
+                useWebSocket: true,
+                anonymous: true)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        var remote = (EpResource)await Task.Run(async () =>
+            await cluster.Connection.Get("sys/websocket-anonymous"))
+            .WaitAsync(TimeSpan.FromSeconds(10));
+        var function = remote.Instance.Definition
+            .GetFunctionDefByName(nameof(EncryptedEchoResource.Echo));
+        var result = await remote._Invoke(
+            function.Index,
+            new Map<byte, object>
+            {
+                [0] = 42,
+            });
+
+        Assert.Equal(42, Convert.ToInt32(result));
+        Assert.False(string.IsNullOrWhiteSpace(
+            Assert.Single(cluster.Server.Connections).RemoteDomain));
     }
 
     [Fact]

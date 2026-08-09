@@ -9,7 +9,9 @@ public partial class BeaconResource
 
     // No [AutoDelivery]: subscribable by default — requires an explicit
     // Subscribe request before occurrences flow to a given connection.
-    [Export] public event ResourceEventHandler<string>? Ping;
+    [Export]
+    [Historical]
+    public event ResourceEventHandler<string>? Ping;
 
     // Opts out via [AutoDelivery]: flows to every attached connection
     // unconditionally.

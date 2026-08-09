@@ -10,7 +10,7 @@ using Esiur.Data.Types;
  
 namespace Esiur.Stores;
 
-public class MemoryStore : IStore
+public class MemoryStore : IStore, IResourceJournalStore
 {
     public Instance Instance { get; set; }
 
@@ -18,6 +18,31 @@ public class MemoryStore : IStore
 
 
     KeyList<uint, IResource> resources = new KeyList<uint, IResource>();
+    readonly IResourceJournalStore journal;
+
+    public MemoryStore()
+        : this(new ResourceJournalBuffer())
+    {
+    }
+
+    public MemoryStore(IResourceJournalStore journal)
+    {
+        this.journal = journal ?? throw new ArgumentNullException(nameof(journal));
+    }
+
+    public ResourceCursor OpenJournal(
+        IResource resource,
+        string resourceKey,
+        ResourceCursor proposedCursor) =>
+        journal.OpenJournal(resource, resourceKey, proposedCursor);
+
+    public bool AppendJournalEntry(IResource resource, ResourceJournalEntry entry, bool retain) =>
+        journal.AppendJournalEntry(resource, entry, retain);
+
+    public ResourceJournalPage QueryJournal(IResource resource, ResourceJournalQuery query) =>
+        journal.QueryJournal(resource, query);
+
+    public void RemoveJournal(IResource resource) => journal.RemoveJournal(resource);
 
     public void Destroy()
     {
@@ -161,6 +186,7 @@ public class MemoryStore : IStore
     AsyncReply<bool> IStore.Remove(IResource resource)
     {
         resources.Remove(resource.Instance.Id);
+        journal.RemoveJournal(resource);
         return AsyncReply.FromResult(true);
     }
 

@@ -44,6 +44,18 @@ namespace Esiur.Protocol;
 
 public class EpServer : NetworkServer<EpConnection>, IResource
 {
+    /// <summary>
+    /// Raised after an accepted connection has completed authentication and is
+    /// ready for bidirectional resource access. Unlike <see cref="ClientConnected"/>,
+    /// this never exposes a half-completed handshake to applications.
+    /// </summary>
+    public event EpConnection.ReadyEvent ConnectionReady;
+
+    /// <summary>
+    /// Raised when an accepted connection is removed from the server.
+    /// </summary>
+    public event Action<EpConnection> ConnectionDisconnected;
+
     sealed class PeerAttemptWindow
     {
         public DateTime StartedUtc;
@@ -132,13 +144,14 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     }
 
     /// <summary>
-    /// Application-supplied native TCP port. Zero requests an ephemeral port from the OS.
+    /// Native TCP port. Defaults to <see cref="EpProtocol.DefaultPort"/>;
+    /// explicitly set zero to request an ephemeral port from the OS.
     /// </summary>
     public ushort Port
     {
         get;
         set;
-    }
+    } = EpProtocol.DefaultPort;
 
     /// <summary>
     /// Controls whether warehouse initialization opens Esiur's native TCP listener.
@@ -246,6 +259,7 @@ public class EpServer : NetworkServer<EpConnection>, IResource
             connection.ExceptionLevel = ExceptionLevel;
             connection.AuthenticationTimeout = AuthenticationTimeout;
             connection.RestartAuthenticationDeadline();
+            connection.OnReady += AcceptedConnectionReady;
             base.Add(connection);
             return true;
         }
@@ -261,6 +275,7 @@ public class EpServer : NetworkServer<EpConnection>, IResource
     {
         try
         {
+            connection.OnReady -= AcceptedConnectionReady;
             base.Remove(connection);
         }
         finally
@@ -268,6 +283,9 @@ public class EpServer : NetworkServer<EpConnection>, IResource
             ReleaseConnection(connection);
         }
     }
+
+    private void AcceptedConnectionReady(EpConnection connection)
+        => ConnectionReady?.Invoke(connection);
 
     private bool TryAdmitConnection(EpConnection connection, out string rejectionReason)
     {
@@ -403,8 +421,7 @@ public class EpServer : NetworkServer<EpConnection>, IResource
 
     protected override void ClientDisconnected(EpConnection connection)
     {
-        //connection.OnReady -= ConnectionReadyEventReceiver;
-        //Warehouse.Remove(connection);
+        ConnectionDisconnected?.Invoke(connection);
     }
 
     public KeyList<string, CallInfo?> Calls { get; } = new KeyList<string, CallInfo?>();

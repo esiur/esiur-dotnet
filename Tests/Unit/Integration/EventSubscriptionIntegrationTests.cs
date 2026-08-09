@@ -7,6 +7,110 @@ namespace Esiur.Tests.Unit.Integration;
 public class EventSubscriptionIntegrationTests
 {
     [Fact]
+    public async Task PropertyAndEventNotifications_ShareOneOrderedResourceRevision()
+    {
+        await using var cluster = await StartClusterAsync(out var getBeacon).WaitAsync(TimeSpan.FromSeconds(10));
+        var remote = await GetRemote(cluster);
+        var beacon = getBeacon();
+        var propertyRevisions = new List<ResourceCursor>();
+        var eventRevisions = new List<ResourceCursor>();
+
+        remote.Instance.PropertyModified += info => propertyRevisions.Add(info.Cursor);
+        remote.Instance.EventOccurred += info => eventRevisions.Add(info.Cursor);
+        await remote.OnAsync("Ping", _ => { });
+
+        beacon.Fire("ping", "ordered");
+        await WaitUntilAsync(
+            () => propertyRevisions.Count == 1 && eventRevisions.Count == 1,
+            TimeSpan.FromSeconds(3));
+
+        Assert.Equal(propertyRevisions[0].Generation, eventRevisions[0].Generation);
+        Assert.Equal(propertyRevisions[0].Revision + 1, eventRevisions[0].Revision);
+        Assert.Equal(eventRevisions[0], remote.Instance.Cursor);
+    }
+
+    [Fact]
+    public async Task QueryJournal_ReturnsHistoricalEventAfterCursor()
+    {
+        await using var cluster = await StartClusterAsync(out var getBeacon).WaitAsync(TimeSpan.FromSeconds(10));
+        var remote = await GetRemote(cluster);
+        var beacon = getBeacon();
+        var attachedAt = remote.Instance.Cursor;
+        var ping = remote.Instance.Definition.GetEventDefByName("Ping");
+
+        beacon.Fire("ping", "retained");
+
+        var page = await remote.QueryJournal(new ResourceJournalQuery
+        {
+            After = attachedAt,
+            Kind = ResourceJournalEntryKind.EventOccurred,
+            MemberIndex = ping.Index,
+        });
+
+        var entry = Assert.Single(page.Entries);
+        Assert.False(page.CursorExpired);
+        Assert.Equal(ResourceJournalEntryKind.EventOccurred, entry.Kind);
+        Assert.Equal(ping.Index, entry.MemberIndex);
+        Assert.Equal("retained", entry.Value);
+        Assert.True(entry.Cursor.Revision > attachedAt.Revision);
+    }
+
+    [Fact]
+    public async Task HistoricalSubscription_ReplaysOccurrenceMissedDuringReconnect()
+    {
+        await using var cluster = await StartClusterAsync(out var getBeacon).WaitAsync(TimeSpan.FromSeconds(10));
+        cluster.Connection.AutoReconnect = true;
+        cluster.Connection.ReconnectInterval = 1;
+        var remote = await GetRemote(cluster);
+        var beacon = getBeacon();
+        var received = new List<string>();
+
+        await remote.OnAsync("Ping", value => received.Add((string)value));
+        beacon.Fire("ping", "before");
+        await WaitUntilAsync(() => received.Count == 1, TimeSpan.FromSeconds(3));
+
+        foreach (var serverConnection in cluster.Server.Connections.ToArray())
+            serverConnection.Destroy();
+
+        await WaitUntilAsync(() => !cluster.Connection.IsConnected, TimeSpan.FromSeconds(3));
+        beacon.Fire("ping", "while-offline");
+        await WaitUntilAsync(() => cluster.Connection.IsConnected, TimeSpan.FromSeconds(5));
+        await WaitUntilAsync(() => received.Count == 2, TimeSpan.FromSeconds(5));
+
+        Assert.Equal(new[] { "before", "while-offline" }, received);
+    }
+
+    [Fact]
+    public async Task HistoricalSubscription_ReplaysEveryPageBeforeLiveDelivery()
+    {
+        const int occurrenceCount = 10_001;
+        BeaconResource? beacon = null;
+        await using var cluster = await IntegrationCluster.StartAsync(
+            async warehouse =>
+            {
+                beacon = new BeaconResource();
+                await warehouse.Put("sys/beacon", beacon);
+            },
+            resourceJournalCapacity: occurrenceCount + 1).WaitAsync(TimeSpan.FromSeconds(10));
+
+        for (var index = 0; index < occurrenceCount; index++)
+            beacon!.Fire("ping", index.ToString());
+
+        var remote = await GetRemote(cluster);
+        var received = new List<string>(occurrenceCount);
+        await remote.OnFromAsync(
+            "Ping",
+            new ResourceCursor(remote.Instance.Generation, 0),
+            value => received.Add((string)value));
+
+        await WaitUntilAsync(
+            () => received.Count == occurrenceCount,
+            TimeSpan.FromSeconds(10));
+        Assert.Equal("0", received[0]);
+        Assert.Equal((occurrenceCount - 1).ToString(), received[^1]);
+    }
+
+    [Fact]
     public async Task On_DeliversAutoDeliveredEventWithNoSubscribeNeeded()
     {
         await using var cluster = await StartClusterAsync(out var getBeacon).WaitAsync(TimeSpan.FromSeconds(10));
@@ -58,6 +162,21 @@ public class EventSubscriptionIntegrationTests
         await Task.Delay(200);
         Assert.Equal(new[] { "x" }, a);
         Assert.Equal(new[] { "x", "y" }, b); // neither received "z"
+    }
+
+    [Fact]
+    public async Task OnAsync_CompletesAfterWireSubscriptionIsReady()
+    {
+        await using var cluster = await StartClusterAsync(out var getBeacon).WaitAsync(TimeSpan.FromSeconds(10));
+        var remote = await GetRemote(cluster);
+        var beacon = getBeacon();
+        var received = new List<string>();
+
+        await remote.OnAsync("Ping", value => received.Add((string)value));
+        beacon.Fire("ping", "immediate");
+
+        await WaitUntilAsync(() => received.Count == 1, TimeSpan.FromSeconds(3));
+        Assert.Equal(new[] { "immediate" }, received);
     }
 
     [Fact]

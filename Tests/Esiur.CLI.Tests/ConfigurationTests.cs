@@ -8,6 +8,7 @@ namespace Esiur.CLI.Tests;
 public sealed class ConfigurationTests
 {
     [Theory]
+    [InlineData("ep://localhost", "ep://localhost")]
     [InlineData("ep://localhost:65535", "ep://localhost:65535")]
     [InlineData("ep://example.test:9000/sys/service", "ep://example.test:9000")]
     public void EndpointParserExtractsConnectionEndpoint(string value, string expected) =>
@@ -15,7 +16,7 @@ public sealed class ConfigurationTests
 
     [Theory]
     [InlineData("http://localhost")]
-    [InlineData("ep://localhost")]
+    [InlineData("ep://localhost:0")]
     [InlineData("ep:///missing-host")]
     [InlineData("not-an-endpoint")]
     public void EndpointParserRejectsInvalidEndpoints(string value) =>

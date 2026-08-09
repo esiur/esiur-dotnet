@@ -173,15 +173,12 @@ The `ep://` URL identifies the logical connection and resource path;
 `WebSocketUri` identifies the transport endpoint. Esiur automatically requests
 the case-sensitive `EP` WebSocket subprotocol.
 
-For native TCP, omit `WebSocketUri` and include the EP port in the logical URL:
+For native TCP, omit `WebSocketUri`. Esiur uses port `51018` when the logical
+URL omits a port:
 
 ```csharp
-var epPort = ushort.Parse(
-    Environment.GetEnvironmentVariable("ESIUR_PORT")
-    ?? throw new InvalidOperationException("Set ESIUR_PORT."));
-
 dynamic counter = await client.Get<IResource>(
-    $"ep://localhost:{epPort}/sys/counter");
+    "ep://localhost/sys/counter");
 ```
 
 ## Standalone hosting
@@ -195,16 +192,12 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Stores;
 
-var epPort = ushort.Parse(
-    Environment.GetEnvironmentVariable("ESIUR_PORT")
-    ?? throw new InvalidOperationException("Set ESIUR_PORT."));
 var warehouse = new Warehouse();
 
 await warehouse.Put("sys", new MemoryStore());
 await warehouse.Put("sys/counter", new CounterResource());
 await warehouse.Put("sys/server", new EpServer
 {
-    Port = epPort,
     AllowUnauthorizedAccess = true, // Development only.
 });
 
@@ -223,6 +216,50 @@ finally
 Use a separate `Warehouse` for each isolated server or client runtime. Avoid
 relying on the static default Warehouse in applications that host more than one
 Esiur environment.
+
+## Resource revisions and historical events
+
+Esiur 3 uses one ordered cursor for every observable change made by a resource:
+
+```text
+(generation UUID, resource-wide revision)
+```
+
+Property modifications and event occurrences share this sequence. Notifications
+also carry their original UTC recording time. A new generation means that the
+producer cannot continue the previous sequence, so consumers must replace their
+snapshot instead of comparing revisions from the two generations.
+
+Mark an event with `[Historical]` when disconnected consumers must be able to
+replay it. Ordinary events remain live-only and do not grow the retained journal.
+
+```csharp
+[Export, Historical]
+public event ResourceEventHandler<ReadingRecord>? Reading;
+
+var checkpoint = remote.Instance.Cursor;
+await remote.OnFromAsync("Reading", checkpoint, value =>
+{
+    var reading = (ReadingRecord)value;
+    // Persist the reading, then save the cursor received through
+    // remote.Instance.EventOccurred.
+});
+```
+
+`EpResource.QueryJournal(...)` supports bounded queries by cursor, time, entry
+kind, and member. `OnFromAsync(...)` atomically replays retained occurrences and
+then continues with live delivery. Each consumer owns its checkpoint; the source
+does not delete an event merely because one client received it. Reconnect uses
+the per-event checkpoint automatically, and returns `CursorExpired` if retention
+can no longer satisfy the requested position.
+
+The resource's owning store controls retention through `IResourceJournalStore`.
+The bundled memory, temporary, and current EntityCore adapters use a bounded
+10,000-entry process-local journal per resource. A deployment requiring replay
+across producer restarts must use a durable implementation of that interface.
+
+This changes the EP v3 attach, reattach, subscribe, notification, and journal
+request shapes. All communicating v3 peers must be upgraded together.
 
 ## Authentication and encryption
 
@@ -350,8 +387,8 @@ EP is self-describing, so clients can work dynamically or generate strongly
 typed models. Install the v3 CLI as a .NET tool:
 
 ```shell
-dotnet tool install --global Esiur.CLI --version 3.0.0
-esiur get-template "ep://localhost:${ESIUR_PORT}/sys/counter" --dir Generated
+dotnet tool install --global Esiur.CLI --version 3.1.0
+esiur get-template "ep://localhost/sys/counter" --dir Generated
 ```
 
 Use `--async-setters` to generate asynchronous property setters. The CLI also

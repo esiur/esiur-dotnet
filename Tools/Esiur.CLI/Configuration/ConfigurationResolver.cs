@@ -63,8 +63,8 @@ public static class ConfigurationResolver
     static readonly string[] ValidSchemes = ["ep", "eps", "ws", "wss"];
 
     /// <summary>
-    /// Accepts <c>ep(s)://host:port</c> (a bare Esiur endpoint, connects at the
-    /// WebSocket root) as well as <c>ws(s)://host:port/path</c> (for hosts like
+    /// Accepts <c>ep(s)://host[:port]</c> (a bare Esiur endpoint, connects at the
+    /// WebSocket root) as well as <c>ws(s)://host[:port]/path</c> (for hosts like
     /// ASP.NET Core's <c>MapEsiur("/esiur")</c> that mount the WebSocket route
     /// somewhere other than root) — see <see cref="EndpointParser"/> for how
     /// the two forms are dialed.
@@ -75,36 +75,11 @@ public static class ConfigurationResolver
             || !ValidSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(uri.Host)
             || !string.IsNullOrEmpty(uri.UserInfo)
-            || !HasExplicitPort(endpoint))
+            || uri.Port == 0
+            || uri.Port > ushort.MaxValue)
             throw new CliException(
-                $"Endpoint \"{endpoint}\" is not a valid ep:// or ws:// endpoint with an explicit port.",
+                $"Endpoint \"{endpoint}\" is not a valid ep:// or ws:// endpoint.",
                 ExitCodes.InvalidArguments);
-    }
-
-    static bool HasExplicitPort(string endpoint)
-    {
-        var schemeEnd = endpoint.IndexOf("://", StringComparison.Ordinal);
-        if (schemeEnd < 0)
-            return false;
-
-        var authorityStart = schemeEnd + 3;
-        var authorityEnd = endpoint.IndexOfAny(['/', '?', '#'], authorityStart);
-        if (authorityEnd < 0)
-            authorityEnd = endpoint.Length;
-
-        var authority = endpoint[authorityStart..authorityEnd];
-        var at = authority.LastIndexOf('@');
-        if (at >= 0)
-            authority = authority[(at + 1)..];
-
-        var colon = authority.StartsWith('[')
-            ? authority.IndexOf(']') + 1
-            : authority.LastIndexOf(':');
-        return colon > 0
-            && colon < authority.Length - 1
-            && authority[colon] == ':'
-            && ushort.TryParse(authority[(colon + 1)..], out var port)
-            && port > 0;
     }
 }
 

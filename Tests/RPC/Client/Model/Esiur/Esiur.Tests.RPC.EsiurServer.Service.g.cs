@@ -183,12 +183,13 @@ namespace Esiur.Tests.RPC.EsiurServer
             get => (object)_properties[1];
             set => SetResourceProperty(1, value);
         }
-        protected override void _EmitEventByIndex(byte index, object args)
+        protected override void _EmitEventByIndex(byte index, object args, ResourceCursor cursor, DateTime recordedAt)
         {
             switch (index)
             {
                 case 0: MessageUpdated?.Invoke((byte[])args); break;
             }
+            base._EmitEventByIndex(index, args, cursor, recordedAt);
         }
         [Export] public event ResourceEventHandler<byte[]> MessageUpdated;
 

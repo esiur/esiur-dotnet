@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Esiur.Resource;
 
 namespace Esiur.Protocol;
 public class EpResourceQueueItem
@@ -41,13 +42,23 @@ public class EpResourceQueueItem
     byte index;
     object value;
     EpResource resource;
+    ResourceCursor cursor;
+    DateTime recordedAt;
 
-    public EpResourceQueueItem(EpResource resource, DistributedResourceQueueItemType type, object value, byte index)
+    public EpResourceQueueItem(
+        EpResource resource,
+        DistributedResourceQueueItemType type,
+        object value,
+        byte index,
+        ResourceCursor cursor,
+        DateTime recordedAt)
     {
         this.resource = resource;
         this.index = index;
         this.type = type;
         this.value = value;
+        this.cursor = cursor;
+        this.recordedAt = recordedAt;
     }
 
     public EpResource Resource
@@ -68,4 +79,7 @@ public class EpResourceQueueItem
     {
         get { return value; }
     }
+
+    public ResourceCursor Cursor => cursor;
+    public DateTime RecordedAt => recordedAt;
 }

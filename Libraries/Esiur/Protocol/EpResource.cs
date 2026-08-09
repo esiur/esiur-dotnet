@@ -89,8 +89,16 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     // before sending a Subscribe/Unsubscribe request, since the server errors
     // (AlreadyListened/AlreadyUnsubscribed) on a redundant one.
     readonly HashSet<byte> _subscribedEvents = new();
+    // Last committed occurrence for each event. The sequence belongs to the
+    // resource-wide journal; separate checkpoints let subscriptions filter
+    // unrelated members without losing replay position.
+    readonly Dictionary<byte, ResourceCursor> _eventCursors = new();
     // Event indices with a subscription-reconciliation loop currently running.
     readonly HashSet<byte> _reconciling = new();
+    // Callers of OnAsync wait here until the shared reconciliation loop has
+    // confirmed the server-side subscription. This prevents an invocation
+    // from racing the first Subscribe request on a newly attached proxy.
+    readonly Dictionary<byte, List<AsyncReply>> _subscriptionWaiters = new();
 
 
 
@@ -219,7 +227,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         this._age = age;
     }
 
-    internal bool _Attach(PropertyValue[] properties)
+    internal bool _Attach(PropertyValue[] properties, ResourceCursor cursor)
     {
         if (_status == ResourceStatus.Attached)
             return false;
@@ -234,6 +242,11 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             Instance.SetModificationDate(i, properties[i].Date);
             this._properties[i] = properties[i].Value;
         }
+
+        Instance.ObserveRemoteCursor(cursor, DateTime.MinValue);
+        lock (_eventCursors)
+            foreach (var eventDef in Instance.Definition.Events)
+                _eventCursors[eventDef.Index] = cursor;
 
         // trigger holded events/property updates.
         //foreach (var r in afterAttachmentTriggers)
@@ -255,10 +268,12 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// prior state to merge into), in which case the caller should perform a full attach.
     /// </summary>
     /// <param name="delta">Modified properties keyed by their property index.</param>
-    internal bool _Reattach(Map<byte, PropertyValue> delta)
+    internal bool _Reattach(Map<byte, PropertyValue> delta, ResourceCursor cursor)
     {
         if (_properties == null || _events == null)
             return false; // no prior state — caller should perform a full attach instead.
+
+        var generationChanged = Instance.Generation != cursor.Generation;
 
         foreach (var kv in delta)
         {
@@ -269,6 +284,14 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             Instance.SetAge(index, kv.Value.Age);
             Instance.SetModificationDate(index, kv.Value.Date);
             _properties[index] = kv.Value.Value;
+        }
+
+        Instance.ObserveRemoteCursor(cursor, DateTime.MinValue);
+        if (generationChanged)
+        {
+            lock (_eventCursors)
+                foreach (var eventDef in Instance.Definition.Events)
+                    _eventCursors[eventDef.Index] = cursor;
         }
 
         _status = Resource.ResourceStatus.Attached;
@@ -282,11 +305,23 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     }
 
 
-    protected internal virtual void _EmitEventByIndex(byte index, object args)
+    protected internal virtual void _EmitEventByIndex(
+        byte index,
+        object args,
+        ResourceCursor cursor,
+        DateTime recordedAt)
     {
         var et = Instance.Definition.GetEventDefByIndex(index);
+        lock (_eventCursors)
+        {
+            if (_eventCursors.TryGetValue(index, out var previous) &&
+                previous.Generation == cursor.Generation &&
+                previous.Revision >= cursor.Revision)
+                return;
+            _eventCursors[index] = cursor;
+        }
         _events[index]?.Invoke(this, args);
-        Instance.EmitResourceEvent(et, args);
+        Instance.ApplyRemoteEvent(et, args, cursor, recordedAt);
         DispatchListeners(_eventListeners, index, args);
     }
 
@@ -346,14 +381,38 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             return rt;
         }
 
-        if (!et.Subscribable)
+        if (!et.Subscribable && !et.Historical)
         {
             var rt = new AsyncReply();
             rt.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
             return rt;
         }
 
-        return _connection.SendSubscribeRequest(_instanceId, et.Index);
+        ResourceCursor cursor;
+        lock (_eventCursors)
+            cursor = _eventCursors.TryGetValue(et.Index, out var known)
+                ? known
+                : Instance.Cursor;
+        return _connection.SendSubscribeRequest(_instanceId, et.Index, cursor);
+    }
+
+    internal AsyncReply Subscribe(EventDef et, ResourceCursor after)
+    {
+        if (et == null)
+        {
+            var reply = new AsyncReply();
+            reply.TriggerError(new AsyncException(
+                ErrorType.Management, (ushort)ExceptionCode.MethodNotFound, ""));
+            return reply;
+        }
+        if (!et.Subscribable && !et.Historical)
+        {
+            var reply = new AsyncReply();
+            reply.TriggerError(new AsyncException(
+                ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
+            return reply;
+        }
+        return _connection.SendSubscribeRequest(_instanceId, et.Index, after);
     }
 
     public AsyncReply Subscribe(string eventName)
@@ -373,7 +432,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             return rt;
         }
 
-        if (!et.Subscribable)
+        if (!et.Subscribable && !et.Historical)
         {
             var rt = new AsyncReply();
             rt.TriggerError(new AsyncException(ErrorType.Management, (ushort)ExceptionCode.NotSubscribable, ""));
@@ -390,6 +449,10 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         return Unsubscribe(et);
     }
 
+    /// <summary>Queries retained property changes and event occurrences.</summary>
+    public AsyncReply<ResourceJournalPage> QueryJournal(ResourceJournalQuery query = null) =>
+        _connection.QueryResourceJournal(_instanceId, query ?? new ResourceJournalQuery());
+
     /// <summary>
     /// Listen for a property change (<c>On(":propName", cb)</c>) or an
     /// exported event (<c>On("eventName", cb)</c>). For events where the
@@ -401,20 +464,54 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// </summary>
     public EpResource On(string name, Action<object> callback)
     {
+        OnAsync(name, callback);
+        return this;
+    }
+
+    /// <summary>
+    /// Register a listener and complete only after a subscribable event is
+    /// active on the remote endpoint. Multiple concurrent callers share the
+    /// same wire-level subscription reconciliation.
+    /// </summary>
+    public AsyncReply OnAsync(string name, Action<object> callback)
+    {
+        var reply = new AsyncReply();
         if (name.StartsWith(":"))
         {
             var propertyName = name.Substring(1);
             var pt = Instance.Definition.GetPropertyDefByName(propertyName)
                 ?? throw new Exception($"Unknown property \"{propertyName}\".");
             AddListener(_propertyListeners, pt.Index, callback);
-            return this;
+            reply.Trigger(this);
+            return reply;
         }
 
         var et = Instance.Definition.GetEventDefByName(name)
             ?? throw new Exception($"Unknown event \"{name}\".");
         AddListener(_eventListeners, et.Index, callback);
-        if (et.Subscribable) ReconcileSubscription(et);
-        return this;
+        if (et.Subscribable || et.Historical)
+            ReconcileSubscription(et, reply);
+        else
+            reply.Trigger(this);
+        return reply;
+    }
+
+    /// <summary>
+    /// Registers an event listener and replays retained occurrences newer than
+    /// <paramref name="after"/> before continuing with live delivery.
+    /// </summary>
+    public AsyncReply OnFromAsync(string name, ResourceCursor after, Action<object> callback)
+    {
+        var et = Instance.Definition.GetEventDefByName(name)
+            ?? throw new Exception($"Unknown event \"{name}\".");
+        if (!et.Historical)
+            throw new InvalidOperationException($"Event `{name}` is not historical.");
+
+        lock (_eventCursors) _eventCursors[et.Index] = after;
+        var reply = new AsyncReply();
+        AddListener(_eventListeners, et.Index, callback);
+        ReconcileSubscription(et, reply);
+        return reply;
     }
 
     /// <summary>Remove a listener registered with <see cref="On"/>.</summary>
@@ -430,7 +527,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         var et = Instance.Definition.GetEventDefByName(name);
         if (et == null) return this;
         RemoveListener(_eventListeners, et.Index, callback);
-        if (et.Subscribable) ReconcileSubscription(et);
+        if (et.Subscribable || et.Historical) ReconcileSubscription(et);
         return this;
     }
 
@@ -486,7 +583,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
 
         foreach (var et in Instance.Definition.Events)
         {
-            if (!et.Subscribable) continue;
+            if (!et.Subscribable && !et.Historical) continue;
             var hasListeners = ListenerCount(_eventListeners, et.Index) > 0 || _events[et.Index] != null;
             if (hasListeners) ReconcileSubscription(et);
         }
@@ -500,8 +597,21 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     /// once the in-flight request settles, rather than replaying every
     /// transition.
     /// </summary>
-    void ReconcileSubscription(EventDef et)
+    void ReconcileSubscription(EventDef et, AsyncReply waiter = null)
     {
+        if (waiter != null)
+        {
+            lock (_subscriptionWaiters)
+            {
+                if (!_subscriptionWaiters.TryGetValue(et.Index, out var waiters))
+                {
+                    waiters = new List<AsyncReply>();
+                    _subscriptionWaiters[et.Index] = waiters;
+                }
+                waiters.Add(waiter);
+            }
+        }
+
         lock (_reconciling)
         {
             if (!_reconciling.Add(et.Index)) return;
@@ -524,7 +634,7 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
 
         if (desired == actual)
         {
-            lock (_reconciling) _reconciling.Remove(et.Index);
+            CompleteSubscriptionReconciliation(et.Index, null);
             return;
         }
 
@@ -539,13 +649,35 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
             // Re-check: the desired state may have changed while this request
             // was in flight (another On()/Off() call came in meanwhile).
             StepSubscription(et);
-        }).Error((_) =>
+        }).Error((error) =>
         {
             // Leave `_subscribedEvents` as-is; the next On()/Off() call that
             // changes the listener count re-triggers reconciliation, so a
             // transient failure here just needs another transition to retry.
-            lock (_reconciling) _reconciling.Remove(et.Index);
+            CompleteSubscriptionReconciliation(et.Index, error);
         });
+    }
+
+    void CompleteSubscriptionReconciliation(byte eventIndex, AsyncException error)
+    {
+        lock (_reconciling) _reconciling.Remove(eventIndex);
+
+        AsyncReply[] waiters = null;
+        lock (_subscriptionWaiters)
+        {
+            if (_subscriptionWaiters.TryGetValue(eventIndex, out var pending))
+            {
+                waiters = pending.ToArray();
+                _subscriptionWaiters.Remove(eventIndex);
+            }
+        }
+
+        if (waiters == null) return;
+        foreach (var waiter in waiters)
+        {
+            if (error == null) waiter.Trigger(this);
+            else waiter.TriggerError(error);
+        }
     }
 
 
@@ -664,11 +796,17 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     }
 
 
-    internal void _UpdatePropertyByIndex(byte index, object value)
+    internal void _UpdatePropertyByIndex(
+        byte index,
+        object value,
+        ResourceCursor cursor,
+        DateTime recordedAt)
     {
         var pt = Instance.Definition.GetPropertyDefByIndex(index);
+        if (!Instance.IsNewerPropertyRevision(index, cursor))
+            return;
         _properties[index] = value;
-        Instance.EmitModification(pt, value);
+        Instance.ApplyRemotePropertyModification(pt, value, cursor, recordedAt);
         DispatchListeners(_propertyListeners, index, value);
     }
 

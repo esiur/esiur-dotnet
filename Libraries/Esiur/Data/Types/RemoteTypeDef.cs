@@ -189,7 +189,12 @@ public class RemoteTypeDef:TypeDef
         definition._content = data.Clip(offset, contentLength);
         definition._typeId = info.Id;
         definition._parentTypeId = info.Parent;
-        definition._typeName = string.IsNullOrEmpty(info.Namespace)
+        // Older TypeDefInfo producers put the fully-qualified name in Name
+        // while also filling Namespace. Avoid duplicating the namespace, but
+        // continue accepting producers that send a simple type name.
+        definition._typeName = string.IsNullOrEmpty(info.Namespace) ||
+                               info.Name.StartsWith(info.Namespace + ".", StringComparison.Ordinal) ||
+                               info.Name.StartsWith(info.Namespace + "+", StringComparison.Ordinal)
             ? info.Name
             : $"{info.Namespace}.{info.Name}";
         definition._typeDefKind = info.Kind;

@@ -228,13 +228,13 @@ public static class Codec
                 asyncReply.Then(value =>
                 {
                     rt.Trigger(new ParseResult<object>(value, (uint)tdu.TotalLength));
-                });
+                }).Error(rt.TriggerError);
             }
             else
             {
                 rt.Trigger(new ParseResult<object>(result, (uint)tdu.TotalLength));
             }
-        });
+        }).Error(rt.TriggerError);
 
         return rt;
 

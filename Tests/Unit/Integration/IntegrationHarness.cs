@@ -205,7 +205,11 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         bool mismatchedSessionKeys = false,
         bool requireKeyRotation = false,
         bool allowAuthentication = true,
-        bool registerServerAuthenticationProvider = true)
+        bool registerServerAuthenticationProvider = true,
+        bool anonymous = false,
+        int resourceJournalCapacity = 10000,
+        Action<EpServer> serverCreated = null,
+        Func<Warehouse, Task> populateClient = null)
     {
         var port = NextAvailablePort();
 
@@ -217,10 +221,13 @@ internal sealed class IntegrationCluster : IAsyncDisposable
         if (encrypted || requireEncryption)
             serverWh.RegisterEncryptionProvider(new AesEncryptionProvider());
 
-        await serverWh.Put("sys", new MemoryStore());
+        await serverWh.Put(
+            "sys",
+            new MemoryStore(new ResourceJournalBuffer(resourceJournalCapacity)));
         var server = await serverWh.Put("sys/server", new EpServer
         {
             Port = (ushort)port,
+            AllowUnauthorizedAccess = anonymous,
             AllowedAuthenticationProviders = allowAuthentication
                 ? new[]
                 {
@@ -234,6 +241,7 @@ internal sealed class IntegrationCluster : IAsyncDisposable
                 : Array.Empty<string>(),
             RequireEncryption = requireEncryption,
         });
+        serverCreated?.Invoke(server);
 
         await populate(serverWh);
 
@@ -246,6 +254,8 @@ internal sealed class IntegrationCluster : IAsyncDisposable
                 mismatchedSessionKeys ? (byte)0x80 : (byte)0,
                 requireKeyRotation)
             : new TestClientAuthProvider());
+        if (populateClient is not null)
+            await populateClient(cluster.ClientWarehouse);
         if (encrypted)
             cluster.ClientWarehouse.RegisterEncryptionProvider(new AesEncryptionProvider());
 
@@ -255,12 +265,16 @@ internal sealed class IntegrationCluster : IAsyncDisposable
                 $"ep://localhost:{port}",
                 new EpConnectionContext
                 {
-                    AuthenticationMode = AuthenticationMode.InitializerIdentity,
-                    Identity = "tester",
+                    AuthenticationMode = anonymous
+                        ? AuthenticationMode.None
+                        : AuthenticationMode.InitializerIdentity,
+                    Identity = anonymous ? null : "tester",
                     AuthenticationProtocol = oneStepAuthentication
                         ? "one-step"
-                        : PasswordAuthenticationProvider.ProtocolName,
-                    Domain = "test",
+                        : anonymous
+                            ? null
+                            : PasswordAuthenticationProvider.ProtocolName,
+                    Domain = anonymous ? null : "test",
                     EncryptionMode = encrypted
                         ? encryptionMode
                         : EncryptionMode.None,

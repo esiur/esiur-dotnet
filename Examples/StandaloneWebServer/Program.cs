@@ -14,15 +14,12 @@ internal class Program
 
     private static async Task Main(string[] args)
     {
-        var epPort = ushort.Parse(
-            Environment.GetEnvironmentVariable("ESIUR_PORT")
-            ?? throw new InvalidOperationException("Set ESIUR_PORT before starting the example."));
         var wh = new Warehouse();
 
         // Create a store to keep objects.
         var system = await wh.Put("sys", new MemoryStore());
         // Create a distibuted server
-        var esiurServer = await wh.Put("sys/server", new EpServer() { Port = epPort });
+        var esiurServer = await wh.Put("sys/server", new EpServer());
         // Add your object to the store
         var service = await wh.Put("sys/demo", new Demo());
 

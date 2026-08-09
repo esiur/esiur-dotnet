@@ -11,6 +11,7 @@ namespace Esiur.Net.Packets
         SetProperty = 0x1,
         Subscribe = 0x2,
         Unsubscribe = 0x3,
+        QueryResourceJournal = 0x4,
 
         // Request Inquire
         TypeDefIdsByNames = 0x8,

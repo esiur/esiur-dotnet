@@ -49,6 +49,8 @@ public class Instance
 	List<ulong?> ages = new();
 	List<DateTime?> modificationDates = new();
 	private ulong instanceAge;
+	private Guid streamGeneration;
+	private readonly object journalSync = new();
 	private byte hops;
 	private DateTime instanceModificationDate;
 
@@ -331,12 +333,34 @@ public class Instance
 	}
 
 	/// <summary>
-	/// Age of the instance, incremented by 1 in every modification.
+	/// Legacy alias for the resource-wide revision. It advances for every
+	/// property modification and event occurrence.
 	/// </summary>
 	public ulong Age
 	{
-		get { return instanceAge; }
-		internal set { instanceAge = value; }
+		get { lock (journalSync) return instanceAge; }
+		internal set { lock (journalSync) instanceAge = value; }
+	}
+
+	/// <summary>
+	/// Current resource revision. Unlike the legacy property-only age, this
+	/// advances for every property modification and event occurrence.
+	/// </summary>
+	public ulong Revision
+	{
+		get { lock (journalSync) return instanceAge; }
+	}
+
+	/// <summary>Generation of the current resource change stream.</summary>
+	public Guid Generation
+	{
+		get { lock (journalSync) return streamGeneration; }
+	}
+
+	/// <summary>Current replay cursor for the resource.</summary>
+	public ResourceCursor Cursor
+	{
+		get { lock (journalSync) return new ResourceCursor(streamGeneration, instanceAge); }
 	}
 
 	/// <summary>
@@ -454,6 +478,16 @@ public class Instance
 		return props;
 	}
 
+	/// <summary>Exports every property keyed by its member index.</summary>
+	public Map<byte, PropertyValue> SerializeMap()
+	{
+		var values = Serialize();
+		var map = new Map<byte, PropertyValue>();
+		for (byte index = 0; index < values.Length; index++)
+			map.Add(index, values[index]);
+		return map;
+	}
+
 
 	/// <summary>
 	/// If True, the instance can be stored to disk.
@@ -477,24 +511,25 @@ public class Instance
 		IResource res;
 		if (this.resource.TryGetTarget(out res))
 		{
-			instanceAge++;
-			var now = DateTime.UtcNow;
+			lock (journalSync)
+			{
+				var cursor = NextCursor();
+				var now = DateTime.UtcNow;
 
-			ages[pt.Index] = instanceAge;
-			modificationDates[pt.Index] = now;
+				ages[pt.Index] = cursor.Revision;
+				modificationDates[pt.Index] = now;
+				instanceModificationDate = now;
 
-			//if (pt.HasHistory)
-			//{
-			//    store.Record(res, pt.Name, value, ages[pt.Index], now);
-			//}
-			//else //if (pt.Storage == StorageMode.Recordable)
-			//{
-			store.Modify(res, pt, value, ages[pt.Index], now);
-			//}
+				store.Modify(res, pt, value, cursor.Revision, now);
+				CommitJournal(res, new ResourceJournalEntry(
+					cursor,
+					now,
+					ResourceJournalEntryKind.PropertyModified,
+					pt.Index,
+					value), pt.Historical);
 
-			//ResourceModified?.Invoke(res, pt.Name, value);
-
-			PropertyModified?.Invoke(new PropertyModificationInfo(res, pt, value, instanceAge));
+				PropertyModified?.Invoke(new PropertyModificationInfo(res, pt, value, cursor, now));
+			}
 		}
 	}
 
@@ -526,7 +561,21 @@ public class Instance
 		IResource res;
 		if (this.resource.TryGetTarget(out res))
 		{
-			CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventDef, receivers, issuer, value));
+			lock (journalSync)
+			{
+				var cursor = NextCursor();
+				var now = DateTime.UtcNow;
+				instanceModificationDate = now;
+				// Receiver predicates are session-specific and cannot be replayed safely.
+				CommitJournal(res, new ResourceJournalEntry(
+					cursor,
+					now,
+					ResourceJournalEntryKind.EventOccurred,
+					eventDef.Index,
+					value), false);
+				CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(
+					res, eventDef, receivers, issuer, value, cursor, now));
+			}
 		}
 	}
 
@@ -535,7 +584,7 @@ public class Instance
 		IResource res;
 		if (this.resource.TryGetTarget(out res))
 		{
-			EventOccurred?.Invoke(new EventOccurredInfo(res, eventDef, value));
+			EmitResourceEventCore(res, eventDef, value);
 		}
 	}
 
@@ -545,7 +594,7 @@ public class Instance
 		if (this.resource.TryGetTarget(out res))
 		{
 			var eventDef = definition.GetEventDefByIndex(eventIndex);
-			EventOccurred?.Invoke(new EventOccurredInfo(res, eventDef, value));
+			EmitResourceEventCore(res, eventDef, value);
 		}
 	}
 
@@ -555,7 +604,141 @@ public class Instance
 		if (this.resource.TryGetTarget(out res))
 		{
 			var eventDef = definition.GetEventDefByIndex(eventIndex);
-			CustomEventOccurred?.Invoke(new CustomEventOccurredInfo(res, eventDef, receivers, issuer, value));
+			EmitCustomResourceEvent(issuer, receivers, eventDef, value);
+		}
+	}
+
+	void EmitResourceEventCore(IResource res, EventDef eventDef, object value)
+	{
+		if (eventDef == null)
+			return;
+
+		lock (journalSync)
+		{
+			var cursor = NextCursor();
+			var now = DateTime.UtcNow;
+			instanceModificationDate = now;
+			CommitJournal(res, new ResourceJournalEntry(
+				cursor,
+				now,
+				ResourceJournalEntryKind.EventOccurred,
+				eventDef.Index,
+				value), eventDef.Historical);
+			EventOccurred?.Invoke(new EventOccurredInfo(res, eventDef, value, cursor, now));
+		}
+	}
+
+	ResourceCursor NextCursor()
+	{
+		instanceAge++;
+		return new ResourceCursor(streamGeneration, instanceAge);
+	}
+
+	void CommitJournal(IResource res, ResourceJournalEntry entry, bool retain)
+	{
+		if (store is IResourceJournalStore journal &&
+			!journal.AppendJournalEntry(res, entry, retain))
+			throw new InvalidOperationException(
+				$"The store rejected resource journal revision {entry.Cursor} for `{Link}`.");
+	}
+
+	/// <summary>Reads retained changes from this resource's owning store.</summary>
+	public ResourceJournalPage QueryJournal(ResourceJournalQuery query)
+	{
+		lock (journalSync)
+		{
+			if (resource.TryGetTarget(out var res) && store is IResourceJournalStore journal)
+			{
+				var page = journal.QueryJournal(res, query ?? new ResourceJournalQuery());
+				var cursor = new ResourceCursor(streamGeneration, instanceAge);
+				if (page.HighWatermark == cursor)
+					return page;
+
+				return new ResourceJournalPage(
+					page.OldestAvailable,
+					cursor,
+					page.Next,
+					page.CursorExpired,
+					page.HasMore,
+					page.Entries);
+			}
+
+			var currentCursor = new ResourceCursor(streamGeneration, instanceAge);
+			return new ResourceJournalPage(currentCursor, currentCursor, query?.After ?? currentCursor,
+				false, false, Array.Empty<ResourceJournalEntry>());
+		}
+	}
+
+	/// <summary>
+	/// Runs an attach/replay operation against an atomic resource high-watermark.
+	/// Emission uses the same lock, so notifications after the callback are live
+	/// changes strictly newer than the captured cursor.
+	/// </summary>
+	internal T SynchronizeJournal<T>(Func<ResourceCursor, T> action)
+	{
+		lock (journalSync)
+			return action(new ResourceCursor(streamGeneration, instanceAge));
+	}
+
+	internal void ObserveRemoteCursor(ResourceCursor cursor, DateTime recordedAt)
+	{
+		lock (journalSync)
+		{
+			if (streamGeneration != cursor.Generation)
+			{
+				streamGeneration = cursor.Generation;
+				instanceAge = cursor.Revision;
+			}
+			else if (cursor.Revision > instanceAge)
+				instanceAge = cursor.Revision;
+
+			if (recordedAt > instanceModificationDate)
+				instanceModificationDate = recordedAt;
+		}
+	}
+
+	internal bool IsNewerPropertyRevision(byte index, ResourceCursor cursor)
+	{
+		lock (journalSync)
+		{
+			if (streamGeneration != cursor.Generation)
+				return true;
+			return index >= ages.Count || !ages[index].HasValue || ages[index].Value < cursor.Revision;
+		}
+	}
+
+	internal void ApplyRemotePropertyModification(
+		PropertyDef propertyDef,
+		object value,
+		ResourceCursor cursor,
+		DateTime recordedAt)
+	{
+		if (!resource.TryGetTarget(out var res))
+			return;
+
+		lock (journalSync)
+		{
+			ObserveRemoteCursor(cursor, recordedAt);
+			ages[propertyDef.Index] = cursor.Revision;
+			modificationDates[propertyDef.Index] = recordedAt;
+			PropertyModified?.Invoke(new PropertyModificationInfo(
+				res, propertyDef, value, cursor, recordedAt));
+		}
+	}
+
+	internal void ApplyRemoteEvent(
+		EventDef eventDef,
+		object value,
+		ResourceCursor cursor,
+		DateTime recordedAt)
+	{
+		if (!resource.TryGetTarget(out var res))
+			return;
+
+		lock (journalSync)
+		{
+			ObserveRemoteCursor(cursor, recordedAt);
+			EventOccurred?.Invoke(new EventOccurredInfo(res, eventDef, value, cursor, recordedAt));
 		}
 	}
 
@@ -755,7 +938,14 @@ public class Instance
 	/// <param name="name">Name of the instance.</param>
 	/// <param name="resource">Resource to manage.</param>
 	/// <param name="store">Store responsible for the resource.</param>
-	public Instance(Warehouse warehouse, uint id, string name, IResource resource, IStore store, ulong age = 0)
+	public Instance(
+		Warehouse warehouse,
+		uint id,
+		string name,
+		IResource resource,
+		IStore store,
+		ulong age = 0,
+		string resourceKey = null)
 	{
 		this.Warehouse = warehouse;
 		this.store = store;
@@ -763,6 +953,17 @@ public class Instance
 		this.id = id;
 		this.name = name ?? "";
 		this.instanceAge = age;
+		this.streamGeneration = Guid.NewGuid();
+
+		if (store is IResourceJournalStore journal)
+		{
+			var cursor = journal.OpenJournal(
+				resource,
+				resourceKey ?? name ?? string.Empty,
+				new ResourceCursor(streamGeneration, instanceAge));
+			streamGeneration = cursor.Generation;
+			instanceAge = Math.Max(instanceAge, cursor.Revision);
+		}
 
 		//this.attributes = new KeyList<string, object>(this);
 		//children = new AutoList<IResource, Instance>(this);
@@ -779,6 +980,7 @@ public class Instance
 		if (resource is IDynamicResource dynamicResource)
 		{
 			this.definition = dynamicResource.ResourceDefinition;
+			warehouse.RegisterDynamicTypeDef(this.definition);
 		}
 		else
 		{
@@ -796,6 +998,8 @@ public class Instance
 		// connect events
 		if (!(resource is EpResource))
 		{
+			if (resource is IDynamicResourceEventSource dynamicEventSource)
+				dynamicEventSource.ResourceEventOccurred += EmitResourceEventByIndex;
 
 			Type t = ResourceProxy.GetBaseType(resource);
 

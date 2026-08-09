@@ -1036,7 +1036,14 @@ public class Warehouse
 
         var resourceId = (uint)Interlocked.Increment(ref _resourceCounter);
 
-        resource.Instance = new Instance(this, resourceId, instanceName, resource, store, resourceContext?.Age ?? 0);
+        resource.Instance = new Instance(
+            this,
+            resourceId,
+            instanceName,
+            resource,
+            store,
+            resourceContext?.Age ?? 0,
+            string.Join("/", location));
 
         resource.Instance.Managers.AddRange(resourceManagers);
 
@@ -1310,6 +1317,48 @@ public class Warehouse
         }
     }
 
+    /// <summary>
+    /// Registers a definition supplied by an <see cref="IDynamicResource"/>
+    /// without replacing its stable identifier. Dynamic definitions are not
+    /// backed by a CLR <see cref="LocalTypeDef"/>, so they cannot use the
+    /// incremental local registration path, but remote peers must still be
+    /// able to resolve them through TypeDefById.
+    /// </summary>
+    internal void RegisterDynamicTypeDef(TypeDef typeDef)
+    {
+        if (typeDef == null)
+            throw new ArgumentNullException(nameof(typeDef));
+
+        lock (_typeDefsLock)
+        {
+            // A remote definition keeps the producer's id for wire lookups, but
+            // TryRegisterRemoteTypeDef gives it a Warehouse-local id because remote
+            // resource/record/enum id spaces can overlap. Dynamic proxy instances
+            // must reuse that local registration instead of indexing by the wire id.
+            var registrationId = typeDef is RemoteTypeDef remoteTypeDef
+                && remoteTypeDef.LocalTypeDefId != 0
+                    ? remoteTypeDef.LocalTypeDefId
+                    : typeDef.Id;
+            var existing = _localTypeDefs[registrationId];
+            if (existing == null)
+            {
+                _localTypeDefs[registrationId] = typeDef;
+                return;
+            }
+
+            if (ReferenceEquals(existing, typeDef) ||
+                (existing.Kind == typeDef.Kind &&
+                 existing.Version == typeDef.Version &&
+                 string.Equals(existing.Name, typeDef.Name, StringComparison.Ordinal)))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Dynamic TypeDef id {registrationId} is already registered by '{existing.Name}', not '{typeDef.Name}'.");
+        }
+    }
+
     internal KeyList<TypeDefKind, KeyList<string , Type>> GetProxyTypesByDomain(string domain)
     {
         return _proxyTypeDefs[domain];
@@ -1317,6 +1366,7 @@ public class Warehouse
 
     public bool TryRegisterRemoteTypeDef(string domain, RemoteTypeDef typeDef)
     {
+        domain = string.IsNullOrWhiteSpace(domain) ? "anonymous" : domain;
         lock (_typeDefsLock)
         {
             if (!_remoteTypeDefs.ContainsKey(domain))

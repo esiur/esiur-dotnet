@@ -135,7 +135,7 @@ public partial class EpConnection : NetworkConnection, IStore
     long _authenticationAttemptGeneration;
 
     string _hostname;
-    ushort _port;
+    ushort _port = EpProtocol.DefaultPort;
 
     bool _initialPacket = true;
     AuthenticationDirection _authDirection = AuthenticationDirection.Responder;
@@ -455,6 +455,12 @@ public partial class EpConnection : NetworkConnection, IStore
         }
 
         var headers = _session.LocalHeaders.Copy();
+
+        // Anonymous sessions still exchange typed records. They therefore
+        // need a non-empty schema namespace just like authenticated sessions;
+        // otherwise the responder cannot cache a fetched RemoteTypeDef.
+        if (string.IsNullOrWhiteSpace(headers.Domain))
+            headers.Domain = _remoteDomain ?? _hostname ?? "anonymous";
 
         if (_session.AuthenticationMode != AuthenticationMode.None)
         {
@@ -1215,9 +1221,9 @@ public partial class EpConnection : NetworkConnection, IStore
         _queue.Then((x) =>
         {
             if (x.Type == EpResourceQueueItem.DistributedResourceQueueItemType.Event)
-                x.Resource._EmitEventByIndex(x.Index, x.Value);
+                x.Resource._EmitEventByIndex(x.Index, x.Value, x.Cursor, x.RecordedAt);
             else
-                x.Resource._UpdatePropertyByIndex(x.Index, x.Value);
+                x.Resource._UpdatePropertyByIndex(x.Index, x.Value, x.Cursor, x.RecordedAt);
         }).Error(e =>
         {
             // do nothing
@@ -1376,6 +1382,9 @@ public partial class EpConnection : NetworkConnection, IStore
                             break;
                         case EpPacketRequest.Unsubscribe:
                             EpRequestUnsubscribe(_packet.CallbackId, dt);
+                            break;
+                        case EpPacketRequest.QueryResourceJournal:
+                            EpRequestQueryResourceJournal(_packet.CallbackId, dt);
                             break;
                         // Inquire
                         case EpPacketRequest.TypeDefIdsByNames:
@@ -1635,6 +1644,14 @@ public partial class EpConnection : NetworkConnection, IStore
                     }
 
                     _session.RemoteHeaders = remoteHeaders;
+                    // Responder-side connections do not pass through the
+                    // outbound EpConnectionContext path that initializes
+                    // _remoteDomain. Keep the peer schema namespace from the
+                    // authentication headers so typed records sent from the
+                    // initiator can register and resolve their TypeDefs.
+                    _remoteDomain = string.IsNullOrWhiteSpace(remoteHeaders.Domain)
+                        ? $"anonymous:{RemoteEndPoint?.Address}"
+                        : remoteHeaders.Domain;
                     _session.AuthenticationMode = _authPacket.AuthMode;
                     var localHeaders = _session.LocalHeaders.Copy();
 
@@ -3144,15 +3161,11 @@ public partial class EpConnection : NetworkConnection, IStore
 
 
             if (!Uri.TryCreate($"ep://{Instance.Name}", UriKind.Absolute, out var endpoint)
-                || string.IsNullOrWhiteSpace(endpoint.Host)
-                || endpoint.Port <= 0
-                || endpoint.Port > ushort.MaxValue)
-                throw new FormatException(
-                    "EP endpoints must include an explicit port (for example, ep://host:port)."
-                );
+                || string.IsNullOrWhiteSpace(endpoint.Host))
+                throw new FormatException("The EP endpoint is invalid.");
 
             var address = endpoint.Host;
-            var port = checked((ushort)endpoint.Port);
+            var port = ResolveEndpointPort(endpoint);
 
             // assign domain from hostname if not provided
             if (context is EpConnectionContext epContext)
@@ -3196,6 +3209,20 @@ public partial class EpConnection : NetworkConnection, IStore
         }
 
         return new AsyncReply<bool>(true);
+    }
+
+    internal static ushort ResolveEndpointPort(Uri endpoint)
+    {
+        if (endpoint == null)
+            throw new ArgumentNullException(nameof(endpoint));
+
+        if (endpoint.Port < 0)
+            return EpProtocol.DefaultPort;
+
+        if (endpoint.Port == 0 || endpoint.Port > ushort.MaxValue)
+            throw new FormatException("The EP endpoint port must be from 1 through 65535.");
+
+        return checked((ushort)endpoint.Port);
     }
 
 
@@ -3568,7 +3595,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         // Reattach using the last-known age so only properties modified while
                         // disconnected are transferred and merged, instead of re-fetching all.
-                        await Reattach(r.ResourceLink, r.Instance.Age, r);
+                        await Reattach(r.ResourceLink, r.Instance.Cursor, r);
 
                         Global.Log("EpConnection", LogType.Debug, "Restored " + r.ResourceInstanceId);
 

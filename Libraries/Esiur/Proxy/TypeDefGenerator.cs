@@ -533,7 +533,7 @@ public static class TypeDefGenerator
         if (typeDef.Events.Length > 0)
         {
 
-            rt.AppendLine("protected override void _EmitEventByIndex(byte index, object args) {");
+            rt.AppendLine("protected override void _EmitEventByIndex(byte index, object args, ResourceCursor cursor, DateTime recordedAt) {");
             rt.AppendLine("switch (index) {");
 
             var eventsList = new StringBuilder();
@@ -554,7 +554,9 @@ public static class TypeDefGenerator
                 eventsList.AppendLine($"[Export] public event ResourceEventHandler<{etTypeName}> {e.Name};");
             }
 
-            rt.AppendLine("}}");
+            rt.AppendLine("}");
+            rt.AppendLine("base._EmitEventByIndex(index, args, cursor, recordedAt);");
+            rt.AppendLine("}");
 
             rt.AppendLine(eventsList.ToString());
 

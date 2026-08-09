@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace Esiur.Data;
@@ -54,6 +55,9 @@ public static class RuntimeCaster
     private static readonly ConcurrentDictionary<(Type from, Type to),
         Func<object?, RuntimeCastOptions, object?>> _elemConvCache =
         new ConcurrentDictionary<(Type, Type), Func<object?, RuntimeCastOptions, object?>>();
+
+    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> _recordPropertyCache =
+        new ConcurrentDictionary<Type, PropertyInfo[]>();
 
     // --------- Zero-allocation convenience overloads ---------
     public static object? Cast(object? value, Type toType)
@@ -149,6 +153,13 @@ public static class RuntimeCaster
         var toUnderlying = Nullable.GetUnderlyingType(toType) ?? toType;
         var fromUnderlying = Nullable.GetUnderlyingType(fromType) ?? fromType;
 
+        // A peer without a pre-generated CLR proxy represents a remote typed
+        // record as Record. Materialize it into the function's declared local
+        // IRecord type so dynamic resources retain their strongly typed
+        // invocation contract across the wire.
+        if (value is Record record && typeof(IRecord).IsAssignableFrom(toUnderlying))
+            return ConvertRecord(record, toUnderlying, opts);
+
         // Collections early
         {
             bool handled;
@@ -231,6 +242,34 @@ public static class RuntimeCaster
             }
             throw new InvalidCastException("Cannot cast " + fromType + " to " + toType + ".");
         }
+    }
+
+    private static object ConvertRecord(Record record, Type targetType, RuntimeCastOptions opts)
+    {
+        if (targetType.IsAbstract || targetType.IsInterface)
+            throw new InvalidCastException("Cannot materialize a record as " + targetType + ".");
+
+        var target = Activator.CreateInstance(targetType)
+            ?? throw new InvalidCastException("Cannot create " + targetType + ".");
+        var properties = _recordPropertyCache.GetOrAdd(
+            targetType,
+            static type => type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(property =>
+                    property.CanWrite &&
+                    property.SetMethod?.IsPublic == true &&
+                    property.GetIndexParameters().Length == 0)
+                .ToArray());
+
+        foreach (var property in properties)
+        {
+            if (!record.ContainsKey(property.Name))
+                continue;
+
+            var converted = Cast(record[property.Name], property.PropertyType, opts);
+            property.SetValue(target, converted);
+        }
+
+        return target;
     }
 
     private static object? ConvertCollectionsIfAny(object value, Type fromType, Type toType, RuntimeCastOptions opts, out bool handled)

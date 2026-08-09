@@ -9,13 +9,28 @@ using Esiur.Data;
 using Esiur.Data.Types;
 
 namespace Esiur.Stores;
-public class TemporaryStore : IStore
+public class TemporaryStore : IStore, IResourceJournalStore
 {
     public Instance Instance { get; set; }
 
     public event DestroyedEvent OnDestroy;
     
     Dictionary<uint, WeakReference> resources = new Dictionary<uint, WeakReference>();
+    readonly ResourceJournalBuffer journal = new();
+
+    public ResourceCursor OpenJournal(
+        IResource resource,
+        string resourceKey,
+        ResourceCursor proposedCursor) =>
+        journal.OpenJournal(resource, resourceKey, proposedCursor);
+
+    public bool AppendJournalEntry(IResource resource, ResourceJournalEntry entry, bool retain) =>
+        journal.AppendJournalEntry(resource, entry, retain);
+
+    public ResourceJournalPage QueryJournal(IResource resource, ResourceJournalQuery query) =>
+        journal.QueryJournal(resource, query);
+
+    public void RemoveJournal(IResource resource) => journal.RemoveJournal(resource);
 
     public void Destroy()
     {
@@ -90,6 +105,7 @@ public class TemporaryStore : IStore
     AsyncReply<bool> IStore.Remove(IResource resource)
     {
         resources.Remove(resource.Instance.Id);
+        journal.RemoveJournal(resource);
         return new AsyncReply<bool>(true);
     }
 
