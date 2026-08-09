@@ -3755,11 +3755,16 @@ public partial class EpConnection : NetworkConnection, IStore
         // or resubscribes events.
         _attachedResources.Clear();
 
+        // Attachments requested by the peer belong to the socket session, even
+        // when this endpoint initiated the connection.  Keeping them on a
+        // bidirectional client connection makes the peer's first attachment
+        // after reconnect fail with AlreadyAttached.
+        UnsubscribeAll();
+
         if (Server != null)
         {
             _suspendedResources.Clear();
 
-            UnsubscribeAll();
             Instance?.Warehouse?.Remove(this);
 
             if (wasAuthenticated)

@@ -1,5 +1,6 @@
 using Esiur.Protocol;
 using Esiur.Resource;
+using Esiur.Stores;
 
 namespace Esiur.Tests.Unit.Integration;
 
@@ -281,6 +282,44 @@ public class EventSubscriptionIntegrationTests
     }
 
     [Fact]
+    public async Task BidirectionalPeerAttachment_CanBeRequestedAgainAfterAutomaticReconnect()
+    {
+        var firstAttachment = new TaskCompletionSource<EpResource>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumedAttachment = new TaskCompletionSource<EpResource>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var readyCount = 0;
+
+        await using var cluster = await IntegrationCluster.StartAsync(
+            _ => Task.CompletedTask,
+            serverCreated: server => server.ConnectionReady += connection =>
+            {
+                var attempt = Interlocked.Increment(ref readyCount);
+                _ = ResolveClientResourceAsync(
+                    connection,
+                    attempt == 1 ? firstAttachment : resumedAttachment);
+            },
+            populateClient: async warehouse =>
+            {
+                await warehouse.Put("public", new MemoryStore());
+                await warehouse.Put("public/beacon", new BeaconResource());
+            }).WaitAsync(TimeSpan.FromSeconds(10));
+
+        cluster.Connection.AutoReconnect = true;
+        cluster.Connection.ReconnectInterval = 1;
+        _ = await firstAttachment.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        foreach (var serverConnection in cluster.Server.Connections.ToArray())
+            serverConnection.Destroy();
+
+        await WaitUntilAsync(() => !cluster.Connection.IsConnected, TimeSpan.FromSeconds(3));
+        var restored = await resumedAttachment.Task.WaitAsync(TimeSpan.FromSeconds(8));
+
+        Assert.Equal("public/beacon", restored.ResourceLink);
+        Assert.True(cluster.Connection.IsConnected);
+    }
+
+    [Fact]
     public async Task On_PropertyPrefix_ListensWithNoWireSubscription()
     {
         await using var cluster = await StartClusterAsync(out var getBeacon).WaitAsync(TimeSpan.FromSeconds(10));
@@ -312,6 +351,20 @@ public class EventSubscriptionIntegrationTests
         => (EpResource)await Task.Run(async () =>
             await cluster.Connection.Get("sys/beacon"))
             .WaitAsync(TimeSpan.FromSeconds(10));
+
+    static async Task ResolveClientResourceAsync(
+        EpConnection connection,
+        TaskCompletionSource<EpResource> completion)
+    {
+        try
+        {
+            completion.TrySetResult((EpResource)await connection.Get("public/beacon"));
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
+    }
 
     static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
