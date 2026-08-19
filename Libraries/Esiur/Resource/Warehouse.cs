@@ -1375,7 +1375,18 @@ public class Warehouse
             }
 
             if (_remoteTypeDefs[domain].ContainsKey(typeDef.Id))
+            {
+                // Remote definitions are scoped by domain and survive an
+                // EpConnection reconnect in the Warehouse cache. A freshly
+                // parsed definition for that same remote id must inherit the
+                // Warehouse-local id of the cached definition. Leaving it at
+                // zero makes Instance.RegisterDynamicTypeDef fall back to the
+                // producer's wire id, which can collide with an unrelated
+                // local CLR definition.
+                var existing = _remoteTypeDefs[domain][typeDef.Id];
+                typeDef.LocalTypeDefId = existing.LocalTypeDefId;
                 return false;
+            }
 
             // @TODO: Try to find a proxy type for the remote type def, if not found, create a new proxy type and register it in the warehouse.
             _remoteTypeDefs[domain][typeDef.Id] = typeDef;

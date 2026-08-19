@@ -1,4 +1,5 @@
 using Esiur.Core;
+using Esiur.Data.Types;
 using Esiur.Resource;
 using Esiur.Stores;
 
@@ -6,6 +7,25 @@ namespace Esiur.Tests.Unit;
 
 public sealed class WarehouseLifecycleTests
 {
+    [Fact]
+    public void ReparsedRemoteTypeDef_ReusesWarehouseLocalId()
+    {
+        var warehouse = new Warehouse();
+        _ = new LocalTypeDef(typeof(LocalCollisionMarker), warehouse);
+
+        var first = new TestRemoteTypeDef(1, "Remote.ReportingService");
+        Assert.True(warehouse.TryRegisterRemoteTypeDef("flow.example", first));
+        Assert.NotEqual(0u, first.LocalTypeDefId);
+
+        var reparsed = new TestRemoteTypeDef(1, "Remote.ReportingService");
+        Assert.False(warehouse.TryRegisterRemoteTypeDef("flow.example", reparsed));
+        Assert.Equal(first.LocalTypeDefId, reparsed.LocalTypeDefId);
+
+        // Dynamic EpResource construction registers the definition again.
+        // This must use the reused local id, not the colliding wire id 1.
+        warehouse.RegisterDynamicTypeDef(reparsed);
+    }
+
     [Fact]
     public async Task Close_AllowsWarehouseToBeOpenedAgain()
     {
@@ -175,6 +195,21 @@ public sealed class WarehouseLifecycleTests
     }
 
     private static async Task<bool> Observe(AsyncReply<bool> reply) => await reply;
+
+    private enum LocalCollisionMarker
+    {
+        Value,
+    }
+
+    private sealed class TestRemoteTypeDef : RemoteTypeDef
+    {
+        public TestRemoteTypeDef(ulong id, string name)
+        {
+            _typeId = id;
+            _typeName = name;
+            _typeDefKind = TypeDefKind.Resource;
+        }
+    }
 
     private sealed class ControlledLifecycleResource : IResource
     {

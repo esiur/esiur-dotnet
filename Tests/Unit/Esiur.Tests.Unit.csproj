@@ -22,6 +22,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="ConformanceFixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Reference Esiur both as a runtime assembly and as the source generator (analyzer),
        mirroring Tests/Features/Functional so [Resource]/[Export] test types get generated code. -->
   <ItemGroup>

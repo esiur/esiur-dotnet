@@ -1,0 +1,26 @@
+{
+  "fixtureVersion": 1,
+  "protocolVersion": "3.1",
+  "producer": "esiur-ts",
+  "encoding": "indexed-TypeDefInfo",
+  "payloadBase64": "iaSIolEDAckWCAAIAQgCCAMIBAggCCEIIggjCCQIJcmFCQMIEUkEUHVtcEkTQnVpbGRpbmcuQXV0b21hdGlvbggASRxDb250cm9scyBhIGNpcmN1bGF0aW9uIHB1bXAuSQ9QdW1wIGNvbnRyb2xsZXJJDGVuYWJsZWQ9dHJ1ZUkESFZBQ0kDMy4xiBpREhLJB0kFb3duZXLJDEkKb3BlcmF0aW9ucw==",
+  "expected": {
+    "id": 17,
+    "kind": "Resource",
+    "version": 3,
+    "name": "Building.Automation.Pump",
+    "namespace": "Building.Automation",
+    "usage": "Controls a circulation pump.",
+    "description": "Pump controller",
+    "example": "enabled=true",
+    "category": "HVAC",
+    "since": "3.1",
+    "annotations": {
+      "owner": "operations"
+    },
+    "properties": [],
+    "functions": [],
+    "events": [],
+    "constants": []
+  }
+}

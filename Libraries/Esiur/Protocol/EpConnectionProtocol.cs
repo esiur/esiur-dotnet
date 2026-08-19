@@ -1393,7 +1393,11 @@ partial class EpConnection
             {
                 var typeDefs = LocalTypeDef.GetDependencies(localTypeDef, Instance.Warehouse);
                 // Send
-                SendReply(EpPacketReply.Completed, callback, typeDefs.Select(x => x.Compose(this)).ToArray());
+                // Cast reference-type arrays to object so C# does not expand
+                // them into SendReply's params object[] argument. The array is
+                // one protocol value, not N reply arguments.
+                SendReply(EpPacketReply.Completed, callback,
+                    (object)typeDefs.Select(x => x.Compose(this)).ToArray());
             }
             else
             {
@@ -1582,7 +1586,10 @@ partial class EpConnection
                     var list = children
                         .Where(x => IsOperationAllowed(x, null, ActionType.Attach))
                         .ToArray();
-                    SendReply(EpPacketReply.Completed, callback, list);
+                    // IResource[] is covariant with object[]; without this
+                    // cast a one-child Query becomes one bare resource on the
+                    // wire instead of a ResourceList.
+                    SendReply(EpPacketReply.Completed, callback, (object)list);
                 }).Error(e =>
                 {
                     SendError(e.Type, callback, (ushort)e.Code, e.Message);
@@ -3098,7 +3105,14 @@ partial class EpConnection
 
             var defs = new List<RemoteTypeDef>();
 
-            foreach (var def in (byte[][])result)
+            var typeDefinitions = result switch
+            {
+                byte[][] values => values,
+                object[] values => values.Cast<byte[]>().ToArray(),
+                _ => throw new InvalidCastException($"Expected an array of type definitions, received {result?.GetType().FullName ?? "null"}.")
+            };
+
+            foreach (var def in typeDefinitions)
             {
                 var od = new RemoteTypeDef();
                 await RemoteTypeDef.Parse(od, _remoteDomain, def, this, null);
@@ -3825,7 +3839,14 @@ partial class EpConnection
         SendRequest(EpPacketRequest.Query, path)
                     .Then(result =>
                     {
-                        reply.Trigger((IResource[])result);
+                        var resources = result switch
+                        {
+                            IResource[] values => values,
+                            object[] values => values.Cast<IResource>().ToArray(),
+                            _ => throw new InvalidCastException($"Expected a resource array, received {result?.GetType().FullName ?? "null"}.")
+                        };
+
+                        reply.Trigger(resources);
                     }).Error(ex => reply.TriggerError(ex));
 
         return reply;
