@@ -13,6 +13,46 @@ using System.Net;
 public class SessionHeadersIntegrationTests
 {
     [Fact]
+    public async Task Handshake_ExchangesParserAndEncryptedRecordBudgetsInBothDirections()
+    {
+        await using var cluster = await IntegrationCluster
+            .StartAsync(
+                warehouse =>
+                {
+                    warehouse.Configuration.Parser.MaximumPacketSize = 7_100_001;
+                    warehouse.Configuration.Parser.MaximumAllocationSize = 3_100_002;
+                    warehouse.Configuration.Parser.MaximumCollectionItems = 51_003;
+                    warehouse.Configuration.Parser.MaximumTypeMetadataDepth = 54;
+                    warehouse.Configuration.Encryption.MaximumRecordSize = 7_101_004;
+                    return Task.CompletedTask;
+                },
+                populateClient: warehouse =>
+                {
+                    warehouse.Configuration.Parser.MaximumPacketSize = 6_200_001;
+                    warehouse.Configuration.Parser.MaximumAllocationSize = 2_200_002;
+                    warehouse.Configuration.Parser.MaximumCollectionItems = 42_003;
+                    warehouse.Configuration.Parser.MaximumTypeMetadataDepth = 45;
+                    warehouse.Configuration.Encryption.MaximumRecordSize = 6_201_004;
+                    return Task.CompletedTask;
+                })
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        var serverConnection = Assert.Single(cluster.Server.Connections);
+
+        Assert.Equal(7_100_001u, cluster.Connection.Session.RemoteMaximumPacketSize);
+        Assert.Equal(3_100_002u, cluster.Connection.Session.RemoteMaximumAllocationSize);
+        Assert.Equal(51_003, cluster.Connection.Session.RemoteMaximumCollectionItems);
+        Assert.Equal(54, cluster.Connection.Session.RemoteMaximumTypeMetadataDepth);
+        Assert.Equal(7_101_004u, cluster.Connection.Session.RemoteMaximumEncryptedRecordSize);
+
+        Assert.Equal(6_200_001u, serverConnection.Session.RemoteMaximumPacketSize);
+        Assert.Equal(2_200_002u, serverConnection.Session.RemoteMaximumAllocationSize);
+        Assert.Equal(42_003, serverConnection.Session.RemoteMaximumCollectionItems);
+        Assert.Equal(45, serverConnection.Session.RemoteMaximumTypeMetadataDepth);
+        Assert.Equal(6_201_004u, serverConnection.Session.RemoteMaximumEncryptedRecordSize);
+    }
+
+    [Fact]
     public async Task AcceptedConnection_RaisesReadyAndDisconnectedLifecycleEvents()
     {
         var ready = new TaskCompletionSource<EpConnection>(

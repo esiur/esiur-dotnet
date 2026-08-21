@@ -23,6 +23,11 @@ namespace Esiur.Net.Packets
         AuthenticationProtocol,
         AuthenticationData,
         ErrorMessage,
-        CipherNonce
+        CipherNonce,
+        MaximumPacketSize,
+        MaximumAllocationSize,
+        MaximumCollectionItems,
+        MaximumTypeMetadataDepth,
+        MaximumEncryptedRecordSize
     }
 }

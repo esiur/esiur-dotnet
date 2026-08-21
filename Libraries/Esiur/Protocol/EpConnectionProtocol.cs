@@ -329,7 +329,18 @@ partial class EpConnection
         //callbackCounter++; // avoid thread racing
         _requests.Add(c, reply);
 
-        SendRequestPacket(action, c, args);
+        try
+        {
+            SendRequestPacket(action, c, args);
+        }
+        catch (RemoteParserLimitException ex)
+        {
+            _requests.Take(c);
+            reply.TriggerError(new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message));
+        }
         return reply;
     }
 
@@ -372,7 +383,18 @@ partial class EpConnection
             () => SendRequest(EpPacketRequest.ResumeExecution, callbackId));
 
         _requests.Add(callbackId, reply);
-        SendRequestPacket(action, callbackId, args);
+        try
+        {
+            SendRequestPacket(action, callbackId, args);
+        }
+        catch (RemoteParserLimitException ex)
+        {
+            _requests.Take(callbackId);
+            reply.TriggerError(new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message));
+        }
         return reply;
     }
 
@@ -387,7 +409,18 @@ partial class EpConnection
             () => SendRequest(EpPacketRequest.ResumeExecution, callbackId));
 
         _requests.Add(callbackId, reply);
-        SendRequestPacket(action, callbackId, args);
+        try
+        {
+            SendRequestPacket(action, callbackId, args);
+        }
+        catch (RemoteParserLimitException ex)
+        {
+            _requests.Take(callbackId);
+            reply.TriggerError(new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message));
+        }
         return reply;
     }
 
@@ -502,28 +535,42 @@ partial class EpConnection
         if (Instance == null)
             return;
 
-        if (args.Length == 0)
+        try
         {
-            var bl = new BinaryList();
-            bl.AddUInt8((byte)(0x80 | (byte)action))
-              .AddUInt32(callbackId);
-            Send(bl.ToArray());
+            if (args.Length == 0)
+            {
+                var bl = new BinaryList();
+                bl.AddUInt8((byte)(0x80 | (byte)action))
+                  .AddUInt32(callbackId);
+                Send(bl.ToArray());
+            }
+            else if (args.Length == 1)
+            {
+                var bl = new BinaryList();
+                bl.AddUInt8((byte)(0xA0 | (byte)action))
+                  .AddUInt32(callbackId)
+                  .AddUInt8Array(Codec.Compose(args[0], this.Instance?.Warehouse ?? _serverWarehouse, this));
+                Send(bl.ToArray());
+            }
+            else
+            {
+                var bl = new BinaryList();
+                bl.AddUInt8((byte)(0xA0 | (byte)action))
+                  .AddUInt32(callbackId)
+                  .AddUInt8Array(Codec.Compose(args, this.Instance?.Warehouse ?? _serverWarehouse, this));
+                Send(bl.ToArray());
+            }
         }
-        if (args.Length == 1)
+        catch (RemoteParserLimitException ex) when (
+            action != EpPacketReply.PermissionError
+            && action != EpPacketReply.ExecutionError
+            && action != EpPacketReply.Warning)
         {
-            var bl = new BinaryList();
-            bl.AddUInt8((byte)(0xA0 | (byte)action))
-              .AddUInt32(callbackId)
-              .AddUInt8Array(Codec.Compose(args[0], this.Instance?.Warehouse ?? _serverWarehouse, this));
-            Send(bl.ToArray());
-        }
-        else
-        {
-            var bl = new BinaryList();
-            bl.AddUInt8((byte)(0xA0 | (byte)action))
-              .AddUInt32(callbackId)
-              .AddUInt8Array(Codec.Compose(args, this.Instance?.Warehouse ?? _serverWarehouse, this));
-            Send(bl.ToArray());
+            SendError(
+                ErrorType.Exception,
+                callbackId,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message);
         }
     }
 
@@ -677,7 +724,19 @@ partial class EpConnection
             return;
         }
 
-        var pr = Codec.Parse(tdu.Value, this, null);
+        object pr;
+        try
+        {
+            pr = Codec.Parse(tdu.Value, this, null);
+        }
+        catch (ParserLimitException ex)
+        {
+            req.TriggerError(new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message));
+            return;
+        }
 
         if (pr is AsyncReply asyncReply)
         {
@@ -724,7 +783,20 @@ partial class EpConnection
             return;
         }
 
-        var value = Codec.Parse(tdu, this, null);
+        object value;
+        try
+        {
+            value = Codec.Parse(tdu, this, null);
+        }
+        catch (ParserLimitException ex)
+        {
+            _requests.Take(callbackId);
+            req.TriggerError(new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message));
+            return;
+        }
 
         if (value is AsyncReply reply)
         {
@@ -819,7 +891,20 @@ partial class EpConnection
         if (req == null)
             return;
 
-        var value = Codec.Parse(tdu, this, null);
+        object value;
+        try
+        {
+            value = Codec.Parse(tdu, this, null);
+        }
+        catch (ParserLimitException ex)
+        {
+            _requests.Take(callbackId);
+            req.TriggerError(new AsyncException(
+                ErrorType.Management,
+                (ushort)ExceptionCode.ParserLimitExceeded,
+                ex.Message));
+            return;
+        }
 
         if (value is AsyncReply asyncReply)
         {
@@ -3993,6 +4078,14 @@ partial class EpConnection
 
     private void Instance_PropertyModified(PropertyModificationInfo info)
     {
+        // Attachment permission does not imply property-read permission. A
+        // method-only resource can be attached so its exported functions are
+        // callable while all of its properties remain private. Re-evaluate the
+        // property operation before broadcasting each modification, matching
+        // the permission checks already applied to event notifications.
+        if (!IsOperationAllowed(info.Resource, info.PropertyDef, ActionType.GetProperty))
+            return;
+
         SendNotification(EpPacketNotification.PropertyModified,
                          info.Resource.Instance.Id,
                          info.Cursor.Generation.ToByteArray(),

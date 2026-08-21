@@ -649,6 +649,7 @@ public static class Codec
     public static byte[] Compose(object valueOrSource, Warehouse warehouse, EpConnection connection)
     {
         var tdu = ComposeInternal(valueOrSource, warehouse, connection);
+        ParserGuard.EnsureRemotePacketSize(connection, (ulong)tdu.Composed.LongLength);
         return tdu.Composed;
     }
 

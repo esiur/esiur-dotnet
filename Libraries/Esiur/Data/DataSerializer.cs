@@ -363,6 +363,10 @@ public static class DataSerializer
     public static Tdu StringComposer(object value, Warehouse warehouse, EpConnection connection)
     {
         var b = Encoding.UTF8.GetBytes((string)value);
+        ParserGuard.EnsureRemoteAllocation(
+            connection,
+            ParserGuard.MultiplySaturated((ulong)b.LongLength, 2),
+            "string");
 
         return new Tdu(TduIdentifier.String, b, (uint)b.Length, null, null);
     }
@@ -370,6 +374,10 @@ public static class DataSerializer
     public static Tdu ResourceLinkComposer(object value, Warehouse warehouse, EpConnection connection)
     {
         var b = Encoding.UTF8.GetBytes((ResourceLink)value);
+        ParserGuard.EnsureRemoteAllocation(
+            connection,
+            ParserGuard.MultiplySaturated((ulong)b.LongLength, 2),
+            "resource link");
 
         return new Tdu(TduIdentifier.ResourceLink, b, (uint)b.Length, null, null);
     }
@@ -446,12 +454,14 @@ public static class DataSerializer
     public static Tdu RawDataComposerFromArray(object value, Warehouse warehouse, EpConnection connection)
     {
         var b = (byte[])value;
+        ParserGuard.EnsureRemoteAllocation(connection, (ulong)b.LongLength, "raw data");
         return new Tdu(TduIdentifier.RawData, b, (uint)b.Length, null, null);
     }
 
     public static Tdu RawDataComposerFromList(dynamic value, Warehouse warehouse, EpConnection connection)
     {
         var b = value as List<byte>;
+        ParserGuard.EnsureRemoteAllocation(connection, (ulong)b.Count, "raw data");
         return new Tdu(TduIdentifier.RawData, b.ToArray(), (uint)b.Count, null, null);
     }
 
@@ -515,6 +525,9 @@ public static class DataSerializer
 
         if (value == null)
             return null;
+
+        if (value is ICollection collection)
+            ParserGuard.EnsureRemoteCollectionCount(connection, collection.Count, GetTypedArrayElementSize(tru));
 
         if (tru.Identifier == TruIdentifier.Int32)
         {
@@ -748,12 +761,18 @@ public static class DataSerializer
 
         // Pre-size the buffer from the element count (when known) to avoid repeated
         // List<byte> reallocations as items are appended. 4 bytes/element is a rough hint.
-        var rt = new List<byte>(value is ICollection collection ? collection.Count * 4 : 16);
+        var knownCount = value is ICollection collection ? collection.Count : -1;
+        if (knownCount >= 0)
+            ParserGuard.EnsureRemoteCollectionCount(connection, knownCount, IntPtr.Size);
+        var rt = new List<byte>(knownCount >= 0 ? knownCount * 4 : 16);
 
         Tdu? previous = null;
+        var count = 0;
 
         foreach (var i in value)
         {
+            if (knownCount < 0)
+                ParserGuard.EnsureRemoteCollectionCount(connection, ++count, IntPtr.Size);
             var tdu = Codec.ComposeInternal(i, warehouse, connection);
             if (previous != null && tdu.MatchType(previous.Value))
             {
@@ -862,12 +881,23 @@ public static class DataSerializer
 
         var rt = new List<byte>();
         var map = (IMap)value;
+        var serialized = map.Serialize();
+        ParserGuard.EnsureRemoteCollectionCount(connection, serialized.Length, IntPtr.Size);
 
-        foreach (var el in map.Serialize())
+        foreach (var el in serialized)
             rt.AddRange(Codec.Compose(el, warehouse, connection));
 
         return new Tdu(TduIdentifier.Map, rt.ToArray(), (uint)rt.Count, null, null);
     }
+
+    static int GetTypedArrayElementSize(Tru tru)
+        => tru.Identifier switch
+        {
+            TruIdentifier.Int16 or TruIdentifier.UInt16 => 2,
+            TruIdentifier.Int32 or TruIdentifier.UInt32 => 4,
+            TruIdentifier.Int64 or TruIdentifier.UInt64 => 8,
+            _ => IntPtr.Size
+        };
 
     /// <summary>
     /// Composes an indexed CLR structure using the compatible Map&lt;byte, object&gt; wire shape.

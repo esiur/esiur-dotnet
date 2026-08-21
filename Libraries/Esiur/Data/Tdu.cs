@@ -176,6 +176,7 @@ public struct Tdu
             if (metadata == null)
                 throw new Exception("Metadata must be provided for types.");
 
+            ParserGuard.EnsureRemoteTypeMetadataDepth(connection, metadata);
             var metadataData = metadata.Compose(connection);
 
 

@@ -100,6 +100,21 @@ public sealed class SessionHeaders : IndexedStructure
     [Index((int)EpAuthPacketHeader.CipherNonce)]
     public byte[]? CipherNonce { get; set; }
 
+    [Index((int)EpAuthPacketHeader.MaximumPacketSize)]
+    public uint? MaximumPacketSize { get; set; }
+
+    [Index((int)EpAuthPacketHeader.MaximumAllocationSize)]
+    public uint? MaximumAllocationSize { get; set; }
+
+    [Index((int)EpAuthPacketHeader.MaximumCollectionItems)]
+    public int? MaximumCollectionItems { get; set; }
+
+    [Index((int)EpAuthPacketHeader.MaximumTypeMetadataDepth)]
+    public int? MaximumTypeMetadataDepth { get; set; }
+
+    [Index((int)EpAuthPacketHeader.MaximumEncryptedRecordSize)]
+    public uint? MaximumEncryptedRecordSize { get; set; }
+
     internal SessionHeaders Copy() => (SessionHeaders)MemberwiseClone();
 }
 
@@ -120,6 +135,12 @@ public class Session
 
     public SessionHeaders LocalHeaders { get; set; } = new SessionHeaders();
     public SessionHeaders RemoteHeaders { get; set; } = new SessionHeaders();
+
+    public uint RemoteMaximumPacketSize => RemoteHeaders?.MaximumPacketSize ?? 0;
+    public uint RemoteMaximumAllocationSize => RemoteHeaders?.MaximumAllocationSize ?? 0;
+    public int RemoteMaximumCollectionItems => RemoteHeaders?.MaximumCollectionItems ?? 0;
+    public int RemoteMaximumTypeMetadataDepth => RemoteHeaders?.MaximumTypeMetadataDepth ?? 0;
+    public uint RemoteMaximumEncryptedRecordSize => RemoteHeaders?.MaximumEncryptedRecordSize ?? 0;
 
     //public AuthenticationMethod AuthenticationMethod { get; set; }
     //public AuthenticationMethod RemoteMethod { get; set; }

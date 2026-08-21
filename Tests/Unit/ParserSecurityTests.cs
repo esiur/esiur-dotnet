@@ -8,6 +8,27 @@ namespace Esiur.Tests.Unit;
 public class ParserSecurityTests
 {
     [Fact]
+    public void Composer_RejectsValuesAbovePeerAdvertisedBudgetsBeforeSend()
+    {
+        var warehouse = new Warehouse();
+        var connection = new EpConnection();
+        connection.Session.RemoteHeaders.MaximumPacketSize = 64;
+        connection.Session.RemoteHeaders.MaximumAllocationSize = 6;
+        connection.Session.RemoteHeaders.MaximumCollectionItems = 2;
+
+        Assert.Throws<RemoteParserLimitException>(() =>
+            Codec.Compose("four", warehouse, connection));
+        Assert.Throws<RemoteParserLimitException>(() =>
+            Codec.Compose(new object[] { 1, 2, 3 }, warehouse, connection));
+
+        connection.Session.RemoteHeaders.MaximumAllocationSize = 0;
+        connection.Session.RemoteHeaders.MaximumCollectionItems = 0;
+        connection.Session.RemoteHeaders.MaximumPacketSize = 3;
+        Assert.Throws<RemoteParserLimitException>(() =>
+            Codec.Compose(new byte[] { 1, 2, 3, 4 }, warehouse, connection));
+    }
+
+    [Fact]
     public void PacketParser_RejectsOversizedDeclarationBeforePayloadArrives()
     {
         var warehouse = new Warehouse();

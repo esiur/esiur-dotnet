@@ -369,17 +369,25 @@ public partial class EpConnection : NetworkConnection, IStore
         var provider = _session.EncryptionProvider
             ?? throw new InvalidOperationException("Session encryption is active without a provider.");
         var maximumRecordSize = ParsingWarehouse.Configuration.Encryption.MaximumRecordSize;
+        var remoteMaximumRecordSize = _session?.RemoteMaximumEncryptedRecordSize ?? 0;
 
         if (maximumRecordSize > 0
             && (ulong)plaintext.LongLength + provider.MaximumRecordOverhead > maximumRecordSize)
             throw new ParserLimitException(
                 $"Encrypted record would exceed the {maximumRecordSize}-byte limit.");
+        if (remoteMaximumRecordSize > 0
+            && (ulong)plaintext.LongLength + provider.MaximumRecordOverhead > remoteMaximumRecordSize)
+            throw new RemoteParserLimitException(
+                $"Encrypted record would exceed the peer's advertised {remoteMaximumRecordSize}-byte limit.");
 
         var protectedPayload = cipher.Encrypt(plaintext);
 
         if (maximumRecordSize > 0 && protectedPayload.Length > maximumRecordSize)
             throw new InvalidOperationException(
                 $"Encryption provider `{provider.DefaultName}` exceeded its declared record overhead.");
+        if (remoteMaximumRecordSize > 0 && protectedPayload.Length > remoteMaximumRecordSize)
+            throw new RemoteParserLimitException(
+                $"Encrypted record of {protectedPayload.Length} bytes exceeds the peer's advertised {remoteMaximumRecordSize}-byte limit.");
         if (protectedPayload.Length > int.MaxValue - EncryptedRecordHeaderSize)
             throw new ParserLimitException("Encrypted record exceeds the runtime allocation limit.");
 
@@ -454,6 +462,7 @@ public partial class EpConnection : NetworkConnection, IStore
             }
         }
 
+        PopulateLocalLimitHeaders();
         var headers = _session.LocalHeaders.Copy();
 
         // Anonymous sessions still exchange typed records. They therefore
@@ -489,6 +498,16 @@ public partial class EpConnection : NetworkConnection, IStore
               (byte)EpAuthPacketMethod.Initialize
             | ((byte)_session.AuthenticationMode & 0x3) << 2
             | ((byte)_session.EncryptionMode & 0x3)), headers);
+    }
+
+    void PopulateLocalLimitHeaders()
+    {
+        var configuration = ParsingWarehouse.Configuration;
+        _session.LocalHeaders.MaximumPacketSize = configuration.Parser.MaximumPacketSize;
+        _session.LocalHeaders.MaximumAllocationSize = configuration.Parser.MaximumAllocationSize;
+        _session.LocalHeaders.MaximumCollectionItems = configuration.Parser.MaximumCollectionItems;
+        _session.LocalHeaders.MaximumTypeMetadataDepth = configuration.Parser.MaximumTypeMetadataDepth;
+        _session.LocalHeaders.MaximumEncryptedRecordSize = configuration.Encryption.MaximumRecordSize;
     }
 
     void PrepareEncryptionOffer()
@@ -1653,6 +1672,7 @@ public partial class EpConnection : NetworkConnection, IStore
                         ? $"anonymous:{RemoteEndPoint?.Address}"
                         : remoteHeaders.Domain;
                     _session.AuthenticationMode = _authPacket.AuthMode;
+                    PopulateLocalLimitHeaders();
                     var localHeaders = _session.LocalHeaders.Copy();
 
                     if (!NegotiateEncryptionAsResponder(localHeaders))
@@ -1787,6 +1807,16 @@ public partial class EpConnection : NetworkConnection, IStore
                     if (_session.AuthenticationMode == AuthenticationMode.None
                         && _authPacket.Method == EpAuthPacketMethod.SessionEstablished)
                     {
+                        var remoteHeaders = new SessionHeaders();
+                        if (_authPacket.Tdu != null)
+                        {
+                            remoteHeaders = Codec.ParseIndexedType<SessionHeaders>(
+                                _authPacket.Tdu.Value,
+                                ParsingWarehouse);
+                            remoteHeaders.AuthenticationData = null;
+                        }
+                        _session.RemoteHeaders = remoteHeaders;
+
                         _session.Authenticated = true;
                         _session.LocalIdentity = null;
                         _session.RemoteIdentity = null;
