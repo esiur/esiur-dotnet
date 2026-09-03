@@ -321,6 +321,12 @@ public partial class EpConnection : NetworkConnection, IStore
                 return;
 
             Global.Counters["Ep Sent Packets"]++;
+            var metrics = _runtimeMetrics;
+            if (metrics != null)
+            {
+                Interlocked.Add(ref metrics.SentBytes, data.LongLength);
+                Interlocked.Increment(ref metrics.SentPackets);
+            }
 
             if (_outboundProtectionState == OutboundProtectionState.Encrypted)
                 base.Send(ComposeEncryptedRecord(data));
@@ -1342,6 +1348,30 @@ public partial class EpConnection : NetworkConnection, IStore
             else
             {
                 offset += (uint)rt;
+
+                var metrics = _runtimeMetrics;
+                if (metrics != null)
+                {
+                    Interlocked.Increment(ref metrics.ReceivedPackets);
+                    if (_packet.Method == EpPacketMethod.Request)
+                        Interlocked.Increment(ref metrics.ReceivedRequests);
+                    else if (_packet.Method == EpPacketMethod.Reply)
+                    {
+                        Interlocked.Increment(ref metrics.ReceivedReplies);
+                        if (_packet.Reply == EpPacketReply.PermissionError ||
+                            _packet.Reply == EpPacketReply.ExecutionError ||
+                            _packet.Reply == EpPacketReply.Warning)
+                            Interlocked.Increment(ref metrics.ReceivedErrors);
+                    }
+                    else if (_packet.Method == EpPacketMethod.Notification)
+                    {
+                        Interlocked.Increment(ref metrics.ReceivedNotifications);
+                        if (_packet.Notification == EpPacketNotification.PropertyModified)
+                            Interlocked.Increment(ref metrics.ReceivedPropertyModifications);
+                        else if (_packet.Notification == EpPacketNotification.EventOccurred)
+                            Interlocked.Increment(ref metrics.ReceivedEvents);
+                    }
+                }
 
                 if (_packet.Tdu == null &&
                     _packet.Method != EpPacketMethod.Reply &&
@@ -3021,6 +3051,10 @@ public partial class EpConnection : NetworkConnection, IStore
         var msg = data.Read();
         if (msg == null)
             return;
+
+        var metrics = _runtimeMetrics;
+        if (metrics != null)
+            Interlocked.Add(ref metrics.ReceivedBytes, msg.LongLength);
 
         this.Socket.Hold();
 

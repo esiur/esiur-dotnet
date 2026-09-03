@@ -328,6 +328,9 @@ partial class EpConnection
         var c = (uint)Interlocked.Increment(ref _callbackCounter);
         //callbackCounter++; // avoid thread racing
         _requests.Add(c, reply);
+        var metrics = _runtimeMetrics;
+        if (metrics != null)
+            Interlocked.Increment(ref metrics.SentRequests);
 
         try
         {
@@ -383,6 +386,9 @@ partial class EpConnection
             () => SendRequest(EpPacketRequest.ResumeExecution, callbackId));
 
         _requests.Add(callbackId, reply);
+        var metrics = _runtimeMetrics;
+        if (metrics != null)
+            Interlocked.Increment(ref metrics.SentRequests);
         try
         {
             SendRequestPacket(action, callbackId, args);
@@ -409,6 +415,9 @@ partial class EpConnection
             () => SendRequest(EpPacketRequest.ResumeExecution, callbackId));
 
         _requests.Add(callbackId, reply);
+        var metrics = _runtimeMetrics;
+        if (metrics != null)
+            Interlocked.Increment(ref metrics.SentRequests);
         try
         {
             SendRequestPacket(action, callbackId, args);
@@ -507,6 +516,15 @@ partial class EpConnection
     {
 
         var reply = new AsyncReply();
+        var metrics = _runtimeMetrics;
+        if (metrics != null)
+        {
+            Interlocked.Increment(ref metrics.SentNotifications);
+            if (action == EpPacketNotification.PropertyModified)
+                Interlocked.Increment(ref metrics.SentPropertyModifications);
+            else if (action == EpPacketNotification.EventOccurred)
+                Interlocked.Increment(ref metrics.SentEvents);
+        }
 
         if (args.Length == 0)
         {
@@ -534,6 +552,16 @@ partial class EpConnection
     {
         if (Instance == null)
             return;
+
+        var metrics = _runtimeMetrics;
+        if (metrics != null)
+        {
+            Interlocked.Increment(ref metrics.SentReplies);
+            if (action == EpPacketReply.PermissionError ||
+                action == EpPacketReply.ExecutionError ||
+                action == EpPacketReply.Warning)
+                Interlocked.Increment(ref metrics.SentErrors);
+        }
 
         try
         {

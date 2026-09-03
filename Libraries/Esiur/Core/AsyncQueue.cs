@@ -57,6 +57,16 @@ public class AsyncQueue<T> : AsyncReply<T>
     //Action<T> callback;
     object queueLock = new object();
 
+    /// <summary>Current queued item count, exposed for opt-in runtime diagnostics.</summary>
+    public int Count
+    {
+        get
+        {
+            lock (queueLock)
+                return list.Count;
+        }
+    }
+
     //public AsyncQueue<T> Then(Action<T> callback)
     //{
     //  base.Then(new Action<object>(o => callback((T)o)));
