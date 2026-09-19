@@ -50,13 +50,13 @@ newer toolchain, such as .NET SDK 8 or newer. Building this repository requires
 For an ASP.NET Core service:
 
 ```shell
-dotnet add package Esiur.AspNetCore --version 3.0.0
+dotnet add package Esiur.AspNetCore --version 3.1.0
 ```
 
 For the standalone runtime or a client:
 
 ```shell
-dotnet add package Esiur --version 3.0.1
+dotnet add package Esiur --version 3.1.0
 ```
 
 ## Define a resource
@@ -326,7 +326,7 @@ case-sensitive; v3 does not negotiate legacy aliases.
 with EF Core 10.
 
 ```shell
-dotnet add package Esiur.Stores.EntityCore --version 3.0.0
+dotnet add package Esiur.Stores.EntityCore --version 3.1.0
 dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.10
 ```
 

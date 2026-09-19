@@ -109,7 +109,7 @@ public sealed class CliApplication
     {
         EnsureEmpty(tokens);
         var assembly = typeof(CliApplication).Assembly.GetName();
-        await output.WriteLineAsync($"Esiur CLI {assembly.Version?.ToString(3) ?? "3.0.0"}");
+        await output.WriteLineAsync($"Esiur CLI {assembly.Version?.ToString(3) ?? "3.1.0"}");
         return ExitCodes.Success;
     }
 

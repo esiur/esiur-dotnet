@@ -86,7 +86,7 @@ internal class Program
         // Start your server
         await wh.Open();
 
-        Console.WriteLine($"Running on http://localhost:8888/?epPort={epPort}");
+        Console.WriteLine($"Running on http://localhost:8888/?epPort={esiurServer.Port}");
 
     }
 }

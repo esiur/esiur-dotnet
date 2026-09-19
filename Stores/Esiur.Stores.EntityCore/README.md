@@ -6,7 +6,7 @@ with Entity Framework Core 10. Version 3.0 targets .NET 10.
 ## Installation
 
 ```shell
-dotnet add package Esiur.Stores.EntityCore --version 3.0.0
+dotnet add package Esiur.Stores.EntityCore --version 3.1.0
 dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.10
 ```
 

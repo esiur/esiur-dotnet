@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           dotnet pack Tools/Esiur.CLI/Esiur.CLI.csproj --configuration Release --no-build --no-restore --output artifacts/nuget
-          dotnet tool install Esiur.CLI --version 3.0.0 --tool-path artifacts/tool --add-source artifacts/nuget
+          dotnet tool install Esiur.CLI --version 3.1.0 --tool-path artifacts/tool --add-source artifacts/nuget
           & ./artifacts/tool/esiur.exe version
           & ./artifacts/tool/esiur.exe --help
 

@@ -1,4 +1,9 @@
 <Project>
+  <PropertyGroup>
+    <!-- Keep stale and nested SDK outputs out of source globs, including when
+         a release uses an artifacts path outside the checkout. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
+  </PropertyGroup>
   <!-- Test and example executables are repository assets, not NuGet products. -->
   <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)Tests')) Or $([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)Examples'))">
     <IsPackable>false</IsPackable>

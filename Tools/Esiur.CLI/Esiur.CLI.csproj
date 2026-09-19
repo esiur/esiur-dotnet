@@ -3,7 +3,7 @@
   <PropertyGroup>
 	<Description>Esiur command-line tool</Description>
 	<Copyright>Ahmed Kh. Zamil</Copyright>
-	<Version>3.0.0</Version>
+	<Version>3.1.0</Version>
 	<PackageId>Esiur.CLI</PackageId>
 	<Authors>Ahmed Kh. Zamil</Authors>
 	<Company>Esiur Foundation</Company>
