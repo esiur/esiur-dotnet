@@ -334,8 +334,16 @@ public sealed class AspNetCoreIntegrationTests
             {
                 // The HTTP upgrade can complete before the EP admission decision closes the
                 // second transport. What matters is that it is never added to the server.
-                if (await rejectedSocket.Connect(host.WebSocketAddress, cancellation.Token))
-                    rejectedSocket.Begin();
+                try
+                {
+                    if (await rejectedSocket.Connect(host.WebSocketAddress, cancellation.Token))
+                        rejectedSocket.Begin();
+                }
+                catch (AsyncException exception) when (exception.InnerException is WebSocketException)
+                {
+                    // A fast admission rejection can abort the HTTP upgrade itself.
+                    // It must still close this socket and preserve the first peer.
+                }
 
                 await WaitUntilAsync(
                     () => rejectedSocket.State == SocketState.Closed,
@@ -403,6 +411,9 @@ public sealed class AspNetCoreIntegrationTests
 
             await host.Application.StopAsync(cancellation.Token);
 
+            // Host shutdown closes the server transport; the remote receive loop
+            // observes that close asynchronously on its own scheduler.
+            await socket.Completion.WaitAsync(cancellation.Token);
             Assert.True(socket.Completion.IsCompleted);
             Assert.Equal(SocketState.Closed, socket.State);
             Assert.Empty(host.Server.Connections);
