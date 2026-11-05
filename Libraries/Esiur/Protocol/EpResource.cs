@@ -93,6 +93,9 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
     // resource-wide journal; separate checkpoints let subscriptions filter
     // unrelated members without losing replay position.
     readonly Dictionary<byte, ResourceCursor> _eventCursors = new();
+    // Set when the definition changed in place: the next reattach must transfer every property,
+    // because the cursor this resource holds describes the old member layout.
+    bool _needsFullReattach;
     // Event indices with a subscription-reconciliation loop currently running.
     readonly HashSet<byte> _reconciling = new();
     // Callers of OnAsync wait here until the shared reconciliation loop has
@@ -300,10 +303,103 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
         // now-dead connection is gone, but our local listeners (On()/+=)
         // are untouched, so without this we'd wrongly believe we're still
         // subscribed and never resend the wire Subscribe request.
+        _needsFullReattach = false;
         ReconcileAllSubscriptions();
         return true;
     }
 
+    /// <summary>
+    /// The cursor to reattach with. A cursor that no node generation matches makes the node
+    /// answer with a full property snapshot, which a resource whose definition changed needs.
+    /// </summary>
+    internal ResourceCursor ReattachCursor
+        => _needsFullReattach ? new ResourceCursor(Guid.Empty, 0) : Instance.Cursor;
+
+    /// <summary>
+    /// Re-keys everything this resource stores by member index after its definition changed in
+    /// place (docs/typedef-sync.md). Member names are the identity: values, listeners and event
+    /// cursors follow their member to its new index; members that no longer exist are dropped.
+    /// </summary>
+    internal void RebindDefinition(TypeDefLayout previous)
+    {
+        var definition = Instance.Definition;
+
+        var oldProperties = _properties;
+        if (oldProperties != null)
+        {
+            var rebound = new object[definition.Properties.Length];
+            foreach (var property in definition.Properties)
+                if (previous.Properties.TryGetValue(property.Name, out var oldIndex) && oldIndex < oldProperties.Length)
+                    rebound[property.Index] = oldProperties[oldIndex];
+            _properties = rebound;
+        }
+
+        var oldEvents = _events;
+        if (oldEvents != null)
+        {
+            var rebound = new EpResourceEvent[definition.Events.Length];
+            foreach (var eventDef in definition.Events)
+                if (previous.Events.TryGetValue(eventDef.Name, out var oldIndex) && oldIndex < oldEvents.Length)
+                    rebound[eventDef.Index] = oldEvents[oldIndex];
+            _events = rebound;
+        }
+
+        RemapKeys(_propertyListeners, previous.Properties, name => definition.GetPropertyDefByName(name)?.Index);
+        RemapKeys(_eventListeners, previous.Events, name => definition.GetEventDefByName(name)?.Index);
+        RemapKeys(_eventCursors, previous.Events, name => definition.GetEventDefByName(name)?.Index);
+        Instance.RemapProperties(definition, previous);
+
+        _needsFullReattach = true;
+    }
+
+    static void RemapKeys<T>(Dictionary<byte, T> map, Dictionary<string, byte> previous, Func<string, byte?> newIndexOf)
+    {
+        lock (map)
+        {
+            if (map.Count == 0)
+                return;
+
+            var oldNames = previous.ToDictionary(x => x.Value, x => x.Key);
+            var entries = map.ToList();
+            map.Clear();
+
+            foreach (var entry in entries)
+                if (oldNames.TryGetValue(entry.Key, out var name) && newIndexOf(name) is byte newIndex)
+                    map[newIndex] = entry.Value;
+        }
+    }
+
+
+    // Members are identified by name, never by the index a proxy was generated with: the node may
+    // have renumbered or extended its type since (docs/typedef-sync.md). Generated proxies call
+    // these with the generated index as a fast path; a member that no longer exists throws
+    // EpMemberUnavailableException.
+    protected byte _FunctionIndex(string name, byte generatedIndex)
+        => EpMemberBinding.Function(Instance.Definition, name, generatedIndex);
+
+    protected byte _PropertyIndex(string name, byte generatedIndex)
+        => EpMemberBinding.Property(Instance.Definition, name, generatedIndex);
+
+    protected byte _EventIndex(string name, byte generatedIndex)
+        => EpMemberBinding.Event(Instance.Definition, name, generatedIndex);
+
+    /// <summary>
+    /// Converts a value received over the wire to the type a generated member declares. The wire
+    /// carries numbers in the narrowest width that fits, so a plain unboxing cast would fail.
+    /// </summary>
+    protected static T _Cast<T>(object value) => (T)RuntimeCaster.Cast(value, typeof(T))!;
+
+    /// <summary>The current value of the property <paramref name="name"/>.</summary>
+    protected object _PropertyValue(string name, byte generatedIndex)
+        => _properties[_PropertyIndex(name, generatedIndex)];
+
+    /// <summary>
+    /// Raises the proxy's own event for an occurrence. Generated proxies override this to switch
+    /// on the event name, so event dispatch also survives a renumbered definition.
+    /// </summary>
+    protected virtual void _EmitEventByName(string name, object args)
+    {
+    }
 
     protected internal virtual void _EmitEventByIndex(
         byte index,
@@ -320,6 +416,8 @@ public class EpResource : DynamicObject, IResource, INotifyPropertyChanged, IDyn
                 return;
             _eventCursors[index] = cursor;
         }
+        if (et != null)
+            _EmitEventByName(et.Name, args);
         _events[index]?.Invoke(this, args);
         Instance.ApplyRemoteEvent(et, args, cursor, recordedAt);
         DispatchListeners(_eventListeners, index, args);

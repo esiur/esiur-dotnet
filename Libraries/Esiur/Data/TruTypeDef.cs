@@ -86,6 +86,18 @@ namespace Esiur.Data
         {
             var rt = new BinaryList();
 
+            if (TypeDefSignature.IsComputing)
+            {
+                // Signature mode: a reference is the hash of the referenced name, written with the
+                // widest identifier, so the result never depends on a TypeDef id or its width.
+                if (TypeDef == null)
+                    throw new NotImplementedException();
+
+                rt.AddUInt8((byte)((Nullable ? 0x80 : 0) | (byte)TruIdentifier.LocalType64));
+                rt.AddUInt64(TypeDefSignature.Name64(TypeDef.Name));
+                return rt.ToArray();
+            }
+
             if (TypeDef is RemoteTypeDef remoteTypeDef)
             {
                 if (connection.RemoteDomain == remoteTypeDef.Domain)

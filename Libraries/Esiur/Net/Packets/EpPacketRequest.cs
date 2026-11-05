@@ -21,6 +21,8 @@ namespace Esiur.Net.Packets
         LinkTypeDefs = 0xC,
         Token = 0xD,
         GetResourceIdByLink = 0xE,
+        /// <summary>Validate a client's cached TypeDefs by name and signature; see docs/typedef-sync.md.</summary>
+        SyncTypeDefs = 0xF,
 
         // Request Manage
         AttachResource = 0x10,

@@ -16,6 +16,8 @@ namespace Esiur.Data.Types
         Functions = 0x07,
         Events = 0x08,
         Constants = 0x09,
+        // Id-independent hash of the definition; see docs/typedef-sync.md.
+        Signature = 0x0A,
 
         Usage = 0x20,
         Description = 0x21,

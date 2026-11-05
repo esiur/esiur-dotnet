@@ -470,21 +470,23 @@ public static class TypeDefGenerator
             if (isStream)
             {
                 if (f.IsStatic)
-                    rt.AppendLine($"return connection.StaticStreamCall<{rtTypeName}>({typeDef.Id}UL, {f.Index}, args, StreamMode.{f.StreamMode}); }}");
+                    rt.AppendLine($"return connection.StaticStreamCallByName<{rtTypeName}>({ToLiteral(typeDef.Name)}, {ToLiteral(f.Name)}, {f.Index}, args, StreamMode.{f.StreamMode}); }}");
                 else
-                    rt.AppendLine($"return _InvokeStream<{rtTypeName}>({f.Index}, args); }}");
+                    rt.AppendLine($"return _InvokeStream<{rtTypeName}>(_FunctionIndex({ToLiteral(f.Name)}, {f.Index}), args); }}");
 
                 continue;
             }
 
             rt.AppendLine($"var rt = new AsyncReply<{rtTypeName}>();");
 
+            // Members are bound by name at run time: the index below is only the fast path for a
+            // definition that has not changed since this proxy was generated.
             if (f.IsStatic)
-                rt.AppendLine($"connection.StaticCall(Guid.Parse(\"{typeDef.Id.ToString()}\"), {f.Index}, args)");
+                rt.AppendLine($"connection.StaticCallByName({ToLiteral(typeDef.Name)}, {ToLiteral(f.Name)}, {f.Index}, args)");
             else
-                rt.AppendLine($"_Invoke({f.Index}, args)");
+                rt.AppendLine($"_Invoke(_FunctionIndex({ToLiteral(f.Name)}, {f.Index}), args)");
 
-            rt.AppendLine($".Then(x => rt.Trigger(({rtTypeName})x))");
+            rt.AppendLine($".Then(x => rt.Trigger(_Cast<{rtTypeName}>(x)))");
             rt.AppendLine($".Error(x => rt.TriggerError(x))");
             rt.AppendLine($".Chunk(x => rt.TriggerChunk(x));");
             rt.AppendLine("return rt; }");
@@ -506,11 +508,11 @@ public static class TypeDefGenerator
 
             var ptTypeName = GetTypeName(p.ValueType, typeDefs);
             rt.AppendLine($"[Export] public {ptTypeName} {p.Name} {{");
-            rt.AppendLine($"get => ({ptTypeName})properties[{p.Index}];");
+            rt.AppendLine($"get => _Cast<{ptTypeName}>(_PropertyValue({ToLiteral(p.Name)}, {p.Index}));");
             if (asyncSetters)
-                rt.AppendLine($"set => SetResourcePropertyAsync({p.Index}, value);");
+                rt.AppendLine($"set => SetResourcePropertyAsync(_PropertyIndex({ToLiteral(p.Name)}, {p.Index}), value);");
             else
-                rt.AppendLine($"set => SetResourceProperty({p.Index}, value);");
+                rt.AppendLine($"set => SetResourceProperty(_PropertyIndex({ToLiteral(p.Name)}, {p.Index}), value);");
             rt.AppendLine("}");
         }
 
@@ -533,29 +535,30 @@ public static class TypeDefGenerator
         if (typeDef.Events.Length > 0)
         {
 
-            rt.AppendLine("protected override void _EmitEventByIndex(byte index, object args, ResourceCursor cursor, DateTime recordedAt) {");
-            rt.AppendLine("switch (index) {");
+            // Occurrences arrive with the node's current event index; the base class resolves the
+            // name from the current definition and this dispatches by name, so a renumbered
+            // definition still raises the right event.
+            rt.AppendLine("protected override void _EmitEventByName(string name, object args) {");
+            rt.AppendLine("switch (name) {");
 
             var eventsList = new StringBuilder();
 
             foreach (var e in typeDef.Events)
             {
                 var etTypeName = GetTypeName(e.ArgumentType, typeDefs);
-                rt.AppendLine($"case {e.Index}: {e.Name}?.Invoke(({etTypeName})args); break;");
-
+                rt.AppendLine($"case {ToLiteral(e.Name)}: {e.Name}?.Invoke(_Cast<{etTypeName}>(args)); break;");
 
                 if (e.Annotations != null)
                 {
                     foreach (var ann in e.Annotations)
-                        rt.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
+                        eventsList.AppendLine($"[Annotation({ToLiteral(ann.Key)}, {ToLiteral(ann.Value)})]");
                 }
-
 
                 eventsList.AppendLine($"[Export] public event ResourceEventHandler<{etTypeName}> {e.Name};");
             }
 
             rt.AppendLine("}");
-            rt.AppendLine("base._EmitEventByIndex(index, args, cursor, recordedAt);");
+            rt.AppendLine("base._EmitEventByName(name, args);");
             rt.AppendLine("}");
 
             rt.AppendLine(eventsList.ToString());

@@ -58,6 +58,23 @@ public class TypeDef
 
     public int Version => _version;
 
+    protected ulong _signature;
+
+    /// <summary>
+    /// Id-independent hash of this definition (see docs/typedef-sync.md). A node computes it
+    /// lazily for the definitions it serves; a remote definition carries the value its node sent.
+    /// Zero means unknown.
+    /// </summary>
+    public virtual ulong Signature
+    {
+        get
+        {
+            if (_signature == 0)
+                _signature = TypeDefSignature.Compute(this);
+            return _signature;
+        }
+    }
+
     public EventDef GetEventDefByName(string eventName)
     {
         foreach (var i in _events)
@@ -164,7 +181,10 @@ public class TypeDef
     public virtual byte[] Compose(EpConnection connection)
     {
         var warehouse = connection?.Instance?.Warehouse ?? Warehouse.Default;
-        return Codec.Compose(TypeDefInfo.FromTypeDef(this), warehouse, connection);
+        var info = TypeDefInfo.FromTypeDef(this);
+        var signature = Signature;
+        info.Signature = signature == 0 ? null : signature;
+        return Codec.Compose(info, warehouse, connection);
     }
 
    

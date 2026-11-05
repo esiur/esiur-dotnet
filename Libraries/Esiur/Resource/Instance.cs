@@ -219,6 +219,38 @@ public class Instance
     }*/
 
 	/// <summary>
+	/// Re-keys the per-property ages and modification dates after the definition changed in
+	/// place: values follow their property by name, new properties start empty.
+	/// </summary>
+	internal void RemapProperties(TypeDef current, TypeDefLayout previous)
+	{
+		var oldAges = ages;
+		var oldDates = modificationDates;
+		var newAges = new List<ulong?>();
+		var newDates = new List<DateTime?>();
+
+		for (var i = 0; i < current.Properties.Length; i++)
+		{
+			newAges.Add(0);
+			newDates.Add(DateTime.MinValue);
+		}
+
+		foreach (var property in current.Properties)
+		{
+			if (!previous.Properties.TryGetValue(property.Name, out var oldIndex))
+				continue;
+
+			if (oldIndex < oldAges.Count)
+				newAges[property.Index] = oldAges[oldIndex];
+			if (oldIndex < oldDates.Count)
+				newDates[property.Index] = oldDates[oldIndex];
+		}
+
+		ages = newAges;
+		modificationDates = newDates;
+	}
+
+	/// <summary>
 	/// Get the age of a given property index.
 	/// </summary>
 	/// <param name="index">Zero-based property index.</param>

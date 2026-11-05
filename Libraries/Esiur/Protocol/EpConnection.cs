@@ -1457,6 +1457,9 @@ public partial class EpConnection : NetworkConnection, IStore
                         case EpPacketRequest.GetResourceIdByLink:
                             EpRequestGetResourceIdByLink(_packet.CallbackId, dt);
                             break;
+                        case EpPacketRequest.SyncTypeDefs:
+                            EpRequestSyncTypeDefs(_packet.CallbackId, dt);
+                            break;
                         // Manage
                         case EpPacketRequest.AttachResource:
                             EpRequestAttachResource(_packet.CallbackId, dt);
@@ -2306,50 +2309,55 @@ public partial class EpConnection : NetworkConnection, IStore
 
             OnReady?.Invoke(this);
 
-            var proxyTypes = Instance.Warehouse.GetProxyTypesByDomain(_remoteDomain);
-
-            if (proxyTypes != null)
+            // Validate the cached type definitions of this domain before anything depends on their
+            // ids (docs/typedef-sync.md); a failed sync drops the cache and carries on.
+            SyncTypeDefCache().Then(_ =>
             {
-                var typeDefNames = new List<string>();
+                var proxyTypes = Instance.Warehouse.GetProxyTypesByDomain(_remoteDomain);
 
-
-                foreach (var kk in proxyTypes)
+                if (proxyTypes != null)
                 {
-                    foreach (var kv in kk.Value)
+                    var typeDefNames = new List<string>();
+
+
+                    foreach (var kk in proxyTypes)
                     {
-                        typeDefNames.Add(kv.Key);
-                    }
-                }
-
-                if (typeDefNames.Count > 0)
-                {
-                    GetTypeDefIds(typeDefNames.ToArray()).Then(ids =>
-                    {
-                        var bag = new AsyncBag<object>();
-                        foreach (var id in ids)
-                            bag.Add(FetchTypeDef(id, null));
-
-                        bag.Seal();
-
-                        bag.Then((o) =>
+                        foreach (var kv in kk.Value)
                         {
-                            CompletePendingOpen();
-                        });
-                    }).Error(ex =>
+                            typeDefNames.Add(kv.Key);
+                        }
+                    }
+
+                    if (typeDefNames.Count > 0)
                     {
-                        FailPendingOpen(ex);
-                        // do nothing, proxies won't work but connection is established
-                    });
+                        GetTypeDefIds(typeDefNames.ToArray()).Then(ids =>
+                        {
+                            var bag = new AsyncBag<object>();
+                            foreach (var id in ids)
+                                bag.Add(FetchTypeDef(id, null));
+
+                            bag.Seal();
+
+                            bag.Then((o) =>
+                            {
+                                CompletePendingOpen();
+                            });
+                        }).Error(ex =>
+                        {
+                            FailPendingOpen(ex);
+                            // do nothing, proxies won't work but connection is established
+                        });
+                    }
+                    else
+                    {
+                        CompletePendingOpen();
+                    }
                 }
                 else
                 {
                     CompletePendingOpen();
                 }
-            }
-            else
-            {
-                CompletePendingOpen();
-            }
+            });
 
         }
     }
@@ -3659,7 +3667,7 @@ public partial class EpConnection : NetworkConnection, IStore
 
                         // Reattach using the last-known age so only properties modified while
                         // disconnected are transferred and merged, instead of re-fetching all.
-                        await Reattach(r.ResourceLink, r.Instance.Cursor, r);
+                        await Reattach(r.ResourceLink, r.ReattachCursor, r);
 
                         Global.Log("EpConnection", LogType.Debug, "Restored " + r.ResourceInstanceId);
 

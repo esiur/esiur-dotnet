@@ -1364,6 +1364,93 @@ public class Warehouse
         return _proxyTypeDefs[domain];
     }
 
+    static string NormalizeRemoteDomain(string domain)
+        => string.IsNullOrWhiteSpace(domain) ? "anonymous" : domain;
+
+    /// <summary>
+    /// Definitions cached for a remote domain, in no particular order. They are only valid once
+    /// the serving node has validated them (<c>SyncTypeDefs</c>); see docs/typedef-sync.md.
+    /// </summary>
+    internal List<RemoteTypeDef> GetCachedRemoteTypeDefs(string domain)
+    {
+        domain = NormalizeRemoteDomain(domain);
+        lock (_typeDefsLock)
+        {
+            return _remoteTypeDefs.ContainsKey(domain)
+                ? _remoteTypeDefs[domain].Values.ToList()
+                : new List<RemoteTypeDef>();
+        }
+    }
+
+    /// <summary>
+    /// Applies the id changes a node reported for a domain's cached definitions. Removed
+    /// definitions leave the cache (and are flagged); the others are re-keyed in two phases, so
+    /// a permutation of ids cannot overwrite an entry that has not moved yet.
+    /// </summary>
+    internal List<RemoteTypeDef> ApplyRemoteTypeDefIdChanges(
+        string domain,
+        IReadOnlyCollection<ulong> removed,
+        IReadOnlyCollection<(ulong OldId, ulong NewId)> moves)
+    {
+        domain = NormalizeRemoteDomain(domain);
+        var removedDefinitions = new List<RemoteTypeDef>();
+
+        lock (_typeDefsLock)
+        {
+            if (!_remoteTypeDefs.ContainsKey(domain))
+                return removedDefinitions;
+
+            var registry = _remoteTypeDefs[domain];
+
+            foreach (var id in removed)
+            {
+                var definition = registry[id];
+                if (definition == null)
+                    continue;
+
+                registry.Remove(id);
+                definition.Removed = true;
+                removedDefinitions.Add(definition);
+            }
+
+            var moving = new List<(RemoteTypeDef Definition, ulong NewId)>();
+            foreach (var (oldId, newId) in moves)
+            {
+                var definition = registry[oldId];
+                if (definition == null)
+                    continue;
+
+                moving.Add((definition, newId));
+            }
+
+            foreach (var (definition, _) in moving)
+                registry.Remove(definition.Id);
+
+            foreach (var (definition, newId) in moving)
+            {
+                definition.Id = newId;
+                registry[newId] = definition;
+            }
+        }
+
+        return removedDefinitions;
+    }
+
+    /// <summary>Forgets every cached definition of a domain (the node could not validate them).</summary>
+    internal List<RemoteTypeDef> ClearRemoteTypeDefs(string domain)
+    {
+        domain = NormalizeRemoteDomain(domain);
+        lock (_typeDefsLock)
+        {
+            if (!_remoteTypeDefs.ContainsKey(domain))
+                return new List<RemoteTypeDef>();
+
+            var all = _remoteTypeDefs[domain].Values.ToList();
+            _remoteTypeDefs[domain].Clear();
+            return all;
+        }
+    }
+
     public bool TryRegisterRemoteTypeDef(string domain, RemoteTypeDef typeDef)
     {
         domain = string.IsNullOrWhiteSpace(domain) ? "anonymous" : domain;
@@ -1536,6 +1623,25 @@ public class Warehouse
     /// </summary>
     /// <param name="typeName">Class full name.</param>
     /// <returns>TypeDef.</returns>
+    /// <summary>
+    /// The definition this node serves under <paramref name="typeName"/>: a local or dynamic
+    /// definition, never one held as a client of another node. Null when there is none.
+    /// </summary>
+    public TypeDef FindServedTypeDefByName(string typeName)
+    {
+        if (string.IsNullOrEmpty(typeName))
+            return null;
+
+        lock (_typeDefsLock)
+        {
+            foreach (var typeDef in _localTypeDefs.Values)
+                if (typeDef is not RemoteTypeDef && typeDef.Name == typeName)
+                    return typeDef;
+        }
+
+        return null;
+    }
+
     public TypeDef GetLocalTypeDefByName(string typeName)
     {
         return _localTypeDefs.Values.FirstOrDefault(x => x.Name == typeName);

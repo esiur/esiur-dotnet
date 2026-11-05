@@ -629,6 +629,33 @@ partial class EpConnection
         return SendRequest(EpPacketRequest.StaticCall, typeId, index, parameters);
     }
 
+    // The type definition a generated proxy was built for, by name, in this connection's
+    // validated id map. Proxy types are fetched while the connection is established.
+    RemoteTypeDef CachedTypeDefByName(string typeName, string memberName)
+    {
+        foreach (var definition in _cachedTypeDefs.Values.ToList())
+            if (definition.Name == typeName && !definition.Removed)
+                return definition;
+
+        throw new EpMemberUnavailableException(typeName, memberName, "function",
+            "the type is not available on this node");
+    }
+
+    /// <summary>Static call by type and function name; the index is resolved on the node's current definition.</summary>
+    public AsyncReply StaticCallByName(string typeName, string functionName, byte generatedIndex, object parameters)
+    {
+        var definition = CachedTypeDefByName(typeName, functionName);
+        return StaticCall(definition.Id, EpMemberBinding.Function(definition, functionName, generatedIndex), parameters);
+    }
+
+    public AsyncStreamReply<T> StaticStreamCallByName<T>(string typeName, string functionName, byte generatedIndex,
+        object parameters, StreamMode streamMode)
+    {
+        var definition = CachedTypeDefByName(typeName, functionName);
+        return StaticStreamCall<T>(definition.Id, EpMemberBinding.Function(definition, functionName, generatedIndex),
+            parameters, streamMode);
+    }
+
     public AsyncStreamReply<T> StaticStreamCall<T>(ulong typeId, byte index, object parameters, StreamMode streamMode)
     {
         return SendStreamRequest<T>(streamMode, EpPacketRequest.StaticCall, typeId, index, parameters);
@@ -1529,7 +1556,15 @@ partial class EpConnection
     {
         var value = Codec.ParseSync(tdu, Instance.Warehouse);
 
-        var classNames = (string[])value;
+        // A one-element list used to arrive as a bare string (the client spread the array into
+        // the request arguments), which made the cast below fail and left the request unanswered.
+        var classNames = value switch
+        {
+            string single => new[] { single },
+            string[] list => list,
+            IEnumerable<object> sequence => sequence.Select(x => (string)x).ToArray(),
+            _ => throw new InvalidCastException("TypeDefIdsByNames expects a list of class names."),
+        };
 
         var typeDefs = new List<TypeDef>();
 
@@ -1602,6 +1637,92 @@ partial class EpConnection
     }
 
 
+
+    // Validates a client's cached definitions by name and signature, answering with only the
+    // differences. See docs/typedef-sync.md.
+    void EpRequestSyncTypeDefs(uint callback, PlainTdu tdu)
+    {
+        try
+        {
+            var value = Codec.ParseSync(tdu, Instance.Warehouse);
+            var items = value switch
+            {
+                null => Array.Empty<object>(),
+                IEnumerable<object> list => list.ToArray(),
+                IEnumerable sequence when value is not string && value is not byte[] =>
+                    sequence.Cast<object>().ToArray(),
+                _ => throw new InvalidCastException("SyncTypeDefs expects a list of cache entries."),
+            };
+
+            // A cache larger than the whole registry is not a cache.
+            if (items.Length > 65536)
+                throw new InvalidOperationException("The TypeDef cache list is too large.");
+
+            var result = new TypeDefSyncInfo
+            {
+                Moved = new List<TypeDefIdMove>(),
+                Removed = new List<ulong>(),
+                Updated = new List<TypeDefUpdate>(),
+            };
+
+            foreach (var item in items)
+            {
+                var entry = Codec.ParseIndexedType<TypeDefCacheEntry>(item);
+                var served = Instance.Warehouse.FindServedTypeDefByName(entry.Name);
+
+                if (served == null || !IsTypeDefViewAllowed(served))
+                {
+                    result.Removed.Add(entry.Id);
+                    continue;
+                }
+
+                if (served.Signature == entry.Signature)
+                {
+                    if (served.Id != entry.Id)
+                        result.Moved.Add(new TypeDefIdMove { OldId = entry.Id, NewId = served.Id });
+                    continue;
+                }
+
+                result.Updated.Add(new TypeDefUpdate
+                {
+                    OldId = entry.Id,
+                    NewId = served.Id,
+                    Definition = served.Compose(this),
+                });
+            }
+
+            SendReply(EpPacketReply.Completed, callback, result);
+        }
+        catch (Exception ex)
+        {
+            Global.Log(ex);
+            SendError(ErrorType.Management, callback, (ushort)ExceptionCode.ParseError);
+        }
+    }
+
+    // Same permission as TypeDefById, evaluated without replying so a batch can drop single entries.
+    bool IsTypeDefViewAllowed(TypeDef typeDef)
+    {
+        try
+        {
+            var context = new ResourceManagerContext(
+                Instance.Warehouse,
+                this,
+                _session,
+                null,
+                null,
+                ActionType.ViewTypeDef,
+                this,
+                null);
+
+            return Instance.Warehouse.EvaluateManagers(context, ResolveTypeDefManagers(typeDef)).IsAllowed;
+        }
+        catch (Exception ex)
+        {
+            Global.Log(ex);
+            return false;
+        }
+    }
 
     void EpRequestTypeDefByResourceId(uint callback, PlainTdu tdu)
     {
@@ -3593,10 +3714,9 @@ partial class EpConnection
 
                         var typeDef = resource != null ?
                                       resource.Instance.Definition as RemoteTypeDef
-                                      : Instance.Warehouse.GetRemoteTypeDefById(
-                                                        _remoteDomain,
-                                                        typeId
-                                                        );
+                                      // The connection's own id map, never a warehouse-wide id key: ids are
+                                      // only valid for one connection (docs/typedef-sync.md).
+                                      : _cachedTypeDefs[typeId];
 
 
                         var initResource = (EpResource dr) =>
@@ -3969,7 +4089,8 @@ partial class EpConnection
     {
         var reply = new AsyncReply<ulong[]>();
 
-        SendRequest(EpPacketRequest.TypeDefIdsByNames, fullNames)
+        // One list argument, whatever its length (a spread array of one name is a bare string).
+        SendRequest(EpPacketRequest.TypeDefIdsByNames, new object[] { fullNames })
                     .Then(result =>
                     {
                         reply.Trigger((ulong[])result);

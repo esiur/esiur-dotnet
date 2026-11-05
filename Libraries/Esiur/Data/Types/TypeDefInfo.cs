@@ -39,6 +39,10 @@ public class TypeDefInfo : IndexedStructure
     [Index((int)TypeDefField.Constants)]
     public List<ConstantDefInfo>? Constants { get; set; }
 
+    /// <summary>Id-independent hash of the definition, used to validate cached definitions.</summary>
+    [Index((int)TypeDefField.Signature)]
+    public ulong? Signature { get; set; }
+
     [Index((int)TypeDefField.Usage)]
     public string? Usage { get; set; }
 

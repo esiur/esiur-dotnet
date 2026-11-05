@@ -27,6 +27,17 @@ public class RemoteTypeDef:TypeDef
     public string Domain => _domain;
 
 
+    /// <summary>The signature the serving node sent with this definition; zero when unknown.</summary>
+    public override ulong Signature => _signature;
+
+    /// <summary>
+    /// True when the serving node no longer has (or no longer shows) this definition. Resources
+    /// already using it keep the object; members that depended on it fail with a clear error.
+    /// </summary>
+    public bool Removed { get; internal set; }
+
+    internal TypeDefLayout CaptureLayout() => TypeDefLayout.Of(this);
+
     public uint _localTypeDefId;
 
     public uint LocalTypeDefId
@@ -199,6 +210,8 @@ public class RemoteTypeDef:TypeDef
             : $"{info.Namespace}.{info.Name}";
         definition._typeDefKind = info.Kind;
         definition._version = info.Version;
+        definition._signature = info.Signature ?? 0;
+        definition.Removed = false;
         definition.Usage = info.Usage;
         definition.Description = info.Description;
         definition.Example = info.Example;
