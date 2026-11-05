@@ -152,6 +152,15 @@ The client's resolution of a resource's type at attach time uses the
 connection's own map (seeded by the sync, extended by fetches), not a
 warehouse-wide id key.
 
+A resource is attached first. The attach reply names its type by id; the client finds the
+definition in that map and asks the node (`TypeDefById`) only on a miss, so a connection whose
+cache was validated attaches a resource of a cached type with no definition request, and a type
+is downloaded once however many resources of it are attached. The definition is requested through
+the resource (`TypeDefByResourceId`) when the node does not serve the type by id: when it refuses
+the by-id request, or when it reports type id 0 in the attach and reattach replies, which a
+TypeScript node does for a resource it relays because that resource has no type id of the node's
+own.
+
 ## Rebinding in place
 
 A definition update must be accepted even when compiled code (a generated proxy
