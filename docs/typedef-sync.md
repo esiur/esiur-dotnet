@@ -203,8 +203,10 @@ as a fast path.
   renumbered member still binds by name, and a member the contract names that the node no longer
   serves fails with `EpMemberUnavailableException` / `EpMemberUnavailableError` (function call,
   property get/set, event subscription), naming the member and the type. The node's definition is
-  fetched once per type per connection (or comes from the validated cache); if the node does not
-  allow viewing it, the contract is used as before.
+  fetched once per type per connection (or comes from the validated cache). The TypeScript client
+  requests it in the same flight as the attach request, so it costs no additional round trip, and
+  it asks for nothing when the connection already holds a definition of that name. If the node
+  does not allow viewing it, the contract is used as before.
 
 ## Compatibility
 
