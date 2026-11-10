@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased (3.2.0)
+## 3.2.0 (2026-11-10)
 
 - **ASP.NET Core: `OnWebSocketAccepted`.** `EsiurBuilder.OnWebSocketAccepted((context, connection) => …)`
   (`EsiurOptions.WebSocketAccepted`) runs for every accepted WebSocket with its HTTP upgrade request and
