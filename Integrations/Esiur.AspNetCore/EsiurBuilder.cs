@@ -4,6 +4,7 @@ using Esiur.Security.Authority;
 using Esiur.Security.Authority.Providers;
 using Esiur.Security.Cryptography;
 using Esiur.Stores;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -242,6 +243,18 @@ public sealed class EsiurBuilder
         ArgumentNullException.ThrowIfNull(factory);
         Services.Configure<EsiurOptions>(options =>
             options.EncryptionProviders.Add(factory));
+        return this;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="callback"/> for every accepted WebSocket with its HTTP upgrade
+    /// request and the new connection, before any EP data is read
+    /// (<see cref="EsiurOptions.WebSocketAccepted"/>). Callbacks run in registration order.
+    /// </summary>
+    public EsiurBuilder OnWebSocketAccepted(Action<HttpContext, EpConnection> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        Services.Configure<EsiurOptions>(options => options.WebSocketAccepted += callback);
         return this;
     }
 

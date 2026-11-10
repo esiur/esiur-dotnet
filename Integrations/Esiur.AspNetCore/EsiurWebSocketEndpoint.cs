@@ -95,6 +95,10 @@ internal sealed class EsiurWebSocketEndpoint
             connection = new EpConnection();
             connection.Assign(socket);
 
+            // Before admission and before any EP data is read, so the host can bind
+            // request facts (host name, headers) to the connection.
+            runtime.Options.WebSocketAccepted?.Invoke(context, connection);
+
             // Recheck readiness while admission is serialized with host shutdown. The
             // WebSocket upgrade can take long enough for ApplicationStopping to begin
             // after the initial readiness check.

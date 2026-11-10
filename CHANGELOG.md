@@ -2,6 +2,11 @@
 
 ## Unreleased (3.2.0)
 
+- **ASP.NET Core: `OnWebSocketAccepted`.** `EsiurBuilder.OnWebSocketAccepted((context, connection) => …)`
+  (`EsiurOptions.WebSocketAccepted`) runs for every accepted WebSocket with its HTTP upgrade request and
+  the new `EpConnection`, before admission and before any EP data is read. RPC handlers run in Esiur
+  continuations that do not carry the request's async-local state, so this is where a host captures
+  request facts such as the host name. An exception rejects the connection.
 - **Breaking protocol change: TypeDef cache synchronization.** A client that keeps type
   definitions between connections (a long-lived `Warehouse`, `AutoReconnect`) now validates them
   during connection establishment with the new `SyncTypeDefs` request (0xF): it sends the cached

@@ -2,6 +2,7 @@ using Esiur.Protocol;
 using Esiur.Resource;
 using Esiur.Security.Authority;
 using Esiur.Security.Cryptography;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using System.Diagnostics.CodeAnalysis;
 
@@ -46,6 +47,17 @@ public sealed class EsiurOptions
     /// </summary>
     public ISet<string> AllowedWebSocketOrigins { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Called for every accepted Esiur WebSocket, after its <see cref="EpConnection"/> is
+    /// created and before any EP data is read, with the HTTP upgrade request that opened
+    /// it. Use it to remember request facts the connection does not carry, such as the
+    /// host name or a forwarded header, for example in a ConditionalWeakTable keyed by the
+    /// connection. RPC handlers run in Esiur continuations that do not carry the request's
+    /// async-local state, so this is the place to capture it. An exception rejects the
+    /// connection.
+    /// </summary>
+    public Action<HttpContext, EpConnection>? WebSocketAccepted { get; set; }
 
     /// <summary>
     /// Maximum copied outbound WebSocket data retained per connection while the peer is

@@ -307,6 +307,72 @@ public sealed class AspNetCoreIntegrationTests
     }
 
     [Fact]
+    public async Task WebSocketAccepted_SeesTheUpgradeRequestAndTheAdmittedConnection()
+    {
+        var accepted = new List<(string Host, string Path, EpConnection Connection, bool Admitted)>();
+        TestApplication? started = null;
+        await using var host = started = await StartApplicationAsync(
+            configureEsiur: builder => builder.OnWebSocketAccepted((context, connection) =>
+            {
+                lock (accepted)
+                    accepted.Add((context.Request.Host.Host, context.Request.Path.Value ?? "", connection,
+                        started!.Server.Connections.Contains(connection)));
+            }));
+        using var cancellation = new CancellationTokenSource(TestTimeout);
+        var socket = new FrameworkWebSocket(host.WebSocketAddress);
+        try
+        {
+            Assert.True(await socket.Connect(host.WebSocketAddress, cancellation.Token));
+            Assert.True(socket.Begin());
+            await WaitUntilAsync(() => host.Server.Connections.Count == 1, cancellation.Token);
+
+            var call = Assert.Single(accepted);
+            Assert.Equal(host.WebSocketAddress.Host, call.Host);
+            Assert.Equal(host.WebSocketAddress.AbsolutePath, call.Path);
+            // Same connection the server admitted, observed before admission.
+            Assert.Same(Assert.Single(host.Server.Connections), call.Connection);
+            Assert.False(call.Admitted);
+        }
+        finally
+        {
+            socket.Destroy();
+        }
+    }
+
+    [Fact]
+    public async Task WebSocketAccepted_ExceptionRejectsTheConnection()
+    {
+        var calls = 0;
+        await using var host = await StartApplicationAsync(
+            configureEsiur: builder => builder.OnWebSocketAccepted((_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                throw new InvalidOperationException("rejected by host");
+            }));
+        using var cancellation = new CancellationTokenSource(TestTimeout);
+        var socket = new FrameworkWebSocket(host.WebSocketAddress);
+        try
+        {
+            try
+            {
+                if (await socket.Connect(host.WebSocketAddress, cancellation.Token))
+                    socket.Begin();
+            }
+            catch (AsyncException exception) when (exception.InnerException is WebSocketException)
+            {
+                // The rejection can abort the upgrade itself.
+            }
+            await WaitUntilAsync(() => Volatile.Read(ref calls) == 1, cancellation.Token);
+            await Task.Delay(200, cancellation.Token);
+            Assert.Empty(host.Server.Connections);
+        }
+        finally
+        {
+            socket.Destroy();
+        }
+    }
+
+    [Fact]
     public async Task FrameworkWebSocket_ConnectsThroughKestrel_WithRealPeerAdmission()
     {
         await using var host = await StartApplicationAsync(

@@ -102,6 +102,23 @@ production; do not leave it as `*`, because implicit same-origin checks rely on
 the validated request host. `AllowAnyWebSocketOrigin` is available for
 exceptional cases, but it should not be the production default.
 
+## Request facts per connection
+
+RPC handlers receive the `EpConnection`, not the HTTP request, and they run in Esiur
+continuations that do not carry the request's async-local state. To keep a fact from the
+WebSocket upgrade request (for example the host name a multi-domain site was opened on),
+record it when the socket is accepted:
+
+```csharp
+var hosts = new ConditionalWeakTable<EpConnection, string>();
+builder.Services.AddEsiur()
+    .OnWebSocketAccepted((context, connection) =>
+        hosts.AddOrUpdate(connection, context.Request.Host.Host));
+```
+
+The callback runs before the connection is admitted and before any EP data is read. An
+exception rejects the connection.
+
 ## Production authentication and encryption
 
 Register an application authentication provider and authenticated record
